@@ -17,6 +17,7 @@ const EXCLUSIONS_FILE = path.join(DATA_DIR, 'exclusions.json');
 const TAGS_FILE = path.join(DATA_DIR, 'tags.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const WINNERS_FILE = path.join(DATA_DIR, 'winners.json');
+const RANKING_FILE = path.join(DATA_DIR, 'ranking.json');
 const ASSETS_DIR = path.join(process.cwd(), 'public', 'assets');
 
 function ensureDataDir() {
@@ -177,6 +178,44 @@ function writeWinners(winners: Winner[]): void {
   fs.writeFileSync(WINNERS_FILE, JSON.stringify(winners, null, 2), 'utf8');
 }
 
+// Historico acumulado por persona. A diferencia de winners.json, no se borra
+// al entregar el premio: es lo que alimenta el ranking.
+interface RankEntry {
+  name: string;
+  total: number;
+  draws: number;
+}
+
+function readRanking(): Record<string, RankEntry> {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(RANKING_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(RANKING_FILE, 'utf8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.error('Failed to read ranking:', err);
+  }
+  return {};
+}
+
+function writeRanking(ranking: Record<string, RankEntry>): void {
+  ensureDataDir();
+  fs.writeFileSync(RANKING_FILE, JSON.stringify(ranking, null, 2), 'utf8');
+}
+
+function addToRanking(name: string, total: number): void {
+  const ranking = readRanking();
+  const key = normalizeName(name);
+  const actual = ranking[key] ?? { name, total: 0, draws: 0 };
+  ranking[key] = {
+    name,                       // se queda con la ultima grafia usada
+    total: actual.total + total,
+    draws: actual.draws + 1
+  };
+  writeRanking(ranking);
+}
+
 function getItemId(item: any): string {
   return String(item?.ankama_id ?? item?.id ?? item?._id ?? '');
 }
@@ -218,6 +257,15 @@ app.put('/api/exclusions', (req: Request, res: Response) => {
     console.error('Failed to write exclusions:', err);
     res.status(500).json({ error: 'failed to save exclusions' });
   }
+});
+
+// GET /api/ranking?limit=3 -> { ranking: RankEntry[] } ordenado por total
+app.get('/api/ranking', (req: Request, res: Response) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 3, 1), 50);
+  const ranking = Object.values(readRanking())
+    .sort((a, b) => b.total - a.total || b.draws - a.draws)
+    .slice(0, limit);
+  res.json({ ranking });
 });
 
 // GET /api/winners -> { winners: Winner[] }  (mas recientes primero)
@@ -268,6 +316,7 @@ app.post('/api/winners', (req: Request, res: Response) => {
     }
 
     writeWinners(winners);
+    addToRanking(name, total);   // el historico no se borra al entregar
     res.json({ winner, merged: Boolean(existente), winners });
   } catch (err) {
     console.error('Failed to save winner:', err);
@@ -427,4 +476,5 @@ app.listen(PORT, () => {
   console.log('           GET /api/tags  PUT /api/tags');
   console.log('           GET /api/settings  PUT /api/settings  POST /api/background');
   console.log('           GET /api/winners  POST /api/winners  DELETE /api/winners/:id');
+  console.log('           GET /api/ranking?limit=3');
 });

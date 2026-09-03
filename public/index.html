@@ -47,6 +47,16 @@
     .modal-actions .btn-cancel:hover{background:rgba(255,255,255,0.15)}
     .modal-actions .btn-danger{background:linear-gradient(90deg,#ef4444,#f87171);color:#fff;box-shadow:none}
     @keyframes modalIn{from{opacity:0;transform:translateY(-12px) scale(.97)}to{opacity:1;transform:none}}
+    .podium{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.8rem;margin-top:.9rem}
+    .podium-card{display:flex;align-items:center;gap:.7rem;padding:.8rem 1rem;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
+    .podium-card.p1{background:linear-gradient(135deg, rgba(253,224,71,0.22), rgba(13,21,38,0.85));border-color:rgba(253,224,71,0.55)}
+    .podium-card.p2{background:linear-gradient(135deg, rgba(226,232,240,0.18), rgba(13,21,38,0.85));border-color:rgba(226,232,240,0.45)}
+    .podium-card.p3{background:linear-gradient(135deg, rgba(217,119,6,0.20), rgba(13,21,38,0.85));border-color:rgba(217,119,6,0.50)}
+    .podium-medal{font-size:26px;flex:none}
+    .podium-info{min-width:0;flex:1}
+    .podium-name{font-weight:700;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .podium-total{display:flex;align-items:center;gap:.3rem;font-size:15px;font-weight:600;color:var(--accent);margin-top:.15rem}
+    .podium-draws{font-size:12px;color:var(--muted)}
     .winner-row{display:flex;align-items:center;gap:1rem;padding:.8rem 1rem;margin-top:.7rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
     .winner-row .wr-main{flex:1;min-width:0}
     .winner-row .wr-name{font-size:18px;font-weight:700}
@@ -270,6 +280,12 @@
         </div>
 
         <div class="tab-panel" id="winners-panel">
+          <section>
+            <h3>🏆 Top 3 histórico</h3>
+            <p class="meta">Acumulado de todos los sorteos, incluidos los premios ya entregados.</p>
+            <div id="podium" class="podium"></div>
+          </section>
+
           <section>
             <h3>Ganadores pendientes de entrega</h3>
             <p class="meta">Al entregar el premio, elimina al ganador de la lista.</p>
@@ -760,6 +776,35 @@
       });
     }
 
+    function renderPodium(ranking) {
+      const box = document.getElementById('podium');
+      if (!box) return;
+      if (!ranking.length) {
+        box.innerHTML = '<div class="meta">Aún no hay historial de ganadores.</div>';
+        return;
+      }
+      const medallas = ['🥇', '🥈', '🥉'];
+      box.innerHTML = ranking.map((r, i) => `
+        <div class="podium-card p${i + 1}">
+          <div class="podium-medal">${medallas[i] ?? '🏅'}</div>
+          <div class="podium-info">
+            <div class="podium-name" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
+            <div class="podium-total">${r.total.toLocaleString('es-ES')}<img src="/assets/kama.png" alt="kamas" class="kama-icon" /></div>
+            <div class="podium-draws">${r.draws} sorteo(s) ganado(s)</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function loadRanking() {
+      try {
+        const data = await api('/api/ranking?limit=3');
+        renderPodium(data.ranking || []);
+      } catch (e) {
+        console.warn('No se pudo cargar el ranking:', e.message);
+      }
+    }
+
     async function loadWinners() {
       try {
         const data = await api('/api/winners');
@@ -1069,6 +1114,7 @@
     // Al abrir la página cargamos items y exclusiones sin esperar a que el usuario pulse nada.
     loadSettings();
     loadWinners();
+    loadRanking();
     loadItems();
 
     document.getElementById('load').addEventListener('click', loadItems);
@@ -1095,6 +1141,7 @@
         });
         winners = data.winners || [];
         renderWinners();
+        loadRanking();   // el nuevo premio puede cambiar el podio
         status.textContent = data.merged
           ? `Sumado a ${data.winner.name}: total ${data.winner.total.toLocaleString('es-ES')}`
           : `Guardado en Ganadores (${total.toLocaleString('es-ES')})`;
