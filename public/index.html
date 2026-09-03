@@ -300,6 +300,17 @@
       }
     }
 
+    // Actualiza las casillas ya pintadas sin recrear las tarjetas, para no
+    // relanzar la animación de entrada ni perder la posición del scroll.
+    function refreshSelectionUI() {
+      document.querySelectorAll('#items .item').forEach((el) => {
+        const on = selectedIds.has(el.dataset.itemId);
+        el.classList.toggle('selected', on);
+        const box = el.querySelector('.select-box');
+        if (box) box.checked = on;
+      });
+    }
+
     function updateBulkBar() {
       const total = selectedIds.size;
       const count = document.getElementById('bulkCount');
@@ -784,13 +795,13 @@
         if (allSelected) selectedIds.delete(c.dataset.itemId);
         else selectedIds.add(c.dataset.itemId);
       });
-      renderItemsPage();
+      refreshSelectionUI();
       updateBulkBar();
     });
 
     document.getElementById('bulkClear').addEventListener('click', () => {
       selectedIds.clear();
-      renderItemsPage();
+      refreshSelectionUI();
       updateBulkBar();
     });
 
