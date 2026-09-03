@@ -46,6 +46,12 @@
     .editor-row.epic{background:linear-gradient(90deg, rgba(168,85,247,0.22), transparent)}
     .editor-row.mythic{background:linear-gradient(90deg, rgba(239,68,68,0.22), transparent)}
     .editor-row.excluded{opacity:.5}
+    .bulk-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.8rem;padding:.6rem .8rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
+    .bulk-bar button{padding:.4rem .8rem;font-size:14px;box-shadow:none}
+    .bulk-bar select{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.35rem .5rem;font-size:14px;cursor:pointer}
+    .bulk-sep{flex:1}
+    .select-box{position:absolute;top:8px;right:8px;width:20px;height:20px;margin:0;cursor:pointer;accent-color:var(--accent);z-index:2}
+    .item.selected{outline:2px solid var(--accent);outline-offset:2px}
     .excluded-bar{display:flex;gap:.75rem;align-items:center;margin-top:.8rem}
     .excluded-bar[hidden]{display:none}
     .subtabs{display:flex;gap:0.4rem;margin-top:0.9rem;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:0.5rem}
@@ -59,7 +65,7 @@
     .tab-panel section{max-width:948px}
     .pagination{display:flex;align-items:center;justify-content:center;gap:0.75rem;margin-top:1rem}
     #pageInfo{color:var(--muted);font-size:15px}
-    .item{width:220px;padding:14px;display:flex;flex-direction:column;border-radius:12px;background:rgba(13,21,38,0.86);backdrop-filter: blur(10px);border:1px solid rgba(255,255,255,0.14);transition:transform 2s cubic-bezier(.2,.9,.2,1), box-shadow .5s ease, opacity 2s ease;opacity:0;transform:translateY(24px) scale(.98)}
+    .item{position:relative;width:220px;padding:14px;display:flex;flex-direction:column;border-radius:12px;background:rgba(13,21,38,0.86);backdrop-filter: blur(10px);border:1px solid rgba(255,255,255,0.14);transition:transform 2s cubic-bezier(.2,.9,.2,1), box-shadow .5s ease, opacity 2s ease;opacity:0;transform:translateY(24px) scale(.98)}
     .item.show{opacity:1;transform:none;box-shadow:0 8px 24px rgba(2,6,23,0.55)}
     .item:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 18px 40px rgba(2,6,23,0.6)}
     .thumb{height:88px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
@@ -136,6 +142,21 @@
               <button type="button" class="subtab" data-view="mythic">Míticos (0)</button>
               <button type="button" class="subtab" data-view="excluded">Excluidos (0)</button>
             </div>
+            <div class="bulk-bar" id="bulkBar">
+              <span class="meta" id="bulkCount">Ningún objeto seleccionado</span>
+              <select id="bulkRarity" aria-label="Rareza a aplicar">
+                <option value="">Sin marcar</option>
+                <option value="rare">Raro</option>
+                <option value="epic">Épico</option>
+                <option value="mythic">Mítico</option>
+              </select>
+              <button id="bulkApplyRarity" type="button" disabled>Aplicar rareza</button>
+              <button id="bulkExclude" type="button" disabled>Excluir</button>
+              <button id="bulkInclude" type="button" disabled>Incluir</button>
+              <span class="bulk-sep"></span>
+              <button id="bulkSelectPage" type="button">Seleccionar página</button>
+              <button id="bulkClear" type="button" disabled>Limpiar selección</button>
+            </div>
             <div class="excluded-bar" id="excludedBar" hidden>
               <span class="meta" id="excludedInfo">Ningún recurso excluido</span>
               <button id="clearExcluded" type="button" disabled>Limpiar exclusiones</button>
@@ -207,6 +228,7 @@
     let currentPage = 1;
     let rouletteInterval = null;
     const excludedIds = new Set();
+    const selectedIds = new Set();   // selección múltiple del catálogo, solo en memoria
     let itemTags = {};   // { [itemId]: 'rare' | 'epic' | 'mythic' }
     let catalogView = 'all';
 
@@ -276,6 +298,20 @@
       } catch (e) {
         alert('No se pudieron guardar las exclusiones: ' + e.message);
       }
+    }
+
+    function updateBulkBar() {
+      const total = selectedIds.size;
+      const count = document.getElementById('bulkCount');
+      if (count) {
+        count.textContent = total
+          ? `${total} objeto(s) seleccionado(s)`
+          : 'Ningún objeto seleccionado';
+      }
+      ['bulkApplyRarity', 'bulkExclude', 'bulkInclude', 'bulkClear'].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (btn) btn.disabled = total === 0;
+      });
     }
 
     function updateExcludedInfo() {
@@ -552,7 +588,7 @@
         container.innerHTML = `<div class="meta">${emptyMsg && !searchInput.value.trim() ? emptyMsg : 'No se encontraron resultados.'}</div>`;
       } else {
         pageItems.forEach((it, i) => {
-          const card = createItemCard(it, { tags: true, exclude: true });
+          const card = createItemCard(it, { tags: true, exclude: true, select: true });
           container.appendChild(card);
           setTimeout(() => card.classList.add('show'), i * 50);
         });
@@ -572,6 +608,7 @@
       const imgUrl = it.image_urls?.icon ?? it.image_urls?.sd ?? '';
       el.dataset.itemId = String(it.ankama_id ?? it.id ?? it._id ?? '');
       el.innerHTML = `
+        ${opts.select === true ? '<input type="checkbox" class="select-box" aria-label="Seleccionar objeto" />' : ''}
         <div class="thumb"><img src="${escapeHtml(imgUrl)}" loading="lazy" alt="${escapeHtml(title)}" onerror="this.style.display='none'"/></div>
         <div class="title">${escapeHtml(title)}</div>
         ${allowTags ? `
@@ -592,6 +629,18 @@
       `;
 
       const cardId = el.dataset.itemId;
+
+      if (opts.select === true) {
+        const box = el.querySelector('.select-box');
+        box.checked = selectedIds.has(cardId);
+        el.classList.toggle('selected', box.checked);
+        box.addEventListener('change', () => {
+          if (box.checked) selectedIds.add(cardId);
+          else selectedIds.delete(cardId);
+          el.classList.toggle('selected', box.checked);
+          updateBulkBar();
+        });
+      }
 
       if (opts.value === true) {
         const valueInput = el.querySelector('.value-input');
@@ -693,6 +742,7 @@
         currentPage = 1;
         renderItemsPage();
         updateExcludedInfo();
+        updateBulkBar();
         renderEditor();
       }catch(e){
         alert('Error: ' + e.message);
@@ -703,6 +753,47 @@
     loadItems();
 
     document.getElementById('load').addEventListener('click', loadItems);
+    document.getElementById('bulkApplyRarity').addEventListener('click', () => {
+      const rarity = document.getElementById('bulkRarity').value;
+      selectedIds.forEach((id) => {
+        if (rarity) itemTags[id] = rarity;
+        else delete itemTags[id];
+      });
+      saveTags();                 // una sola llamada para todo el lote
+      updateExcludedInfo();
+      refreshRenderedRarities();
+    });
+
+    document.getElementById('bulkExclude').addEventListener('click', () => {
+      selectedIds.forEach((id) => excludedIds.add(id));
+      saveExclusions();
+      updateExcludedInfo();
+    });
+
+    document.getElementById('bulkInclude').addEventListener('click', () => {
+      selectedIds.forEach((id) => excludedIds.delete(id));
+      saveExclusions();
+      updateExcludedInfo();
+    });
+
+    document.getElementById('bulkSelectPage').addEventListener('click', () => {
+      // Alterna: si ya está toda la página seleccionada, la deselecciona.
+      const cards = Array.from(document.querySelectorAll('#items .item'));
+      const allSelected = cards.length > 0 && cards.every((c) => selectedIds.has(c.dataset.itemId));
+      cards.forEach((c) => {
+        if (allSelected) selectedIds.delete(c.dataset.itemId);
+        else selectedIds.add(c.dataset.itemId);
+      });
+      renderItemsPage();
+      updateBulkBar();
+    });
+
+    document.getElementById('bulkClear').addEventListener('click', () => {
+      selectedIds.clear();
+      renderItemsPage();
+      updateBulkBar();
+    });
+
     document.getElementById('toggleEditor').addEventListener('click', () => {
       const section = document.getElementById('editorSection');
       section.hidden = !section.hidden;

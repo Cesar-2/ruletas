@@ -4,6 +4,11 @@ node_modules/
 # Salida de TypeScript
 dist/
 
+# Datos de cada instalación: cache del catalogo, exclusiones y rarezas.
+# Se ignora para que un despliegue no sobrescriba lo que el cliente haya
+# marcado. El servidor crea la carpeta al arrancar si no existe.
+data/
+
 # Volcados de pruebas de la API
 api_raw.json
 last_items.json
