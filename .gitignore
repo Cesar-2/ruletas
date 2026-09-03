@@ -4,10 +4,12 @@ node_modules/
 # Salida de TypeScript
 dist/
 
-# Datos de cada instalación: cache del catalogo, exclusiones y rarezas.
-# Se ignora para que un despliegue no sobrescriba lo que el cliente haya
-# marcado. El servidor crea la carpeta al arrancar si no existe.
-data/
+# Datos de cada instalación. Se ignora todo salvo exclusiones y rarezas, que
+# se versionan vacias como plantilla. Nota: hay que usar "data/*" y no "data/",
+# porque Git no entra en un directorio ignorado y las excepciones no aplicarian.
+data/*
+!data/exclusions.json
+!data/tags.json
 
 # Volcados de pruebas de la API
 api_raw.json
