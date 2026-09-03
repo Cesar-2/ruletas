@@ -50,6 +50,7 @@
     .winner-row{display:flex;align-items:center;gap:1rem;padding:.8rem 1rem;margin-top:.7rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
     .winner-row .wr-main{flex:1;min-width:0}
     .winner-row .wr-name{font-size:18px;font-weight:700}
+    .winner-row .wr-badge{display:inline-block;vertical-align:middle;margin-left:.4rem;padding:.1rem .5rem;border-radius:999px;font-size:12px;font-weight:600;color:#021018;background:var(--accent)}
     .winner-row .wr-items{font-size:13px;color:var(--muted);margin-top:.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .winner-row .wr-total{font-size:18px;font-weight:700;color:var(--accent);white-space:nowrap}
     .winner-row .wr-date{font-size:12px;color:var(--muted);white-space:nowrap}
@@ -727,7 +728,7 @@
         row.className = 'winner-row';
         row.innerHTML = `
           <div class="wr-main">
-            <div class="wr-name">${escapeHtml(w.name)}</div>
+            <div class="wr-name">${escapeHtml(w.name)}${(w.draws ?? 1) > 1 ? ` <span class="wr-badge">${w.draws} sorteos</span>` : ''}</div>
             <div class="wr-items" title="${escapeHtml(nombres)}">${escapeHtml(nombres || 'Sin objetos registrados')}</div>
           </div>
           <div>
@@ -1093,7 +1094,9 @@
         });
         winners = data.winners || [];
         renderWinners();
-        status.textContent = `Guardado en Ganadores (${total.toLocaleString('es-ES')})`;
+        status.textContent = data.merged
+          ? `Sumado a ${data.winner.name}: total ${data.winner.total.toLocaleString('es-ES')}`
+          : `Guardado en Ganadores (${total.toLocaleString('es-ES')})`;
         setTimeout(() => { status.textContent = ''; }, 2500);
       } catch (e) {
         status.textContent = 'Error al guardar: ' + e.message;

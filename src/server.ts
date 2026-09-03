@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+﻿import express, { Request, Response } from 'express';
 import axios from 'axios';
 import cors from 'cors';
 import fs from 'fs';
@@ -151,6 +151,12 @@ interface Winner {
   total: number;
   items: { id: string; name: string; value: number }[];
   date: string;
+  draws?: number;   // cuantos sorteos se han acumulado en esta entrada
+}
+
+// Para detectar al mismo ganador aunque cambie mayusculas o tildes.
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 function readWinners(): Winner[] {
@@ -234,19 +240,35 @@ app.post('/api/winners', (req: Request, res: Response) => {
       }))
     : [];
 
-  const winner: Winner = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    name,
-    total,
-    items,
-    date: new Date().toISOString()
-  };
-
   try {
     const winners = readWinners();
-    winners.unshift(winner);
+    const existente = winners.find((w) => normalizeName(w.name) === normalizeName(name));
+
+    let winner: Winner;
+    if (existente) {
+      // Mismo ganador: se acumula el premio en su entrada en vez de duplicarla.
+      existente.total += total;
+      existente.items = existente.items.concat(items);
+      existente.draws = (existente.draws ?? 1) + 1;
+      existente.date = new Date().toISOString();
+      // Vuelve arriba del todo por ser el mas reciente.
+      winners.splice(winners.indexOf(existente), 1);
+      winners.unshift(existente);
+      winner = existente;
+    } else {
+      winner = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name,
+        total,
+        items,
+        date: new Date().toISOString(),
+        draws: 1
+      };
+      winners.unshift(winner);
+    }
+
     writeWinners(winners);
-    res.json({ winner, winners });
+    res.json({ winner, merged: Boolean(existente), winners });
   } catch (err) {
     console.error('Failed to save winner:', err);
     res.status(500).json({ error: 'failed to save winner' });
