@@ -84,7 +84,10 @@ function writeExclusions(ids: string[]): void {
   fs.writeFileSync(EXCLUSIONS_FILE, JSON.stringify(ids, null, 2), 'utf8');
 }
 
-type Tags = Record<string, 'gold' | 'silver'>;
+type Rarity = 'rare' | 'epic' | 'mythic';
+const RARITIES: Rarity[] = ['rare', 'epic', 'mythic'];
+
+type Tags = Record<string, Rarity>;
 
 function readTags(): Tags {
   ensureDataDir();
@@ -147,12 +150,12 @@ app.put('/api/exclusions', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/tags -> { tags: { [itemId]: 'gold' | 'silver' } }
+// GET /api/tags -> { tags: { [itemId]: 'rare' | 'epic' | 'mythic' } }
 app.get('/api/tags', (_req: Request, res: Response) => {
   res.json({ tags: readTags() });
 });
 
-// PUT /api/tags  Body: { tags: { [itemId]: 'gold' | 'silver' } }
+// PUT /api/tags  Body: { tags: { [itemId]: 'rare' | 'epic' | 'mythic' } }
 app.put('/api/tags', (req: Request, res: Response) => {
   const incoming = req.body?.tags;
   if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
@@ -160,7 +163,7 @@ app.put('/api/tags', (req: Request, res: Response) => {
   }
   const clean: Tags = {};
   for (const [id, value] of Object.entries(incoming)) {
-    if (value === 'gold' || value === 'silver') clean[String(id)] = value;
+    if (RARITIES.includes(value as Rarity)) clean[String(id)] = value as Rarity;
   }
   try {
     writeTags(clean);
@@ -177,8 +180,8 @@ app.get('/api/random-items', async (req: Request, res: Response) => {
     const all = await fetchItemsCached();
     if (all.length === 0) return res.status(500).json({ error: 'no items available' });
 
-    // Participan todos menos los excluidos. Los colores (dorado/plateado) son
-    // solo una marca visual de "objeto caro" y no afectan al sorteo.
+    // Participan todos menos los excluidos. La rareza (raro/épico/mítico) es
+    // solo una marca visual de "objeto caro" y no afecta al sorteo.
     const excluded = new Set(readExclusions());
     const items = all.filter((it) => !excluded.has(getItemId(it)));
     if (items.length === 0) return res.status(409).json({ error: 'all items are excluded' });

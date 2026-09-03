@@ -26,6 +26,15 @@
     input, textarea{background:var(--card);border:1px solid rgba(255,255,255,0.04);color:inherit;padding:0.5rem;border-radius:6px}
     section{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent); padding:1rem;border-radius:12px;margin-bottom:1rem; box-shadow: 0 6px 24px rgba(2,6,23,0.6)}
     .grid{display:grid;grid-template-columns:1fr;gap:1rem}
+    .draw-controls{display:flex;gap:.5rem;align-items:center;margin-top:.5rem;flex-wrap:wrap}
+    .draw-controls #winnerName{min-width:200px;flex:0 1 260px}
+    .push-right{margin-left:auto}
+    .winner-banner{margin-top:.9rem;padding:.7rem 1rem;border-radius:10px;font-size:20px;font-weight:700;text-align:center;color:#021018;background:linear-gradient(90deg,var(--accent),#3ee9c0);box-shadow:0 8px 26px rgba(110,231,183,0.25)}
+    .winner-banner[hidden]{display:none}
+    .value-total{margin-top:.8rem;padding:.6rem .9rem;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);font-size:17px;font-weight:600}
+    .value-total[hidden]{display:none}
+    .value-row{display:flex;align-items:center;gap:.4rem;margin-top:auto;padding-top:8px;font-size:13px;color:var(--muted)}
+    .value-row input{width:100%;min-width:0;padding:.35rem .45rem;font-size:14px}
     .editor-list{max-height:420px;overflow-y:auto;margin-top:.6rem;border:1px solid rgba(255,255,255,0.08);border-radius:10px}
     .editor-row{display:flex;align-items:center;gap:.75rem;padding:.5rem .7rem;border-bottom:1px solid rgba(255,255,255,0.05)}
     .editor-row:last-child{border-bottom:none}
@@ -33,8 +42,9 @@
     .editor-row .er-name{flex:1;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .editor-row select{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.35rem .5rem;font-size:14px;cursor:pointer}
     .editor-row .er-exclude{display:flex;align-items:center;gap:.35rem;font-size:14px;color:var(--muted);cursor:pointer;white-space:nowrap}
-    .editor-row.gold{background:linear-gradient(90deg, rgba(253,224,71,0.20), transparent)}
-    .editor-row.silver{background:linear-gradient(90deg, rgba(226,232,240,0.18), transparent)}
+    .editor-row.rare{background:linear-gradient(90deg, rgba(59,130,246,0.22), transparent)}
+    .editor-row.epic{background:linear-gradient(90deg, rgba(168,85,247,0.22), transparent)}
+    .editor-row.mythic{background:linear-gradient(90deg, rgba(239,68,68,0.22), transparent)}
     .editor-row.excluded{opacity:.5}
     .excluded-bar{display:flex;gap:.75rem;align-items:center;margin-top:.8rem}
     .excluded-bar[hidden]{display:none}
@@ -49,26 +59,27 @@
     .tab-panel section{max-width:948px}
     .pagination{display:flex;align-items:center;justify-content:center;gap:0.75rem;margin-top:1rem}
     #pageInfo{color:var(--muted);font-size:15px}
-    .item{width:220px;padding:14px;display:flex;flex-direction:column;border-radius:12px;background:rgba(255,255,255,0.05);backdrop-filter: blur(10px);border:1px solid rgba(255,255,255,0.10);transition:transform 2s cubic-bezier(.2,.9,.2,1), box-shadow .5s ease, opacity 2s ease;opacity:0;transform:translateY(24px) scale(.98)}
-    .item.show{opacity:1;transform:none}
+    .item{width:220px;padding:14px;display:flex;flex-direction:column;border-radius:12px;background:rgba(13,21,38,0.86);backdrop-filter: blur(10px);border:1px solid rgba(255,255,255,0.14);transition:transform 2s cubic-bezier(.2,.9,.2,1), box-shadow .5s ease, opacity 2s ease;opacity:0;transform:translateY(24px) scale(.98)}
+    .item.show{opacity:1;transform:none;box-shadow:0 8px 24px rgba(2,6,23,0.55)}
     .item:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 18px 40px rgba(2,6,23,0.6)}
     .thumb{height:88px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
     .thumb img{max-width:80%;max-height:80%;border-radius:8px;transition:transform .35s ease, box-shadow .35s ease}
     .item:hover .thumb img{transform:scale(1.06);box-shadow:0 10px 30px rgba(0,0,0,0.6)}
     .item .title{font-weight:600;margin-bottom:6px;font-size:16px}
-    .item .title{margin-bottom:10px}
-    .item.gold{background:linear-gradient(160deg, rgba(253,224,71,0.30), rgba(180,120,20,0.16));border-color:rgba(253,224,71,0.65);box-shadow:0 10px 30px rgba(180,140,20,0.30)}
-    .item.silver{background:linear-gradient(160deg, rgba(226,232,240,0.28), rgba(120,135,155,0.16));border-color:rgba(226,232,240,0.65);box-shadow:0 10px 30px rgba(150,160,175,0.28)}
-    .tag-row{display:flex;gap:.75rem;margin-top:8px;font-size:13px;color:var(--muted)}
-    .tag-row label{display:flex;align-items:center;gap:.3rem;cursor:pointer}
-    .tag-row input{margin:0;cursor:pointer;accent-color:#eab308}
-    .tag-row label[data-tag="silver"] input{accent-color:#cbd5e1}
-    .item.gold .tag-row, .item.silver .tag-row{color:#f8fafc}
+    /* Altura fija de 2 líneas: iguala la posición del campo de valor y los
+       botones entre tarjetas, aunque los nombres tengan longitudes distintas. */
+    .item .title{margin-bottom:10px;line-height:1.4;min-height:2.8em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .item.rare{background:linear-gradient(160deg, rgba(37,99,235,0.55), rgba(13,21,38,0.90));border-color:rgba(96,165,250,0.80);box-shadow:0 8px 24px rgba(2,6,23,0.55), 0 10px 30px rgba(37,99,235,0.30)}
+    .item.epic{background:linear-gradient(160deg, rgba(147,51,234,0.55), rgba(13,21,38,0.90));border-color:rgba(192,132,252,0.80);box-shadow:0 8px 24px rgba(2,6,23,0.55), 0 10px 30px rgba(147,51,234,0.30)}
+    .item.mythic{background:linear-gradient(160deg, rgba(220,38,38,0.55), rgba(13,21,38,0.90));border-color:rgba(248,113,113,0.80);box-shadow:0 8px 24px rgba(2,6,23,0.55), 0 10px 30px rgba(220,38,38,0.30)}
+    .tag-row{margin-top:8px}
+    .tag-row select{width:100%;background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.35rem .45rem;font-size:13px;cursor:pointer}
     .item.excluded{opacity:.45;filter:grayscale(.8)}
     .item.excluded:hover{opacity:.7}
     .exclude-toggle{margin-top:6px;width:100%;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#fca5a5;background:rgba(248,113,113,0.10);border:1px solid rgba(248,113,113,0.35);box-shadow:none;transition:background .2s ease}
     .exclude-toggle:hover{background:rgba(248,113,113,0.2)}
     .item.excluded .exclude-toggle{color:#6ee7b7;background:rgba(110,231,183,0.12);border-color:rgba(110,231,183,0.45)}
+    .value-row + .copy-name{margin-top:8px}
     .copy-name{margin-top:auto;width:100%;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#e6f0ff;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);transition:background .2s ease, border-color .2s ease}
     .copy-name:hover{background:rgba(255,255,255,0.12)}
     .copy-name.copied{background:rgba(110,231,183,0.18);border-color:rgba(110,231,183,0.6);color:#6ee7b7}
@@ -120,8 +131,9 @@
             </div>
             <div class="subtabs">
               <button type="button" class="subtab active" data-view="all">Todos</button>
-              <button type="button" class="subtab" data-view="gold">Dorados (0)</button>
-              <button type="button" class="subtab" data-view="silver">Plateados (0)</button>
+              <button type="button" class="subtab" data-view="rare">Raros (0)</button>
+              <button type="button" class="subtab" data-view="epic">Épicos (0)</button>
+              <button type="button" class="subtab" data-view="mythic">Míticos (0)</button>
               <button type="button" class="subtab" data-view="excluded">Excluidos (0)</button>
             </div>
             <div class="excluded-bar" id="excludedBar" hidden>
@@ -143,12 +155,15 @@
         <div class="tab-panel" id="random-panel">
           <section>
             <h3>Bienvenido al ruleton</h3>
-            <div style="display:flex;gap:.5rem;align-items:center;margin-top:.5rem">
+            <div class="draw-controls">
+              <input id="winnerName" type="text" placeholder="Nombre del ganador" aria-label="Nombre del ganador" />
               <input id="n" type="number" value="3" min="1" style="width:90px" />
               <button id="rand">Elegir</button>
-              <button id="toggleEditor" type="button">Editar</button>
+              <button id="toggleEditor" type="button" class="push-right">Editar</button>
             </div>
+            <div id="winnerBanner" class="winner-banner" hidden></div>
             <div id="randomResult" style="margin-top:.75rem"></div>
+            <div id="valueTotal" class="value-total" hidden></div>
           </section>
 
           <section id="editorSection" hidden>
@@ -192,8 +207,29 @@
     let currentPage = 1;
     let rouletteInterval = null;
     const excludedIds = new Set();
-    let itemTags = {};   // { [itemId]: 'gold' | 'silver' }
+    let itemTags = {};   // { [itemId]: 'rare' | 'epic' | 'mythic' }
     let catalogView = 'all';
+
+    const RARITIES = ['rare', 'epic', 'mythic'];
+    const RARITY_LABEL = { rare: 'Raro', epic: 'Épico', mythic: 'Mítico' };
+
+    function applyRarityClass(el, rarity) {
+      RARITIES.forEach((r) => el.classList.toggle(r, rarity === r));
+    }
+
+    // Repinta la rareza en las tarjetas ya renderizadas sin recrearlas, para no
+    // perder lo que el usuario haya escrito en el campo de valor.
+    function refreshRenderedRarities() {
+      document.querySelectorAll('#randomResult .item').forEach((el) => {
+        applyRarityClass(el, itemTags[el.dataset.itemId] ?? '');
+      });
+      document.querySelectorAll('.editor-row').forEach((row) => {
+        const rarity = itemTags[row.dataset.itemId] ?? '';
+        applyRarityClass(row, rarity);
+        const select = row.querySelector('.er-color');
+        if (select) select.value = rarity;
+      });
+    }
 
     function itemId(it) {
       return String(it.ankama_id ?? it.id ?? it._id ?? '');
@@ -260,10 +296,11 @@
       if (excludedTab) excludedTab.textContent = `Excluidos (${total})`;
 
       const tagValues = Object.values(itemTags);
-      const goldTab = document.querySelector('.subtab[data-view="gold"]');
-      if (goldTab) goldTab.textContent = `Dorados (${tagValues.filter((v) => v === 'gold').length})`;
-      const silverTab = document.querySelector('.subtab[data-view="silver"]');
-      if (silverTab) silverTab.textContent = `Plateados (${tagValues.filter((v) => v === 'silver').length})`;
+      const plural = { rare: 'Raros', epic: 'Épicos', mythic: 'Míticos' };
+      RARITIES.forEach((r) => {
+        const tab = document.querySelector(`.subtab[data-view="${r}"]`);
+        if (tab) tab.textContent = `${plural[r]} (${tagValues.filter((v) => v === r).length})`;
+      });
 
       // Al marcar/desmarcar cambia tanto el contenido de la vista de excluidos
       // como el orden de la vista general, así que se repinta en ambos casos.
@@ -384,7 +421,7 @@
         return;
       }
       items.forEach((it, i) => {
-        const card = createItemCard(it, { color: true });
+        const card = createItemCard(it, { color: true, value: true });
         container.appendChild(card);
         setTimeout(() => card.classList.add('show'), i * 50);
       });
@@ -394,7 +431,7 @@
       let base = allItems;
       if (catalogView === 'excluded') {
         base = allItems.filter((it) => excludedIds.has(itemId(it)));
-      } else if (catalogView === 'gold' || catalogView === 'silver') {
+      } else if (RARITIES.includes(catalogView)) {
         base = allItems.filter((it) => itemTags[itemId(it)] === catalogView);
       }
       const query = (searchInput.value || '').trim().toLowerCase();
@@ -418,6 +455,17 @@
     }
 
     let lastDrawItems = [];   // lo que salió en el último sorteo
+    let itemValues = {};      // valor aproximado por objeto, solo en memoria
+
+    function updateValueTotal() {
+      const box = document.getElementById('valueTotal');
+      if (!box) return;
+      const total = lastDrawItems.reduce((sum, it) => sum + (itemValues[itemId(it)] ?? 0), 0);
+      const conValor = lastDrawItems.filter((it) => itemValues[itemId(it)] != null).length;
+      box.hidden = !lastDrawItems.length;
+      box.textContent = `Valor total: ${total.toLocaleString('es-ES')}`
+        + (conValor < lastDrawItems.length ? `  (${conValor} de ${lastDrawItems.length} con valor)` : '');
+    }
 
     function renderEditor() {
       const list = document.getElementById('editorList');
@@ -438,13 +486,15 @@
 
         const row = document.createElement('div');
         row.className = 'editor-row';
+        row.dataset.itemId = id;
         row.innerHTML = `
           <img src="${escapeHtml(imgUrl)}" loading="lazy" alt="" onerror="this.style.visibility='hidden'" />
           <span class="er-name" title="${escapeHtml(String(name))}">${escapeHtml(String(name))}</span>
           <select class="er-color">
             <option value="">Sin marcar</option>
-            <option value="silver">Plateado</option>
-            <option value="gold">Dorado</option>
+            <option value="rare">Raro</option>
+            <option value="epic">Épico</option>
+            <option value="mythic">Mítico</option>
           </select>
           <label class="er-exclude"><input type="checkbox" /> Excluir</label>
         `;
@@ -452,11 +502,10 @@
         const select = row.querySelector('.er-color');
         const checkbox = row.querySelector('.er-exclude input');
         const sync = () => {
-          const color = itemTags[id] ?? '';
-          select.value = color;
+          const rarity = itemTags[id] ?? '';
+          select.value = rarity;
           checkbox.checked = excludedIds.has(id);
-          row.classList.toggle('gold', color === 'gold');
-          row.classList.toggle('silver', color === 'silver');
+          applyRarityClass(row, rarity);
           row.classList.toggle('excluded', checkbox.checked);
         };
         sync();
@@ -466,7 +515,8 @@
           else delete itemTags[id];
           sync();
           saveTags();
-          updateExcludedInfo();
+          updateExcludedInfo();      // repinta el catálogo y sus contadores
+          refreshRenderedRarities(); // y las tarjetas del resultado del sorteo
         });
 
         checkbox.addEventListener('change', () => {
@@ -494,11 +544,11 @@
       container.innerHTML = '';
 
       if (!pageItems.length) {
-        const emptyMsg = {
-          excluded: 'No has excluido ningún objeto. Usa “Excluir del sorteo” en las tarjetas.',
-          gold: 'Ningún objeto marcado como Dorado todavía.',
-          silver: 'Ningún objeto marcado como Plateado todavía.'
-        }[catalogView];
+        const emptyMsg = catalogView === 'excluded'
+          ? 'No has excluido ningún objeto. Usa “Excluir del sorteo” en las tarjetas.'
+          : RARITIES.includes(catalogView)
+            ? `Ningún objeto marcado como ${RARITY_LABEL[catalogView]} todavía.`
+            : null;
         container.innerHTML = `<div class="meta">${emptyMsg && !searchInput.value.trim() ? emptyMsg : 'No se encontraron resultados.'}</div>`;
       } else {
         pageItems.forEach((it, i) => {
@@ -526,8 +576,16 @@
         <div class="title">${escapeHtml(title)}</div>
         ${allowTags ? `
         <div class="tag-row">
-          <label data-tag="silver"><input type="checkbox" data-tag="silver" /> Plateado</label>
-          <label data-tag="gold"><input type="checkbox" data-tag="gold" /> Dorado</label>
+          <select class="tag-select" aria-label="Rareza">
+            <option value="">Sin marcar</option>
+            <option value="rare">Raro</option>
+            <option value="epic">Épico</option>
+            <option value="mythic">Mítico</option>
+          </select>
+        </div>` : ''}
+        ${opts.value === true ? `
+        <div class="value-row">
+          <input type="number" class="value-input" min="0" step="any" placeholder="Valor aprox." aria-label="Valor aproximado" />
         </div>` : ''}
         <button class="copy-name" type="button">Copiar nombre</button>
         ${allowExclude ? '<button class="exclude-toggle" type="button"></button>' : ''}
@@ -535,32 +593,37 @@
 
       const cardId = el.dataset.itemId;
 
-      // Sin checkboxes: solo refleja el color ya asignado.
-      if (opts.color === true) {
-        const current = itemTags[cardId] ?? null;
-        el.classList.toggle('gold', current === 'gold');
-        el.classList.toggle('silver', current === 'silver');
+      if (opts.value === true) {
+        const valueInput = el.querySelector('.value-input');
+        // Los valores no se persisten: viven solo mientras dure la página.
+        if (itemValues[cardId] != null) valueInput.value = itemValues[cardId];
+        valueInput.addEventListener('input', () => {
+          const num = parseFloat(valueInput.value);
+          if (Number.isFinite(num)) itemValues[cardId] = num;
+          else delete itemValues[cardId];
+          updateValueTotal();
+        });
       }
 
+      // Sin selector: solo refleja la rareza ya asignada.
+      if (opts.color === true) applyRarityClass(el, itemTags[cardId] ?? '');
+
       if (allowTags) {
-        const tagInputs = Array.from(el.querySelectorAll('.tag-row input'));
+        const tagSelect = el.querySelector('.tag-select');
         const syncTags = () => {
-          const current = itemTags[cardId] ?? null;
-          el.classList.toggle('gold', current === 'gold');
-          el.classList.toggle('silver', current === 'silver');
-          tagInputs.forEach((input) => { input.checked = input.dataset.tag === current; });
+          const current = itemTags[cardId] ?? '';
+          tagSelect.value = current;
+          applyRarityClass(el, current);
         };
         syncTags();
-        tagInputs.forEach((input) => {
-          input.addEventListener('change', () => {
-            // Solo un color por tarjeta: marcar uno desmarca el otro.
-            if (input.checked) itemTags[cardId] = input.dataset.tag;
-            else delete itemTags[cardId];
-            syncTags();
-            saveTags();
-            // Repinta el catálogo: cambian los contadores y las vistas por color.
-            updateExcludedInfo();
-          });
+        tagSelect.addEventListener('change', () => {
+          if (tagSelect.value) itemTags[cardId] = tagSelect.value;
+          else delete itemTags[cardId];
+          syncTags();
+          saveTags();
+          // Repinta el catálogo: cambian los contadores y las vistas por rareza.
+          updateExcludedInfo();
+          refreshRenderedRarities();
         });
       }
 
@@ -769,6 +832,9 @@
 
     document.getElementById('rand').addEventListener('click', async ()=>{
       const n = Number(document.getElementById('n').value) || 1;
+      // Se captura antes de girar: es el nombre que se anuncia al terminar.
+      const winner = document.getElementById('winnerName').value.trim();
+      document.getElementById('winnerBanner').hidden = true;
       showSpinner();
 
       try {
@@ -777,8 +843,16 @@
         await new Promise((resolve) => setTimeout(resolve, 5000));
         const data = await dataPromise;
         lastDrawItems = data.items || [];
+        itemValues = {};   // cada sorteo empieza con los valores en blanco
         renderResultCards('randomResult', lastDrawItems);
         renderEditor();
+        updateValueTotal();
+
+        const banner = document.getElementById('winnerBanner');
+        banner.textContent = winner
+          ? `🎉 ¡Ganador: ${winner}!`
+          : `🎉 ¡${lastDrawItems.length} recurso(s) sorteado(s)!`;
+        banner.hidden = false;
 
         const cards = Array.from(document.querySelectorAll('#items .item'));
         if(cards.length>0){
