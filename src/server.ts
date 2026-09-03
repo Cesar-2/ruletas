@@ -186,6 +186,23 @@ interface RankEntry {
   draws: number;
 }
 
+// Siembra el ranking con los ganadores que ya existian antes de que hubiera
+// historico. Solo se puede recuperar lo que sigue pendiente de entrega: los
+// premios ya entregados se borraron y no dejaron rastro.
+function seedRankingFromWinners(): Record<string, RankEntry> {
+  const ranking: Record<string, RankEntry> = {};
+  for (const w of readWinners()) {
+    const key = normalizeName(w.name);
+    const actual = ranking[key] ?? { name: w.name, total: 0, draws: 0 };
+    ranking[key] = {
+      name: w.name,
+      total: actual.total + (w.total ?? 0),
+      draws: actual.draws + (w.draws ?? 1)
+    };
+  }
+  return ranking;
+}
+
 function readRanking(): Record<string, RankEntry> {
   ensureDataDir();
   try {
@@ -193,6 +210,12 @@ function readRanking(): Record<string, RankEntry> {
       const parsed = JSON.parse(fs.readFileSync(RANKING_FILE, 'utf8'));
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
     }
+    const sembrado = seedRankingFromWinners();
+    if (Object.keys(sembrado).length) {
+      console.log(`Ranking sembrado con ${Object.keys(sembrado).length} ganador(es) existentes`);
+      writeRanking(sembrado);
+    }
+    return sembrado;
   } catch (err) {
     console.error('Failed to read ranking:', err);
   }
