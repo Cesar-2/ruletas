@@ -6,7 +6,8 @@ import path from 'path';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// El limite por defecto (100kb) no admite la subida de una imagen de fondo.
+app.use(express.json({ limit: '16mb' }));
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const ITEMS_URL = 'https://api.dofusdu.de/dofus3/v1/es/items/resources/all';
@@ -14,6 +15,8 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const ITEMS_FILE = path.join(DATA_DIR, 'items.json');
 const EXCLUSIONS_FILE = path.join(DATA_DIR, 'exclusions.json');
 const TAGS_FILE = path.join(DATA_DIR, 'tags.json');
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const ASSETS_DIR = path.join(process.cwd(), 'public', 'assets');
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -107,6 +110,40 @@ function writeTags(tags: Tags): void {
   fs.writeFileSync(TAGS_FILE, JSON.stringify(tags, null, 2), 'utf8');
 }
 
+interface Settings {
+  backgroundUrl: string;
+  accentColor: string;
+  accentColor2: string;
+  overlayOpacity: number;
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  backgroundUrl: '/assets/fondo.png',
+  accentColor: '#6ee7b7',
+  accentColor2: '#3ee9c0',
+  overlayOpacity: 0.55
+};
+
+function readSettings(): Settings {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    }
+  } catch (err) {
+    console.error('Failed to read settings:', err);
+  }
+  return { ...DEFAULT_SETTINGS };
+}
+
+function writeSettings(settings: Settings): void {
+  ensureDataDir();
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+}
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
 function getItemId(item: any): string {
   return String(item?.ankama_id ?? item?.id ?? item?._id ?? '');
 }
@@ -147,6 +184,65 @@ app.put('/api/exclusions', (req: Request, res: Response) => {
   } catch (err) {
     console.error('Failed to write exclusions:', err);
     res.status(500).json({ error: 'failed to save exclusions' });
+  }
+});
+
+// GET /api/settings -> { settings: Settings }
+app.get('/api/settings', (_req: Request, res: Response) => {
+  res.json({ settings: readSettings() });
+});
+
+// PUT /api/settings  Body: campos parciales de Settings
+app.put('/api/settings', (req: Request, res: Response) => {
+  const body = req.body || {};
+  const current = readSettings();
+  const next: Settings = { ...current };
+
+  if (typeof body.backgroundUrl === 'string') next.backgroundUrl = body.backgroundUrl.slice(0, 2000);
+  if (typeof body.accentColor === 'string' && HEX_COLOR.test(body.accentColor)) next.accentColor = body.accentColor;
+  if (typeof body.accentColor2 === 'string' && HEX_COLOR.test(body.accentColor2)) next.accentColor2 = body.accentColor2;
+  if (typeof body.overlayOpacity === 'number' && body.overlayOpacity >= 0 && body.overlayOpacity <= 1) {
+    next.overlayOpacity = body.overlayOpacity;
+  }
+
+  try {
+    writeSettings(next);
+    res.json({ settings: next });
+  } catch (err) {
+    console.error('Failed to write settings:', err);
+    res.status(500).json({ error: 'failed to save settings' });
+  }
+});
+
+// POST /api/background  Body: { dataUrl: "data:image/png;base64,..." }
+// Guarda la imagen en public/assets y la deja como fondo activo.
+app.post('/api/background', (req: Request, res: Response) => {
+  const dataUrl: unknown = req.body?.dataUrl;
+  if (typeof dataUrl !== 'string') {
+    return res.status(400).json({ error: 'body must be { dataUrl: string }' });
+  }
+
+  const match = /^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/.exec(dataUrl);
+  if (!match) return res.status(400).json({ error: 'unsupported image format' });
+
+  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length > 12 * 1024 * 1024) {
+    return res.status(413).json({ error: 'image too large (max 12MB)' });
+  }
+
+  try {
+    if (!fs.existsSync(ASSETS_DIR)) fs.mkdirSync(ASSETS_DIR, { recursive: true });
+    const filename = `fondo-${Date.now()}.${ext}`;
+    fs.writeFileSync(path.join(ASSETS_DIR, filename), buffer);
+
+    const settings = readSettings();
+    settings.backgroundUrl = `/assets/${filename}`;
+    writeSettings(settings);
+    res.json({ settings });
+  } catch (err) {
+    console.error('Failed to save background:', err);
+    res.status(500).json({ error: 'failed to save background' });
   }
 });
 
@@ -227,4 +323,5 @@ app.listen(PORT, () => {
   console.log('Endpoints: GET /api/items  GET /api/random-items?n=1  POST /api/draw');
   console.log('           GET /api/exclusions  PUT /api/exclusions');
   console.log('           GET /api/tags  PUT /api/tags');
+  console.log('           GET /api/settings  PUT /api/settings  POST /api/background');
 });

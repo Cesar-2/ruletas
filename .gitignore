@@ -11,6 +11,9 @@ data/*
 !data/exclusions.json
 !data/tags.json
 
+# Fondos subidos desde el panel de configuracion: son de cada instalacion.
+public/assets/fondo-*
+
 # Volcados de pruebas de la API
 api_raw.json
 last_items.json
