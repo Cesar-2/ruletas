@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
@@ -36,6 +36,25 @@
     .value-total[hidden]{display:none}
     .value-row{display:flex;align-items:center;gap:.4rem;margin-top:auto;padding-top:8px;font-size:13px;color:var(--muted)}
     .value-row input{width:100%;min-width:0;padding:.35rem .45rem;font-size:14px}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.72);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:2000;padding:1rem}
+    .modal-backdrop[hidden]{display:none}
+    .modal{width:100%;max-width:420px;background:rgba(13,21,38,0.98);border:1px solid rgba(255,255,255,0.14);border-radius:14px;padding:1.4rem;box-shadow:0 30px 80px rgba(0,0,0,0.7);animation:modalIn .18s ease-out}
+    .modal h4{margin:0 0 .6rem;font-size:19px}
+    .modal p{margin:0;color:var(--muted);font-size:15px;line-height:1.5;white-space:pre-line}
+    .modal-actions{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1.3rem}
+    .modal-actions button{padding:.5rem 1.1rem;font-size:15px}
+    .modal-actions .btn-cancel{background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.16);box-shadow:none}
+    .modal-actions .btn-cancel:hover{background:rgba(255,255,255,0.15)}
+    .modal-actions .btn-danger{background:linear-gradient(90deg,#ef4444,#f87171);color:#fff;box-shadow:none}
+    @keyframes modalIn{from{opacity:0;transform:translateY(-12px) scale(.97)}to{opacity:1;transform:none}}
+    .winner-row{display:flex;align-items:center;gap:1rem;padding:.8rem 1rem;margin-top:.7rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
+    .winner-row .wr-main{flex:1;min-width:0}
+    .winner-row .wr-name{font-size:18px;font-weight:700}
+    .winner-row .wr-items{font-size:13px;color:var(--muted);margin-top:.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .winner-row .wr-total{font-size:18px;font-weight:700;color:var(--accent);white-space:nowrap}
+    .winner-row .wr-date{font-size:12px;color:var(--muted);white-space:nowrap}
+    .winner-row button{padding:.45rem .9rem;font-size:14px;box-shadow:none;background:rgba(248,113,113,0.14);color:#fca5a5;border:1px solid rgba(248,113,113,0.4)}
+    .winner-row button:hover{background:rgba(248,113,113,0.25)}
     .editor-list{max-height:420px;overflow-y:auto;margin-top:.6rem;border:1px solid rgba(255,255,255,0.08);border-radius:10px}
     .editor-row{display:flex;align-items:center;gap:.75rem;padding:.5rem .7rem;border-bottom:1px solid rgba(255,255,255,0.05)}
     .editor-row:last-child{border-bottom:none}
@@ -175,6 +194,7 @@
         <div class="tabs">
           <button type="button" class="tab active" data-tab="catalog">Catálogo</button>
           <button type="button" class="tab" data-tab="random">Ruleta</button>
+          <button type="button" class="tab" data-tab="winners">Ganadores (0)</button>
         </div>
 
         <div class="tab-panel active" id="catalog-panel">
@@ -233,6 +253,10 @@
             <div id="winnerBanner" class="winner-banner" hidden></div>
             <div id="randomResult" style="margin-top:.75rem"></div>
             <div id="valueTotal" class="value-total" hidden></div>
+            <div class="config-actions" id="saveWinnerRow" hidden>
+              <button id="saveWinner" type="button">Guardar ganador</button>
+              <span class="meta" id="saveWinnerStatus"></span>
+            </div>
           </section>
 
           <section id="editorSection" hidden>
@@ -240,6 +264,14 @@
             <p class="meta">Marca el valor de cada objeto sorteado y si debe seguir participando.</p>
             <div class="editor-list" id="editorList"></div>
             <div class="meta" id="editorInfo" style="margin-top:.5rem"></div>
+          </section>
+        </div>
+
+        <div class="tab-panel" id="winners-panel">
+          <section>
+            <h3>Ganadores pendientes de entrega</h3>
+            <p class="meta">Al entregar el premio, elimina al ganador de la lista.</p>
+            <div id="winnersList"></div>
           </section>
         </div>
 
@@ -253,11 +285,68 @@
       </div>
       <div class="roulette-items" id="rouletteItems"></div>
     </div>
+    <div class="modal-backdrop" id="modalBackdrop" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <h4 id="modalTitle"></h4>
+        <p id="modalMessage"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="modalCancel">Cancelar</button>
+          <button type="button" id="modalOk">Aceptar</button>
+        </div>
+      </div>
+    </div>
+
     <div class="confetti" id="confetti"></div>
     <footer>Hecho con ❤️ por <strong>kreisinkres</strong></footer>
   </div>
 
   <script>
+    // Modal propio: confirm() y alert() del navegador anteponen el origen
+    // ("localhost:3000 dice…") y no admiten estilos.
+    function showModal({ title, message, okText = 'Aceptar', cancelText = 'Cancelar', danger = false, confirm = true }) {
+      const backdrop = document.getElementById('modalBackdrop');
+      const okBtn = document.getElementById('modalOk');
+      const cancelBtn = document.getElementById('modalCancel');
+
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalMessage').textContent = message || '';
+      okBtn.textContent = okText;
+      cancelBtn.textContent = cancelText;
+      cancelBtn.hidden = !confirm;
+      okBtn.classList.toggle('btn-danger', danger);
+      backdrop.hidden = false;
+      okBtn.focus();
+
+      return new Promise((resolve) => {
+        const cerrar = (valor) => {
+          backdrop.hidden = true;
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+          backdrop.removeEventListener('click', onBackdrop);
+          document.removeEventListener('keydown', onKey);
+          resolve(valor);
+        };
+        const onOk = () => cerrar(true);
+        const onCancel = () => cerrar(false);
+        const onBackdrop = (ev) => { if (ev.target === backdrop) cerrar(false); };
+        const onKey = (ev) => {
+          if (ev.key === 'Escape') cerrar(false);
+          if (ev.key === 'Enter') cerrar(true);
+        };
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        backdrop.addEventListener('click', onBackdrop);
+        document.addEventListener('keydown', onKey);
+      });
+    }
+
+    const showConfirm = (title, message, okText = 'Aceptar', danger = false) =>
+      showModal({ title, message, okText, danger });
+
+    const showAlert = (title, message) =>
+      showModal({ title, message, okText: 'Entendido', confirm: false });
+
     async function api(path, opts) {
       const res = await fetch(path, opts);
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -354,6 +443,14 @@
       });
     }
 
+    // Quita tildes y diacríticos para que "poción" y "pocion" busquen igual.
+    function normalizeText(s) {
+      return String(s ?? '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+    }
+
     function itemId(it) {
       return String(it.ankama_id ?? it.id ?? it._id ?? '');
     }
@@ -385,7 +482,7 @@
           body: JSON.stringify({ tags: itemTags })
         });
       } catch (e) {
-        alert('No se pudieron guardar los colores: ' + e.message);
+        showAlert('No se pudieron guardar los colores', e.message);
       }
     }
 
@@ -397,7 +494,7 @@
           body: JSON.stringify({ ids: Array.from(excludedIds) })
         });
       } catch (e) {
-        alert('No se pudieron guardar las exclusiones: ' + e.message);
+        showAlert('No se pudieron guardar las exclusiones', e.message);
       }
     }
 
@@ -582,11 +679,11 @@
       } else if (RARITIES.includes(catalogView)) {
         base = allItems.filter((it) => itemTags[itemId(it)] === catalogView);
       }
-      const query = (searchInput.value || '').trim().toLowerCase();
+      const query = normalizeText(searchInput.value).trim();
       if (!query) return sortExcludedLast(base);
       return sortExcludedLast(base.filter((item) => {
-        const name = (item.name?.es ?? item.name ?? '').toString().toLowerCase();
-        const id = String(item.ankama_id ?? item.id ?? item._id ?? '').toLowerCase();
+        const name = normalizeText(item.name?.es ?? item.name ?? '');
+        const id = normalizeText(item.ankama_id ?? item.id ?? item._id ?? '');
         return name.includes(query) || id.includes(query);
       }));
     }
@@ -604,6 +701,72 @@
 
     let lastDrawItems = [];   // lo que salió en el último sorteo
     let itemValues = {};      // valor aproximado por objeto, solo en memoria
+
+    let winners = [];
+
+    function renderWinners() {
+      const list = document.getElementById('winnersList');
+      if (!list) return;
+
+      const tab = document.querySelector('.tab[data-tab="winners"]');
+      if (tab) tab.textContent = `Ganadores (${winners.length})`;
+
+      list.innerHTML = '';
+      if (!winners.length) {
+        list.innerHTML = '<div class="meta" style="padding:.7rem 0">No hay ganadores pendientes.</div>';
+        return;
+      }
+
+      winners.forEach((w) => {
+        const nombres = w.items.map((it) => it.name).filter(Boolean).join(', ');
+        const fecha = new Date(w.date).toLocaleString('es-ES', {
+          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+
+        const row = document.createElement('div');
+        row.className = 'winner-row';
+        row.innerHTML = `
+          <div class="wr-main">
+            <div class="wr-name">${escapeHtml(w.name)}</div>
+            <div class="wr-items" title="${escapeHtml(nombres)}">${escapeHtml(nombres || 'Sin objetos registrados')}</div>
+          </div>
+          <div>
+            <div class="wr-total">${w.total.toLocaleString('es-ES')}</div>
+            <div class="wr-date">${escapeHtml(fecha)}</div>
+          </div>
+          <button type="button">Entregado</button>
+        `;
+
+        row.querySelector('button').addEventListener('click', async () => {
+          const ok = await showConfirm(
+            'Entregar premio',
+            `¿Marcar como entregado y eliminar a ${w.name} de la lista?\n\nValor total: ${w.total.toLocaleString('es-ES')}`,
+            'Sí, entregado',
+            true
+          );
+          if (!ok) return;
+          try {
+            const data = await api('/api/winners/' + encodeURIComponent(w.id), { method: 'DELETE' });
+            winners = data.winners || [];
+            renderWinners();
+          } catch (e) {
+            showAlert('No se pudo eliminar', e.message);
+          }
+        });
+
+        list.appendChild(row);
+      });
+    }
+
+    async function loadWinners() {
+      try {
+        const data = await api('/api/winners');
+        winners = data.winners || [];
+      } catch (e) {
+        console.warn('No se pudieron cargar los ganadores:', e.message);
+      }
+      renderWinners();
+    }
 
     function updateValueTotal() {
       const box = document.getElementById('valueTotal');
@@ -627,7 +790,7 @@
         return !excludedIds.has(cid) && !yaSalidos.has(cid);
       });
       if (!candidatos.length) {
-        alert('No quedan recursos disponibles para sustituirlo.');
+        showAlert('Sin recursos', 'No quedan recursos disponibles para sustituirlo.');
         return false;
       }
 
@@ -897,15 +1060,46 @@
         updateBulkBar();
         renderEditor();
       }catch(e){
-        alert('Error: ' + e.message);
+        showAlert('Error al cargar', e.message);
       }
     }
 
     // Al abrir la página cargamos items y exclusiones sin esperar a que el usuario pulse nada.
     loadSettings();
+    loadWinners();
     loadItems();
 
     document.getElementById('load').addEventListener('click', loadItems);
+    document.getElementById('saveWinner').addEventListener('click', async () => {
+      const status = document.getElementById('saveWinnerStatus');
+      const name = document.getElementById('winnerName').value.trim();
+      if (!name) {
+        status.textContent = 'Escribe el nombre del ganador antes de guardar.';
+        return;
+      }
+      const total = lastDrawItems.reduce((sum, it) => sum + (itemValues[itemId(it)] ?? 0), 0);
+      const items = lastDrawItems.map((it) => ({
+        id: itemId(it),
+        name: it.name?.es ?? it.name ?? itemId(it),
+        value: itemValues[itemId(it)] ?? 0
+      }));
+
+      status.textContent = 'Guardando…';
+      try {
+        const data = await api('/api/winners', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, total, items })
+        });
+        winners = data.winners || [];
+        renderWinners();
+        status.textContent = `Guardado en Ganadores (${total.toLocaleString('es-ES')})`;
+        setTimeout(() => { status.textContent = ''; }, 2500);
+      } catch (e) {
+        status.textContent = 'Error al guardar: ' + e.message;
+      }
+    });
+
     document.getElementById('configToggle').addEventListener('click', () => {
       const panel = document.getElementById('configPanel');
       panel.hidden = !panel.hidden;
@@ -1163,6 +1357,8 @@
           ? `🎉 ¡Ganador: ${winner}!`
           : `🎉 ¡${lastDrawItems.length} recurso(s) sorteado(s)!`;
         banner.hidden = false;
+        document.getElementById('saveWinnerRow').hidden = false;
+        document.getElementById('saveWinnerStatus').textContent = '';
 
         const cards = Array.from(document.querySelectorAll('#items .item'));
         if(cards.length>0){
@@ -1179,9 +1375,11 @@
           makeConfetti(30);
         }
       } catch(e){
-        alert(e.message.includes('409')
-          ? 'No quedan recursos disponibles: has excluido todos.'
-          : 'Error: ' + e.message);
+        if (e.message.includes('409')) {
+          showAlert('Sin recursos', 'No quedan recursos disponibles: has excluido todos.');
+        } else {
+          showAlert('Error en el sorteo', e.message);
+        }
       }
       finally{ hideSpinner(); }
     });

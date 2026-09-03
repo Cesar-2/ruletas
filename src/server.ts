@@ -16,6 +16,7 @@ const ITEMS_FILE = path.join(DATA_DIR, 'items.json');
 const EXCLUSIONS_FILE = path.join(DATA_DIR, 'exclusions.json');
 const TAGS_FILE = path.join(DATA_DIR, 'tags.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const WINNERS_FILE = path.join(DATA_DIR, 'winners.json');
 const ASSETS_DIR = path.join(process.cwd(), 'public', 'assets');
 
 function ensureDataDir() {
@@ -144,6 +145,32 @@ function writeSettings(settings: Settings): void {
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
+interface Winner {
+  id: string;
+  name: string;
+  total: number;
+  items: { id: string; name: string; value: number }[];
+  date: string;
+}
+
+function readWinners(): Winner[] {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(WINNERS_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(WINNERS_FILE, 'utf8'));
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.error('Failed to read winners:', err);
+  }
+  return [];
+}
+
+function writeWinners(winners: Winner[]): void {
+  ensureDataDir();
+  fs.writeFileSync(WINNERS_FILE, JSON.stringify(winners, null, 2), 'utf8');
+}
+
 function getItemId(item: any): string {
   return String(item?.ankama_id ?? item?.id ?? item?._id ?? '');
 }
@@ -184,6 +211,59 @@ app.put('/api/exclusions', (req: Request, res: Response) => {
   } catch (err) {
     console.error('Failed to write exclusions:', err);
     res.status(500).json({ error: 'failed to save exclusions' });
+  }
+});
+
+// GET /api/winners -> { winners: Winner[] }  (mas recientes primero)
+app.get('/api/winners', (_req: Request, res: Response) => {
+  res.json({ winners: readWinners() });
+});
+
+// POST /api/winners  Body: { name, total, items? }
+app.post('/api/winners', (req: Request, res: Response) => {
+  const body = req.body || {};
+  const name = typeof body.name === 'string' ? body.name.trim().slice(0, 120) : '';
+  if (!name) return res.status(400).json({ error: 'name is required' });
+
+  const total = typeof body.total === 'number' && Number.isFinite(body.total) ? body.total : 0;
+  const items = Array.isArray(body.items)
+    ? body.items.slice(0, 100).map((it: any) => ({
+        id: String(it?.id ?? ''),
+        name: String(it?.name ?? '').slice(0, 200),
+        value: typeof it?.value === 'number' && Number.isFinite(it.value) ? it.value : 0
+      }))
+    : [];
+
+  const winner: Winner = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    total,
+    items,
+    date: new Date().toISOString()
+  };
+
+  try {
+    const winners = readWinners();
+    winners.unshift(winner);
+    writeWinners(winners);
+    res.json({ winner, winners });
+  } catch (err) {
+    console.error('Failed to save winner:', err);
+    res.status(500).json({ error: 'failed to save winner' });
+  }
+});
+
+// DELETE /api/winners/:id  (se usa al entregar el premio)
+app.delete('/api/winners/:id', (req: Request, res: Response) => {
+  try {
+    const winners = readWinners();
+    const rest = winners.filter((w) => w.id !== req.params.id);
+    if (rest.length === winners.length) return res.status(404).json({ error: 'winner not found' });
+    writeWinners(rest);
+    res.json({ winners: rest });
+  } catch (err) {
+    console.error('Failed to delete winner:', err);
+    res.status(500).json({ error: 'failed to delete winner' });
   }
 });
 
@@ -324,4 +404,5 @@ app.listen(PORT, () => {
   console.log('           GET /api/exclusions  PUT /api/exclusions');
   console.log('           GET /api/tags  PUT /api/tags');
   console.log('           GET /api/settings  PUT /api/settings  POST /api/background');
+  console.log('           GET /api/winners  POST /api/winners  DELETE /api/winners/:id');
 });
