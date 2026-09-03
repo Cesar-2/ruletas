@@ -1,0 +1,807 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sorteos - Demo</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --accent:#6ee7b7; --muted:#9aa4b2; --glass: rgba(255,255,255,0.04);
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; font-size:18px; background:linear-gradient(rgba(7,16,34,0.55), rgba(11,18,32,0.68)), url('/assets/fondo.png') center center / cover no-repeat fixed #071022; color:#e6eef8; min-height:100vh; margin:0; padding:2rem}
+    .app{max-width:1100px;margin:0 auto}
+    header{display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem}
+    h1{margin:0;font-weight:700;letter-spacing:-0.5px;font-size:28px}
+    p.lead{color:var(--muted);margin-top:0.25rem;font-size:16px}
+    .controls{display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-top:0.75rem;margin-bottom:0.5rem}
+    .toolbar input{flex:1;min-width:180px}
+    .tabs{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem}
+    .tab{background:rgba(255,255,255,0.04);color:#e6eef8;border:1px solid rgba(255,255,255,0.04);padding:0.7rem 1rem;border-radius:10px;cursor:pointer;font-size:15px;box-shadow:none}
+    .tab.active{background:linear-gradient(90deg,var(--accent),#3ee9c0);color:#021018;box-shadow:0 8px 26px rgba(110,231,183,0.14)}
+    button{background:linear-gradient(90deg,var(--accent),#3ee9c0);border:none;color:#021018;padding:0.7rem 1rem;border-radius:10px;cursor:pointer;font-size:16px;box-shadow:0 8px 26px rgba(110,231,183,0.14);transition:transform .18s ease, box-shadow .18s ease}
+    button:active{transform:translateY(1px)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    input, textarea{background:var(--card);border:1px solid rgba(255,255,255,0.04);color:inherit;padding:0.5rem;border-radius:6px}
+    section{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent); padding:1rem;border-radius:12px;margin-bottom:1rem; box-shadow: 0 6px 24px rgba(2,6,23,0.6)}
+    .grid{display:grid;grid-template-columns:1fr;gap:1rem}
+    .editor-list{max-height:420px;overflow-y:auto;margin-top:.6rem;border:1px solid rgba(255,255,255,0.08);border-radius:10px}
+    .editor-row{display:flex;align-items:center;gap:.75rem;padding:.5rem .7rem;border-bottom:1px solid rgba(255,255,255,0.05)}
+    .editor-row:last-child{border-bottom:none}
+    .editor-row img{width:36px;height:36px;object-fit:contain;flex:none}
+    .editor-row .er-name{flex:1;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .editor-row select{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.35rem .5rem;font-size:14px;cursor:pointer}
+    .editor-row .er-exclude{display:flex;align-items:center;gap:.35rem;font-size:14px;color:var(--muted);cursor:pointer;white-space:nowrap}
+    .editor-row.gold{background:linear-gradient(90deg, rgba(253,224,71,0.20), transparent)}
+    .editor-row.silver{background:linear-gradient(90deg, rgba(226,232,240,0.18), transparent)}
+    .editor-row.excluded{opacity:.5}
+    .excluded-bar{display:flex;gap:.75rem;align-items:center;margin-top:.8rem}
+    .excluded-bar[hidden]{display:none}
+    .subtabs{display:flex;gap:0.4rem;margin-top:0.9rem;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:0.5rem}
+    .subtab{background:transparent;color:var(--muted);border:1px solid transparent;padding:0.4rem 0.9rem;border-radius:8px;font-size:14px;box-shadow:none}
+    .subtab:hover{color:#e6eef8;background:rgba(255,255,255,0.05)}
+    .subtab.active{background:rgba(255,255,255,0.09);color:#e6eef8;border-color:rgba(255,255,255,0.14)}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+    #items,#randomResult{display:flex;flex-wrap:wrap;gap:12px;padding-top:8px}
+    #items,#randomResult{max-width:916px}
+    .tab-panel section{max-width:948px}
+    .pagination{display:flex;align-items:center;justify-content:center;gap:0.75rem;margin-top:1rem}
+    #pageInfo{color:var(--muted);font-size:15px}
+    .item{width:220px;padding:14px;display:flex;flex-direction:column;border-radius:12px;background:rgba(255,255,255,0.05);backdrop-filter: blur(10px);border:1px solid rgba(255,255,255,0.10);transition:transform 2s cubic-bezier(.2,.9,.2,1), box-shadow .5s ease, opacity 2s ease;opacity:0;transform:translateY(24px) scale(.98)}
+    .item.show{opacity:1;transform:none}
+    .item:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 18px 40px rgba(2,6,23,0.6)}
+    .thumb{height:88px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+    .thumb img{max-width:80%;max-height:80%;border-radius:8px;transition:transform .35s ease, box-shadow .35s ease}
+    .item:hover .thumb img{transform:scale(1.06);box-shadow:0 10px 30px rgba(0,0,0,0.6)}
+    .item .title{font-weight:600;margin-bottom:6px;font-size:16px}
+    .item .title{margin-bottom:10px}
+    .item.gold{background:linear-gradient(160deg, rgba(253,224,71,0.30), rgba(180,120,20,0.16));border-color:rgba(253,224,71,0.65);box-shadow:0 10px 30px rgba(180,140,20,0.30)}
+    .item.silver{background:linear-gradient(160deg, rgba(226,232,240,0.28), rgba(120,135,155,0.16));border-color:rgba(226,232,240,0.65);box-shadow:0 10px 30px rgba(150,160,175,0.28)}
+    .tag-row{display:flex;gap:.75rem;margin-top:8px;font-size:13px;color:var(--muted)}
+    .tag-row label{display:flex;align-items:center;gap:.3rem;cursor:pointer}
+    .tag-row input{margin:0;cursor:pointer;accent-color:#eab308}
+    .tag-row label[data-tag="silver"] input{accent-color:#cbd5e1}
+    .item.gold .tag-row, .item.silver .tag-row{color:#f8fafc}
+    .item.excluded{opacity:.45;filter:grayscale(.8)}
+    .item.excluded:hover{opacity:.7}
+    .exclude-toggle{margin-top:6px;width:100%;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#fca5a5;background:rgba(248,113,113,0.10);border:1px solid rgba(248,113,113,0.35);box-shadow:none;transition:background .2s ease}
+    .exclude-toggle:hover{background:rgba(248,113,113,0.2)}
+    .item.excluded .exclude-toggle{color:#6ee7b7;background:rgba(110,231,183,0.12);border-color:rgba(110,231,183,0.45)}
+    .copy-name{margin-top:auto;width:100%;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#e6f0ff;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);transition:background .2s ease, border-color .2s ease}
+    .copy-name:hover{background:rgba(255,255,255,0.12)}
+    .copy-name.copied{background:rgba(110,231,183,0.18);border-color:rgba(110,231,183,0.6);color:#6ee7b7}
+    .meta{color:var(--muted);font-size:14px}
+    #count{color:var(--muted);margin-top:0.5rem}
+    #randomResult{margin-top:0.5rem;color:var(--accent);font-weight:600;font-size:16px}
+    .roulette-wrapper{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;z-index:1000;pointer-events:none}
+    .roulette-wrapper.show{display:flex}
+    .roulette-wheel{position:relative;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle at center, rgba(255,255,255,0.16) 0 18%, rgba(255,255,255,0.03) 19% 24%, transparent 25%), conic-gradient(#ff6b8a 0 16%, #ffd166 16% 32%, #6ee7b7 32% 48%, #60a5fa 48% 64%, #c084fc 64% 80%, #f472b6 80% 100%);border:12px solid rgba(255,255,255,0.18);box-shadow:0 28px 70px rgba(0,0,0,0.6), inset 0 0 35px rgba(255,255,255,0.08);animation:spinRoulette 5s cubic-bezier(.12,.8,.2,1) forwards}
+    .roulette-wheel::before{content:'';position:absolute;inset:30px;border-radius:50%;background:radial-gradient(circle at center, rgba(7,16,34,0.35) 0%, rgba(7,16,34,0.8) 58%, rgba(7,16,34,1) 100%);border:4px solid rgba(255,255,255,0.2)}
+    .roulette-wheel::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#fff,#d7fef0);box-shadow:0 0 0 10px rgba(110,231,183,0.18), 0 0 26px rgba(110,231,183,0.7)}
+    .roulette-wheel .pin{position:absolute;left:50%;top:-12px;transform:translateX(-50%);width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-top:28px solid #fdf2f8;filter:drop-shadow(0 4px 8px rgba(255,255,255,0.25));}
+    .roulette-items{position:absolute;left:50%;top:50%;width:340px;height:340px;transform:translate(-50%,-50%);pointer-events:none}
+    .roulette-item{position:absolute;left:50%;top:50%;width:34px;height:34px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.7);background:rgba(255,255,255,0.06);box-shadow:0 8px 16px rgba(0,0,0,0.35);transform:translate(-50%, -50%);}
+    .roulette-item img{width:100%;height:100%;object-fit:cover;display:block;background:#101827;pointer-events:none;opacity:1;transition:opacity .09s linear}
+    @keyframes spinRoulette{0%{transform:rotate(0deg) scale(0.92);opacity:0.5}15%{transform:rotate(180deg) scale(1.02);opacity:1}55%{transform:rotate(1200deg) scale(1.06);opacity:1}100%{transform:rotate(1800deg) scale(1);opacity:1}}
+    /* highlight for selection */
+    .highlight{animation:glow 1.2s ease forwards}
+    .pulse{animation:pulse 1s ease}
+    @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.03)}100%{transform:scale(1)}}
+    @keyframes glow{0%{box-shadow:0 0 0 rgba(110,231,183,0)}50%{box-shadow:0 20px 40px rgba(110,231,183,0.12)}100%{box-shadow:0 28px 60px rgba(110,231,183,0.18)}}
+    /* confetti */
+    .confetti{pointer-events:none;position:fixed;left:0;top:0;width:100%;height:100%;overflow:hidden}
+    .confetti span{position:absolute;width:10px;height:16px;border-radius:2px;opacity:0.95;transform:translateY(-10vh);animation:fall linear forwards}
+    @keyframes fall{to{transform:translateY(110vh) rotate(520deg)}}
+    footer{color:var(--muted);font-size:13px;margin-top:1rem}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Sorteos - Demo</h1>
+      </div>
+    </header>
+
+    <div class="grid">
+      <main>
+        <div class="tabs">
+          <button type="button" class="tab active" data-tab="catalog">Catálogo</button>
+          <button type="button" class="tab" data-tab="random">Ruleta</button>
+        </div>
+
+        <div class="tab-panel active" id="catalog-panel">
+          <section>
+            <div class="controls">
+              <button id="load">Recargar items</button>
+              <div id="count">Cargando items…</div>
+            </div>
+            <div class="subtabs">
+              <button type="button" class="subtab active" data-view="all">Todos</button>
+              <button type="button" class="subtab" data-view="gold">Dorados (0)</button>
+              <button type="button" class="subtab" data-view="silver">Plateados (0)</button>
+              <button type="button" class="subtab" data-view="excluded">Excluidos (0)</button>
+            </div>
+            <div class="excluded-bar" id="excludedBar" hidden>
+              <span class="meta" id="excludedInfo">Ningún recurso excluido</span>
+              <button id="clearExcluded" type="button" disabled>Limpiar exclusiones</button>
+            </div>
+            <div class="toolbar">
+              <input id="searchItems" type="search" placeholder="Buscar item por nombre o ID" aria-label="Buscar item" />
+            </div>
+            <div id="items" aria-live="polite"></div>
+            <div class="pagination">
+              <button id="prevPage" type="button">Anterior</button>
+              <span id="pageInfo">Página 1/1</span>
+              <button id="nextPage" type="button">Siguiente</button>
+            </div>
+          </section>
+        </div>
+
+        <div class="tab-panel" id="random-panel">
+          <section>
+            <h3>Bienvenido al ruleton</h3>
+            <div style="display:flex;gap:.5rem;align-items:center;margin-top:.5rem">
+              <input id="n" type="number" value="3" min="1" style="width:90px" />
+              <button id="rand">Elegir</button>
+              <button id="toggleEditor" type="button">Editar</button>
+            </div>
+            <div id="randomResult" style="margin-top:.75rem"></div>
+          </section>
+
+          <section id="editorSection" hidden>
+            <h3>Editar lo que salió</h3>
+            <p class="meta">Marca el valor de cada objeto sorteado y si debe seguir participando.</p>
+            <div class="editor-list" id="editorList"></div>
+            <div class="meta" id="editorInfo" style="margin-top:.5rem"></div>
+          </section>
+        </div>
+
+      </main>
+
+    </div>
+
+    <div class="roulette-wrapper" id="rouletteWrapper">
+      <div class="roulette-wheel">
+        <span class="pin"></span>
+      </div>
+      <div class="roulette-items" id="rouletteItems"></div>
+    </div>
+    <div class="confetti" id="confetti"></div>
+    <footer>Hecho con ❤️ — Demo</footer>
+  </div>
+
+  <script>
+    async function api(path, opts) {
+      const res = await fetch(path, opts);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }
+
+    const rouletteWrapper = document.getElementById('rouletteWrapper');
+    const rouletteItems = document.getElementById('rouletteItems');
+    const searchInput = document.getElementById('searchItems');
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    const pageInfoEl = document.getElementById('pageInfo');
+    const PAGE_SIZE = 12;
+    const ROULETTE_SLOT_COUNT = 12;
+    let allItems = [];
+    let currentPage = 1;
+    let rouletteInterval = null;
+    const excludedIds = new Set();
+    let itemTags = {};   // { [itemId]: 'gold' | 'silver' }
+    let catalogView = 'all';
+
+    function itemId(it) {
+      return String(it.ankama_id ?? it.id ?? it._id ?? '');
+    }
+
+    async function loadExclusions() {
+      try {
+        const data = await api('/api/exclusions');
+        excludedIds.clear();
+        (data.ids || []).forEach((id) => excludedIds.add(String(id)));
+      } catch (e) {
+        console.warn('No se pudieron cargar las exclusiones:', e.message);
+      }
+    }
+
+    async function loadTags() {
+      try {
+        const data = await api('/api/tags');
+        itemTags = data.tags || {};
+      } catch (e) {
+        console.warn('No se pudieron cargar los colores:', e.message);
+      }
+    }
+
+    async function saveTags() {
+      try {
+        await api('/api/tags', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tags: itemTags })
+        });
+      } catch (e) {
+        alert('No se pudieron guardar los colores: ' + e.message);
+      }
+    }
+
+    async function saveExclusions() {
+      try {
+        await api('/api/exclusions', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: Array.from(excludedIds) })
+        });
+      } catch (e) {
+        alert('No se pudieron guardar las exclusiones: ' + e.message);
+      }
+    }
+
+    function updateExcludedInfo() {
+      const total = excludedIds.size;
+      const info = document.getElementById('excludedInfo');
+      if (info) {
+        info.textContent = total
+          ? `${total} recurso(s) excluido(s) del sorteo`
+          : 'Ningún recurso excluido';
+      }
+      const clearBtn = document.getElementById('clearExcluded');
+      if (clearBtn) clearBtn.disabled = total === 0;
+
+      const bar = document.getElementById('excludedBar');
+      if (bar) bar.hidden = catalogView !== 'excluded';
+
+      const excludedTab = document.querySelector('.subtab[data-view="excluded"]');
+      if (excludedTab) excludedTab.textContent = `Excluidos (${total})`;
+
+      const tagValues = Object.values(itemTags);
+      const goldTab = document.querySelector('.subtab[data-view="gold"]');
+      if (goldTab) goldTab.textContent = `Dorados (${tagValues.filter((v) => v === 'gold').length})`;
+      const silverTab = document.querySelector('.subtab[data-view="silver"]');
+      if (silverTab) silverTab.textContent = `Plateados (${tagValues.filter((v) => v === 'silver').length})`;
+
+      // Al marcar/desmarcar cambia tanto el contenido de la vista de excluidos
+      // como el orden de la vista general, así que se repinta en ambos casos.
+      renderItemsPage();
+    }
+
+    function getRoulettePool(items) {
+      const source = items && items.length ? items : [];
+      if (!source.length) {
+        return Array.from({ length: ROULETTE_SLOT_COUNT }, () => {
+          const id = Math.floor(Math.random() * 12000) + 10;
+          return {
+            name: { es: `Recurso ${id}` },
+            image_urls: { icon: 'https://api.dofusdu.de/dofus3/v1/img/item/' + id + '-64.png' }
+          };
+        });
+      }
+      // La ruleta muestra los que participan: todos menos los excluidos.
+      const pool = source.filter((it) => !excludedIds.has(itemId(it)));
+      const rotation = [...(pool.length ? pool : source)].sort(() => Math.random() - 0.5);
+      return rotation.slice(0, ROULETTE_SLOT_COUNT);
+    }
+
+    function updateRoulettePositions() {
+      const slots = Array.from(rouletteItems.children);
+      if (!slots.length) return;
+      const cx = 170;
+      const cy = 170;
+      const radius = 148;
+      slots.forEach((node, index) => {
+        const angle = (Math.PI * 2 * index) / slots.length - Math.PI / 2;
+        node.style.left = (cx + Math.cos(angle) * radius) + 'px';
+        node.style.top = (cy + Math.sin(angle) * radius) + 'px';
+        node.style.transform = 'translate(-50%, -50%)';
+      });
+    }
+
+    function populateRouletteImages(items) {
+      rouletteItems.innerHTML = '';
+      const pool = getRoulettePool(items);
+      pool.forEach((item) => {
+        const imgUrl = item.image_urls?.icon ?? item.image_urls?.sd ?? '';
+        if (!imgUrl) return;
+        const el = document.createElement('div');
+        el.className = 'roulette-item';
+        const img = document.createElement('img');
+        img.src = imgUrl;
+        img.alt = item.name?.es ?? 'recurso';
+        img.onerror = function() { this.style.display = 'none'; };
+        el.appendChild(img);
+        rouletteItems.appendChild(el);
+      });
+      updateRoulettePositions(0);
+    }
+
+    function swapSlotImage(node, source) {
+      const img = node.querySelector('img');
+      if (!img || !source.length) return;
+      const item = source[Math.floor(Math.random() * source.length)];
+      const imgUrl = item.image_urls?.icon ?? item.image_urls?.sd ?? '';
+      if (!imgUrl || img.src.endsWith(imgUrl)) return;
+      img.style.opacity = '0';
+      setTimeout(() => {
+        img.style.display = '';
+        img.src = imgUrl;
+        img.alt = item.name?.es ?? 'recurso';
+        img.style.opacity = '1';
+      }, 90);
+    }
+
+    function startRouletteSwap() {
+      if (rouletteInterval) { clearInterval(rouletteInterval); }
+      rouletteInterval = setInterval(() => {
+        const nodes = Array.from(rouletteItems.children);
+        if (!nodes.length) return;
+        const source = allItems.length ? allItems : getRoulettePool([]);
+        const shuffled = [...nodes].sort(() => Math.random() - 0.5);
+        shuffled.slice(0, Math.max(1, Math.ceil(nodes.length / 3))).forEach((node) => {
+          swapSlotImage(node, source);
+        });
+      }, 220);
+    }
+
+    function showSpinner() {
+      if (!allItems.length) {
+        api('/api/items')
+          .then((data) => { allItems = Array.isArray(data.items) ? data.items : []; })
+          .catch(() => {});
+      }
+      populateRouletteImages(allItems);
+      rouletteWrapper.classList.add('show');
+      startRouletteSwap();
+      rouletteItems.style.animation = 'none';
+      const wheel = rouletteWrapper.querySelector('.roulette-wheel');
+      if (wheel) {
+        wheel.style.animation = 'spinRoulette 5s cubic-bezier(.12,.8,.2,1) forwards';
+      }
+    }
+    function hideSpinner() {
+      rouletteWrapper.classList.remove('show');
+      if (rouletteInterval) {
+        clearInterval(rouletteInterval);
+        rouletteInterval = null;
+      }
+      const wheel = rouletteWrapper.querySelector('.roulette-wheel');
+      if (wheel) {
+        wheel.style.animation = 'none';
+      }
+      rouletteItems.innerHTML = '';
+      rouletteItems.style.animation = 'none';
+    }
+
+    function renderResultCards(containerId, items) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+      if (!items || !items.length) {
+        container.innerHTML = '<div class="meta">No se encontraron resultados.</div>';
+        return;
+      }
+      items.forEach((it, i) => {
+        const card = createItemCard(it, { color: true });
+        container.appendChild(card);
+        setTimeout(() => card.classList.add('show'), i * 50);
+      });
+    }
+
+    function getFilteredItems() {
+      let base = allItems;
+      if (catalogView === 'excluded') {
+        base = allItems.filter((it) => excludedIds.has(itemId(it)));
+      } else if (catalogView === 'gold' || catalogView === 'silver') {
+        base = allItems.filter((it) => itemTags[itemId(it)] === catalogView);
+      }
+      const query = (searchInput.value || '').trim().toLowerCase();
+      if (!query) return sortExcludedLast(base);
+      return sortExcludedLast(base.filter((item) => {
+        const name = (item.name?.es ?? item.name ?? '').toString().toLowerCase();
+        const id = String(item.ankama_id ?? item.id ?? item._id ?? '').toLowerCase();
+        return name.includes(query) || id.includes(query);
+      }));
+    }
+
+    // Los excluidos se van al final, conservando el orden original dentro de cada grupo.
+    function sortExcludedLast(items) {
+      if (catalogView === 'excluded') return items;
+      const included = [];
+      const excluded = [];
+      items.forEach((it) => {
+        (excludedIds.has(itemId(it)) ? excluded : included).push(it);
+      });
+      return included.concat(excluded);
+    }
+
+    let lastDrawItems = [];   // lo que salió en el último sorteo
+
+    function renderEditor() {
+      const list = document.getElementById('editorList');
+      const info = document.getElementById('editorInfo');
+      if (!list) return;
+
+      list.innerHTML = '';
+      if (!lastDrawItems.length) {
+        list.innerHTML = '<div class="meta" style="padding:.7rem">Todavía no has hecho ningún sorteo.</div>';
+        info.textContent = '';
+        return;
+      }
+
+      lastDrawItems.forEach((it) => {
+        const id = itemId(it);
+        const name = it.name?.es ?? it.name ?? id;
+        const imgUrl = it.image_urls?.icon ?? it.image_urls?.sd ?? '';
+
+        const row = document.createElement('div');
+        row.className = 'editor-row';
+        row.innerHTML = `
+          <img src="${escapeHtml(imgUrl)}" loading="lazy" alt="" onerror="this.style.visibility='hidden'" />
+          <span class="er-name" title="${escapeHtml(String(name))}">${escapeHtml(String(name))}</span>
+          <select class="er-color">
+            <option value="">Sin marcar</option>
+            <option value="silver">Plateado</option>
+            <option value="gold">Dorado</option>
+          </select>
+          <label class="er-exclude"><input type="checkbox" /> Excluir</label>
+        `;
+
+        const select = row.querySelector('.er-color');
+        const checkbox = row.querySelector('.er-exclude input');
+        const sync = () => {
+          const color = itemTags[id] ?? '';
+          select.value = color;
+          checkbox.checked = excludedIds.has(id);
+          row.classList.toggle('gold', color === 'gold');
+          row.classList.toggle('silver', color === 'silver');
+          row.classList.toggle('excluded', checkbox.checked);
+        };
+        sync();
+
+        select.addEventListener('change', () => {
+          if (select.value) itemTags[id] = select.value;
+          else delete itemTags[id];
+          sync();
+          saveTags();
+          updateExcludedInfo();
+        });
+
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) excludedIds.add(id);
+          else excludedIds.delete(id);
+          sync();
+          saveExclusions();
+          updateExcludedInfo();
+        });
+
+        list.appendChild(row);
+      });
+
+      info.textContent = `${lastDrawItems.length} objeto(s) del último sorteo.`;
+    }
+
+    function renderItemsPage() {
+      const filtered = getFilteredItems();
+      const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const pageItems = filtered.slice(start, start + PAGE_SIZE);
+      const container = document.getElementById('items');
+      container.innerHTML = '';
+
+      if (!pageItems.length) {
+        const emptyMsg = {
+          excluded: 'No has excluido ningún objeto. Usa “Excluir del sorteo” en las tarjetas.',
+          gold: 'Ningún objeto marcado como Dorado todavía.',
+          silver: 'Ningún objeto marcado como Plateado todavía.'
+        }[catalogView];
+        container.innerHTML = `<div class="meta">${emptyMsg && !searchInput.value.trim() ? emptyMsg : 'No se encontraron resultados.'}</div>`;
+      } else {
+        pageItems.forEach((it, i) => {
+          const card = createItemCard(it, { tags: true, exclude: true });
+          container.appendChild(card);
+          setTimeout(() => card.classList.add('show'), i * 50);
+        });
+      }
+
+      document.getElementById('count').textContent = `Mostrando ${filtered.length ? start + 1 : 0}-${Math.min(start + pageItems.length, filtered.length)} / ${filtered.length} items`;
+      pageInfoEl.textContent = `Página ${currentPage}/${totalPages}`;
+      prevPageBtn.disabled = currentPage <= 1;
+      nextPageBtn.disabled = currentPage >= totalPages;
+    }
+
+    function createItemCard(it, opts = {}){
+      const allowTags = opts.tags === true;
+      const allowExclude = opts.exclude === true;
+      const el = document.createElement('div'); el.className = 'item';
+      const title = it.name?.es ?? it.name ?? it.ankama_id ?? 'Sin nombre';
+      const imgUrl = it.image_urls?.icon ?? it.image_urls?.sd ?? '';
+      el.dataset.itemId = String(it.ankama_id ?? it.id ?? it._id ?? '');
+      el.innerHTML = `
+        <div class="thumb"><img src="${escapeHtml(imgUrl)}" loading="lazy" alt="${escapeHtml(title)}" onerror="this.style.display='none'"/></div>
+        <div class="title">${escapeHtml(title)}</div>
+        ${allowTags ? `
+        <div class="tag-row">
+          <label data-tag="silver"><input type="checkbox" data-tag="silver" /> Plateado</label>
+          <label data-tag="gold"><input type="checkbox" data-tag="gold" /> Dorado</label>
+        </div>` : ''}
+        <button class="copy-name" type="button">Copiar nombre</button>
+        ${allowExclude ? '<button class="exclude-toggle" type="button"></button>' : ''}
+      `;
+
+      const cardId = el.dataset.itemId;
+
+      // Sin checkboxes: solo refleja el color ya asignado.
+      if (opts.color === true) {
+        const current = itemTags[cardId] ?? null;
+        el.classList.toggle('gold', current === 'gold');
+        el.classList.toggle('silver', current === 'silver');
+      }
+
+      if (allowTags) {
+        const tagInputs = Array.from(el.querySelectorAll('.tag-row input'));
+        const syncTags = () => {
+          const current = itemTags[cardId] ?? null;
+          el.classList.toggle('gold', current === 'gold');
+          el.classList.toggle('silver', current === 'silver');
+          tagInputs.forEach((input) => { input.checked = input.dataset.tag === current; });
+        };
+        syncTags();
+        tagInputs.forEach((input) => {
+          input.addEventListener('change', () => {
+            // Solo un color por tarjeta: marcar uno desmarca el otro.
+            if (input.checked) itemTags[cardId] = input.dataset.tag;
+            else delete itemTags[cardId];
+            syncTags();
+            saveTags();
+            // Repinta el catálogo: cambian los contadores y las vistas por color.
+            updateExcludedInfo();
+          });
+        });
+      }
+
+      if (allowExclude) {
+        const itemId = cardId;
+        const excludeBtn = el.querySelector('.exclude-toggle');
+        const syncExcluded = () => {
+          const off = excludedIds.has(itemId);
+          el.classList.toggle('excluded', off);
+          excludeBtn.textContent = off ? 'Volver a incluir' : 'Excluir del sorteo';
+        };
+        syncExcluded();
+        excludeBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (excludedIds.has(itemId)) excludedIds.delete(itemId);
+          else excludedIds.add(itemId);
+          syncExcluded();
+          updateExcludedInfo();
+          saveExclusions();
+        });
+      }
+
+      const copyBtn = el.querySelector('.copy-name');
+      copyBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        copyToClipboard(String(title)).then((ok) => {
+          copyBtn.textContent = ok ? '¡Copiado!' : 'Error al copiar';
+          copyBtn.classList.toggle('copied', ok);
+          setTimeout(() => {
+            copyBtn.textContent = 'Copiar nombre';
+            copyBtn.classList.remove('copied');
+          }, 1200);
+        });
+      });
+      return el;
+    }
+
+    async function copyToClipboard(text) {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (e) { /* cae al método de respaldo */ }
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function escapeHtml(s){return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;" })[c]);}
+
+    async function loadItems(){
+      try{
+        await Promise.all([loadExclusions(), loadTags()]);
+        const data = await api('/api/items');
+        allItems = Array.isArray(data.items) ? data.items : [];
+        currentPage = 1;
+        renderItemsPage();
+        updateExcludedInfo();
+        renderEditor();
+      }catch(e){
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // Al abrir la página cargamos items y exclusiones sin esperar a que el usuario pulse nada.
+    loadItems();
+
+    document.getElementById('load').addEventListener('click', loadItems);
+    document.getElementById('toggleEditor').addEventListener('click', () => {
+      const section = document.getElementById('editorSection');
+      section.hidden = !section.hidden;
+      document.getElementById('toggleEditor').textContent = section.hidden ? 'Editar' : 'Ocultar edición';
+      if (!section.hidden) renderEditor();
+    });
+
+    document.getElementById('clearExcluded').addEventListener('click', () => {
+      excludedIds.clear();
+      updateExcludedInfo();
+      renderItemsPage();
+      renderEditor();
+      saveExclusions();
+    });
+
+    document.querySelectorAll('.subtab').forEach((subtab) => {
+      subtab.addEventListener('click', () => {
+        catalogView = subtab.dataset.view;
+        document.querySelectorAll('.subtab').forEach((b) => b.classList.toggle('active', b === subtab));
+        currentPage = 1;
+        renderItemsPage();
+        updateExcludedInfo();
+      });
+    });
+    searchInput.addEventListener('input', () => {
+      currentPage = 1;
+      renderItemsPage();
+    });
+    prevPageBtn.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage -= 1;
+        renderItemsPage();
+      }
+    });
+    nextPageBtn.addEventListener('click', () => {
+      const filtered = getFilteredItems();
+      const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+      if (currentPage < totalPages) {
+        currentPage += 1;
+        renderItemsPage();
+      }
+    });
+
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach((btn) => btn.classList.toggle('active', btn === tab));
+        document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `${tab.dataset.tab}-panel`));
+        // El editor puede haber quedado desfasado si se editó desde el catálogo.
+        if (tab.dataset.tab === 'random') renderEditor();
+      });
+    });
+
+    // animation helpers for selection
+    function highlightCards(cards, idxes, cb){
+      // remove prev
+      cards.forEach(c=>{ c.classList.remove('highlight'); c.classList.remove('pulse'); });
+      idxes.forEach(i=>{ if(cards[i]) cards[i].classList.add('highlight'); });
+      // pulse effect
+      idxes.forEach(i=>{ if(cards[i]) cards[i].classList.add('pulse'); });
+      if(cb) setTimeout(cb, 1000);
+    }
+
+    // improved confetti using canvas-confetti when available
+    async function ensureConfetti(){
+      if (typeof window.confetti === 'function') return;
+      await new Promise((resolve)=>{
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js';
+        s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
+      });
+    }
+
+    function makeConfetti(count=40){
+      ensureConfetti().then(()=>{
+        if (typeof window.confetti === 'function') {
+          const burst = window.confetti;
+          burst({ particleCount: Math.min(30, count), spread: 60, origin: { y: 0.3 } });
+          burst({ particleCount: Math.min(20, count), spread: 120, origin: { y: 0.6 } });
+        } else {
+          const root = document.getElementById('confetti');
+          root.innerHTML = '';
+          const colors = ['#FF5C8A','#FFD166','#6EE7B7','#7DD3FC','#C084FC'];
+          const w = window.innerWidth; const h = window.innerHeight;
+          for(let i=0;i<count;i++){
+            const s = document.createElement('span');
+            s.style.left = Math.random()*w + 'px';
+            s.style.background = colors[Math.floor(Math.random()*colors.length)];
+            s.style.width = (6 + Math.random()*10)+'px';
+            s.style.height = (10 + Math.random()*14)+'px';
+            s.style.top = (-20 - Math.random()*80)+'px';
+            s.style.opacity = 0.9;
+            s.style.transform = `translateY(-10vh) rotate(${Math.random()*360}deg)`;
+            s.style.animationDuration = (2 + Math.random()*2)+'s';
+            s.style.animationDelay = (Math.random()*0.4)+'s';
+            root.appendChild(s);
+          }
+          setTimeout(()=>root.innerHTML = '', 4000);
+        }
+      });
+    }
+
+    // animate element flying from source to target
+    function animateFlyTo(sourceEl, targetEl){
+      if(!sourceEl || !targetEl) return Promise.resolve();
+      const srcRect = sourceEl.getBoundingClientRect();
+      const tgtRect = targetEl.getBoundingClientRect();
+      const img = sourceEl.querySelector('img');
+      if(!img) return Promise.resolve();
+      const clone = img.cloneNode(true);
+      clone.style.position = 'fixed';
+      clone.style.left = srcRect.left + 'px';
+      clone.style.top = srcRect.top + 'px';
+      clone.style.width = srcRect.width + 'px';
+      clone.style.height = srcRect.height + 'px';
+      clone.style.transition = 'transform 900ms cubic-bezier(.2,.9,.2,1), opacity 900ms';
+      clone.style.zIndex = 9999;
+      document.body.appendChild(clone);
+      // compute translate
+      const dx = (tgtRect.left + tgtRect.width/2) - (srcRect.left + srcRect.width/2);
+      const dy = (tgtRect.top + tgtRect.height/2) - (srcRect.top + srcRect.height/2);
+      requestAnimationFrame(()=>{
+        clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.4) rotate(360deg)`;
+        clone.style.opacity = '0.95';
+      });
+      return new Promise(resolve=> setTimeout(()=>{ clone.remove(); resolve(); }, 950));
+    }
+
+    document.getElementById('rand').addEventListener('click', async ()=>{
+      const n = Number(document.getElementById('n').value) || 1;
+      showSpinner();
+
+      try {
+        // El servidor ya descarta los excluidos guardados en /api/exclusions.
+        const dataPromise = api('/api/random-items?n=' + n);
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        const data = await dataPromise;
+        lastDrawItems = data.items || [];
+        renderResultCards('randomResult', lastDrawItems);
+        renderEditor();
+
+        const cards = Array.from(document.querySelectorAll('#items .item'));
+        if(cards.length>0){
+          const idxes = [];
+          for(let i=0;i<cards.length;i++){
+            const txt = cards[i].innerText || '';
+            (data.items || []).forEach(it=>{
+              const name = it.name?.es ?? it.name ?? String(it.ankama_id ?? it.id ?? '');
+              if(txt.includes(String(name))){ if(!idxes.includes(i)) idxes.push(i); }
+            });
+          }
+          highlightCards(cards, idxes, ()=>makeConfetti(30));
+        } else {
+          makeConfetti(30);
+        }
+      } catch(e){
+        alert(e.message.includes('409')
+          ? 'No quedan recursos disponibles: has excluido todos.'
+          : 'Error: ' + e.message);
+      }
+      finally{ hideSpinner(); }
+    });
+
+  </script>
+</body>
+</html>

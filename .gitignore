@@ -1,0 +1,23 @@
+# Dependencias
+node_modules/
+
+# Salida de TypeScript
+dist/
+
+# Volcados de pruebas de la API
+api_raw.json
+last_items.json
+rand.json
+
+# Entorno
+.env
+.env.local
+
+# Sistema operativo
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
