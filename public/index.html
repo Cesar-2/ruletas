@@ -52,7 +52,8 @@
     .winner-row .wr-name{font-size:18px;font-weight:700}
     .winner-row .wr-badge{display:inline-block;vertical-align:middle;margin-left:.4rem;padding:.1rem .5rem;border-radius:999px;font-size:12px;font-weight:600;color:#021018;background:var(--accent)}
     .winner-row .wr-items{font-size:13px;color:var(--muted);margin-top:.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .winner-row .wr-total{font-size:18px;font-weight:700;color:var(--accent);white-space:nowrap}
+    .winner-row .wr-total{display:flex;align-items:center;justify-content:flex-end;gap:.35rem;font-size:18px;font-weight:700;color:var(--accent);white-space:nowrap}
+    .kama-icon{width:20px;height:20px;object-fit:contain;flex:none}
     .winner-row .wr-date{font-size:12px;color:var(--muted);white-space:nowrap}
     .winner-row button{padding:.45rem .9rem;font-size:14px;box-shadow:none;background:rgba(248,113,113,0.14);color:#fca5a5;border:1px solid rgba(248,113,113,0.4)}
     .winner-row button:hover{background:rgba(248,113,113,0.25)}
@@ -732,7 +733,7 @@
             <div class="wr-items" title="${escapeHtml(nombres)}">${escapeHtml(nombres || 'Sin objetos registrados')}</div>
           </div>
           <div>
-            <div class="wr-total">${w.total.toLocaleString('es-ES')}</div>
+            <div class="wr-total">${w.total.toLocaleString('es-ES')}<img src="/assets/kama.png" alt="kamas" class="kama-icon" /></div>
             <div class="wr-date">${escapeHtml(fecha)}</div>
           </div>
           <button type="button">Entregado</button>
