@@ -156,8 +156,8 @@ interface Winner {
 }
 
 // Para detectar al mismo ganador aunque cambie mayusculas o tildes.
-function normalizeName(name: string): string {
-  return name.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function normalizeName(name: unknown): string {
+  return String(name ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 function readWinners(): Winner[] {
@@ -165,7 +165,9 @@ function readWinners(): Winner[] {
   try {
     if (fs.existsSync(WINNERS_FILE)) {
       const parsed = JSON.parse(fs.readFileSync(WINNERS_FILE, 'utf8'));
-      if (Array.isArray(parsed)) return parsed;
+      // Se descartan entradas corruptas para que un archivo mal escrito a mano
+      // no tumbe los endpoints que recorren la lista.
+      if (Array.isArray(parsed)) return parsed.filter((w) => w && typeof w.name === 'string');
     }
   } catch (err) {
     console.error('Failed to read winners:', err);
@@ -186,57 +188,72 @@ interface RankEntry {
   draws: number;
 }
 
-// Siembra el ranking con los ganadores que ya existian antes de que hubiera
-// historico. Solo se puede recuperar lo que sigue pendiente de entrega: los
-// premios ya entregados se borraron y no dejaron rastro.
-function seedRankingFromWinners(): Record<string, RankEntry> {
-  const ranking: Record<string, RankEntry> = {};
-  for (const w of readWinners()) {
-    const key = normalizeName(w.name);
-    const actual = ranking[key] ?? { name: w.name, total: 0, draws: 0 };
-    ranking[key] = {
-      name: w.name,
-      total: actual.total + (w.total ?? 0),
-      draws: actual.draws + (w.draws ?? 1)
-    };
-  }
-  return ranking;
+// El archivo guarda SOLO lo ya entregado. El ranking que se sirve es este
+// archivo mas los ganadores pendientes, leidos en vivo de winners.json. Asi
+// cualquier ganador cuenta desde el primer momento, incluidos los que ya
+// existian antes de que hubiera ranking, y nada se cuenta dos veces.
+interface Archive {
+  version: number;
+  entries: Record<string, RankEntry>;
 }
 
-function readRanking(): Record<string, RankEntry> {
+function sumarEntrada(dest: Record<string, RankEntry>, name: string, total: number, draws: number): void {
+  const key = normalizeName(name);
+  const actual = dest[key] ?? { name, total: 0, draws: 0 };
+  dest[key] = { name, total: actual.total + total, draws: actual.draws + draws };
+}
+
+function readArchive(): Archive {
   ensureDataDir();
   try {
     if (fs.existsSync(RANKING_FILE)) {
       const parsed = JSON.parse(fs.readFileSync(RANKING_FILE, 'utf8'));
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+      if (parsed?.version === 2 && parsed.entries) return parsed as Archive;
+
+      // Formato antiguo: el total incluia a los pendientes. Se les resta para
+      // que el archivo quede solo con lo entregado y no se duplique.
+      const entries: Record<string, RankEntry> = { ...(parsed || {}) };
+      for (const w of readWinners()) {
+        const key = normalizeName(w.name);
+        const actual = entries[key];
+        if (!actual) continue;
+        const total = Math.max(0, actual.total - (w.total ?? 0));
+        const draws = Math.max(0, actual.draws - (w.draws ?? 1));
+        if (total === 0 && draws === 0) delete entries[key];
+        else entries[key] = { ...actual, total, draws };
+      }
+      const migrado: Archive = { version: 2, entries };
+      writeArchive(migrado);
+      console.log('Ranking migrado al formato nuevo (archivo = solo entregados)');
+      return migrado;
     }
-    const sembrado = seedRankingFromWinners();
-    if (Object.keys(sembrado).length) {
-      console.log(`Ranking sembrado con ${Object.keys(sembrado).length} ganador(es) existentes`);
-      writeRanking(sembrado);
-    }
-    return sembrado;
   } catch (err) {
-    console.error('Failed to read ranking:', err);
+    console.error('Failed to read ranking archive:', err);
   }
-  return {};
+  return { version: 2, entries: {} };
 }
 
-function writeRanking(ranking: Record<string, RankEntry>): void {
+function writeArchive(archive: Archive): void {
   ensureDataDir();
-  fs.writeFileSync(RANKING_FILE, JSON.stringify(ranking, null, 2), 'utf8');
+  fs.writeFileSync(RANKING_FILE, JSON.stringify(archive, null, 2), 'utf8');
 }
 
-function addToRanking(name: string, total: number): void {
-  const ranking = readRanking();
-  const key = normalizeName(name);
-  const actual = ranking[key] ?? { name, total: 0, draws: 0 };
-  ranking[key] = {
-    name,                       // se queda con la ultima grafia usada
-    total: actual.total + total,
-    draws: actual.draws + 1
-  };
-  writeRanking(ranking);
+// Entregado + pendiente. Es lo que consume GET /api/ranking.
+function computeRanking(): RankEntry[] {
+  const total: Record<string, RankEntry> = {};
+  for (const [key, e] of Object.entries(readArchive().entries)) {
+    total[key] = { ...e };
+  }
+  for (const w of readWinners()) {
+    sumarEntrada(total, w.name, w.total ?? 0, w.draws ?? 1);
+  }
+  return Object.values(total).sort((a, b) => b.total - a.total || b.draws - a.draws);
+}
+
+function archivarGanador(w: Winner): void {
+  const archive = readArchive();
+  sumarEntrada(archive.entries, w.name, w.total ?? 0, w.draws ?? 1);
+  writeArchive(archive);
 }
 
 function getItemId(item: any): string {
@@ -251,6 +268,13 @@ function shuffle<T>(arr: T[]): T[] {
   }
   return a;
 }
+
+// Las respuestas de la API cambian a cada momento; sin esto el navegador
+// puede servir una version antigua (por ejemplo, un ranking desactualizado).
+app.use('/api', (_req: Request, res: Response, next: any) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 app.get('/api/items', async (_req: Request, res: Response) => {
   try {
@@ -285,10 +309,7 @@ app.put('/api/exclusions', (req: Request, res: Response) => {
 // GET /api/ranking?limit=3 -> { ranking: RankEntry[] } ordenado por total
 app.get('/api/ranking', (req: Request, res: Response) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 3, 1), 50);
-  const ranking = Object.values(readRanking())
-    .sort((a, b) => b.total - a.total || b.draws - a.draws)
-    .slice(0, limit);
-  res.json({ ranking });
+  res.json({ ranking: computeRanking().slice(0, limit) });
 });
 
 // GET /api/winners -> { winners: Winner[] }  (mas recientes primero)
@@ -339,7 +360,7 @@ app.post('/api/winners', (req: Request, res: Response) => {
     }
 
     writeWinners(winners);
-    addToRanking(name, total);   // el historico no se borra al entregar
+    // No se toca el archivo: mientras esta pendiente ya cuenta para el ranking.
     res.json({ winner, merged: Boolean(existente), winners });
   } catch (err) {
     console.error('Failed to save winner:', err);
@@ -351,9 +372,12 @@ app.post('/api/winners', (req: Request, res: Response) => {
 app.delete('/api/winners/:id', (req: Request, res: Response) => {
   try {
     const winners = readWinners();
+    const entregado = winners.find((w) => w.id === req.params.id);
+    if (!entregado) return res.status(404).json({ error: 'winner not found' });
     const rest = winners.filter((w) => w.id !== req.params.id);
-    if (rest.length === winners.length) return res.status(404).json({ error: 'winner not found' });
     writeWinners(rest);
+    // Al salir de pendientes pasa al archivo, para no perderlo del ranking.
+    archivarGanador(entregado);
     res.json({ winners: rest });
   } catch (err) {
     console.error('Failed to delete winner:', err);

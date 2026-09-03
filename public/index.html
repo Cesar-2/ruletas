@@ -372,7 +372,7 @@
       showModal({ title, message, okText: 'Entendido', confirm: false });
 
     async function api(path, opts) {
-      const res = await fetch(path, opts);
+      const res = await fetch(path, { cache: 'no-store', ...opts });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.json();
     }
@@ -813,7 +813,8 @@
 
     async function loadRanking() {
       try {
-        const data = await api('/api/ranking?limit=3');
+        // El parametro extra evita que el navegador reutilice una respuesta previa.
+        const data = await api('/api/ranking?limit=3&_=' + Date.now());
         renderPodium(data.ranking || []);
       } catch (e) {
         console.warn('No se pudo cargar el ranking:', e.message);
