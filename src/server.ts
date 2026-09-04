@@ -18,6 +18,7 @@ const TAGS_FILE = path.join(DATA_DIR, 'tags.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const WINNERS_FILE = path.join(DATA_DIR, 'winners.json');
 const RANKING_FILE = path.join(DATA_DIR, 'ranking.json');
+const STREAM_FILE = path.join(DATA_DIR, 'stream.json');
 const ASSETS_DIR = path.join(process.cwd(), 'public', 'assets');
 
 function ensureDataDir() {
@@ -273,6 +274,44 @@ function computeRanking(): RankEntry[] {
   return Object.values(total).sort((a, b) => b.total - a.total || b.draws - a.draws);
 }
 
+// Top del stream en curso: se acumula aparte del historico y se pone a cero
+// cuando el usuario empieza un stream nuevo. A diferencia del ranking global,
+// aqui se suma en el momento de registrar al ganador, no al entregar el premio.
+interface Stream {
+  version: number;
+  startedAt: string;
+  entries: Record<string, RankEntry>;
+}
+
+function readStream(): Stream {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(STREAM_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(STREAM_FILE, 'utf8'));
+      if (parsed?.version === 1 && parsed.entries) return parsed as Stream;
+    }
+  } catch (err) {
+    console.error('Failed to read stream ranking:', err);
+  }
+  return { version: 1, startedAt: new Date().toISOString(), entries: {} };
+}
+
+function writeStream(stream: Stream): void {
+  ensureDataDir();
+  fs.writeFileSync(STREAM_FILE, JSON.stringify(stream, null, 2), 'utf8');
+}
+
+function sumarAlStream(name: string, total: number, draws: number): void {
+  const stream = readStream();
+  sumarEntrada(stream.entries, name, total, draws);
+  writeStream(stream);
+}
+
+function rankingStream(): RankEntry[] {
+  const stream = readStream();
+  return Object.values(stream.entries).sort((a, b) => b.total - a.total || b.draws - a.draws);
+}
+
 function archivarGanador(w: Winner): void {
   const archive = readArchive();
   sumarEntrada(archive.entries, w.name, w.total ?? 0, w.draws ?? 1);
@@ -329,10 +368,27 @@ app.put('/api/exclusions', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/ranking?limit=3 -> { ranking: RankEntry[] } ordenado por total
+// GET /api/ranking?limit=3&scope=global|stream -> { ranking: RankEntry[] }
+// ordenado por total. 'stream' devuelve ademas cuando empezo el stream.
 app.get('/api/ranking', (req: Request, res: Response) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 3, 1), 50);
+  if (req.query.scope === 'stream') {
+    const stream = readStream();
+    return res.json({ ranking: rankingStream().slice(0, limit), startedAt: stream.startedAt });
+  }
   res.json({ ranking: computeRanking().slice(0, limit) });
+});
+
+// POST /api/stream/reset -> empieza un stream nuevo (el global no se toca)
+app.post('/api/stream/reset', (_req: Request, res: Response) => {
+  try {
+    const stream: Stream = { version: 1, startedAt: new Date().toISOString(), entries: {} };
+    writeStream(stream);
+    res.json({ ranking: [], startedAt: stream.startedAt });
+  } catch (err) {
+    console.error('Failed to reset stream ranking:', err);
+    res.status(500).json({ error: 'failed to reset stream ranking' });
+  }
 });
 
 // GET /api/winners -> { winners: Winner[] }  (mas recientes primero)
@@ -383,6 +439,8 @@ app.post('/api/winners', (req: Request, res: Response) => {
     }
 
     writeWinners(winners);
+    // Solo el premio de este sorteo, no el acumulado de la entrada.
+    sumarAlStream(name, total, 1);
     // No se toca el archivo: mientras esta pendiente ya cuenta para el ranking.
     res.json({ winner, merged: Boolean(existente), winners });
   } catch (err) {
@@ -564,5 +622,5 @@ app.listen(PORT, () => {
   console.log('           GET /api/tags  PUT /api/tags');
   console.log('           GET /api/settings  PUT /api/settings  POST /api/background');
   console.log('           GET /api/winners  POST /api/winners  DELETE /api/winners/:id');
-  console.log('           GET /api/ranking?limit=3');
+  console.log('           GET /api/ranking?limit=3&scope=global|stream  POST /api/stream/reset');
 });
