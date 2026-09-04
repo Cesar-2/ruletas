@@ -9,6 +9,9 @@ dist/
 # sin exclusiones, sin rarezas y sin ganadores.
 data/
 
+# Copia de seguridad que hace actualizar-ruleton.cmd antes de cada pull.
+data-backup/
+
 # Fondos subidos desde el panel de configuracion: son de cada instalacion.
 public/assets/fondo-*
 
