@@ -4,11 +4,12 @@ node_modules/
 # Salida de TypeScript
 dist/
 
-# Datos de cada instalación. Se ignora todo salvo exclusiones y rarezas, que
-# se versionan vacias como plantilla. Nota: hay que usar "data/*" y no "data/",
-# porque Git no entra en un directorio ignorado y las excepciones no aplicarian.
+# Datos de cada instalación: no salen del equipo. Las exclusiones son de quien
+# usa la app, asi que tampoco se versionan vacias; si el archivo no existe, el
+# servidor arranca sin ninguna exclusion. Nota: hay que usar "data/*" y no
+# "data/", porque Git no entra en un directorio ignorado y las excepciones no
+# aplicarian.
 data/*
-!data/exclusions.json
 !data/tags.json
 
 # Fondos subidos desde el panel de configuracion: son de cada instalacion.
