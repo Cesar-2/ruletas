@@ -44,6 +44,28 @@ npm install
 
 ---
 
+## Arrancar y parar con un clic
+
+Para quien solo quiere usar la aplicación, sin tocar la terminal. Arrancan el
+servidor en segundo plano, esperan a que responda y abren el navegador solo:
+
+| | Arrancar | Parar |
+|---|---|---|
+| **Windows** | `iniciar-ruleton.vbs` | `detener-ruleton.vbs` |
+| **macOS** | `iniciar-ruleton.command` | `detener-ruleton.command` |
+
+Doble clic y listo. La primera vez instalan las dependencias, así que tardan un
+par de minutos; después arrancan en segundos. Si algo falla, avisan con un
+diálogo e indican dónde está el log.
+
+En Windows los `.vbs` no dejan ninguna ventana abierta; los `.cmd` del mismo
+nombre son los que hacen el trabajo y pueden usarse directamente si se prefiere
+ver la consola. En macOS, la primera vez hay que abrirlos con **clic derecho >
+Abrir** para saltarse el aviso de Gatekeeper, y si el sistema no los deja
+ejecutar: `chmod +x *.command`.
+
+---
+
 ## Arrancar en desarrollo
 
 ```powershell

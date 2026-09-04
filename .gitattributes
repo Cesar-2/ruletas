@@ -1,0 +1,7 @@
+# Los lanzadores de macOS deben quedarse con saltos de linea LF: con CRLF el
+# shebang no funciona y macOS responde "bad interpreter".
+*.command text eol=lf
+
+# Los de Windows, al reves.
+*.cmd text eol=crlf
+*.vbs text eol=crlf
