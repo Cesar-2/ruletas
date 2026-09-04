@@ -8,11 +8,14 @@
     :root{
       --bg:#0f1724; --card:#0b1220; --accent:#6ee7b7; --accent-2:#3ee9c0; --muted:#c3ccd9; --glass: rgba(255,255,255,0.04);
       --bg-image:url('/assets/fondo.png'); --overlay:0.55; --wheel-image:none;
+      --anim-scale:1; --font-scale:1;
     }
     *{box-sizing:border-box}
     body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; font-size:18px; background:linear-gradient(rgba(7,16,34,var(--overlay)), rgba(11,18,32,calc(var(--overlay) + 0.13))), var(--bg-image) center center / cover no-repeat fixed #071022; color:#e6eef8; min-height:100vh; margin:0; padding:2rem}
-    .app{max-width:1100px;margin:0 auto}
+    .app{max-width:1100px;margin:0 auto;zoom:var(--font-scale)}
     header{display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem}
+    .navbar{flex-wrap:wrap;gap:.75rem 1.25rem;max-width:950px;padding:1rem;border-radius:12px;background:rgba(9,15,28,0.80);border:1px solid rgba(255,255,255,0.08);box-shadow:0 6px 24px rgba(2,6,23,0.6);position:sticky;top:.6rem;z-index:60;backdrop-filter:blur(8px)}
+    .nav-links{display:flex;gap:.5rem;flex-wrap:wrap;margin-left:auto}
     h1{margin:0;font-weight:700;letter-spacing:-0.5px;font-size:28px;text-shadow:0 2px 12px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.9)}
     p.lead{color:var(--muted);margin-top:0.25rem;font-size:16px}
     .controls{display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap}
@@ -132,7 +135,13 @@
     .copy-name:hover{background:rgba(255,255,255,0.12)}
     .copy-name.copied{background:rgba(110,231,183,0.18);border-color:rgba(110,231,183,0.6);color:#6ee7b7}
     .config-panel{margin-bottom:1rem}
-    .config-panel[hidden]{display:none}
+    .config-section{margin-top:1.1rem;padding-top:.9rem;border-top:1px solid rgba(255,255,255,0.12)}
+    .config-section:first-of-type{margin-top:.4rem;padding-top:0;border-top:0}
+    .config-section > h4{margin:0;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:var(--accent)}
+    .config-section > .meta{margin:.15rem 0 0}
+    .config-section .subtabs{margin-top:1.1rem}
+    .cfg-subpanel{display:none}
+    .cfg-subpanel.active{display:block}
     .config-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem 1.2rem;margin-top:.8rem;align-items:end}
     /* Etiqueta de alto fijo (2 líneas) para que todos los controles queden a la
        misma altura aunque los textos ocupen una o dos lineas. */
@@ -146,16 +155,16 @@
     .config-check{display:flex;align-items:center;gap:.5rem;height:38px;font-size:14px;color:#e6eef8;cursor:pointer}
     .config-check input{width:18px;height:18px;accent-color:var(--accent);cursor:pointer}
     .config-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.2rem;align-items:center}
-    #configToggle{background:rgba(255,255,255,0.07);color:#e6eef8;border:1px solid rgba(255,255,255,0.14);box-shadow:none}
     .meta{color:var(--muted);font-size:14px}
     #count{color:var(--muted);margin-top:0.5rem}
     #randomResult{margin-top:0.5rem;color:var(--accent);font-weight:600;font-size:16px}
     .slot-wrapper{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;z-index:1000;pointer-events:none}
     .slot-wrapper.show{display:block}
-    .slot-machine{display:flex;gap:.7rem;padding:1.1rem;border-radius:16px;background:linear-gradient(180deg, rgba(13,21,38,0.97), rgba(6,11,22,0.97));border:3px solid var(--accent);box-shadow:0 30px 80px rgba(0,0,0,0.75), inset 0 0 40px rgba(110,231,183,0.10)}
-    .slot-reel{width:104px;height:132px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);overflow:hidden;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35rem;padding:.5rem}
-    .slot-reel img{width:56px;height:56px;object-fit:contain}
-    .slot-reel .slot-name{font-size:11px;line-height:1.25;text-align:center;color:var(--muted);max-height:2.5em;overflow:hidden}
+    .slot-machine{display:flex;flex-direction:column;gap:calc(1rem * var(--anim-scale));padding:calc(1.6rem * var(--anim-scale));border-radius:20px;background:linear-gradient(180deg, rgba(13,21,38,0.97), rgba(6,11,22,0.97));border:3px solid var(--accent);box-shadow:0 30px 80px rgba(0,0,0,0.75), inset 0 0 40px rgba(110,231,183,0.10)}
+    .slot-row{display:flex;justify-content:center;gap:calc(1rem * var(--anim-scale))}
+    .slot-reel{width:calc(158px * var(--anim-scale));height:calc(200px * var(--anim-scale));border-radius:16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);overflow:hidden;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(.5rem * var(--anim-scale));padding:calc(.7rem * var(--anim-scale))}
+    .slot-reel img{width:calc(88px * var(--anim-scale));height:calc(88px * var(--anim-scale));object-fit:contain}
+    .slot-reel .slot-name{font-size:calc(15px * var(--anim-scale));line-height:1.25;text-align:center;color:var(--muted);max-height:2.5em;overflow:hidden}
     .slot-reel.spinning{animation:slotBlur .26s linear infinite}
     .slot-reel.stopped{animation:slotStop .45s cubic-bezier(.2,1.6,.4,1);border-color:var(--accent);box-shadow:0 0 0 2px rgba(110,231,183,0.25), 0 0 22px rgba(110,231,183,0.35)}
     .slot-reel.stopped .slot-name{color:#e6eef8}
@@ -163,15 +172,17 @@
     @keyframes slotStop{0%{transform:translateY(-26px) scale(1.06)}60%{transform:translateY(4px) scale(.99)}100%{transform:none}}
     .roulette-wrapper{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;z-index:1000;pointer-events:none}
     .roulette-wrapper.show{display:flex}
-    .roulette-wheel{position:relative;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle at center, rgba(255,255,255,0.16) 0 18%, rgba(255,255,255,0.03) 19% 24%, transparent 25%), conic-gradient(#ff6b8a 0 16%, #ffd166 16% 32%, #6ee7b7 32% 48%, #60a5fa 48% 64%, #c084fc 64% 80%, #f472b6 80% 100%);border:12px solid rgba(255,255,255,0.18);box-shadow:0 28px 70px rgba(0,0,0,0.6), inset 0 0 35px rgba(255,255,255,0.08);animation:spinRoulette 5s cubic-bezier(.12,.8,.2,1) forwards}
+    .roulette-wheel{position:relative;width:calc(340px * var(--anim-scale));height:calc(340px * var(--anim-scale));border-radius:50%;background:radial-gradient(circle at center, rgba(255,255,255,0.16) 0 18%, rgba(255,255,255,0.03) 19% 24%, transparent 25%), conic-gradient(#ff6b8a 0 16%, #ffd166 16% 32%, #6ee7b7 32% 48%, #60a5fa 48% 64%, #c084fc 64% 80%, #f472b6 80% 100%);border:calc(16px * var(--anim-scale)) solid rgba(255,255,255,0.18);box-shadow:0 28px 70px rgba(0,0,0,0.6), inset 0 0 35px rgba(255,255,255,0.08);animation:spinRoulette 5s cubic-bezier(.12,.8,.2,1) forwards}
     /* Con imagen personalizada se ocultan el degradado y los adornos del centro. */
     .roulette-wheel.custom{background:var(--wheel-image) center center / cover no-repeat, #0b1220;border-color:rgba(255,255,255,0.35)}
     .roulette-wheel.custom::before, .roulette-wheel.custom::after{display:none}
-    .roulette-wheel::before{content:'';position:absolute;inset:30px;border-radius:50%;background:radial-gradient(circle at center, rgba(7,16,34,0.35) 0%, rgba(7,16,34,0.8) 58%, rgba(7,16,34,1) 100%);border:4px solid rgba(255,255,255,0.2)}
-    .roulette-wheel::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#fff,#d7fef0);box-shadow:0 0 0 10px rgba(110,231,183,0.18), 0 0 26px rgba(110,231,183,0.7)}
-    .roulette-wheel .pin{position:absolute;left:50%;top:-12px;transform:translateX(-50%);width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-top:28px solid #fdf2f8;filter:drop-shadow(0 4px 8px rgba(255,255,255,0.25));}
-    .roulette-items{position:absolute;left:50%;top:50%;width:340px;height:340px;transform:translate(-50%,-50%);pointer-events:none}
-    .roulette-item{position:absolute;left:50%;top:50%;width:34px;height:34px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.7);background:rgba(255,255,255,0.06);box-shadow:0 8px 16px rgba(0,0,0,0.35);transform:translate(-50%, -50%);}
+    .roulette-wheel::before{content:'';position:absolute;inset:calc(46px * var(--anim-scale));border-radius:50%;background:radial-gradient(circle at center, rgba(7,16,34,0.35) 0%, rgba(7,16,34,0.8) 58%, rgba(7,16,34,1) 100%);border:4px solid rgba(255,255,255,0.2)}
+    .roulette-wheel::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(42px * var(--anim-scale));height:calc(42px * var(--anim-scale));border-radius:50%;background:linear-gradient(135deg,#fff,#d7fef0);box-shadow:0 0 0 14px rgba(110,231,183,0.18), 0 0 26px rgba(110,231,183,0.7)}
+    .roulette-wheel .pin{position:absolute;left:50%;top:-18px;transform:translateX(-50%);width:0;height:0;border-left:20px solid transparent;border-right:20px solid transparent;border-top:40px solid #fdf2f8;filter:drop-shadow(0 4px 8px rgba(255,255,255,0.25));}
+    .roulette-items{position:absolute;left:50%;top:50%;width:calc(520px * var(--anim-scale));height:calc(520px * var(--anim-scale));transform:translate(-50%,-50%);pointer-events:none}
+    .roulette-item{position:absolute;left:50%;top:50%;width:calc(52px * var(--anim-scale));height:calc(52px * var(--anim-scale));border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.7);background:rgba(255,255,255,0.06);box-shadow:0 8px 16px rgba(0,0,0,0.35);transform:translate(-50%, -50%);}
+    .roulette-item.winner{border-color:var(--accent);box-shadow:0 0 0 3px rgba(110,231,183,0.35), 0 0 22px rgba(110,231,183,0.7);z-index:2;animation:winnerPop .5s cubic-bezier(.2,1.6,.4,1) forwards}
+    @keyframes winnerPop{0%{transform:translate(-50%,-50%) scale(.6)}60%{transform:translate(-50%,-50%) scale(1.45)}100%{transform:translate(-50%,-50%) scale(1.25)}}
     .roulette-item img{width:100%;height:100%;object-fit:cover;display:block;background:#101827;pointer-events:none;opacity:1;transition:opacity .09s linear}
     @keyframes spinRoulette{0%{transform:rotate(0deg) scale(0.92);opacity:0.5}15%{transform:rotate(180deg) scale(1.02);opacity:1}55%{transform:rotate(1200deg) scale(1.06);opacity:1}100%{transform:rotate(1800deg) scale(1);opacity:1}}
     /* highlight for selection */
@@ -189,68 +200,18 @@
 </head>
 <body>
   <div class="app">
-    <header>
-      <div>
-        <h1>Sorteos - Demo</h1>
-      </div>
-      <button id="configToggle" type="button" style="margin-left:auto">⚙ Configuración</button>
+    <header class="navbar">
+      <h1>Sorteos - Demo</h1>
+      <nav class="nav-links" aria-label="Secciones">
+        <button type="button" class="tab active" data-tab="catalog">Catálogo</button>
+        <button type="button" class="tab" data-tab="random">Ruleta</button>
+        <button type="button" class="tab" data-tab="winners">Ganadores (0)</button>
+        <button type="button" class="tab" data-tab="config">⚙ Configuración</button>
+      </nav>
     </header>
-
-    <section class="config-panel" id="configPanel" hidden>
-      <h3>Personalizar apariencia</h3>
-      <div class="config-grid">
-        <div class="config-field">
-          <label for="cfgBgFile">Imagen de fondo (subir archivo)</label>
-          <input id="cfgBgFile" type="file" accept="image/*" />
-        </div>
-        <div class="config-field">
-          <label for="cfgBgUrl">…o dirección de la imagen</label>
-          <input id="cfgBgUrl" type="text" placeholder="/assets/fondo.png" />
-        </div>
-        <div class="config-field">
-          <label for="cfgAnimation">Animación al sortear</label>
-          <select id="cfgAnimation">
-            <option value="slot">🎰 Tragaperras</option>
-            <option value="wheel">🎡 Ruleta girando</option>
-            <option value="none">Sin animación</option>
-          </select>
-        </div>
-        <div class="config-field">
-          <label for="cfgWheelFile">Imagen de la ruleta (subir archivo)</label>
-          <input id="cfgWheelFile" type="file" accept="image/*" />
-        </div>
-        <div class="config-field">
-          <label for="cfgWheelUrl">…o dirección (vacío = ruleta de colores)</label>
-          <input id="cfgWheelUrl" type="text" placeholder="/assets/mi-ruleta.png" />
-        </div>
-        <div class="config-field">
-          <label for="cfgAccent">Color de los botones</label>
-          <input id="cfgAccent" type="color" value="#6ee7b7" />
-        </div>
-        <div class="config-field">
-          <label for="cfgAccent2">Color secundario (degradado)</label>
-          <input id="cfgAccent2" type="color" value="#3ee9c0" />
-        </div>
-        <div class="config-field">
-          <label for="cfgOverlay">Oscurecer el fondo:&nbsp;<span id="cfgOverlayValue">55%</span></label>
-          <input id="cfgOverlay" type="range" min="0" max="95" value="55" />
-        </div>
-      </div>
-      <div class="config-actions">
-        <button id="cfgSave" type="button">Guardar</button>
-        <button id="cfgReset" type="button">Restaurar valores por defecto</button>
-        <span class="meta" id="cfgStatus" style="margin-left:auto"></span>
-      </div>
-    </section>
 
     <div class="grid">
       <main>
-        <div class="tabs">
-          <button type="button" class="tab active" data-tab="catalog">Catálogo</button>
-          <button type="button" class="tab" data-tab="random">Ruleta</button>
-          <button type="button" class="tab" data-tab="winners">Ganadores (0)</button>
-        </div>
-
         <div class="tab-panel active" id="catalog-panel">
           <section>
             <div class="controls">
@@ -341,6 +302,114 @@
             <h3>Ganadores pendientes de entrega</h3>
             <p class="meta">Al entregar el premio, elimina al ganador de la lista.</p>
             <div id="winnersList"></div>
+          </section>
+        </div>
+
+        <div class="tab-panel" id="config-panel">
+          <section class="config-panel">
+          <h3>Personalizar apariencia</h3>
+
+          <div class="config-section">
+            <h4>Fondo</h4>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgBgFile">Imagen de fondo (subir archivo)</label>
+                <input id="cfgBgFile" type="file" accept="image/*" />
+              </div>
+              <div class="config-field">
+                <label for="cfgBgUrl">…o dirección de la imagen</label>
+                <input id="cfgBgUrl" type="text" placeholder="/assets/fondo.png" />
+              </div>
+              <div class="config-field">
+                <label for="cfgOverlay">Oscurecer el fondo:&nbsp;<span id="cfgOverlayValue">55%</span></label>
+                <input id="cfgOverlay" type="range" min="0" max="95" value="55" />
+              </div>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h4>Colores</h4>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgAccent">Color de los botones</label>
+                <input id="cfgAccent" type="color" value="#6ee7b7" />
+              </div>
+              <div class="config-field">
+                <label for="cfgAccent2">Color secundario (degradado)</label>
+                <input id="cfgAccent2" type="color" value="#3ee9c0" />
+              </div>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h4>Página</h4>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgFontScale">Tamaño de la letra de la página:&nbsp;<span id="cfgFontScaleValue">100%</span></label>
+                <input id="cfgFontScale" type="range" min="70" max="160" step="5" value="100" />
+              </div>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h4>Animación del sorteo</h4>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgAnimation">Animación al sortear</label>
+                <select id="cfgAnimation">
+                  <option value="slot">🎰 Tragaperras</option>
+                  <option value="wheel">🎡 Ruleta girando</option>
+                  <option value="none">Sin animación</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="subtabs">
+              <button type="button" class="subtab active" data-cfg="wheel">🎡 Ruleta</button>
+              <button type="button" class="subtab" data-cfg="slot">🎰 Tragaperras</button>
+            </div>
+
+            <div class="cfg-subpanel active" id="cfg-wheel-panel">
+              <p class="meta">Ajustes de la ruleta girando. «Probar» la muestra 5 s sin sortear.</p>
+              <div class="config-grid">
+                <div class="config-field">
+                  <label for="cfgWheelFile">Imagen de la ruleta (subir archivo)</label>
+                  <input id="cfgWheelFile" type="file" accept="image/*" />
+                </div>
+                <div class="config-field">
+                  <label for="cfgWheelUrl">…o dirección (vacío = ruleta de colores)</label>
+                  <input id="cfgWheelUrl" type="text" placeholder="/assets/mi-ruleta.png" />
+                </div>
+                <div class="config-field">
+                  <label for="cfgWheelScale">Tamaño de la ruleta:&nbsp;<span id="cfgWheelScaleValue">100%</span></label>
+                  <input id="cfgWheelScale" type="range" min="50" max="200" step="5" value="100" />
+                </div>
+                <div class="config-field">
+                  <label for="cfgPreviewWheel">Vista previa</label>
+                  <button id="cfgPreviewWheel" type="button">Probar ruleta</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="cfg-subpanel" id="cfg-slot-panel">
+              <p class="meta">Ajustes de la tragaperras. «Probar» la muestra 5 s sin sortear, con tantos rodillos como recursos tenga el sorteo.</p>
+              <div class="config-grid">
+                <div class="config-field">
+                  <label for="cfgSlotScale">Tamaño de la tragaperras:&nbsp;<span id="cfgSlotScaleValue">100%</span></label>
+                  <input id="cfgSlotScale" type="range" min="50" max="200" step="5" value="100" />
+                </div>
+                <div class="config-field">
+                  <label for="cfgPreviewSlot">Vista previa</label>
+                  <button id="cfgPreviewSlot" type="button">Probar tragaperras</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="config-actions">
+            <button id="cfgSave" type="button">Guardar</button>
+            <button id="cfgReset" type="button">Restaurar valores por defecto</button>
+            <span class="meta" id="cfgStatus" style="margin-left:auto"></span>
+          </div>
           </section>
         </div>
 
@@ -449,9 +518,18 @@
       animation: 'slot',
       accentColor: '#6ee7b7',
       accentColor2: '#3ee9c0',
-      overlayOpacity: 0.55
+      overlayOpacity: 0.55,
+      wheelScale: 1,       // tamaño de la ruleta
+      slotScale: 1,        // tamaño de la tragaperras
+      fontScale: 1         // tamaño de la letra de toda la página
     };
     let settings = { ...DEFAULT_SETTINGS };
+
+    // Cada animación tiene su propio tamaño; --anim-scale sigue a la que se use.
+    function escalaAnimacion(tipo) {
+      const cual = tipo || settings.animation;
+      return (cual === 'wheel' ? settings.wheelScale : settings.slotScale) || 1;
+    }
 
     function applySettings() {
       const root = document.documentElement;
@@ -460,6 +538,10 @@
       root.style.setProperty('--accent-2', settings.accentColor2);
       root.style.setProperty('--overlay', String(settings.overlayOpacity));
       root.style.setProperty('--wheel-image', settings.wheelUrl ? `url('${settings.wheelUrl}')` : 'none');
+      root.style.setProperty('--anim-scale', String(escalaAnimacion()));
+      root.style.setProperty('--font-scale', String(settings.fontScale));
+      // La orbita de la ruleta se coloca desde JS, asi que sigue a la escala.
+      updateRoulettePositions();
 
       const wheel = document.querySelector('.roulette-wheel');
       if (wheel) wheel.classList.toggle('custom', Boolean(settings.wheelUrl));
@@ -474,6 +556,15 @@
       const pct = Math.round(settings.overlayOpacity * 100);
       document.getElementById('cfgOverlay').value = pct;
       document.getElementById('cfgOverlayValue').textContent = pct + '%';
+      const rueda = Math.round(settings.wheelScale * 100);
+      document.getElementById('cfgWheelScale').value = rueda;
+      document.getElementById('cfgWheelScaleValue').textContent = rueda + '%';
+      const traga = Math.round(settings.slotScale * 100);
+      document.getElementById('cfgSlotScale').value = traga;
+      document.getElementById('cfgSlotScaleValue').textContent = traga + '%';
+      const font = Math.round(settings.fontScale * 100);
+      document.getElementById('cfgFontScale').value = font;
+      document.getElementById('cfgFontScaleValue').textContent = font + '%';
     }
 
     async function loadSettings() {
@@ -619,7 +710,7 @@
       const bar = document.getElementById('excludedBar');
       if (bar) bar.hidden = catalogView !== 'excluded';
 
-      const excludedTab = document.querySelector('.subtab[data-view="excluded"]');
+      const excludedTab = document.querySelector('#catalog-panel .subtab[data-view="excluded"]');
       if (excludedTab) excludedTab.textContent = `Excluidos (${total})`;
 
       const tagValues = Object.values(itemTags);
@@ -654,9 +745,10 @@
     function updateRoulettePositions() {
       const slots = Array.from(rouletteItems.children);
       if (!slots.length) return;
-      const cx = 170;
-      const cy = 170;
-      const radius = 148;
+      const escala = settings.wheelScale || 1;
+      const cx = 260 * escala;
+      const cy = 260 * escala;
+      const radius = 228 * escala;
       slots.forEach((node, index) => {
         const angle = (Math.PI * 2 * index) / slots.length - Math.PI / 2;
         node.style.left = (cx + Math.cos(angle) * radius) + 'px';
@@ -704,7 +796,9 @@
         const nodes = Array.from(rouletteItems.children);
         if (!nodes.length) return;
         const source = allItems.length ? allItems : getRoulettePool([]);
-        const shuffled = [...nodes].sort(() => Math.random() - 0.5);
+        // Los que ya han parado sobre un ganador no vuelven a cambiar.
+        const shuffled = nodes.filter((node) => !node.dataset.winner).sort(() => Math.random() - 0.5);
+        if (!shuffled.length) return;
         shuffled.slice(0, Math.max(1, Math.ceil(nodes.length / 3))).forEach((node) => {
           swapSlotImage(node, source);
         });
@@ -715,6 +809,11 @@
     const slotMachine = document.getElementById('slotMachine');
     let slotIntervals = [];
     let slotTimeouts = [];
+    let slotReels = [];
+    const SLOT_REELS_POR_FILA = 5;
+    const MAX_SLOT_REELS = 20;   // mas rodillos no caben en pantalla
+    // Resultado real del sorteo: los rodillos y la ruleta paran sobre estos.
+    let drawWinners = [];
 
     function pintarSlot(reel, item) {
       const imgUrl = item.image_urls?.icon ?? item.image_urls?.sd ?? '';
@@ -732,25 +831,38 @@
       const pool = getRoulettePool(allItems);
       if (!pool.length) return;
 
-      const reels = Math.min(Math.max(n, 1), 5);
+      // Un rodillo por recurso sorteado, en filas de 5 como maximo.
+      const reels = Math.min(Math.max(n, 1), MAX_SLOT_REELS);
+      // Las filas se reparten parejas: 6 rodillos salen 3 y 3, no 5 y 1.
+      const filas = Math.ceil(reels / SLOT_REELS_POR_FILA);
+      const porFila = Math.ceil(reels / filas);
       slotMachine.innerHTML = '';
+      let fila = null;
       for (let i = 0; i < reels; i++) {
+        if (i % porFila === 0) {
+          fila = document.createElement('div');
+          fila.className = 'slot-row';
+          slotMachine.appendChild(fila);
+        }
         const reel = document.createElement('div');
         reel.className = 'slot-reel spinning';
         pintarSlot(reel, pool[Math.floor(Math.random() * pool.length)]);
-        slotMachine.appendChild(reel);
+        fila.appendChild(reel);
+        slotReels.push(reel);
 
         slotIntervals.push(setInterval(() => {
           pintarSlot(reel, pool[Math.floor(Math.random() * pool.length)]);
         }, 190));
 
         // Las paradas se reparten dentro de la espera para que quepan todas,
-        // sean 1 o 5 rodillos: la ultima cae justo antes de que termine.
+        // sea uno o sean veinte rodillos: la ultima cae justo antes del final.
         const parada = reels > 1 ? 1800 + (i * 2700) / (reels - 1) : 3200;
         slotTimeouts.push(setTimeout(() => {
           clearInterval(slotIntervals[i]);
           reel.classList.remove('spinning');
           reel.classList.add('stopped');
+          // Si el sorteo ya respondio, el rodillo para sobre el ganador real.
+          if (drawWinners[i]) pintarSlot(reel, drawWinners[i]);
         }, parada));
       }
       slotWrapper.classList.add('show');
@@ -761,19 +873,57 @@
       slotTimeouts.forEach(clearTimeout);
       slotIntervals = [];
       slotTimeouts = [];
+      slotReels = [];
       slotWrapper.classList.remove('show');
       slotMachine.innerHTML = '';
     }
 
-    function showSpinner(n = 3) {
-      if (settings.animation === 'none') return;
+    // Se llama cuando llega la respuesta del sorteo: lo que aun no ha parado
+    // parara sobre un ganador, y lo ya parado se repinta con el suyo.
+    function revealDrawWinners(items) {
+      drawWinners = Array.isArray(items) ? items : [];
+      if (!drawWinners.length) return;
+
+      slotReels.forEach((reel, i) => {
+        if (drawWinners[i] && reel.classList.contains('stopped')) pintarSlot(reel, drawWinners[i]);
+      });
+
+      const nodes = Array.from(rouletteItems.children);
+      if (!nodes.length) return;
+      // En la ruleta los ganadores se van fijando de uno en uno hasta el final del giro.
+      const total = Math.min(drawWinners.length, nodes.length);
+      const paso = total > 1 ? 2600 / (total - 1) : 0;
+      for (let i = 0; i < total; i++) {
+        slotTimeouts.push(setTimeout(() => {
+          const node = nodes[i];
+          const item = drawWinners[i];
+          const img = node.querySelector('img');
+          const imgUrl = item.image_urls?.icon ?? item.image_urls?.sd ?? '';
+          if (img && imgUrl) {
+            img.style.display = '';
+            img.style.opacity = '1';
+            img.src = imgUrl;
+            img.alt = item.name?.es ?? 'recurso';
+          }
+          node.dataset.winner = '1';
+          node.classList.add('winner');
+        }, i * paso));
+      }
+    }
+
+    function showSpinner(n = 3, tipo) {
+      drawWinners = [];
+      const animacion = tipo || settings.animation;
+      if (animacion === 'none') return;
+      // Una vista previa puede pedir una animación distinta de la configurada.
+      document.documentElement.style.setProperty('--anim-scale', String(escalaAnimacion(animacion)));
       if (!allItems.length) {
         api('/api/items')
           .then((data) => { allItems = Array.isArray(data.items) ? data.items : []; })
           .catch(() => {});
       }
 
-      if (settings.animation !== 'wheel') {
+      if (animacion !== 'wheel') {
         startSlotMachine(n);
         return;
       }
@@ -789,6 +939,8 @@
     }
     function hideSpinner() {
       stopSlotMachine();
+      drawWinners = [];
+      applySettings();   // devuelve --anim-scale a la animación configurada
       rouletteWrapper.classList.remove('show');
       if (rouletteInterval) {
         clearInterval(rouletteInterval);
@@ -1321,11 +1473,6 @@
       }
     });
 
-    document.getElementById('configToggle').addEventListener('click', () => {
-      const panel = document.getElementById('configPanel');
-      panel.hidden = !panel.hidden;
-      if (!panel.hidden) fillConfigForm();
-    });
 
     // Vista previa inmediata: se ve el cambio antes de guardar.
     document.getElementById('cfgAccent').addEventListener('input', (ev) => {
@@ -1389,6 +1536,57 @@
     document.getElementById('cfgAnimation').addEventListener('change', (ev) => {
       settings.animation = ev.target.value;
     });
+
+    document.getElementById('cfgWheelScale').addEventListener('input', (ev) => {
+      settings.wheelScale = Number(ev.target.value) / 100;
+      document.getElementById('cfgWheelScaleValue').textContent = ev.target.value + '%';
+      applySettings();
+      previsualizar('wheel');
+    });
+    document.getElementById('cfgSlotScale').addEventListener('input', (ev) => {
+      settings.slotScale = Number(ev.target.value) / 100;
+      document.getElementById('cfgSlotScaleValue').textContent = ev.target.value + '%';
+      applySettings();
+      previsualizar('slot');
+    });
+
+    // Pestañas de ruleta / tragaperras dentro de Configuración.
+    document.querySelectorAll('#config-panel .subtab').forEach((subtab) => {
+      subtab.addEventListener('click', () => {
+        document.querySelectorAll('#config-panel .subtab').forEach((b) => b.classList.toggle('active', b === subtab));
+        document.querySelectorAll('.cfg-subpanel').forEach((panel) => {
+          panel.classList.toggle('active', panel.id === `cfg-${subtab.dataset.cfg}-panel`);
+        });
+      });
+    });
+    document.getElementById('cfgFontScale').addEventListener('input', (ev) => {
+      settings.fontScale = Number(ev.target.value) / 100;
+      document.getElementById('cfgFontScaleValue').textContent = ev.target.value + '%';
+      applySettings();
+    });
+
+    // Muestra la animacion unos segundos para ajustar el tamano sin sortear.
+    let previewTimeout = null;
+    function previsualizar(tipo) {
+      if (previewTimeout) clearTimeout(previewTimeout);
+      stopSlotMachine();
+      rouletteWrapper.classList.remove('show');
+      // Tantos rodillos como recursos vaya a sortear.
+      showSpinner(Number(document.getElementById('n').value) || 3, tipo);
+      previewTimeout = setTimeout(hideSpinner, 5000);
+    }
+
+    // La vista previa solo tiene sentido dentro de Configuración.
+    function cancelarPrevisualizacion() {
+      if (previewTimeout) {
+        clearTimeout(previewTimeout);
+        previewTimeout = null;
+      }
+      hideSpinner();
+    }
+
+    document.getElementById('cfgPreviewWheel').addEventListener('click', () => previsualizar('wheel'));
+    document.getElementById('cfgPreviewSlot').addEventListener('click', () => previsualizar('slot'));
 
     document.getElementById('cfgSave').addEventListener('click', saveSettings);
 
@@ -1468,10 +1666,10 @@
       saveExclusions();
     });
 
-    document.querySelectorAll('.subtab').forEach((subtab) => {
+    document.querySelectorAll('#catalog-panel .subtab').forEach((subtab) => {
       subtab.addEventListener('click', () => {
         catalogView = subtab.dataset.view;
-        document.querySelectorAll('.subtab').forEach((b) => b.classList.toggle('active', b === subtab));
+        document.querySelectorAll('#catalog-panel .subtab').forEach((b) => b.classList.toggle('active', b === subtab));
         currentPage = 1;
         renderItemsPage();
         updateExcludedInfo();
@@ -1516,6 +1714,9 @@
         document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `${tab.dataset.tab}-panel`));
         // El editor puede haber quedado desfasado si se editó desde el catálogo.
         if (tab.dataset.tab === 'random') renderEditor();
+        if (tab.dataset.tab === 'config') fillConfigForm();
+        // Al salir de Configuración se corta la animación de prueba.
+        else cancelarPrevisualizacion();
       });
     });
 
@@ -1603,7 +1804,8 @@
 
       try {
         // El servidor ya descarta los excluidos guardados en /api/exclusions.
-        const dataPromise = api('/api/random-items?n=' + n);
+        const dataPromise = api('/api/random-items?n=' + n)
+          .then((data) => { revealDrawWinners(data.items || []); return data; });
         // Sin animación no hay nada que mirar: se salta la espera.
         if (settings.animation !== 'none') {
           await new Promise((resolve) => setTimeout(resolve, 5000));

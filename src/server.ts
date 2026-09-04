@@ -120,6 +120,9 @@ interface Settings {
   accentColor: string;
   accentColor2: string;
   overlayOpacity: number;
+  wheelScale: number;       // tamano de la ruleta (1 = normal)
+  slotScale: number;        // tamano de la tragaperras (1 = normal)
+  fontScale: number;        // tamano de la letra de la pagina (1 = normal)
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -129,7 +132,10 @@ const DEFAULT_SETTINGS: Settings = {
   animation: 'slot',
   accentColor: '#6ee7b7',
   accentColor2: '#3ee9c0',
-  overlayOpacity: 0.55
+  overlayOpacity: 0.55,
+  wheelScale: 1,
+  slotScale: 1,
+  fontScale: 1
 };
 
 function readSettings(): Settings {
@@ -140,6 +146,11 @@ function readSettings(): Settings {
       const settings: Settings = { ...DEFAULT_SETTINGS, ...parsed };
       // Ajustes guardados antes de que existiera 'animation': se deduce de los
       // campos antiguos para no cambiarle el comportamiento a quien ya lo tenia.
+      // Antes habia un unico tamano para ambas animaciones.
+      if (typeof parsed.animationScale === 'number' && parsed.wheelScale === undefined) {
+        settings.wheelScale = parsed.animationScale;
+        settings.slotScale = parsed.animationScale;
+      }
       if (!parsed.animation) {
         settings.animation = parsed.showWheel === false ? 'none' : (parsed.wheelUrl ? 'wheel' : 'slot');
       }
@@ -418,6 +429,16 @@ app.put('/api/settings', (req: Request, res: Response) => {
   if (typeof body.accentColor2 === 'string' && HEX_COLOR.test(body.accentColor2)) next.accentColor2 = body.accentColor2;
   if (typeof body.overlayOpacity === 'number' && body.overlayOpacity >= 0 && body.overlayOpacity <= 1) {
     next.overlayOpacity = body.overlayOpacity;
+  }
+  // Los mismos limites que los deslizadores del panel de configuracion.
+  if (typeof body.wheelScale === 'number' && body.wheelScale >= 0.5 && body.wheelScale <= 2) {
+    next.wheelScale = body.wheelScale;
+  }
+  if (typeof body.slotScale === 'number' && body.slotScale >= 0.5 && body.slotScale <= 2) {
+    next.slotScale = body.slotScale;
+  }
+  if (typeof body.fontScale === 'number' && body.fontScale >= 0.7 && body.fontScale <= 1.6) {
+    next.fontScale = body.fontScale;
   }
 
   try {
