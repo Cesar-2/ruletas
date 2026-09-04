@@ -114,6 +114,9 @@ function writeTags(tags: Tags): void {
 
 interface Settings {
   backgroundUrl: string;
+  wheelUrl: string;      // vacio = ruleta de colores por defecto
+  showWheel: boolean;    // se mantiene por compatibilidad con datos antiguos
+  animation: 'slot' | 'wheel' | 'none';
   accentColor: string;
   accentColor2: string;
   overlayOpacity: number;
@@ -121,6 +124,9 @@ interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   backgroundUrl: '/assets/fondo.png',
+  wheelUrl: '',
+  showWheel: true,
+  animation: 'slot',
   accentColor: '#6ee7b7',
   accentColor2: '#3ee9c0',
   overlayOpacity: 0.55
@@ -131,7 +137,13 @@ function readSettings(): Settings {
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
       const parsed = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
-      return { ...DEFAULT_SETTINGS, ...parsed };
+      const settings: Settings = { ...DEFAULT_SETTINGS, ...parsed };
+      // Ajustes guardados antes de que existiera 'animation': se deduce de los
+      // campos antiguos para no cambiarle el comportamiento a quien ya lo tenia.
+      if (!parsed.animation) {
+        settings.animation = parsed.showWheel === false ? 'none' : (parsed.wheelUrl ? 'wheel' : 'slot');
+      }
+      return settings;
     }
   } catch (err) {
     console.error('Failed to read settings:', err);
@@ -397,6 +409,11 @@ app.put('/api/settings', (req: Request, res: Response) => {
   const next: Settings = { ...current };
 
   if (typeof body.backgroundUrl === 'string') next.backgroundUrl = body.backgroundUrl.slice(0, 2000);
+  if (typeof body.wheelUrl === 'string') next.wheelUrl = body.wheelUrl.slice(0, 2000);
+  if (typeof body.showWheel === 'boolean') next.showWheel = body.showWheel;
+  if (body.animation === 'slot' || body.animation === 'wheel' || body.animation === 'none') {
+    next.animation = body.animation;
+  }
   if (typeof body.accentColor === 'string' && HEX_COLOR.test(body.accentColor)) next.accentColor = body.accentColor;
   if (typeof body.accentColor2 === 'string' && HEX_COLOR.test(body.accentColor2)) next.accentColor2 = body.accentColor2;
   if (typeof body.overlayOpacity === 'number' && body.overlayOpacity >= 0 && body.overlayOpacity <= 1) {
@@ -412,10 +429,12 @@ app.put('/api/settings', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/background  Body: { dataUrl: "data:image/png;base64,..." }
-// Guarda la imagen en public/assets y la deja como fondo activo.
+// POST /api/background  Body: { dataUrl: "data:image/png;base64,...", target? }
+// target: 'background' (por defecto) o 'wheel'. Guarda la imagen en
+// public/assets y la deja activa en el ajuste correspondiente.
 app.post('/api/background', (req: Request, res: Response) => {
   const dataUrl: unknown = req.body?.dataUrl;
+  const target = req.body?.target === 'wheel' ? 'wheel' : 'background';
   if (typeof dataUrl !== 'string') {
     return res.status(400).json({ error: 'body must be { dataUrl: string }' });
   }
@@ -431,11 +450,12 @@ app.post('/api/background', (req: Request, res: Response) => {
 
   try {
     if (!fs.existsSync(ASSETS_DIR)) fs.mkdirSync(ASSETS_DIR, { recursive: true });
-    const filename = `fondo-${Date.now()}.${ext}`;
+    const filename = `fondo-${target}-${Date.now()}.${ext}`;
     fs.writeFileSync(path.join(ASSETS_DIR, filename), buffer);
 
     const settings = readSettings();
-    settings.backgroundUrl = `/assets/${filename}`;
+    if (target === 'wheel') settings.wheelUrl = `/assets/${filename}`;
+    else settings.backgroundUrl = `/assets/${filename}`;
     writeSettings(settings);
     res.json({ settings });
   } catch (err) {
