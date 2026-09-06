@@ -130,7 +130,6 @@
     .winner-row button{padding:.45rem .9rem;font-size:14px;box-shadow:none;background:rgba(248,113,113,0.14);color:#fca5a5;border:1px solid rgba(248,113,113,0.4)}
     .winner-row button.wr-part{background:rgba(255,255,255,0.08);color:#e6eef8;border-color:rgba(255,255,255,0.18)}
     .winner-row button:hover{background:rgba(248,113,113,0.25)}
-    .editor-list{display:flex;flex-wrap:wrap;gap:12px;max-height:560px;overflow-y:auto;margin-top:.6rem;padding-top:8px}
     .bulk-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.8rem;padding:.6rem .8rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
     .bulk-bar button{padding:.4rem .8rem;font-size:14px;box-shadow:none}
     .bulk-bar select{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.35rem .5rem;font-size:14px;cursor:pointer}
@@ -405,12 +404,6 @@
             </div>
           </section>
 
-          <section id="editorSection" hidden>
-            <h3>Editar lo que salió</h3>
-            <p class="meta">Marca la rareza de cada objeto sorteado y si debe seguir participando. Los valores se escriben en las tarjetas del resultado.</p>
-            <div class="editor-list" id="editorList"></div>
-            <div class="meta" id="editorInfo" style="margin-top:.5rem"></div>
-          </section>
         </div>
 
         <div class="tab-panel" id="winners-panel">
@@ -864,10 +857,7 @@
     // Repinta la rareza en las tarjetas ya renderizadas sin recrearlas, para no
     // perder lo que el usuario haya escrito en el campo de valor.
     function refreshRenderedRarities() {
-      document.querySelectorAll('#randomResult .item').forEach((el) => {
-        applyRarityClass(el, itemTags[el.dataset.itemId] ?? '');
-      });
-      document.querySelectorAll('#editorList .item').forEach((card) => {
+      document.querySelectorAll('#randomResult .item').forEach((card) => {
         const rarity = itemTags[card.dataset.itemId] ?? '';
         applyRarityClass(card, rarity);
         const select = card.querySelector('.tag-select');
@@ -1248,6 +1238,14 @@
       rouletteItems.style.animation = 'none';
     }
 
+    // "Editar" no abre otra lista: enciende los controles de rareza y de
+    // exclusion en las mismas tarjetas que acaban de salir sorteadas.
+    let editandoResultado = false;
+
+    const opcionesResultado = () => ({
+      color: true, value: true, tags: editandoResultado, exclude: editandoResultado
+    });
+
     function renderResultCards(containerId, items) {
       const container = document.getElementById(containerId);
       container.innerHTML = '';
@@ -1256,7 +1254,7 @@
         return;
       }
       items.forEach((it, i) => {
-        const card = createItemCard(it, { color: true, value: true });
+        const card = createItemCard(it, opcionesResultado());
         container.appendChild(card);
         setTimeout(() => card.classList.add('show'), i * 50);
       });
@@ -1649,41 +1647,19 @@
       // así no parpadean las demás tarjetas ni se pierde lo escrito en ellas.
       const oldCard = document.querySelector(`#randomResult .item[data-item-id="${id}"]`);
       if (oldCard) {
-        const newCard = createItemCard(nuevo, { color: true, value: true });
+        const newCard = createItemCard(nuevo, opcionesResultado());
         oldCard.replaceWith(newCard);
         requestAnimationFrame(() => newCard.classList.add('show'));
-      }
-
-      const oldEditorCard = document.querySelector(`#editorList .item[data-item-id="${id}"]`);
-      if (oldEditorCard) {
-        const newEditorCard = createItemCard(nuevo, { tags: true, exclude: true });
-        oldEditorCard.replaceWith(newEditorCard);
-        requestAnimationFrame(() => newEditorCard.classList.add('show'));
       }
 
       updateValueTotal();
       return true;
     }
 
+    // Repinta las tarjetas del sorteo (por ejemplo tras cambiar de servidor o
+    // de exclusiones). Sin sorteo en pantalla no hay nada que repintar.
     function renderEditor() {
-      const list = document.getElementById('editorList');
-      const info = document.getElementById('editorInfo');
-      if (!list) return;
-
-      list.innerHTML = '';
-      if (!lastDrawItems.length) {
-        list.innerHTML = '<div class="meta" style="padding:.7rem">Todavía no has hecho ningún sorteo.</div>';
-        info.textContent = '';
-        return;
-      }
-
-      lastDrawItems.forEach((it, i) => {
-        const card = createItemCard(it, { tags: true, exclude: true });
-        list.appendChild(card);
-        setTimeout(() => card.classList.add('show'), i * 50);
-      });
-
-      info.textContent = `${lastDrawItems.length} objeto(s) del último sorteo.`;
+      if (lastDrawItems.length) renderResultCards('randomResult', lastDrawItems);
     }
 
     function renderItemsPage() {
@@ -2284,10 +2260,10 @@
       if (cual === 'custom') renderNameWheel();
 
       // El editor pertenece al sorteo de objetos: no pinta nada en la otra ruleta.
-      const editor = document.getElementById('editorSection');
-      if (cual === 'custom' && editor && !editor.hidden) {
-        editor.hidden = true;
+      if (cual === 'custom' && editandoResultado) {
+        editandoResultado = false;
         document.getElementById('toggleEditor').textContent = 'Editar';
+        renderEditor();
       }
     }
 
@@ -2446,10 +2422,9 @@
     });
 
     document.getElementById('toggleEditor').addEventListener('click', () => {
-      const section = document.getElementById('editorSection');
-      section.hidden = !section.hidden;
-      document.getElementById('toggleEditor').textContent = section.hidden ? 'Editar' : 'Ocultar edición';
-      if (!section.hidden) renderEditor();
+      editandoResultado = !editandoResultado;
+      document.getElementById('toggleEditor').textContent = editandoResultado ? 'Ocultar edición' : 'Editar';
+      renderEditor();
     });
 
     document.getElementById('clearExcluded').addEventListener('click', async () => {
@@ -2642,7 +2617,6 @@
         sorteoGuardado = false;   // hasta que se guarde, este sorteo está pendiente
         itemValues = {};   // cada sorteo empieza con los valores en blanco
         renderResultCards('randomResult', lastDrawItems);
-        renderEditor();
         updateValueTotal();
 
         const banner = document.getElementById('winnerBanner');
