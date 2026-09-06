@@ -32,6 +32,25 @@
     .nav-links{display:flex;gap:.5rem;flex-wrap:wrap;margin-left:auto}
     input.locked{opacity:.75;cursor:not-allowed;border-style:dashed}
     .server-tab{display:inline-flex;align-items:center;gap:.4rem}
+    .user-tab{display:inline-flex;align-items:center;gap:.5rem;margin-left:auto}
+    .user-tab .user-name{font-weight:600}
+    .avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;flex:none;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.20)}
+    .avatar.iniciales{display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--accent);text-transform:uppercase}
+    .avatar-grande{width:64px;height:64px;font-size:24px}
+    .cuenta-cabecera{display:flex;align-items:center;gap:.9rem;margin-top:.6rem}
+    .cuenta-cabecera .cuenta-usuario{font-size:13px;color:var(--muted)}
+    .login-screen{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(2,6,23,0.92);backdrop-filter:blur(6px)}
+    .login-screen[hidden]{display:none}
+    .login-box{width:min(380px,100%);padding:1.6rem;border-radius:16px;background:rgba(13,21,38,0.97);border:1px solid rgba(255,255,255,0.12);box-shadow:0 24px 60px rgba(2,6,23,0.7)}
+    .login-box h2{margin:0 0 .3rem;font-size:22px}
+    .login-box .meta{margin:0 0 1rem}
+    .login-box label{display:block;font-size:13px;color:var(--muted);margin:.7rem 0 .25rem}
+    .login-box input{width:100%;box-sizing:border-box;padding:.6rem .7rem;border-radius:10px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.06);color:inherit;font-size:15px}
+    .login-box .login-actions{display:flex;align-items:center;gap:.6rem;margin-top:1.1rem}
+    .login-box .login-actions button{flex:1}
+    .login-switch{margin-top:.9rem;font-size:13px;color:var(--muted);text-align:center}
+    .login-switch button{padding:0;background:none;border:none;box-shadow:none;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:13px}
+    .login-error{margin-top:.8rem;font-size:13px;color:#fca5a5;min-height:1.2em}
     .server-tab #serverTabName{font-weight:600}
     .server-list{display:flex;flex-direction:column;gap:.4rem;margin-top:.9rem;max-height:300px;overflow-y:auto}
     .server-row{display:flex;align-items:center;gap:.4rem;padding:.5rem .6rem;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
@@ -188,8 +207,11 @@
     .copy-name:hover{background:rgba(255,255,255,0.12)}
     .copy-name.copied{background:rgba(110,231,183,0.18);border-color:rgba(110,231,183,0.6);color:#6ee7b7}
     .config-panel{margin-bottom:1rem}
+    .cfg-nav{margin:.9rem 0 .2rem;flex-wrap:wrap}
+    .cfg-tabpanel{display:none}
+    .cfg-tabpanel.active{display:block}
     .config-section{margin-top:1.1rem;padding-top:.9rem;border-top:1px solid rgba(255,255,255,0.12)}
-    .config-section:first-of-type{margin-top:.4rem;padding-top:0;border-top:0}
+    .cfg-tabpanel .config-section:first-child{margin-top:.4rem;padding-top:0;border-top:0}
     .config-section > h4{margin:0;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:var(--accent)}
     .config-section > .meta{margin:.15rem 0 0}
     .config-section .subtabs{margin-top:1.1rem}
@@ -287,7 +309,39 @@
       <button type="button" class="tab" data-tab="history">📜 Historial</button>
       <button type="button" class="tab" data-tab="config">⚙ Configuración</button>
     </nav>
+    <div class="user-tab">
+      <span class="avatar iniciales" id="userAvatar" aria-hidden="true"></span>
+      <span class="user-name" id="userName"></span>
+      <button type="button" id="logout" class="btn-cancel">Salir</button>
+    </div>
   </header>
+
+  <div class="login-screen" id="loginScreen" hidden>
+    <form class="login-box" id="loginForm">
+      <h2 id="loginTitle">Entrar</h2>
+      <p class="meta" id="loginHint">Cada cuenta tiene su propio Ruleton: sus sorteos, sus ganadores y su aspecto.</p>
+
+      <label for="loginUser">Usuario</label>
+      <input id="loginUser" name="username" type="text" autocomplete="username" required />
+
+      <label for="loginPass">Contraseña</label>
+      <input id="loginPass" name="password" type="password" autocomplete="current-password" required />
+
+      <div id="inviteField" hidden>
+        <label for="loginInvite">Código de invitación</label>
+        <input id="loginInvite" name="invite" type="text" autocomplete="off" />
+      </div>
+
+      <div class="login-actions">
+        <button type="submit" id="loginSubmit">Entrar</button>
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <div class="login-switch" id="loginSwitchRow">
+        <span id="loginSwitchText">¿No tienes cuenta?</span>
+        <button type="button" id="loginSwitch">Crear una</button>
+      </div>
+    </form>
+  </div>
 
   <div class="font-dock" id="fontDock" hidden>
     <label for="cfgFontScale">Tamaño de la letra&nbsp;<span id="cfgFontScaleValue">100%</span></label>
@@ -445,40 +499,60 @@
 
         <div class="tab-panel" id="config-panel">
           <section class="config-panel">
-          <h3>Personalizar apariencia</h3>
+          <h3>Configuración</h3>
 
-          <div class="config-section">
-            <h4>Fondo</h4>
-            <div class="config-grid">
-              <div class="config-field">
-                <label for="cfgBgFile">Imagen de fondo (subir archivo)</label>
-                <input id="cfgBgFile" type="file" accept="image/*" />
-              </div>
-              <div class="config-field">
-                <label for="cfgBgUrl">…o dirección de la imagen</label>
-                <input id="cfgBgUrl" type="text" placeholder="/assets/fondo.png" />
-              </div>
-              <div class="config-field">
-                <label for="cfgOverlay">Oscurecer el fondo:&nbsp;<span id="cfgOverlayValue">55%</span></label>
-                <input id="cfgOverlay" type="range" min="0" max="95" value="55" />
-              </div>
-            </div>
+          <div class="subtabs cfg-nav">
+            <button type="button" class="subtab cfgtab active" data-cfgtab="aspecto">🎨 Apariencia</button>
+            <button type="button" class="subtab cfgtab" data-cfgtab="animacion">🎬 Animación</button>
+            <button type="button" class="subtab cfgtab" data-cfgtab="datos">📦 Datos</button>
+            <button type="button" class="subtab cfgtab" data-cfgtab="cuenta">👤 Mi cuenta</button>
           </div>
 
+          <div class="cfg-tabpanel" id="cfgtab-cuenta">
           <div class="config-section">
-            <h4>Colores</h4>
-            <div class="config-grid">
-              <div class="config-field">
-                <label for="cfgAccent">Color de los botones</label>
-                <input id="cfgAccent" type="color" value="#6ee7b7" />
-              </div>
-              <div class="config-field">
-                <label for="cfgAccent2">Color secundario (degradado)</label>
-                <input id="cfgAccent2" type="color" value="#3ee9c0" />
+            <h4>Mi cuenta</h4>
+            <div class="cuenta-cabecera">
+              <span class="avatar iniciales avatar-grande" id="cuentaAvatar" aria-hidden="true"></span>
+              <div>
+                <div class="cuenta-usuario" id="cuentaUsuario"></div>
+                <span class="meta">La foto y el nombre solo cambian cómo te ves tú; con lo que entras es el usuario.</span>
               </div>
             </div>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgUserName">Nombre visible</label>
+                <input id="cfgUserName" type="text" maxlength="40" />
+              </div>
+              <div class="config-field">
+                <label for="cfgAvatarFile">Foto de la cuenta</label>
+                <input id="cfgAvatarFile" type="file" accept="image/*" />
+                <button type="button" id="cfgAvatarClear">Quitar la foto</button>
+              </div>
+            </div>
+            <div class="config-actions">
+              <button type="button" id="cfgUserSave">Guardar cuenta</button>
+              <span class="meta" id="cfgUserStatus" style="margin-left:auto"></span>
+            </div>
+
+            <p class="meta" style="margin-top:1rem">Cambiar la contraseña cierra la sesión en los demás dispositivos.</p>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgPassActual">Contraseña actual</label>
+                <input id="cfgPassActual" type="password" autocomplete="current-password" />
+              </div>
+              <div class="config-field">
+                <label for="cfgPassNueva">Contraseña nueva</label>
+                <input id="cfgPassNueva" type="password" autocomplete="new-password" />
+              </div>
+            </div>
+            <div class="config-actions">
+              <button type="button" id="cfgPassSave">Cambiar contraseña</button>
+              <span class="meta" id="cfgPassStatus" style="margin-left:auto"></span>
+            </div>
+          </div>
           </div>
 
+          <div class="cfg-tabpanel active" id="cfgtab-aspecto">
           <div class="config-section">
             <h4>Página</h4>
             <div class="config-grid">
@@ -504,7 +578,39 @@
               </div>
             </div>
           </div>
+          <div class="config-section">
+            <h4>Fondo</h4>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgBgFile">Imagen de fondo (subir archivo)</label>
+                <input id="cfgBgFile" type="file" accept="image/*" />
+              </div>
+              <div class="config-field">
+                <label for="cfgBgUrl">…o dirección de la imagen</label>
+                <input id="cfgBgUrl" type="text" placeholder="/assets/fondo.png" />
+              </div>
+              <div class="config-field">
+                <label for="cfgOverlay">Oscurecer el fondo:&nbsp;<span id="cfgOverlayValue">55%</span></label>
+                <input id="cfgOverlay" type="range" min="0" max="95" value="55" />
+              </div>
+            </div>
+          </div>
+          <div class="config-section">
+            <h4>Colores</h4>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgAccent">Color de los botones</label>
+                <input id="cfgAccent" type="color" value="#6ee7b7" />
+              </div>
+              <div class="config-field">
+                <label for="cfgAccent2">Color secundario (degradado)</label>
+                <input id="cfgAccent2" type="color" value="#3ee9c0" />
+              </div>
+            </div>
+          </div>
+          </div>
 
+          <div class="cfg-tabpanel" id="cfgtab-animacion">
           <div class="config-section">
             <h4>Animación del sorteo</h4>
             <div class="config-grid">
@@ -518,7 +624,7 @@
               </div>
             </div>
 
-            <div class="subtabs">
+            <div class="subtabs cfg-anim-subtabs">
               <button type="button" class="subtab active" data-cfg="wheel">🎡 Ruleta</button>
               <button type="button" class="subtab" data-cfg="slot">🎰 Tragaperras</button>
             </div>
@@ -559,7 +665,27 @@
               </div>
             </div>
           </div>
-          <div class="config-actions">
+          </div>
+
+          <div class="cfg-tabpanel" id="cfgtab-datos">
+          <div class="config-section">
+            <h4>Exclusiones y rarezas</h4>
+            <p class="meta" id="dataTransferInfo">Se copian de un equipo a otro sin rehacerlas a mano. Afectan al servidor que tengas abierto.</p>
+            <div class="config-grid">
+              <div class="config-field">
+                <label>Guardar una copia</label>
+                <button type="button" id="cfgExport">⬇ Descargar exclusiones y rarezas</button>
+              </div>
+              <div class="config-field">
+                <label for="cfgImportFile">Cargar desde un archivo</label>
+                <input id="cfgImportFile" type="file" accept="application/json,.json" />
+                <span class="meta">Vale la copia descargada aquí y también los <code>exclusions.json</code> y <code>tags.json</code> sueltos de una instalación anterior.</span>
+              </div>
+            </div>
+            <div class="meta" id="cfgImportStatus"></div>
+          </div>
+          </div>
+          <div class="config-actions" id="cfgSaveRow">
             <button id="cfgSave" type="button">Guardar</button>
             <button id="cfgReset" type="button">Restaurar valores por defecto</button>
             <span class="meta" id="cfgStatus" style="margin-left:auto"></span>
@@ -702,10 +828,193 @@
       if (!res.ok) {
         let detalle = '';
         try { detalle = (await res.json())?.error || ''; } catch (e) { /* respuesta sin JSON */ }
+        // La sesión ha caducado o se ha cerrado en otra pestaña: a la entrada.
+        if (res.status === 401 && !url.pathname.startsWith('/api/auth/')) mostrarLogin();
         throw new Error(detalle || 'HTTP ' + res.status);
       }
       return res.json();
     }
+
+    // --- Entrada al Ruleton -------------------------------------------------
+    // La cuenta manda: el servidor saca de la sesión de quién son los datos, y
+    // el cliente nunca dice a quién pertenecen.
+    let usuario = null;
+    let modoRegistro = false;
+    let registroAbierto = false;
+
+    // Sin foto se enseñan las iniciales, que siempre hay algo que pintar.
+    function pintarAvatar(el, u, grande) {
+      const nombre = u?.name || u?.username || '';
+      const iniciales = nombre.trim().split(/\s+/).slice(0, 2).map((t) => t[0] || '').join('');
+      if (u?.avatarUrl) {
+        el.outerHTML = `<img src="${escapeHtml(u.avatarUrl)}" alt="" class="avatar${grande ? ' avatar-grande' : ''}" id="${el.id}" />`;
+      } else {
+        el.outerHTML = `<span class="avatar iniciales${grande ? ' avatar-grande' : ''}" id="${el.id}" aria-hidden="true">${escapeHtml(iniciales)}</span>`;
+      }
+    }
+
+    function pintarUsuario() {
+      document.getElementById('userName').textContent = usuario ? usuario.name : '';
+      pintarAvatar(document.getElementById('userAvatar'), usuario, false);
+      const grande = document.getElementById('cuentaAvatar');
+      if (grande) pintarAvatar(grande, usuario, true);
+      const quien = document.getElementById('cuentaUsuario');
+      if (quien) quien.textContent = usuario ? `Entras como «${usuario.username}»` : '';
+      const campo = document.getElementById('cfgUserName');
+      if (campo && usuario) campo.value = usuario.name;
+    }
+
+    function mostrarLogin() {
+      usuario = null;
+      document.getElementById('userName').textContent = '';
+      document.getElementById('loginScreen').hidden = false;
+      document.getElementById('loginUser').focus();
+    }
+
+    function ocultarLogin() {
+      document.getElementById('loginScreen').hidden = true;
+      document.getElementById('loginError').textContent = '';
+      document.getElementById('loginForm').reset();
+    }
+
+    function pintarModoLogin() {
+      const registrando = modoRegistro;
+      document.getElementById('loginTitle').textContent = registrando ? 'Crear cuenta' : 'Entrar';
+      document.getElementById('loginSubmit').textContent = registrando ? 'Crear cuenta' : 'Entrar';
+      document.getElementById('loginPass').autocomplete = registrando ? 'new-password' : 'current-password';
+      document.getElementById('loginSwitchText').textContent = registrando ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?';
+      document.getElementById('loginSwitch').textContent = registrando ? 'Entrar' : 'Crear una';
+      // El código de invitación solo hace falta al crear cuentas y solo si el
+      // servidor lo pide (la primera cuenta del sitio no lo necesita).
+      document.getElementById('inviteField').hidden = !registrando || !pedirInvitacion;
+      document.getElementById('loginSwitchRow').hidden = !registrando && !registroAbierto;
+      document.getElementById('loginHint').textContent = registrando
+        ? 'Tu cuenta empieza vacía: sus sorteos, sus ganadores y su aspecto son solo tuyos.'
+        : 'Cada cuenta tiene su propio Ruleton: sus sorteos, sus ganadores y su aspecto.';
+      document.getElementById('loginError').textContent = '';
+    }
+
+    let pedirInvitacion = false;
+
+    document.getElementById('loginSwitch').addEventListener('click', () => {
+      modoRegistro = !modoRegistro;
+      pintarModoLogin();
+    });
+
+    document.getElementById('loginForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const error = document.getElementById('loginError');
+      const boton = document.getElementById('loginSubmit');
+      const cuerpo = {
+        username: document.getElementById('loginUser').value.trim(),
+        password: document.getElementById('loginPass').value
+      };
+      if (modoRegistro && pedirInvitacion) cuerpo.invite = document.getElementById('loginInvite').value.trim();
+
+      error.textContent = '';
+      boton.disabled = true;
+      try {
+        const data = await api(modoRegistro ? '/api/auth/register' : '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cuerpo)
+        });
+        usuario = data.user;
+        ocultarLogin();
+        await arrancarRuleton();
+      } catch (e) {
+        error.textContent = e.message;
+      } finally {
+        boton.disabled = false;
+      }
+    });
+
+    // La foto elegida se manda ya en el "Guardar cuenta", no antes.
+    let avatarPendiente = null;
+
+    document.getElementById('cfgAvatarFile').addEventListener('change', async (ev) => {
+      const file = ev.target.files?.[0];
+      const estado = document.getElementById('cfgUserStatus');
+      if (!file) return;
+      if (file.size > 12 * 1024 * 1024) {
+        estado.textContent = 'La imagen supera los 12 MB.';
+        ev.target.value = '';
+        return;
+      }
+      try {
+        avatarPendiente = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('no se pudo leer el archivo'));
+          reader.readAsDataURL(file);
+        });
+        estado.textContent = 'Foto lista; pulsa «Guardar cuenta».';
+      } catch (e) {
+        estado.textContent = 'Error al leer la imagen: ' + e.message;
+      }
+    });
+
+    document.getElementById('cfgAvatarClear').addEventListener('click', async () => {
+      avatarPendiente = null;
+      document.getElementById('cfgAvatarFile').value = '';
+      await guardarCuenta({ quitarAvatar: true });
+    });
+
+    async function guardarCuenta(extra = {}) {
+      const estado = document.getElementById('cfgUserStatus');
+      const cuerpo = { name: document.getElementById('cfgUserName').value.trim(), ...extra };
+      if (avatarPendiente && !extra.quitarAvatar) cuerpo.avatarDataUrl = avatarPendiente;
+
+      estado.textContent = 'Guardando…';
+      try {
+        const data = await api('/api/auth/profile', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cuerpo)
+        });
+        usuario = data.user;
+        avatarPendiente = null;
+        document.getElementById('cfgAvatarFile').value = '';
+        pintarUsuario();
+        estado.textContent = 'Guardado';
+        setTimeout(() => { estado.textContent = ''; }, 1800);
+      } catch (e) {
+        estado.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    document.getElementById('cfgUserSave').addEventListener('click', () => guardarCuenta());
+
+    document.getElementById('cfgPassSave').addEventListener('click', async () => {
+      const estado = document.getElementById('cfgPassStatus');
+      const actual = document.getElementById('cfgPassActual');
+      const nueva = document.getElementById('cfgPassNueva');
+      if (!actual.value || !nueva.value) {
+        estado.textContent = 'Escribe la contraseña actual y la nueva.';
+        return;
+      }
+      estado.textContent = 'Cambiando…';
+      try {
+        await api('/api/auth/password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actual: actual.value, nueva: nueva.value })
+        });
+        actual.value = '';
+        nueva.value = '';
+        estado.textContent = 'Contraseña cambiada';
+        setTimeout(() => { estado.textContent = ''; }, 2500);
+      } catch (e) {
+        estado.textContent = 'Error: ' + e.message;
+      }
+    });
+
+    document.getElementById('logout').addEventListener('click', async () => {
+      try {
+        await api('/api/auth/logout', { method: 'POST' });
+      } catch (e) { /* la sesión ya no valía */ }
+      location.reload();
+    });
 
     const rouletteWrapper = document.getElementById('rouletteWrapper');
     const rouletteItems = document.getElementById('rouletteItems');
@@ -1980,14 +2289,35 @@
       }
     }
 
-    // Al abrir la página cargamos items y exclusiones sin esperar a que el usuario pulse nada.
-    // El servidor activo se resuelve primero: de él dependen el resto de datos.
-    loadSettings();
-    loadServers().then(() => {
+    // Con sesión abierta se carga todo sin esperar a que se pulse nada. El
+    // servidor activo se resuelve primero: de él dependen el resto de datos.
+    async function arrancarRuleton() {
+      pintarUsuario();
+      await loadSettings();
+      await loadServers();
+      cargarNombres();
       loadWinners();
       loadRanking();
       loadItems();
-    });
+    }
+
+    // Nada se carga hasta saber quién ha entrado.
+    (async () => {
+      try {
+        const data = await api('/api/auth/me');
+        usuario = data.user;
+        ocultarLogin();
+        await arrancarRuleton();
+      } catch (e) {
+        let info = {};
+        try { info = await (await fetch('/api/auth/me', { cache: 'no-store' })).json(); } catch (err) { /* sin red */ }
+        registroAbierto = Boolean(info.registroAbierto);
+        pedirInvitacion = !info.primeraCuenta;
+        modoRegistro = Boolean(info.primeraCuenta);
+        pintarModoLogin();
+        mostrarLogin();
+      }
+    })();
 
     document.getElementById('winnerName').addEventListener('input', actualizarBotonSortear);
     actualizarBotonSortear();
@@ -2166,6 +2496,127 @@
     }
 
 
+    // --- Copiar exclusiones y rarezas entre equipos -------------------------
+    // Quien ya las tenga personalizadas en local no tiene que rehacerlas: se
+    // descargan de un sitio y se cargan en otro.
+    document.getElementById('cfgExport').addEventListener('click', () => {
+      const servidor = servers.find((sv) => sv.id === currentServer);
+      const copia = {
+        tipo: 'ruleton-exclusiones-rarezas',
+        version: 1,
+        servidor: servidor ? servidor.name : '',
+        fecha: new Date().toISOString(),
+        exclusions: Array.from(excludedIds),
+        tags: itemTags
+      };
+      const blob = new Blob([JSON.stringify(copia, null, 2)], { type: 'application/json' });
+      const enlace = document.createElement('a');
+      enlace.href = URL.createObjectURL(blob);
+      enlace.download = `ruleton-${slugArchivo(servidor ? servidor.name : 'servidor')}.json`;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
+    });
+
+    function slugArchivo(nombre) {
+      return normalizeText(nombre).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'servidor';
+    }
+
+    // Se admiten tres formas: la copia de arriba, un exclusions.json suelto (un
+    // array de ids) y un tags.json suelto (objeto id -> rareza).
+    function interpretarCopia(datos) {
+      if (Array.isArray(datos)) {
+        return { exclusions: datos.map(String), tags: null };
+      }
+      if (!datos || typeof datos !== 'object') return null;
+      if (Array.isArray(datos.exclusions) || (datos.tags && typeof datos.tags === 'object')) {
+        return {
+          exclusions: Array.isArray(datos.exclusions) ? datos.exclusions.map(String) : null,
+          tags: datos.tags && typeof datos.tags === 'object' ? datos.tags : null
+        };
+      }
+      // tags.json suelto: todos sus valores son rarezas conocidas.
+      const valores = Object.values(datos);
+      if (valores.length && valores.every((v) => RARITIES.includes(v))) {
+        return { exclusions: null, tags: datos };
+      }
+      return null;
+    }
+
+    document.getElementById('cfgImportFile').addEventListener('change', async (ev) => {
+      const file = ev.target.files?.[0];
+      const estado = document.getElementById('cfgImportStatus');
+      ev.target.value = '';
+      if (!file) return;
+
+      estado.textContent = '';
+      let copia = null;
+      try {
+        copia = interpretarCopia(JSON.parse(await file.text()));
+      } catch (e) {
+        showAlert('Archivo no válido', 'No se pudo leer el archivo como JSON.');
+        return;
+      }
+      if (!copia) {
+        showAlert(
+          'Archivo no reconocido',
+          'Esperaba la copia descargada desde aquí, un exclusions.json (lista de ids) o un tags.json (objeto de id a rareza).'
+        );
+        return;
+      }
+
+      // Solo se cuentan las rarezas válidas; lo demás se descarta al guardar.
+      const rarezas = {};
+      if (copia.tags) {
+        Object.entries(copia.tags).forEach(([id, r]) => {
+          if (RARITIES.includes(r)) rarezas[String(id)] = r;
+        });
+      }
+      const nExcl = copia.exclusions ? copia.exclusions.length : 0;
+      const nRar = Object.keys(rarezas).length;
+      if (!nExcl && !nRar) {
+        showAlert('Archivo vacío', 'El archivo no traía ninguna exclusión ni ninguna rareza.');
+        return;
+      }
+
+      const servidor = servers.find((sv) => sv.id === currentServer);
+      const trae = [
+        copia.exclusions ? `${nExcl} exclusión(es)` : null,
+        copia.tags ? `${nRar} rareza(s)` : null
+      ].filter(Boolean).join(' y ');
+
+      const respuesta = await showModal({
+        title: 'Cargar exclusiones y rarezas',
+        messageHtml: `El archivo trae ${trae}, y se cargarán en <strong>${escapeHtml(servidor ? servidor.name : 'este servidor')}</strong>.<br><br>«Añadir» conserva lo que ya tengas; «Reemplazar» deja solo lo del archivo.`,
+        okText: 'Añadir',
+        extraText: 'Reemplazar',
+        cancelText: 'Cancelar'
+      });
+      if (!respuesta) return;
+      const reemplazar = respuesta === 'extra';
+
+      if (copia.exclusions) {
+        if (reemplazar) excludedIds.clear();
+        copia.exclusions.forEach((id) => excludedIds.add(String(id)));
+        await saveExclusions();
+      }
+      if (copia.tags) {
+        itemTags = reemplazar ? rarezas : { ...itemTags, ...rarezas };
+        await saveTags();
+      }
+
+      selectedIds.clear();
+      currentPage = 1;
+      renderItemsPage();
+      updateCatalogCounters();
+      updateExcludedInfo();
+      updateBulkBar();
+      renderEditor();
+      estado.textContent = `Cargado: ${trae}.`;
+      setTimeout(() => { estado.textContent = ''; }, 4000);
+    });
+
     // Vista previa inmediata: se ve el cambio antes de guardar.
     document.getElementById('cfgAccent').addEventListener('input', (ev) => {
       settings.accentColor = ev.target.value;
@@ -2283,10 +2734,25 @@
       }
     }
 
+    // Secciones de Configuración: se enseñan de una en una para no soltar todo
+    // de golpe. Guardar y Restaurar solo pintan donde hay ajustes que guardar.
+    document.querySelectorAll('#config-panel .cfgtab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const cual = tab.dataset.cfgtab;
+        document.querySelectorAll('#config-panel .cfgtab').forEach((b) => b.classList.toggle('active', b === tab));
+        document.querySelectorAll('.cfg-tabpanel').forEach((panel) => {
+          panel.classList.toggle('active', panel.id === `cfgtab-${cual}`);
+        });
+        document.getElementById('cfgSaveRow').hidden = cual !== 'aspecto' && cual !== 'animacion';
+        // Al salir de Animación se corta la animación de prueba.
+        if (cual !== 'animacion') cancelarPrevisualizacion();
+      });
+    });
+
     // Pestañas de ruleta / tragaperras dentro de Configuración.
-    document.querySelectorAll('#config-panel .subtab').forEach((subtab) => {
+    document.querySelectorAll('#config-panel .cfg-anim-subtabs .subtab').forEach((subtab) => {
       subtab.addEventListener('click', () => {
-        document.querySelectorAll('#config-panel .subtab').forEach((b) => b.classList.toggle('active', b === subtab));
+        document.querySelectorAll('#config-panel .cfg-anim-subtabs .subtab').forEach((b) => b.classList.toggle('active', b === subtab));
         document.querySelectorAll('.cfg-subpanel').forEach((panel) => {
           panel.classList.toggle('active', panel.id === `cfg-${subtab.dataset.cfg}-panel`);
         });
@@ -2383,14 +2849,42 @@
       saveSettings();
     });
 
-    document.getElementById('bulkApplyRarity').addEventListener('click', () => {
+    document.getElementById('bulkApplyRarity').addEventListener('click', async () => {
       const rarity = document.getElementById('bulkRarity').value;
+      if (!selectedIds.size) {
+        showAlert('Nada seleccionado', 'Marca antes los objetos a los que aplicar la rareza.');
+        return;
+      }
+
+      // "Sin marcar" borra rarezas ya puestas, y con todo seleccionado se las
+      // lleva todas por delante: se avisa de cuántas se van a perder.
+      const conRareza = Array.from(selectedIds).filter((id) => itemTags[id]);
+      if (!rarity) {
+        if (!conRareza.length) {
+          showAlert('Nada que quitar', 'Ninguno de los objetos seleccionados tiene rareza puesta.');
+          return;
+        }
+        const total = Object.keys(itemTags).length;
+        const ok = await showConfirm(
+          'Quitar la rareza',
+          `Se van a quedar sin rareza ${conRareza.length} objeto(s)${conRareza.length === total ? ', o sea todos los que tenías marcados en este servidor' : `, de los ${total} que tienes marcados`}. No se puede deshacer; si quieres una copia, descárgala antes en Configuración.`,
+          'Quitar',
+          true
+        );
+        if (!ok) return;
+      }
+
       selectedIds.forEach((id) => {
         if (rarity) itemTags[id] = rarity;
         else delete itemTags[id];
       });
-      saveTags();                 // una sola llamada para todo el lote
+      await saveTags();
+      // La acción está hecha: la selección deja de tener sentido.
+      selectedIds.clear();
       updateExcludedInfo();
+      renderItemsPage();
+      updateCatalogCounters();
+      updateBulkBar();
       refreshRenderedRarities();
     });
 

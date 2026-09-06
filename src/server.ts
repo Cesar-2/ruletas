@@ -3,8 +3,12 @@ import axios from 'axios';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 const app = express();
+// Publicado detras de un proxy (Render, Fly, nginx...): asi req.protocol dice
+// https y la cookie de sesion puede ir marcada como segura.
+if (process.env.TRUST_PROXY) app.set('trust proxy', 1);
 app.use(cors());
 // El limite por defecto (100kb) no admite la subida de una imagen de fondo.
 app.use(express.json({ limit: '16mb' }));
@@ -12,15 +16,22 @@ app.use(express.json({ limit: '16mb' }));
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const ITEMS_URL = 'https://api.dofusdu.de/dofus3/v1/es/items/resources/all';
 const DATA_DIR = path.join(process.cwd(), 'data');
-const ITEMS_FILE = path.join(DATA_DIR, 'items.json');
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
-const SERVERS_FILE = path.join(DATA_DIR, 'servers.json');
-const SERVERS_DIR = path.join(DATA_DIR, 'servers');
+const ITEMS_FILE = path.join(DATA_DIR, 'items.json');   // catalogo, comun a todo
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+const USERS_DIR = path.join(DATA_DIR, 'users');
+// Con la app publicada en internet, no se crean cuentas sin este codigo. Si no
+// esta puesto, solo se puede registrar la primera cuenta (la del dueno).
+const INVITE_CODE = String(process.env.RULETON_INVITE || '').trim();
+const COOKIE_NAME = 'ruleton_sid';
+const SESSION_DAYS = 30;
 const ASSETS_DIR = path.join(process.cwd(), 'public', 'assets');
 
-// Los precios de los objetos cambian de un servidor de Dofus a otro, asi que
-// rarezas, exclusiones, ganadores y ranking se guardan por servidor. Los
-// ajustes de aspecto (fondo, colores, tamanos) siguen siendo comunes.
+// Cada usuario tiene su propio Ruleton: su aspecto, sus servidores, sus
+// ganadores y su historial, y nadie mas los ve. Dentro de un usuario, los
+// precios cambian de un servidor de Dofus a otro, asi que rarezas,
+// exclusiones, ganadores y ranking se guardan por servidor. Lo unico comun a
+// todos es el catalogo de objetos, que es una copia de la API de Dofus.
 const SERVER_FILES = ['exclusions', 'tags', 'winners', 'ranking', 'stream'] as const;
 type ServerFile = typeof SERVER_FILES[number];
 
@@ -29,7 +40,23 @@ interface GameServer {
   name: string;
 }
 
+interface User {
+  id: string;
+  username: string;      // en minusculas, es con lo que se entra
+  name: string;          // como se escribio, para saludar
+  avatarUrl?: string;    // foto de la cuenta (vacio = iniciales)
+  salt: string;
+  hash: string;          // scrypt de la contrasena; nunca se guarda en claro
+  createdAt: string;
+}
+
+interface Session {
+  uid: string;
+  expiresAt: number;     // epoch en ms
+}
+
 const DEFAULT_SERVER: GameServer = { id: 'principal', name: 'Principal' };
+
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -37,17 +64,54 @@ function ensureDataDir() {
   }
 }
 
-function serverDir(sid: string): string {
-  return path.join(SERVERS_DIR, sid);
+// Guardar un JSON sin poder dejarlo a medias: se escribe entero en un archivo
+// temporal y se renombra encima, que es una operacion atomica. Si el proceso
+// muere en mitad de la escritura, el archivo bueno sigue intacto.
+function writeJson(file: string, data: unknown): void {
+  const temporal = `${file}.tmp`;
+  fs.writeFileSync(temporal, JSON.stringify(data, null, 2), 'utf8');
+  fs.renameSync(temporal, file);
 }
 
-function serverFile(sid: string, name: ServerFile): string {
-  return path.join(serverDir(sid), `${name}.json`);
+function userDir(uid: string): string {
+  return path.join(USERS_DIR, uid);
 }
 
-function ensureServerDir(sid: string): void {
+function settingsFile(uid: string): string {
+  return path.join(userDir(uid), 'settings.json');
+}
+
+function serversFile(uid: string): string {
+  return path.join(userDir(uid), 'servers.json');
+}
+
+function ensureUserDir(uid: string): void {
   ensureDataDir();
-  const dir = serverDir(sid);
+  const dir = userDir(uid);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+// Ambito de una peticion: "<usuario>/<servidor>". Se pasa entero a los lectores
+// y escritores de datos, que solo lo usan para componer su ruta.
+function partirAmbito(ambito: string): { uid: string; sid: string } {
+  const corte = ambito.indexOf('/');
+  return corte < 0
+    ? { uid: ambito, sid: DEFAULT_SERVER.id }
+    : { uid: ambito.slice(0, corte), sid: ambito.slice(corte + 1) };
+}
+
+function serverDir(ambito: string): string {
+  const { uid, sid } = partirAmbito(ambito);
+  return path.join(userDir(uid), 'servers', sid);
+}
+
+function serverFile(ambito: string, name: ServerFile): string {
+  return path.join(serverDir(ambito), `${name}.json`);
+}
+
+function ensureServerDir(ambito: string): void {
+  ensureDataDir();
+  const dir = serverDir(ambito);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
@@ -63,11 +127,128 @@ function slugify(name: string): string {
   return base || `servidor-${Date.now()}`;
 }
 
-function readServers(): GameServer[] {
+function readUsers(): User[] {
   ensureDataDir();
   try {
-    if (fs.existsSync(SERVERS_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(SERVERS_FILE, 'utf8'));
+    if (fs.existsSync(USERS_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+      const list = Array.isArray(parsed?.users) ? parsed.users : parsed;
+      if (Array.isArray(list)) {
+        return list.filter((u: any) => u && typeof u.id === 'string' && typeof u.username === 'string');
+      }
+    }
+  } catch (err) {
+    console.error('Failed to read users:', err);
+  }
+  return [];
+}
+
+function writeUsers(users: User[]): void {
+  ensureDataDir();
+  writeJson(USERS_FILE, { users });
+}
+
+// La contrasena se guarda derivada con scrypt y una sal distinta por cuenta:
+// del fichero no se puede sacar la original.
+function hashPassword(password: string, salt: string): string {
+  return crypto.scryptSync(password, salt, 64).toString('hex');
+}
+
+function passwordOk(user: User, password: string): boolean {
+  const esperado = Buffer.from(user.hash, 'hex');
+  const recibido = Buffer.from(hashPassword(password, user.salt), 'hex');
+  // Comparacion en tiempo constante: no delata cuanto acerto quien lo intenta.
+  return esperado.length === recibido.length && crypto.timingSafeEqual(esperado, recibido);
+}
+
+function readSessions(): Record<string, Session> {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(SESSIONS_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.error('Failed to read sessions:', err);
+  }
+  return {};
+}
+
+function writeSessions(sessions: Record<string, Session>): void {
+  ensureDataDir();
+  writeJson(SESSIONS_FILE, sessions);
+}
+
+function crearSesion(uid: string): string {
+  const token = crypto.randomBytes(32).toString('hex');
+  const sessions = readSessions();
+  const ahora = Date.now();
+  // De paso se tiran las caducadas, que si no el fichero crece sin fin.
+  for (const [t, ses] of Object.entries(sessions)) {
+    if (!ses || ses.expiresAt < ahora) delete sessions[t];
+  }
+  sessions[token] = { uid, expiresAt: ahora + SESSION_DAYS * 24 * 60 * 60 * 1000 };
+  writeSessions(sessions);
+  return token;
+}
+
+function borrarSesion(token: string): void {
+  const sessions = readSessions();
+  if (sessions[token]) {
+    delete sessions[token];
+    writeSessions(sessions);
+  }
+}
+
+function leerCookie(req: Request, nombre: string): string {
+  const cabecera = String(req.headers?.cookie || '');
+  for (const trozo of cabecera.split(';')) {
+    const corte = trozo.indexOf('=');
+    if (corte < 0) continue;
+    if (trozo.slice(0, corte).trim() === nombre) {
+      return decodeURIComponent(trozo.slice(corte + 1).trim());
+    }
+  }
+  return '';
+}
+
+// Usuario de la peticion, o cadena vacia si no hay sesion valida.
+function usuarioDe(req: Request): User | null {
+  const token = leerCookie(req, COOKIE_NAME);
+  if (!token) return null;
+  const ses = readSessions()[token];
+  if (!ses || ses.expiresAt < Date.now()) return null;
+  return readUsers().find((u) => u.id === ses.uid) || null;
+}
+
+// Instalaciones anteriores al login: el Ruleton que ya existiera pasa a ser el
+// de la primera cuenta que se registre, que es la del dueno del equipo.
+function migrarRuletonExistente(uid: string): void {
+  ensureUserDir(uid);
+  const mover = (origen: string, destino: string) => {
+    if (!fs.existsSync(origen) || fs.existsSync(destino)) return;
+    try {
+      fs.renameSync(origen, destino);
+      console.log(`Migrado ${path.basename(origen)} -> data/users/${uid}/`);
+    } catch (err) {
+      console.error(`Failed to migrate ${origen}:`, err);
+    }
+  };
+  // Version con perfiles (data/profiles/principal) y version anterior (data/).
+  const viejoPerfil = path.join(DATA_DIR, 'profiles', 'principal');
+  const base = fs.existsSync(viejoPerfil) ? viejoPerfil : DATA_DIR;
+  mover(path.join(base, 'settings.json'), settingsFile(uid));
+  mover(path.join(base, 'servers.json'), serversFile(uid));
+  mover(path.join(base, 'servers'), path.join(userDir(uid), 'servers'));
+  fs.rmSync(path.join(DATA_DIR, 'profiles'), { recursive: true, force: true });
+  fs.rmSync(path.join(DATA_DIR, 'profiles.json'), { force: true });
+}
+
+function readServers(uid: string): GameServer[] {
+  ensureUserDir(uid);
+  try {
+    if (fs.existsSync(serversFile(uid))) {
+      const parsed = JSON.parse(fs.readFileSync(serversFile(uid), 'utf8'));
       const list = Array.isArray(parsed?.servers) ? parsed.servers : parsed;
       if (Array.isArray(list)) {
         const clean = list
@@ -80,27 +261,27 @@ function readServers(): GameServer[] {
     console.error('Failed to read servers:', err);
   }
   // Primera vez: se crea el servidor por defecto y se le adjudican los datos
-  // que ya existieran sueltos en data/ (instalaciones anteriores).
+  // que ya existieran sueltos (instalaciones anteriores).
   const servers = [DEFAULT_SERVER];
-  writeServers(servers);
-  migrarDatosSueltos(DEFAULT_SERVER.id);
+  writeServers(uid, servers);
+  migrarDatosSueltos(uid, DEFAULT_SERVER.id);
   return servers;
 }
 
-function writeServers(servers: GameServer[]): void {
-  ensureDataDir();
-  fs.writeFileSync(SERVERS_FILE, JSON.stringify({ servers }, null, 2), 'utf8');
+function writeServers(uid: string, servers: GameServer[]): void {
+  ensureUserDir(uid);
+  writeJson(serversFile(uid), { servers });
 }
 
-function migrarDatosSueltos(sid: string): void {
-  ensureServerDir(sid);
+function migrarDatosSueltos(uid: string, sid: string): void {
+  ensureServerDir(`${uid}/${sid}`);
   for (const name of SERVER_FILES) {
-    const viejo = path.join(DATA_DIR, `${name}.json`);
-    const nuevo = serverFile(sid, name);
+    const viejo = path.join(userDir(uid), `${name}.json`);
+    const nuevo = serverFile(`${uid}/${sid}`, name);
     if (fs.existsSync(viejo) && !fs.existsSync(nuevo)) {
       try {
         fs.renameSync(viejo, nuevo);
-        console.log(`Migrado data/${name}.json -> data/servers/${sid}/${name}.json`);
+        console.log(`Migrado ${name}.json -> usuario ${uid}, servidor ${sid}`);
       } catch (err) {
         console.error(`Failed to migrate ${name}.json:`, err);
       }
@@ -108,13 +289,15 @@ function migrarDatosSueltos(sid: string): void {
   }
 }
 
-// Servidor de la peticion: ?server=<id> o { server: <id> } en el cuerpo.
-// Si no llega o no existe, se usa el primero de la lista.
+// Ambito de la peticion: el usuario de la sesion mas su servidor (?server=).
+// El usuario NUNCA viene del cliente: sale de la cookie de sesion, asi que
+// nadie puede pedir los datos de otro cambiando un parametro.
 function resolveServer(req: Request): string {
-  const servers = readServers();
+  const uid = requireUid(req);
+  const servers = readServers(uid);
   const pedido = String((req.query?.server ?? (req.body as any)?.server ?? '')).trim();
   const encontrado = servers.find((s) => s.id === pedido);
-  return encontrado ? encontrado.id : servers[0].id;
+  return `${uid}/${encontrado ? encontrado.id : servers[0].id}`;
 }
 
 async function fetchItemsCached(): Promise<any[]> {
@@ -141,7 +324,7 @@ async function fetchItemsCached(): Promise<any[]> {
       return [];
     }
     try {
-      fs.writeFileSync(ITEMS_FILE, JSON.stringify(items, null, 2), 'utf8');
+      writeJson(ITEMS_FILE, items);
     } catch (err) {
       console.warn('Failed to write items cache:', err);
     }
@@ -178,7 +361,7 @@ function readExclusions(sid: string): string[] {
 
 function writeExclusions(sid: string, ids: string[]): void {
   ensureServerDir(sid);
-  fs.writeFileSync(serverFile(sid, 'exclusions'), JSON.stringify(ids, null, 2), 'utf8');
+  writeJson(serverFile(sid, 'exclusions'), ids);
 }
 
 type Rarity = 'rare' | 'epic' | 'mythic';
@@ -202,7 +385,7 @@ function readTags(sid: string): Tags {
 
 function writeTags(sid: string, tags: Tags): void {
   ensureServerDir(sid);
-  fs.writeFileSync(serverFile(sid, 'tags'), JSON.stringify(tags, null, 2), 'utf8');
+  writeJson(serverFile(sid, 'tags'), tags);
 }
 
 interface Settings {
@@ -237,11 +420,11 @@ const DEFAULT_SETTINGS: Settings = {
   fontScale: 1
 };
 
-function readSettings(): Settings {
-  ensureDataDir();
+function readSettings(uid: string): Settings {
+  ensureUserDir(uid);
   try {
-    if (fs.existsSync(SETTINGS_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+    if (fs.existsSync(settingsFile(uid))) {
+      const parsed = JSON.parse(fs.readFileSync(settingsFile(uid), 'utf8'));
       const settings: Settings = { ...DEFAULT_SETTINGS, ...parsed };
       // Ajustes guardados antes de que existiera 'animation': se deduce de los
       // campos antiguos para no cambiarle el comportamiento a quien ya lo tenia.
@@ -261,9 +444,9 @@ function readSettings(): Settings {
   return { ...DEFAULT_SETTINGS };
 }
 
-function writeSettings(settings: Settings): void {
-  ensureDataDir();
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+function writeSettings(uid: string, settings: Settings): void {
+  ensureUserDir(uid);
+  writeJson(settingsFile(uid), settings);
 }
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -301,7 +484,7 @@ function readWinners(sid: string): Winner[] {
 
 function writeWinners(sid: string, winners: Winner[]): void {
   ensureServerDir(sid);
-  fs.writeFileSync(serverFile(sid, 'winners'), JSON.stringify(winners, null, 2), 'utf8');
+  writeJson(serverFile(sid, 'winners'), winners);
 }
 
 // Historico acumulado por persona. A diferencia de winners.json, no se borra
@@ -360,7 +543,7 @@ function readArchive(sid: string): Archive {
 
 function writeArchive(sid: string, archive: Archive): void {
   ensureServerDir(sid);
-  fs.writeFileSync(serverFile(sid, 'ranking'), JSON.stringify(archive, null, 2), 'utf8');
+  writeJson(serverFile(sid, 'ranking'), archive);
 }
 
 // Entregado + pendiente. Es lo que consume GET /api/ranking.
@@ -400,7 +583,7 @@ function readStream(sid: string): Stream {
 
 function writeStream(sid: string, stream: Stream): void {
   ensureServerDir(sid);
-  fs.writeFileSync(serverFile(sid, 'stream'), JSON.stringify(stream, null, 2), 'utf8');
+  writeJson(serverFile(sid, 'stream'), stream);
 }
 
 function sumarAlStream(sid: string, name: string, total: number, draws: number): void {
@@ -445,6 +628,242 @@ app.use('/api', (_req: Request, res: Response, next: any) => {
   next();
 });
 
+// Intentos fallidos por IP, para que no se pueda probar contrasenas a lo bruto.
+const intentos = new Map<string, { fallos: number; hasta: number }>();
+const MAX_FALLOS = 10;
+const CASTIGO_MS = 15 * 60 * 1000;
+
+function ipDe(req: Request): string {
+  return String(req.ip || req.socket?.remoteAddress || 'desconocida');
+}
+
+function bloqueado(req: Request): boolean {
+  const reg = intentos.get(ipDe(req));
+  return !!reg && reg.fallos >= MAX_FALLOS && reg.hasta > Date.now();
+}
+
+function apuntarFallo(req: Request): void {
+  const ip = ipDe(req);
+  const reg = intentos.get(ip);
+  if (reg && reg.hasta > Date.now()) reg.fallos += 1;
+  else intentos.set(ip, { fallos: 1, hasta: Date.now() + CASTIGO_MS });
+}
+
+function limpiarFallos(req: Request): void {
+  intentos.delete(ipDe(req));
+}
+
+function ponerCookie(req: Request, res: Response, token: string): void {
+  const seguro = process.env.COOKIE_SECURE === '1' || req.protocol === 'https';
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,          // el JavaScript de la pagina no puede leerla
+    sameSite: 'lax',
+    secure: seguro,
+    maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000,
+    path: '/'
+  });
+}
+
+function datosPublicos(u: User) {
+  return { id: u.id, username: u.username, name: u.name, avatarUrl: u.avatarUrl || '', createdAt: u.createdAt };
+}
+
+// Guarda una imagen enviada como data URL y devuelve su ruta publica.
+function guardarImagen(dataUrl: unknown, prefijo: string): { url?: string; error?: string; code?: number } {
+  if (typeof dataUrl !== 'string') return { error: 'body must be { dataUrl: string }', code: 400 };
+  const match = /^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/.exec(dataUrl);
+  if (!match) return { error: 'unsupported image format', code: 400 };
+
+  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length > 12 * 1024 * 1024) return { error: 'image too large (max 12MB)', code: 413 };
+
+  if (!fs.existsSync(ASSETS_DIR)) fs.mkdirSync(ASSETS_DIR, { recursive: true });
+  const filename = `${prefijo}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+  fs.writeFileSync(path.join(ASSETS_DIR, filename), buffer);
+  return { url: `/assets/${filename}` };
+}
+
+// El usuario de la peticion; las rutas protegidas ya han comprobado que existe.
+function requireUid(req: Request): string {
+  const u = usuarioDe(req);
+  if (!u) throw new Error('no autenticado');
+  return u.id;
+}
+
+// GET /api/auth/me -> quien ha entrado, y si se admiten registros
+app.get('/api/auth/me', (req: Request, res: Response) => {
+  const u = usuarioDe(req);
+  const primeraCuenta = readUsers().length === 0;
+  if (!u) {
+    return res.status(401).json({
+      error: 'no autenticado',
+      primeraCuenta,
+      registroAbierto: primeraCuenta || Boolean(INVITE_CODE)
+    });
+  }
+  res.json({ user: datosPublicos(u) });
+});
+
+// POST /api/auth/register  Body: { username, password, invite? }
+app.post('/api/auth/register', (req: Request, res: Response) => {
+  const body = req.body || {};
+  const nombre = typeof body.username === 'string' ? body.username.trim().slice(0, 40) : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+  const invite = typeof body.invite === 'string' ? body.invite.trim() : '';
+
+  if (!/^[a-zA-Z0-9._-]{3,40}$/.test(nombre)) {
+    return res.status(400).json({ error: 'el usuario admite 3-40 letras, numeros, punto, guion o guion bajo' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'la contrasena necesita al menos 8 caracteres' });
+  }
+
+  try {
+    const users = readUsers();
+    // La primera cuenta es la del dueno y no pide codigo; a partir de ahi, si.
+    if (users.length > 0) {
+      if (!INVITE_CODE) return res.status(403).json({ error: 'los registros estan cerrados' });
+      if (invite !== INVITE_CODE) return res.status(403).json({ error: 'codigo de invitacion incorrecto' });
+    }
+    const username = nombre.toLowerCase();
+    if (users.some((u) => u.username === username)) {
+      return res.status(409).json({ error: 'ese usuario ya existe' });
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    let id = slugify(username);
+    while (users.some((u) => u.id === id)) id = `${id}-2`;
+    const nuevo: User = {
+      id,
+      username,
+      name: nombre,
+      salt,
+      hash: hashPassword(password, salt),
+      createdAt: new Date().toISOString()
+    };
+    writeUsers(users.concat(nuevo));
+    ensureUserDir(id);
+    // El Ruleton que ya hubiera en el equipo se queda con la primera cuenta.
+    if (users.length === 0) migrarRuletonExistente(id);
+    readServers(id);   // nace con su servidor por defecto
+
+    ponerCookie(req, res, crearSesion(id));
+    res.json({ user: datosPublicos(nuevo) });
+  } catch (err) {
+    console.error('Failed to register:', err);
+    res.status(500).json({ error: 'failed to register' });
+  }
+});
+
+// POST /api/auth/login  Body: { username, password }
+app.post('/api/auth/login', (req: Request, res: Response) => {
+  if (bloqueado(req)) {
+    return res.status(429).json({ error: 'demasiados intentos; prueba dentro de un rato' });
+  }
+  const body = req.body || {};
+  const username = typeof body.username === 'string' ? body.username.trim().toLowerCase() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+
+  try {
+    const user = readUsers().find((u) => u.username === username);
+    // Mismo mensaje falle el usuario o la contrasena: no se confirma quien existe.
+    if (!user || !passwordOk(user, password)) {
+      apuntarFallo(req);
+      return res.status(401).json({ error: 'usuario o contrasena incorrectos' });
+    }
+    limpiarFallos(req);
+    ponerCookie(req, res, crearSesion(user.id));
+    res.json({ user: datosPublicos(user) });
+  } catch (err) {
+    console.error('Failed to login:', err);
+    res.status(500).json({ error: 'failed to login' });
+  }
+});
+
+// POST /api/auth/logout
+app.post('/api/auth/logout', (req: Request, res: Response) => {
+  const token = leerCookie(req, COOKIE_NAME);
+  if (token) borrarSesion(token);
+  res.clearCookie(COOKIE_NAME, { path: '/' });
+  res.json({ ok: true });
+});
+
+// A partir de aqui, toda la API pide sesion. El catalogo tambien: es una app
+// privada, no un servicio publico de consulta.
+app.use('/api', (req: Request, res: Response, next: any) => {
+  if (req.path === '/auth/me' || req.path === '/auth/login' ||
+      req.path === '/auth/register' || req.path === '/auth/logout') return next();
+  if (!usuarioDe(req)) return res.status(401).json({ error: 'no autenticado' });
+  next();
+});
+
+// PATCH /api/auth/profile  Body: { name?, avatarDataUrl?, quitarAvatar? }
+app.patch('/api/auth/profile', (req: Request, res: Response) => {
+  const body = req.body || {};
+  try {
+    const users = readUsers();
+    const yo = users.find((u) => u.id === requireUid(req));
+    if (!yo) return res.status(404).json({ error: 'user not found' });
+
+    if (typeof body.name === 'string') {
+      const name = body.name.trim().slice(0, 40);
+      if (!name) return res.status(400).json({ error: 'el nombre no puede quedar vacio' });
+      yo.name = name;
+    }
+    if (body.quitarAvatar === true) {
+      yo.avatarUrl = '';
+    } else if (body.avatarDataUrl !== undefined) {
+      const guardada = guardarImagen(body.avatarDataUrl, 'avatar');
+      if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
+      yo.avatarUrl = guardada.url;
+    }
+
+    writeUsers(users);
+    res.json({ user: datosPublicos(yo) });
+  } catch (err) {
+    console.error('Failed to update profile:', err);
+    res.status(500).json({ error: 'failed to update profile' });
+  }
+});
+
+// POST /api/auth/password  Body: { actual, nueva }
+app.post('/api/auth/password', (req: Request, res: Response) => {
+  const body = req.body || {};
+  const actual = typeof body.actual === 'string' ? body.actual : '';
+  const nueva = typeof body.nueva === 'string' ? body.nueva : '';
+  if (nueva.length < 8) {
+    return res.status(400).json({ error: 'la contrasena nueva necesita al menos 8 caracteres' });
+  }
+
+  try {
+    const users = readUsers();
+    const yo = users.find((u) => u.id === requireUid(req));
+    if (!yo) return res.status(404).json({ error: 'user not found' });
+    if (!passwordOk(yo, actual)) {
+      return res.status(403).json({ error: 'la contrasena actual no es correcta' });
+    }
+
+    yo.salt = crypto.randomBytes(16).toString('hex');
+    yo.hash = hashPassword(nueva, yo.salt);
+    writeUsers(users);
+
+    // Cambiar la contrasena echa al resto de dispositivos: si alguien habia
+    // entrado con la vieja, su sesion deja de valer.
+    const sessions = readSessions();
+    const token = leerCookie(req, COOKIE_NAME);
+    for (const [t, ses] of Object.entries(sessions)) {
+      if (ses.uid === yo.id && t !== token) delete sessions[t];
+    }
+    writeSessions(sessions);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to change password:', err);
+    res.status(500).json({ error: 'failed to change password' });
+  }
+});
+
 app.get('/api/items', async (_req: Request, res: Response) => {
   try {
     const items = await fetchItemsCached();
@@ -454,9 +873,9 @@ app.get('/api/items', async (_req: Request, res: Response) => {
   }
 });
 
-// GET /api/servers -> { servers: GameServer[] }
-app.get('/api/servers', (_req: Request, res: Response) => {
-  res.json({ servers: readServers() });
+// GET /api/servers -> { servers: GameServer[] }  (los del usuario que ha entrado)
+app.get('/api/servers', (req: Request, res: Response) => {
+  res.json({ servers: readServers(requireUid(req)) });
 });
 
 // POST /api/servers  Body: { name: string }  -> crea un servidor vacio
@@ -465,7 +884,8 @@ app.post('/api/servers', (req: Request, res: Response) => {
   if (!name) return res.status(400).json({ error: 'name is required' });
 
   try {
-    const servers = readServers();
+    const uid = requireUid(req);
+    const servers = readServers(uid);
     if (servers.some((s) => s.name.toLowerCase() === name.toLowerCase())) {
       return res.status(409).json({ error: 'ya existe un servidor con ese nombre' });
     }
@@ -473,9 +893,9 @@ app.post('/api/servers', (req: Request, res: Response) => {
     while (servers.some((s) => s.id === id)) id = `${id}-2`;
 
     const nuevo: GameServer = { id, name };
-    ensureServerDir(id);
-    writeServers(servers.concat(nuevo));
-    res.json({ server: nuevo, servers: readServers() });
+    ensureServerDir(`${uid}/${id}`);
+    writeServers(uid, servers.concat(nuevo));
+    res.json({ server: nuevo, servers: readServers(uid) });
   } catch (err) {
     console.error('Failed to create server:', err);
     res.status(500).json({ error: 'failed to create server' });
@@ -488,14 +908,15 @@ app.patch('/api/servers/:id', (req: Request, res: Response) => {
   if (!name) return res.status(400).json({ error: 'name is required' });
 
   try {
-    const servers = readServers();
+    const uid = requireUid(req);
+    const servers = readServers(uid);
     const destino = servers.find((s) => s.id === req.params.id);
     if (!destino) return res.status(404).json({ error: 'server not found' });
     if (servers.some((s) => s.id !== destino.id && s.name.toLowerCase() === name.toLowerCase())) {
       return res.status(409).json({ error: 'ya existe un servidor con ese nombre' });
     }
     destino.name = name;
-    writeServers(servers);
+    writeServers(uid, servers);
     res.json({ server: destino, servers });
   } catch (err) {
     console.error('Failed to rename server:', err);
@@ -506,7 +927,8 @@ app.patch('/api/servers/:id', (req: Request, res: Response) => {
 // DELETE /api/servers/:id  -> borra el servidor y sus datos (nunca el ultimo)
 app.delete('/api/servers/:id', (req: Request, res: Response) => {
   try {
-    const servers = readServers();
+    const uid = requireUid(req);
+    const servers = readServers(uid);
     if (!servers.some((s) => s.id === req.params.id)) {
       return res.status(404).json({ error: 'server not found' });
     }
@@ -514,8 +936,8 @@ app.delete('/api/servers/:id', (req: Request, res: Response) => {
       return res.status(409).json({ error: 'debe quedar al menos un servidor' });
     }
     const rest = servers.filter((s) => s.id !== req.params.id);
-    writeServers(rest);
-    fs.rmSync(serverDir(req.params.id), { recursive: true, force: true });
+    writeServers(uid, rest);
+    fs.rmSync(serverDir(`${uid}/${req.params.id}`), { recursive: true, force: true });
     res.json({ servers: rest });
   } catch (err) {
     console.error('Failed to delete server:', err);
@@ -702,14 +1124,15 @@ app.delete('/api/winners/:id', (req: Request, res: Response) => {
 });
 
 // GET /api/settings -> { settings: Settings }
-app.get('/api/settings', (_req: Request, res: Response) => {
-  res.json({ settings: readSettings() });
+app.get('/api/settings', (req: Request, res: Response) => {
+  res.json({ settings: readSettings(requireUid(req)) });
 });
 
 // PUT /api/settings  Body: campos parciales de Settings
 app.put('/api/settings', (req: Request, res: Response) => {
   const body = req.body || {};
-  const current = readSettings();
+  const uid = requireUid(req);
+  const current = readSettings(uid);
   const next: Settings = { ...current };
 
   // Un titulo vacio dejaria la cabecera en blanco: se ignora y se queda el actual.
@@ -740,7 +1163,7 @@ app.put('/api/settings', (req: Request, res: Response) => {
   }
 
   try {
-    writeSettings(next);
+    writeSettings(uid, next);
     res.json({ settings: next });
   } catch (err) {
     console.error('Failed to write settings:', err);
@@ -752,33 +1175,20 @@ app.put('/api/settings', (req: Request, res: Response) => {
 // target: 'background' (por defecto), 'wheel' o 'logo'. Guarda la imagen en
 // public/assets y la deja activa en el ajuste correspondiente.
 app.post('/api/background', (req: Request, res: Response) => {
-  const dataUrl: unknown = req.body?.dataUrl;
   const pedido = req.body?.target;
   const target: 'wheel' | 'logo' | 'background' =
     pedido === 'wheel' ? 'wheel' : pedido === 'logo' ? 'logo' : 'background';
-  if (typeof dataUrl !== 'string') {
-    return res.status(400).json({ error: 'body must be { dataUrl: string }' });
-  }
 
-  const match = /^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/.exec(dataUrl);
-  if (!match) return res.status(400).json({ error: 'unsupported image format' });
-
-  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-  const buffer = Buffer.from(match[2], 'base64');
-  if (buffer.length > 12 * 1024 * 1024) {
-    return res.status(413).json({ error: 'image too large (max 12MB)' });
-  }
+  const guardada = guardarImagen(req.body?.dataUrl, `fondo-${target}`);
+  if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
 
   try {
-    if (!fs.existsSync(ASSETS_DIR)) fs.mkdirSync(ASSETS_DIR, { recursive: true });
-    const filename = `fondo-${target}-${Date.now()}.${ext}`;
-    fs.writeFileSync(path.join(ASSETS_DIR, filename), buffer);
-
-    const settings = readSettings();
-    if (target === 'wheel') settings.wheelUrl = `/assets/${filename}`;
-    else if (target === 'logo') settings.logoUrl = `/assets/${filename}`;
-    else settings.backgroundUrl = `/assets/${filename}`;
-    writeSettings(settings);
+    const uid = requireUid(req);
+    const settings = readSettings(uid);
+    if (target === 'wheel') settings.wheelUrl = guardada.url!;
+    else if (target === 'logo') settings.logoUrl = guardada.url!;
+    else settings.backgroundUrl = guardada.url!;
+    writeSettings(uid, settings);
     res.json({ settings });
   } catch (err) {
     console.error('Failed to save background:', err);
@@ -863,8 +1273,16 @@ app.listen(PORT, () => {
   console.log('Endpoints: GET /api/items  GET /api/random-items?n=1  POST /api/draw');
   console.log('           GET /api/exclusions  PUT /api/exclusions');
   console.log('           GET /api/tags  PUT /api/tags');
+  console.log('           POST /api/auth/register  POST /api/auth/login  POST /api/auth/logout  GET /api/auth/me');
+  console.log('           PATCH /api/auth/profile  POST /api/auth/password');
   console.log('           GET /api/servers  POST /api/servers  PATCH/DELETE /api/servers/:id');
-  console.log('           (rarezas, exclusiones, ganadores y ranking van por servidor: ?server=<id>)');
+  console.log('           (cada usuario tiene su propio Ruleton; dentro, ?server=<id>)');
+  if (readUsers().length === 0) {
+    console.log('Todavia no hay ninguna cuenta: la primera que se registre sera la duena');
+    console.log('de los datos que ya hubiera en data/.');
+  } else if (!INVITE_CODE) {
+    console.log('Registros cerrados (no hay RULETON_INVITE). Ponlo para admitir mas cuentas.');
+  }
   console.log('           GET /api/settings  PUT /api/settings  POST /api/background');
   console.log('           GET /api/winners  POST /api/winners  DELETE /api/winners/:id');
   console.log('           POST /api/winners/:id/deliver  Body: { amount }  (entrega parcial)');

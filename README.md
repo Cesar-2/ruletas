@@ -143,6 +143,10 @@ npm i --save-dev @types/express @types/cors
 
 | Método | Ruta | Qué hace |
 |---|---|---|
+| `GET` | `/api/auth/me` | Quién ha entrado (401 si no hay sesión) |
+| `POST` | `/api/auth/register` | Crea cuenta. Body: `{ "username", "password", "invite"? }` |
+| `POST` | `/api/auth/login` | Entra. Body: `{ "username", "password" }` |
+| `POST` | `/api/auth/logout` | Cierra la sesión |
 | `GET` | `/api/items` | Catálogo completo de recursos |
 | `GET` | `/api/random-items?n=3` | Sortea `n` objetos, omitiendo los excluidos |
 | `GET` | `/api/exclusions` | Lista de IDs excluidos del sorteo |
@@ -154,6 +158,9 @@ npm i --save-dev @types/express @types/cors
 | `POST` | `/api/servers` | Crea uno vacío. Body: `{ "name": "Tal Kasha" }` |
 | `PATCH` | `/api/servers/:id` | Lo renombra. Body: `{ "name": "..." }` |
 | `DELETE` | `/api/servers/:id` | Lo borra con sus datos (nunca el último) |
+
+**Todo lo que no sea `/api/auth/*` exige sesión** y responde `401` sin ella. De quién son
+los datos lo decide la cookie, nunca un parámetro.
 
 Las rutas de exclusiones, colores, ganadores y ranking aceptan `?server=<id>`.
 Si se omite se usa el primer servidor de la lista.
@@ -168,14 +175,16 @@ Todo se guarda como JSON plano en `data/`, que se crea al arrancar si no existe:
 
 | Archivo | Contenido |
 |---|---|
-| `items.json` | Caché del catálogo descargado de la API de Dofus |
-| `settings.json` | Aspecto de la página (fondo, colores, tamaños) |
-| `servers.json` | Servidores de Dofus dados de alta |
-| `servers/<id>/exclusions.json` | IDs excluidos del sorteo en ese servidor |
-| `servers/<id>/tags.json` | Rarezas (raro/épico/mítico) en ese servidor |
-| `servers/<id>/winners.json` | Ganadores pendientes de entregar |
-| `servers/<id>/ranking.json` | Histórico de lo ya entregado |
-| `servers/<id>/stream.json` | Top del stream en curso |
+| `items.json` | Caché del catálogo descargado de la API de Dofus (común a todos) |
+| `users.json` | Cuentas: usuario, nombre y contraseña derivada con scrypt |
+| `sessions.json` | Sesiones abiertas (token y caducidad) |
+| `users/<u>/settings.json` | Aspecto de la página de ese usuario |
+| `users/<u>/servers.json` | Servidores de Dofus de ese usuario |
+| `users/<u>/servers/<id>/exclusions.json` | IDs excluidos del sorteo en ese servidor |
+| `users/<u>/servers/<id>/tags.json` | Rarezas (raro/épico/mítico) en ese servidor |
+| `users/<u>/servers/<id>/winners.json` | Ganadores pendientes de entregar |
+| `users/<u>/servers/<id>/ranking.json` | Histórico de lo ya entregado |
+| `users/<u>/servers/<id>/stream.json` | Top del stream en curso |
 
 En el primer arranque, si `items.json` no existe, el servidor descarga el catálogo de
 `api.dofusdu.de` y lo cachea. A partir de ahí trabaja siempre desde el archivo local; si
@@ -191,21 +200,100 @@ Remove-Item data\items.json      # Windows
 rm data/items.json               # macOS / Linux
 ```
 
-**Las exclusiones y los colores son globales**, no por usuario: cualquiera que abra la
-página ve y modifica los mismos datos.
+**Todo cuelga de la cuenta**: cada usuario tiene su propio Ruletón —su aspecto, sus
+servidores, sus ganadores y su historial— y nadie más lo ve. Lo único compartido es el
+catálogo de objetos.
+
+### Cuentas y login
+
+La página no muestra nada hasta entrar. Cada cuenta tiene su propio Ruletón y el
+servidor saca de la sesión de quién son los datos: el navegador nunca dice a qué
+usuario pertenecen, así que cambiar un parámetro en la URL no sirve de nada.
+
+- **La primera cuenta que se registre es la del dueño** y se queda con los datos que ya
+  hubiera en `data/` (de una versión anterior, sin login). No pide código.
+- **A partir de ahí los registros están cerrados**, salvo que arranques con un código de
+  invitación en `RULETON_INVITE`. Quien quiera crear cuenta tendrá que escribirlo.
+- Las contraseñas se guardan derivadas con `scrypt` y una sal distinta por cuenta: del
+  archivo no se puede sacar la original. Mínimo 8 caracteres.
+- La sesión es una cookie `httpOnly` que dura 30 días; **Salir** la cierra en el servidor.
+- Tras 10 intentos fallidos, esa IP se queda 15 minutos sin poder probar más.
+
+#### Publicarlo en internet
+
+| Variable | Para qué |
+|---|---|
+| `RULETON_INVITE` | Código que hay que escribir para crear cuentas nuevas |
+| `TRUST_PROXY=1` | Detrás de un proxy (Render, Fly, nginx…), para reconocer HTTPS |
+| `COOKIE_SECURE=1` | Fuerza que la cookie de sesión solo viaje por HTTPS |
+| `PORT` | Puerto de escucha (por defecto 3000) |
+
+```bash
+RULETON_INVITE=lo-que-quieras TRUST_PROXY=1 COOKIE_SECURE=1 npm run dev
+```
+
+Sírvelo **siempre por HTTPS**: sin él, la contraseña y la cookie viajan en claro.
+
+#### En un VPS (Hostinger y similares)
+
+Necesitas un **VPS**, no alojamiento compartido: el compartido no mantiene vivo un
+proceso de Node. En un VPS el disco es persistente, así que los datos en JSON aguantan
+de sobra —todo lo que no sea el catálogo ocupa unas decenas de KB— y no hace falta base
+de datos.
+
+1. **El proceso, siempre levantado.** Con `pm2` sobrevive a reinicios del servidor:
+
+   ```bash
+   npm install -g pm2
+   RULETON_INVITE=lo-que-quieras TRUST_PROXY=1 COOKIE_SECURE=1 \
+     pm2 start "npm run dev" --name ruleton
+   pm2 save && pm2 startup
+   ```
+
+2. **HTTPS por delante.** Nginx como proxy hacia el puerto 3000 y el certificado con
+   `certbot --nginx`. El `TRUST_PROXY=1` es lo que hace que la app reconozca que la
+   conexión venía por HTTPS y marque la cookie como segura.
+
+3. **Copias de `data/`.** Ahí están las cuentas, los ganadores y el histórico; el
+   catálogo se vuelve a descargar solo. Una tarea diaria basta:
+
+   ```bash
+   0 4 * * * cd /ruta/al/ruleton && tar czf ~/copias/data-$(date +\%F).tgz data
+   ```
+
+Los ficheros se guardan de forma atómica (se escribe un `.tmp` y se renombra encima),
+así que un corte de luz o un reinicio a destiempo no deja un JSON a medias.
+
+Las imágenes que subas (fondo, logo, ruleta) se guardan en `public/assets/` con un
+nombre aleatorio y se sirven sin pedir sesión: quien tenga la URL exacta puede verlas.
+No subas ahí nada que no quieras enseñar.
 
 ### Servidores
 
 Los precios de los recursos cambian de un servidor de Dofus a otro, así que **rarezas,
 exclusiones, ganadores y ranking se guardan por servidor**. El selector está en la
 cabecera, junto al título: `＋` crea uno, `✎` lo renombra y `🗑` lo borra con sus datos.
-El catálogo de objetos y los ajustes de aspecto son comunes a todos.
+El catálogo de objetos es común a todos los usuarios; el aspecto es de cada cuenta.
 
 El servidor elegido se recuerda en el navegador (`localStorage`), de modo que cada
 equipo puede quedarse en el suyo.
 
+### Llevarte tus exclusiones y rarezas
+
+Quien ya las tenga personalizadas en su equipo no necesita rehacerlas. En
+**Configuración → Exclusiones y rarezas**:
+
+- **Descargar** guarda un JSON con las exclusiones y las rarezas del servidor abierto.
+- **Cargar desde un archivo** admite tres formatos: esa copia, un `exclusions.json`
+  suelto (una lista de ids) o un `tags.json` suelto (objeto de id a rareza), tal cual
+  están en `data/` en una instalación anterior.
+
+Al cargar se pregunta si **añadir** a lo que ya haya o **reemplazarlo**. Las rarezas que
+no sean `rare`, `epic` o `mythic` se descartan.
+
 Al actualizar desde una versión anterior, los datos que ya hubiera sueltos en `data/`
-pasan solos al servidor **Principal** en el primer arranque; no hay que hacer nada.
+pasan solos al servidor **Principal** de la primera cuenta que se registre; no hay que
+hacer nada.
 
 ---
 
