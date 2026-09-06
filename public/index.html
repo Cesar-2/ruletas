@@ -114,6 +114,7 @@
     .item.sin-precio .value-input{border-color:rgba(239,68,68,0.7)}
     .winner-row .wr-date{font-size:12px;color:var(--muted);white-space:nowrap}
     .winner-row .wr-partial{font-size:12px;color:var(--accent);white-space:nowrap;margin-top:.15rem}
+    .winner-row .wr-partial .kama-icon{width:14px;height:14px;vertical-align:-2px}
     .winner-row .wr-actions{display:flex;flex-direction:column;gap:.35rem}
     .winner-row button{padding:.45rem .9rem;font-size:14px;box-shadow:none;background:rgba(248,113,113,0.14);color:#fca5a5;border:1px solid rgba(248,113,113,0.4)}
     .winner-row button.wr-part{background:rgba(255,255,255,0.08);color:#e6eef8;border-color:rgba(255,255,255,0.18)}
@@ -1369,7 +1370,7 @@
           <div>
             <div class="wr-total">${w.total.toLocaleString('es-ES')}<img src="/assets/kama.png" alt="kamas" class="kama-icon" /></div>
             <div class="wr-date">${escapeHtml(fecha)}</div>
-            ${w.entregado ? `<div class="wr-partial">Ya entregado: ${w.entregado.toLocaleString('es-ES')}</div>` : ''}
+            ${w.entregado ? `<div class="wr-partial">Ya entregado: ${kamasHtml(w.entregado)}</div>` : ''}
           </div>
           <div class="wr-actions">
             <button type="button" class="wr-part">Entregar parte</button>
@@ -1379,12 +1380,13 @@
 
         // Entrega parcial: se descuenta del pendiente y el resto sigue en la lista.
         row.querySelector('.wr-part').addEventListener('click', async () => {
-          const texto = await showPrompt(
-            `Entregar parte a ${w.name}`,
-            `Pendiente: ${w.total.toLocaleString('es-ES')}. Escribe cuánto le entregas ahora; el resto se queda en la lista.`,
-            '',
-            'Entregar'
-          );
+          const texto = await showModal({
+            title: `Entregar parte a ${w.name}`,
+            messageHtml: `Pendiente: ${kamasHtml(w.total)}. Escribe cuánto le entregas ahora; el resto se queda en la lista.`,
+            okText: 'Entregar',
+            input: true,
+            placeholder: 'Por ejemplo 5m o 5000000'
+          });
           if (!texto) return;
 
           // Se admiten separadores de miles y "5m" / "500k" como atajo.
@@ -1394,7 +1396,12 @@
             return;
           }
           if (cantidad > w.total) {
-            showAlert('Cantidad demasiado alta', `Solo quedan ${w.total.toLocaleString('es-ES')} pendientes.`);
+            await showModal({
+              title: 'Cantidad demasiado alta',
+              messageHtml: `Solo quedan ${kamasHtml(w.total)} pendientes para ${escapeHtml(w.name)}.`,
+              okText: 'Entendido',
+              confirm: false
+            });
             return;
           }
           entregarPremio(w, cantidad);
@@ -1467,7 +1474,7 @@
     }
 
     // Historial completo: cada persona con su total acumulado, cuantos sorteos
-    // ganó y la media por sorteo (el "total ponderado").
+    // ganó, más el total entregado del servidor.
     async function loadHistory() {
       const box = document.getElementById('historyTable');
       try {
@@ -1492,20 +1499,15 @@
 
       const totalKamas = ranking.reduce((sum, r) => sum + r.total, 0);
       const totalSorteos = ranking.reduce((sum, r) => sum + r.draws, 0);
-      // Media global: lo entregado repartido entre todos los sorteos, no la
-      // media de las medias (un sorteo grande debe pesar más que uno pequeño).
-      const mediaGlobal = totalSorteos ? Math.round(totalKamas / totalSorteos) : 0;
       info.textContent = `Solo los premios ya entregados: ${ranking.length} ganador(es) y ${totalSorteos} sorteo(s).`;
 
       const filas = ranking.map((r, i) => {
-        const media = r.draws ? Math.round(r.total / r.draws) : 0;
         return `
           <tr>
             <td class="pos">${i + 1}</td>
             <td>${escapeHtml(r.name)}</td>
             <td class="num">${kamasHtml(r.total)}</td>
             <td class="num">${r.draws}</td>
-            <td class="num">${kamasHtml(media)}</td>
           </tr>`;
       }).join('');
 
@@ -1513,7 +1515,7 @@
         <div class="winners-total history-total-box">
           <span class="wt-label">
             Total entregado en ${escapeHtml(servers.find((sv) => sv.id === currentServer)?.name ?? 'este servidor')}
-            <span class="wt-sub">${totalSorteos} sorteo(s) · media de ${mediaGlobal.toLocaleString('es-ES')} por sorteo</span>
+            <span class="wt-sub">${totalSorteos} sorteo(s) entregado(s)</span>
           </span>
           <span class="wt-value">${totalKamas.toLocaleString('es-ES')}<img src="/assets/kama.png" alt="kamas" class="kama-icon" /></span>
         </div>
@@ -1525,7 +1527,6 @@
                 <th>Ganador</th>
                 <th class="num">Total entregado</th>
                 <th class="num">Sorteos</th>
-                <th class="num">Media por sorteo</th>
               </tr>
             </thead>
             <tbody>${filas}</tbody>
