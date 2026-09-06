@@ -7,6 +7,8 @@ REM Trae la ultima version sin perder los datos de esta instalacion
 REM (exclusiones, rarezas, ganadores, ajustes). Los archivos de data\ se
 REM apartan antes de actualizar y se devuelven a su sitio despues, porque
 REM la actualizacion deja de versionarlos y Git los borraria del disco.
+REM Se copia el arbol entero: desde que hay servidores, los datos de cada uno
+REM viven en data\servers\<servidor>\*.json, no sueltos en data\.
 
 set "COPIA=data-backup"
 
@@ -17,7 +19,7 @@ if not exist "data" (
 
 echo Copiando datos a %COPIA% ...
 if not exist "%COPIA%" mkdir "%COPIA%"
-copy /y "data\*.json" "%COPIA%\" >nul
+xcopy "data" "%COPIA%\" /e /i /y /q >nul
 if errorlevel 1 (
   call :aviso "No se pudo copiar la carpeta data. No se ha cambiado nada."
   exit /b 1
@@ -47,7 +49,7 @@ exit /b 0
 :restaurar
 echo Devolviendo tus datos a data\ ...
 if not exist "data" mkdir "data"
-copy /y "%COPIA%\*.json" "data\" >nul
+xcopy "%COPIA%" "data\" /e /i /y /q >nul
 exit /b 0
 
 :aviso

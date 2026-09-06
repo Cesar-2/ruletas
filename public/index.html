@@ -11,11 +11,34 @@
       --anim-scale:1; --font-scale:1;
     }
     *{box-sizing:border-box}
-    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; font-size:18px; background:linear-gradient(rgba(7,16,34,var(--overlay)), rgba(11,18,32,calc(var(--overlay) + 0.13))), var(--bg-image) center center / cover no-repeat fixed #071022; color:#e6eef8; min-height:100vh; margin:0; padding:2rem}
-    .app{max-width:1100px;margin:0 auto;zoom:var(--font-scale)}
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; font-size:18px; background:linear-gradient(rgba(7,16,34,var(--overlay)), rgba(11,18,32,calc(var(--overlay) + 0.13))), var(--bg-image) center center / cover no-repeat fixed #071022; color:#e6eef8; min-height:100vh; margin:0; padding:2rem; padding-top:5rem}   /* el hueco real de la barra fija lo mide el JS */
+    /* zoom agranda todo lo de dentro, así que el ancho máximo se divide entre
+       la escala: la página sigue midiendo 950 px en pantalla y el contenido se
+       recoloca (menos tarjetas por fila) en vez de desbordarse a lo ancho. */
+    .app{max-width:calc(950px / var(--font-scale));margin:0 auto;zoom:var(--font-scale)}
     header{display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem}
-    .navbar{flex-wrap:wrap;gap:.75rem 1.25rem;max-width:950px;padding:1rem;border-radius:12px;background:rgba(9,15,28,0.80);border:1px solid rgba(255,255,255,0.08);box-shadow:0 6px 24px rgba(2,6,23,0.6);position:sticky;top:.6rem;z-index:60;backdrop-filter:blur(8px)}
+    /* Fija al borde superior y fuera de .app: el zoom del tamaño de letra
+       rompe position:sticky, así que la barra se ancla por su cuenta y solo se
+       le aplica el zoom a ella. El ancho sale de anclarla a los dos lados: con
+       zoom, un 100% se resolvía mal y la barra acababa más ancha o más
+       estrecha que la pantalla, dejando las pestañas fuera de la vista. */
+    .navbar{position:fixed;top:0;left:0;right:0;zoom:var(--font-scale);box-sizing:border-box;display:flex;align-items:center;flex-wrap:wrap;gap:.6rem 1.25rem;padding:.7rem 1.2rem;background:rgba(9,15,28,0.92);border-bottom:1px solid rgba(255,255,255,0.10);box-shadow:0 6px 24px rgba(2,6,23,0.6);z-index:60;backdrop-filter:blur(8px)}
+    .brand{display:flex;align-items:center;gap:1rem;margin:0 0 .8rem;padding:1rem 1.2rem;border-radius:14px;background:rgba(9,15,28,0.72);border:1px solid rgba(255,255,255,0.08);box-shadow:0 6px 24px rgba(2,6,23,0.5);backdrop-filter:blur(8px)}
+    .brand-logo{width:64px;height:64px;object-fit:contain;flex:none;border-radius:12px}
+    .brand-logo[hidden]{display:none}
+    .brand-text{min-width:0}
+    .brand-subtitle{margin:.25rem 0 0;color:var(--muted);font-size:16px;text-shadow:0 2px 8px rgba(0,0,0,0.8)}
+    .brand-subtitle[hidden]{display:none}
     .nav-links{display:flex;gap:.5rem;flex-wrap:wrap;margin-left:auto}
+    input.locked{opacity:.75;cursor:not-allowed;border-style:dashed}
+    .server-tab{display:inline-flex;align-items:center;gap:.4rem}
+    .server-tab #serverTabName{font-weight:600}
+    .server-list{display:flex;flex-direction:column;gap:.4rem;margin-top:.9rem;max-height:300px;overflow-y:auto}
+    .server-row{display:flex;align-items:center;gap:.4rem;padding:.5rem .6rem;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
+    .server-row.current{border-color:var(--accent);background:rgba(110,231,183,0.12)}
+    .server-row .sr-name{flex:1;min-width:0;text-align:left;background:none;border:none;color:inherit;font-size:15px;padding:.2rem;cursor:pointer;box-shadow:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .server-row.current .sr-name{font-weight:700}
+    .server-row .sr-act{padding:.3rem .5rem;font-size:14px;line-height:1;background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14);box-shadow:none}
     h1{margin:0;font-weight:700;letter-spacing:-0.5px;font-size:28px;text-shadow:0 2px 12px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.9)}
     p.lead{color:var(--muted);margin-top:0.25rem;font-size:16px}
     .controls{display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap}
@@ -25,7 +48,7 @@
     .level-filter input{width:72px}
     .level-filter button{padding:.4rem .7rem;font-size:13px;box-shadow:none;background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
     .tabs{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem}
-    .tab{background:rgba(9,15,28,0.78);color:#e6eef8;border:1px solid rgba(255,255,255,0.12);padding:0.7rem 1rem;border-radius:10px;cursor:pointer;font-size:15px;box-shadow:none}
+    .tab,.server-tab{background:rgba(9,15,28,0.78);color:#e6eef8;border:1px solid rgba(255,255,255,0.12);padding:0.7rem 1rem;border-radius:10px;cursor:pointer;font-size:15px;box-shadow:none}
     .tab.active{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#021018;box-shadow:0 8px 26px rgba(110,231,183,0.14)}
     button{background:linear-gradient(90deg,var(--accent),var(--accent-2));border:none;color:#021018;padding:0.7rem 1rem;border-radius:10px;cursor:pointer;font-size:16px;box-shadow:0 8px 26px rgba(110,231,183,0.14);transition:transform .18s ease, box-shadow .18s ease}
     button:active{transform:translateY(1px)}
@@ -61,6 +84,15 @@
     .rank-bar{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-top:.6rem}
     .rank-bar .meta{margin:0;flex:1;min-width:220px}
     .rank-bar button{padding:.45rem .9rem;font-size:14px;box-shadow:none;background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
+    .history-table{width:100%;border-collapse:collapse;margin-top:.8rem;font-size:15px}
+    .history-table th,.history-table td{padding:.5rem .6rem;text-align:left;border-bottom:1px solid rgba(255,255,255,0.08)}
+    .history-table th{color:var(--muted);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.4px}
+    .history-table td.num,.history-table th.num{text-align:right;white-space:nowrap}
+    .history-table tbody tr:hover{background:rgba(255,255,255,0.04)}
+    .history-table .pos{width:2.5rem;color:var(--muted)}
+    .history-total-box{margin-top:.8rem}
+    .history-total-box .wt-sub{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-top:.15rem}
+    .history-wrap{overflow-x:auto}
     .podium{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.8rem;margin-top:.9rem}
     .podium-card{display:flex;align-items:center;gap:.7rem;padding:.8rem 1rem;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
     .podium-card.p1{background:linear-gradient(135deg, rgba(253,224,71,0.22), rgba(13,21,38,0.85));border-color:rgba(253,224,71,0.55)}
@@ -77,21 +109,13 @@
     .winner-row .wr-badge{display:inline-block;vertical-align:middle;margin-left:.4rem;padding:.1rem .5rem;border-radius:999px;font-size:12px;font-weight:600;color:#021018;background:var(--accent)}
     .winner-row .wr-items{font-size:13px;color:var(--muted);margin-top:.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .winner-row .wr-total{display:flex;align-items:center;justify-content:flex-end;gap:.35rem;font-size:18px;font-weight:700;color:var(--accent);white-space:nowrap}
-    .kama-icon{width:20px;height:20px;object-fit:contain;flex:none}
+    .kama-icon{width:20px;height:20px;object-fit:contain;flex:none;vertical-align:-4px;margin-left:.25rem}
+    .item.sin-precio{border-color:rgba(239,68,68,0.7);box-shadow:0 0 0 1px rgba(239,68,68,0.35)}
+    .item.sin-precio .value-input{border-color:rgba(239,68,68,0.7)}
     .winner-row .wr-date{font-size:12px;color:var(--muted);white-space:nowrap}
     .winner-row button{padding:.45rem .9rem;font-size:14px;box-shadow:none;background:rgba(248,113,113,0.14);color:#fca5a5;border:1px solid rgba(248,113,113,0.4)}
     .winner-row button:hover{background:rgba(248,113,113,0.25)}
-    .editor-list{max-height:420px;overflow-y:auto;margin-top:.6rem;border:1px solid rgba(255,255,255,0.08);border-radius:10px}
-    .editor-row{display:flex;align-items:center;gap:.75rem;padding:.5rem .7rem;border-bottom:1px solid rgba(255,255,255,0.05)}
-    .editor-row:last-child{border-bottom:none}
-    .editor-row img{width:36px;height:36px;object-fit:contain;flex:none}
-    .editor-row .er-name{flex:1;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .editor-row select{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.35rem .5rem;font-size:14px;cursor:pointer}
-    .editor-row .er-exclude{display:flex;align-items:center;gap:.35rem;font-size:14px;color:var(--muted);cursor:pointer;white-space:nowrap}
-    .editor-row.rare{background:linear-gradient(90deg, rgba(59,130,246,0.22), transparent)}
-    .editor-row.epic{background:linear-gradient(90deg, rgba(168,85,247,0.22), transparent)}
-    .editor-row.mythic{background:linear-gradient(90deg, rgba(239,68,68,0.22), transparent)}
-    .editor-row.excluded{opacity:.5}
+    .editor-list{display:flex;flex-wrap:wrap;gap:12px;max-height:560px;overflow-y:auto;margin-top:.6rem;padding-top:8px}
     .bulk-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.8rem;padding:.6rem .8rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
     .bulk-bar button{padding:.4rem .8rem;font-size:14px;box-shadow:none}
     .bulk-bar select{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.35rem .5rem;font-size:14px;cursor:pointer}
@@ -104,12 +128,24 @@
     .subtab{background:transparent;color:var(--muted);border:1px solid transparent;padding:0.4rem 0.9rem;border-radius:8px;font-size:14px;box-shadow:none}
     .subtab:hover{color:#e6eef8;background:rgba(255,255,255,0.05)}
     .subtab.active{background:rgba(255,255,255,0.09);color:#e6eef8;border-color:rgba(255,255,255,0.14)}
+    #nameWinnerBanner{margin:0 0 .6rem}
+    #nameWinnerActions{margin-bottom:.9rem}
+    .names-layout{display:flex;gap:1.2rem;flex-wrap:wrap;align-items:flex-start;margin-top:.8rem}
+    .names-side{flex:1;min-width:240px;display:flex;flex-direction:column;gap:.6rem}
+    .names-side textarea{width:100%;resize:vertical;font-family:inherit;font-size:15px;padding:.6rem;border-radius:10px;background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14)}
+    .names-check{display:flex;align-items:center;gap:.4rem;font-size:14px;color:var(--muted);cursor:pointer}
+    .names-wheel-box{position:relative;flex:none;width:320px;max-width:100%;margin:0 auto}
+    .names-wheel{width:100%;height:auto;display:block;filter:drop-shadow(0 10px 30px rgba(2,6,23,0.6));transition:transform 5s cubic-bezier(.15,.9,.2,1)}
+    .names-pointer{position:absolute;top:-6px;left:50%;transform:translateX(-50%);font-size:28px;color:var(--accent);z-index:2;text-shadow:0 2px 8px rgba(0,0,0,0.8)}
+    .names-wheel text{font-size:8px;font-weight:600;fill:#021018}
     .tab-panel{display:none}
     .tab-panel.active{display:block}
     #items,#randomResult{display:flex;flex-wrap:wrap;gap:12px;padding-top:8px}
-    #items,#randomResult{max-width:916px}
+    /* Ocupan el ancho de su sección: así el catálogo, el resultado y el editor
+       quedan alineados con la cabecera y la barra de pestañas. */
+    #items,#randomResult{max-width:none}
     /* 916px de tarjetas (4x220 + 3x12 de gap) + 32px de padding + 2px de borde. */
-    .tab-panel section{max-width:950px}
+    .tab-panel section{max-width:none}
     .pagination{display:flex;align-items:center;justify-content:center;gap:0.75rem;margin-top:1rem}
     #pageInfo{color:var(--muted);font-size:15px}
     .item{position:relative;width:220px;padding:14px;display:flex;flex-direction:column;border-radius:12px;background:rgba(13,21,38,0.86);backdrop-filter: blur(10px);border:1px solid rgba(255,255,255,0.14);transition:transform 2s cubic-bezier(.2,.9,.2,1), box-shadow .5s ease, opacity 2s ease;opacity:0;transform:translateY(24px) scale(.98)}
@@ -143,6 +179,12 @@
     .config-section > h4{margin:0;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:var(--accent)}
     .config-section > .meta{margin:.15rem 0 0}
     .config-section .subtabs{margin-top:1.1rem}
+    .draw-subpanel{display:none}
+    .draw-subpanel.active{display:block}
+    .font-dock{position:fixed;right:1rem;bottom:1rem;z-index:70;display:flex;flex-direction:column;gap:.35rem;padding:.7rem .9rem;border-radius:12px;background:rgba(9,15,28,0.94);border:1px solid rgba(255,255,255,0.14);box-shadow:0 10px 30px rgba(2,6,23,0.6);backdrop-filter:blur(8px)}
+    .font-dock[hidden]{display:none}
+    .font-dock label{font-size:13px;color:var(--muted)}
+    .font-dock input[type="range"]{width:200px;max-width:50vw}
     .cfg-subpanel{display:none}
     .cfg-subpanel.active{display:block}
     .config-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem 1.2rem;margin-top:.8rem;align-items:end}
@@ -199,19 +241,50 @@
     @keyframes fall{to{transform:translateY(110vh) rotate(520deg)}}
     footer{color:var(--muted);font-size:14px;margin-top:1.5rem;text-align:center;padding:.8rem;text-shadow:0 2px 8px rgba(0,0,0,0.8)}
     footer strong{color:var(--accent)}
+    footer.thanks{margin-top:.15rem;padding-top:0;font-size:13px}
+    @media (max-width: 760px){
+      body{padding:1rem}
+      .navbar{padding:.6rem .8rem}
+      .brand{flex-direction:column;align-items:flex-start;text-align:left}
+      .names-layout{flex-direction:column}
+      .names-wheel-box{width:min(320px,100%)}
+      .draw-controls{flex-wrap:wrap}
+      .draw-controls .push-right{margin-left:0}
+      h1{font-size:24px}
+    }
+    @media (max-width: 480px){
+      .item{width:100%}
+      .tab,.server-tab{padding:.55rem .8rem;font-size:14px}
+    }
   </style>
 </head>
 <body>
+  <header class="navbar">
+    <button type="button" class="server-tab" id="serverTab" title="Cambiar de servidor: cada uno guarda sus rarezas, exclusiones, ganadores y ranking">
+      🌐 <span id="serverTabName">Servidor</span>
+    </button>
+    <nav class="nav-links" aria-label="Secciones">
+      <button type="button" class="tab active" data-tab="catalog">Catálogo</button>
+      <button type="button" class="tab" data-tab="random">Ruleta</button>
+      <button type="button" class="tab" data-tab="winners">Ganadores (0)</button>
+      <button type="button" class="tab" data-tab="history">📜 Historial</button>
+      <button type="button" class="tab" data-tab="config">⚙ Configuración</button>
+    </nav>
+  </header>
+
+  <div class="font-dock" id="fontDock" hidden>
+    <label for="cfgFontScale">Tamaño de la letra&nbsp;<span id="cfgFontScaleValue">100%</span></label>
+    <input id="cfgFontScale" type="range" min="70" max="160" step="5" value="100" />
+  </div>
+
   <div class="app">
-    <header class="navbar">
-      <h1>Sorteos - Demo</h1>
-      <nav class="nav-links" aria-label="Secciones">
-        <button type="button" class="tab active" data-tab="catalog">Catálogo</button>
-        <button type="button" class="tab" data-tab="random">Ruleta</button>
-        <button type="button" class="tab" data-tab="winners">Ganadores (0)</button>
-        <button type="button" class="tab" data-tab="config">⚙ Configuración</button>
-      </nav>
-    </header>
+    <div class="brand" id="brand">
+      <img id="brandLogo" class="brand-logo" alt="" hidden />
+      <div class="brand-text">
+        <h1 id="pageTitle">Sorteos - Demo</h1>
+        <p id="pageSubtitle" class="brand-subtitle" hidden></p>
+      </div>
+    </div>
 
     <div class="grid">
       <main>
@@ -255,7 +328,7 @@
                 <input id="levelMin" type="number" min="1" max="200" placeholder="1" aria-label="Nivel mínimo" />
                 <span class="meta">a</span>
                 <input id="levelMax" type="number" min="1" max="200" placeholder="200" aria-label="Nivel máximo" />
-                <button id="levelClear" type="button">Limpiar</button>
+                <button id="levelClear" type="button">Quitar filtros</button>
               </div>
             </div>
             <div id="items" aria-live="polite"></div>
@@ -269,11 +342,17 @@
 
         <div class="tab-panel" id="random-panel">
           <section>
+            <div class="subtabs">
+              <button type="button" class="subtab active" data-draw="normal">🎰 Ruletas</button>
+              <button type="button" class="subtab" data-draw="custom">🎡 Personalizada</button>
+            </div>
+
+            <div class="draw-subpanel active" id="draw-normal-panel">
             <h3>Bienvenido al ruleton</h3>
             <div class="draw-controls">
               <input id="winnerName" type="text" placeholder="Nombre del ganador" aria-label="Nombre del ganador" />
               <input id="n" type="number" value="3" min="1" style="width:90px" />
-              <button id="rand">Elegir</button>
+              <button id="rand">Sortear</button>
               <button id="toggleEditor" type="button" class="push-right">Editar</button>
             </div>
             <div id="winnerBanner" class="winner-banner" hidden></div>
@@ -281,13 +360,39 @@
             <div id="valueTotal" class="value-total" hidden></div>
             <div class="config-actions" id="saveWinnerRow" hidden>
               <button id="saveWinner" type="button">Guardar ganador</button>
+              <button id="discardDraw" type="button" class="btn-cancel">Descartar sorteo</button>
               <span class="meta" id="saveWinnerStatus"></span>
+            </div>
+            </div>
+
+            <div class="draw-subpanel" id="draw-custom-panel">
+            <div id="nameWinnerBanner" class="winner-banner" hidden></div>
+            <div class="controls" id="nameWinnerActions" hidden>
+              <button type="button" id="useNameWinner">Usar este nombre en el sorteo</button>
+            </div>
+            <h3>🎡 Ruleta de nombres</h3>
+            <p class="meta">Escribe un nombre por línea y gira: uno de ellos sale ganador. La lista se guarda en este navegador, por servidor.</p>
+            <div class="names-layout">
+              <div class="names-side">
+                <textarea id="nameList" rows="10" placeholder="Un nombre por línea&#10;Lucy&#10;Chimbita&#10;Suix&#10;Anna"></textarea>
+                <div class="meta" id="nameCount">0 participantes</div>
+                <label class="names-check"><input type="checkbox" id="nameRemoveWinner" /> Quitar al ganador de la lista al terminar</label>
+                <div class="controls">
+                  <button type="button" id="spinNames">Girar</button>
+                  <button type="button" class="btn-cancel" id="clearNames">Vaciar lista</button>
+                </div>
+              </div>
+              <div class="names-wheel-box">
+                <div class="names-pointer">▼</div>
+                <svg id="nameWheel" class="names-wheel" viewBox="0 0 200 200" role="img" aria-label="Ruleta de nombres"></svg>
+              </div>
+            </div>
             </div>
           </section>
 
           <section id="editorSection" hidden>
             <h3>Editar lo que salió</h3>
-            <p class="meta">Marca el valor de cada objeto sorteado y si debe seguir participando.</p>
+            <p class="meta">Marca la rareza de cada objeto sorteado y si debe seguir participando. Los valores se escriben en las tarjetas del resultado.</p>
             <div class="editor-list" id="editorList"></div>
             <div class="meta" id="editorInfo" style="margin-top:.5rem"></div>
           </section>
@@ -303,6 +408,7 @@
             <div class="rank-bar">
               <p class="meta" id="rankInfo">Acumulado de todos los sorteos, incluidos los premios ya entregados.</p>
               <button id="newStream" type="button" hidden>Empezar nuevo stream</button>
+              <button id="resetRanking" type="button">Reiniciar top global</button>
             </div>
             <div id="podium" class="podium"></div>
             <div id="winnersTotal" class="winners-total" hidden></div>
@@ -312,6 +418,17 @@
             <h3>Ganadores pendientes de entrega</h3>
             <p class="meta">Al entregar el premio, elimina al ganador de la lista.</p>
             <div id="winnersList"></div>
+          </section>
+        </div>
+
+        <div class="tab-panel" id="history-panel">
+          <section>
+            <h3>📜 Historial de ganadores</h3>
+            <div class="rank-bar">
+              <p class="meta" id="historyInfo">Solo los premios ya entregados. Los pendientes aparecen aquí al entregarlos.</p>
+              <button id="historyReload" type="button">Actualizar</button>
+            </div>
+            <div id="historyTable"></div>
           </section>
         </div>
 
@@ -355,8 +472,24 @@
             <h4>Página</h4>
             <div class="config-grid">
               <div class="config-field">
-                <label for="cfgFontScale">Tamaño de la letra de la página:&nbsp;<span id="cfgFontScaleValue">100%</span></label>
-                <input id="cfgFontScale" type="range" min="70" max="160" step="5" value="100" />
+                <label for="cfgPageTitle">Título de la página</label>
+                <input id="cfgPageTitle" type="text" maxlength="80" placeholder="Sorteos - Demo" />
+              </div>
+              <div class="config-field">
+                <label for="cfgPageSubtitle">Subtítulo (vacío = no se muestra)</label>
+                <input id="cfgPageSubtitle" type="text" maxlength="140" placeholder="Sorteos de recursos de Dofus" />
+              </div>
+              <div class="config-field">
+                <label for="cfgLogoFile">Logo (subir archivo)</label>
+                <input id="cfgLogoFile" type="file" accept="image/*" />
+              </div>
+              <div class="config-field">
+                <label for="cfgLogoUrl">…o dirección del logo (vacío = sin logo)</label>
+                <input id="cfgLogoUrl" type="text" placeholder="/assets/mi-logo.png" />
+              </div>
+              <div class="config-field">
+                <label>Tamaño de la letra de la página</label>
+                <span class="meta">Se ajusta en el control fijo de la esquina inferior derecha, que no se mueve mientras la página cambia de tamaño.</span>
               </div>
             </div>
           </div>
@@ -437,12 +570,26 @@
       </div>
       <div class="roulette-items" id="rouletteItems"></div>
     </div>
+    <div class="modal-backdrop" id="serverModalBackdrop" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="serverModalTitle">
+        <h4 id="serverModalTitle">Elegir servidor</h4>
+        <p class="meta">Los precios cambian de un servidor a otro, así que cada uno guarda sus propias rarezas, exclusiones, ganadores e historial.</p>
+        <div class="server-list" id="serverList"></div>
+        <div class="modal-actions">
+          <button type="button" id="serverAdd">＋ Añadir servidor</button>
+          <button type="button" class="btn-cancel" id="serverModalClose">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-backdrop" id="modalBackdrop" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <h4 id="modalTitle"></h4>
         <p id="modalMessage"></p>
+        <input type="text" id="modalInput" hidden style="width:100%;margin-bottom:.7rem" />
         <div class="modal-actions">
           <button type="button" class="btn-cancel" id="modalCancel">Cancelar</button>
+          <button type="button" class="btn-cancel" id="modalExtra" hidden></button>
           <button type="button" id="modalOk">Aceptar</button>
         </div>
       </div>
@@ -450,44 +597,61 @@
 
     <div class="confetti" id="confetti"></div>
     <footer>Hecho con ❤️ por <strong>kreisinkres</strong></footer>
+    <footer class="thanks">Agradecimientos especiales a <strong>Lucyvsanchezz</strong></footer>
   </div>
 
   <script>
     // Modal propio: confirm() y alert() del navegador anteponen el origen
     // ("localhost:3000 dice…") y no admiten estilos.
-    function showModal({ title, message, okText = 'Aceptar', cancelText = 'Cancelar', danger = false, confirm = true }) {
+    // Con extraText el modal ofrece una tercera salida y resuelve 'extra'.
+    function showModal({ title, message, messageHtml = '', okText = 'Aceptar', cancelText = 'Cancelar', danger = false, confirm = true, input = false, value = '', placeholder = '', extraText = '' }) {
       const backdrop = document.getElementById('modalBackdrop');
       const okBtn = document.getElementById('modalOk');
       const cancelBtn = document.getElementById('modalCancel');
+      const extraBtn = document.getElementById('modalExtra');
+      const inputEl = document.getElementById('modalInput');
+
+      inputEl.hidden = !input;
+      inputEl.value = value;
+      inputEl.placeholder = placeholder;
 
       document.getElementById('modalTitle').textContent = title;
-      document.getElementById('modalMessage').textContent = message || '';
+      // messageHtml solo lo construye la propia página; el texto que viene del
+      // usuario se escapa antes de llegar aquí.
+      const cuerpo = document.getElementById('modalMessage');
+      if (messageHtml) cuerpo.innerHTML = messageHtml;
+      else cuerpo.textContent = message || '';
       okBtn.textContent = okText;
       cancelBtn.textContent = cancelText;
       cancelBtn.hidden = !confirm;
+      extraBtn.hidden = !extraText;
+      extraBtn.textContent = extraText;
       okBtn.classList.toggle('btn-danger', danger);
       backdrop.hidden = false;
-      okBtn.focus();
+      if (input) { inputEl.focus(); inputEl.select(); } else okBtn.focus();
 
       return new Promise((resolve) => {
         const cerrar = (valor) => {
           backdrop.hidden = true;
           okBtn.removeEventListener('click', onOk);
           cancelBtn.removeEventListener('click', onCancel);
+          extraBtn.removeEventListener('click', onExtra);
           backdrop.removeEventListener('click', onBackdrop);
           document.removeEventListener('keydown', onKey);
           resolve(valor);
         };
-        const onOk = () => cerrar(true);
-        const onCancel = () => cerrar(false);
-        const onBackdrop = (ev) => { if (ev.target === backdrop) cerrar(false); };
+        const onOk = () => cerrar(input ? inputEl.value.trim() : true);
+        const onCancel = () => cerrar(input ? null : false);
+        const onExtra = () => cerrar('extra');
+        const onBackdrop = (ev) => { if (ev.target === backdrop) cerrar(input ? null : false); };
         const onKey = (ev) => {
-          if (ev.key === 'Escape') cerrar(false);
-          if (ev.key === 'Enter') cerrar(true);
+          if (ev.key === 'Escape') cerrar(input ? null : false);
+          if (ev.key === 'Enter') cerrar(input ? inputEl.value.trim() : true);
         };
 
         okBtn.addEventListener('click', onOk);
         cancelBtn.addEventListener('click', onCancel);
+        extraBtn.addEventListener('click', onExtra);
         backdrop.addEventListener('click', onBackdrop);
         document.addEventListener('keydown', onKey);
       });
@@ -496,12 +660,37 @@
     const showConfirm = (title, message, okText = 'Aceptar', danger = false) =>
       showModal({ title, message, okText, danger });
 
+    // Cantidad de kamas tal y como se muestra en el resto de la página.
+    function kamasHtml(cantidad) {
+      return `<strong>${cantidad.toLocaleString('es-ES')}</strong><img src="/assets/kama.png" alt="kamas" class="kama-icon" />`;
+    }
+
+    // Devuelve el texto escrito, o null si se cancela.
+
+    const showPrompt = (title, message, value = '', okText = 'Guardar') =>
+      showModal({ title, message, okText, input: true, value, placeholder: 'Nombre del servidor' });
+
     const showAlert = (title, message) =>
       showModal({ title, message, okText: 'Entendido', confirm: false });
 
+    // Servidor de Dofus activo. Los precios cambian de uno a otro, así que
+    // rarezas, exclusiones, ganadores y ranking se guardan por separado y
+    // toda llamada a la API lleva ?server=<id>.
+    const SERVER_KEY = 'ruleton.server';
+    let servers = [];
+    let currentServer = localStorage.getItem(SERVER_KEY) || '';
+
     async function api(path, opts) {
-      const res = await fetch(path, { cache: 'no-store', ...opts });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const url = new URL(path, location.origin);
+      if (currentServer && !url.searchParams.has('server')) {
+        url.searchParams.set('server', currentServer);
+      }
+      const res = await fetch(url.pathname + url.search, { cache: 'no-store', ...opts });
+      if (!res.ok) {
+        let detalle = '';
+        try { detalle = (await res.json())?.error || ''; } catch (e) { /* respuesta sin JSON */ }
+        throw new Error(detalle || 'HTTP ' + res.status);
+      }
       return res.json();
     }
 
@@ -522,6 +711,9 @@
     let catalogView = 'all';
 
     const DEFAULT_SETTINGS = {
+      pageTitle: 'Sorteos - Demo',
+      pageSubtitle: 'Sorteos de recursos de Dofus',
+      logoUrl: '',
       backgroundUrl: '/assets/fondo.png',
       wheelUrl: '',
       showWheel: true,
@@ -541,8 +733,29 @@
       return (cual === 'wheel' ? settings.wheelScale : settings.slotScale) || 1;
     }
 
+    function ajustarHuecoBarra() {
+      const barra = document.querySelector('.navbar');
+      if (!barra) return;
+      document.body.style.paddingTop = (barra.getBoundingClientRect().height + 16) + 'px';
+    }
+
+    window.addEventListener('resize', ajustarHuecoBarra);
+
     function applySettings() {
       const root = document.documentElement;
+      const titulo = settings.pageTitle || DEFAULT_SETTINGS.pageTitle;
+      document.getElementById('pageTitle').textContent = titulo;
+      document.title = titulo;
+      // Subtítulo y logo vacíos simplemente no se pintan.
+      const subtitulo = document.getElementById('pageSubtitle');
+      subtitulo.textContent = settings.pageSubtitle || '';
+      subtitulo.hidden = !settings.pageSubtitle;
+      const logo = document.getElementById('brandLogo');
+      logo.hidden = !settings.logoUrl;
+      if (settings.logoUrl) {
+        logo.src = settings.logoUrl;
+        logo.alt = titulo;
+      }
       root.style.setProperty('--bg-image', `url('${settings.backgroundUrl}')`);
       root.style.setProperty('--accent', settings.accentColor);
       root.style.setProperty('--accent-2', settings.accentColor2);
@@ -552,12 +765,19 @@
       root.style.setProperty('--font-scale', String(settings.fontScale));
       // La orbita de la ruleta se coloca desde JS, asi que sigue a la escala.
       updateRoulettePositions();
+      // Con otra escala la barra cambia de alto: se recalcula su hueco aquí
+      // mismo, no en el siguiente fotograma, para que quien mida posiciones
+      // justo después (el deslizador del tamaño de letra) lo haga ya en firme.
+      ajustarHuecoBarra();
 
       const wheel = document.querySelector('.roulette-wheel');
       if (wheel) wheel.classList.toggle('custom', Boolean(settings.wheelUrl));
     }
 
     function fillConfigForm() {
+      document.getElementById('cfgPageTitle').value = settings.pageTitle || '';
+      document.getElementById('cfgPageSubtitle').value = settings.pageSubtitle || '';
+      document.getElementById('cfgLogoUrl').value = settings.logoUrl || '';
       document.getElementById('cfgBgUrl').value = settings.backgroundUrl;
       document.getElementById('cfgWheelUrl').value = settings.wheelUrl;
       document.getElementById('cfgAnimation').value = settings.animation || 'slot';
@@ -618,11 +838,16 @@
       document.querySelectorAll('#randomResult .item').forEach((el) => {
         applyRarityClass(el, itemTags[el.dataset.itemId] ?? '');
       });
-      document.querySelectorAll('.editor-row').forEach((row) => {
-        const rarity = itemTags[row.dataset.itemId] ?? '';
-        applyRarityClass(row, rarity);
-        const select = row.querySelector('.er-color');
+      document.querySelectorAll('#editorList .item').forEach((card) => {
+        const rarity = itemTags[card.dataset.itemId] ?? '';
+        applyRarityClass(card, rarity);
+        const select = card.querySelector('.tag-select');
         if (select) select.value = rarity;
+        card.classList.toggle('excluded', excludedIds.has(card.dataset.itemId));
+        const excludeBtn = card.querySelector('.exclude-toggle');
+        if (excludeBtn) {
+          excludeBtn.textContent = excludedIds.has(card.dataset.itemId) ? 'Volver a incluir' : 'Excluir del sorteo';
+        }
       });
     }
 
@@ -707,6 +932,40 @@
     }
 
     function updateExcludedInfo() {
+      updateCatalogCounters();
+      // Al marcar/desmarcar cambia tanto el contenido de la vista de excluidos
+      // como el orden de la vista general, así que se repinta en ambos casos.
+      renderItemsPage();
+    }
+
+    // Cambio de una sola tarjeta: refresca contadores y esa tarjeta, y solo
+    // repinta la página si el objeto deja de pertenecer a la vista actual.
+    function updateAfterCardChange(id) {
+      updateCatalogCounters();
+      const stillVisible = catalogView === 'excluded'
+        ? excludedIds.has(id)
+        : RARITIES.includes(catalogView)
+          ? itemTags[id] === catalogView
+          : true;
+      if (stillVisible) syncCatalogCard(id);
+      else renderItemsPage();
+    }
+
+    // Alinea la tarjeta ya pintada del catálogo con el estado actual del objeto.
+    function syncCatalogCard(id) {
+      const card = document.querySelector(`#items .item[data-item-id="${CSS.escape(id)}"]`);
+      if (!card) return;
+      const rarity = itemTags[id] ?? '';
+      applyRarityClass(card, rarity);
+      const select = card.querySelector('.tag-select');
+      if (select) select.value = rarity;
+      const off = excludedIds.has(id);
+      card.classList.toggle('excluded', off);
+      const excludeBtn = card.querySelector('.exclude-toggle');
+      if (excludeBtn) excludeBtn.textContent = off ? 'Volver a incluir' : 'Excluir del sorteo';
+    }
+
+    function updateCatalogCounters() {
       const total = excludedIds.size;
       const info = document.getElementById('excludedInfo');
       if (info) {
@@ -729,10 +988,6 @@
         const tab = document.querySelector(`.subtab[data-view="${r}"]`);
         if (tab) tab.textContent = `${plural[r]} (${tagValues.filter((v) => v === r).length})`;
       });
-
-      // Al marcar/desmarcar cambia tanto el contenido de la vista de excluidos
-      // como el orden de la vista general, así que se repinta en ambos casos.
-      renderItemsPage();
     }
 
     function getRoulettePool(items) {
@@ -1019,6 +1274,28 @@
     }
 
     let lastDrawItems = [];   // lo que salió en el último sorteo
+    let sorteoGuardado = true;   // false mientras el sorteo actual no tenga ganador guardado
+
+    // Sortear sin nombre dejaría un premio sin dueño, así que el botón solo se
+    // enciende cuando hay algo escrito.
+    function actualizarBotonSortear() {
+      const nombre = document.getElementById('winnerName').value.trim();
+      const boton = document.getElementById('rand');
+      boton.disabled = !nombre;
+      boton.title = nombre ? '' : 'Escribe el nombre del ganador para poder sortear';
+    }
+
+    // El nombre se escribe ANTES de girar. Una vez visto lo que salió ya no se
+    // puede cambiar: si no, el premio acabaría en manos de otro. Se libera al
+    // guardar al ganador o al descartar el sorteo.
+    function bloquearNombreGanador(bloquear) {
+      const campo = document.getElementById('winnerName');
+      campo.readOnly = bloquear;
+      campo.classList.toggle('locked', bloquear);
+      campo.title = bloquear
+        ? 'Bloqueado: guarda al ganador o descarta el sorteo para cambiar el nombre'
+        : '';
+    }
     let itemValues = {};      // valor aproximado por objeto, solo en memoria
 
     let winners = [];
@@ -1077,6 +1354,7 @@
             const data = await api('/api/winners/' + encodeURIComponent(w.id), { method: 'DELETE' });
             winners = data.winners || [];
             renderWinners();
+            loadHistory();   // al entregarlo pasa al histórico
           } catch (e) {
             showAlert('No se pudo eliminar', e.message);
           }
@@ -1137,6 +1415,73 @@
       }
     }
 
+    // Historial completo: cada persona con su total acumulado, cuantos sorteos
+    // ganó y la media por sorteo (el "total ponderado").
+    async function loadHistory() {
+      const box = document.getElementById('historyTable');
+      try {
+        // Solo lo entregado: los premios pendientes aún no son historia.
+        const data = await api('/api/ranking?limit=500&scope=delivered&_=' + Date.now());
+        renderHistory(data.ranking || []);
+      } catch (e) {
+        box.innerHTML = '<div class="meta">No se pudo cargar el historial: ' + escapeHtml(e.message) + '</div>';
+      }
+    }
+
+    function renderHistory(ranking) {
+      const box = document.getElementById('historyTable');
+      const info = document.getElementById('historyInfo');
+      if (!box) return;
+
+      if (!ranking.length) {
+        box.innerHTML = '<div class="meta">Todavía no has entregado ningún premio en este servidor.</div>';
+        info.textContent = 'Solo los premios ya entregados. Los pendientes aparecen aquí al entregarlos.';
+        return;
+      }
+
+      const totalKamas = ranking.reduce((sum, r) => sum + r.total, 0);
+      const totalSorteos = ranking.reduce((sum, r) => sum + r.draws, 0);
+      // Media global: lo entregado repartido entre todos los sorteos, no la
+      // media de las medias (un sorteo grande debe pesar más que uno pequeño).
+      const mediaGlobal = totalSorteos ? Math.round(totalKamas / totalSorteos) : 0;
+      info.textContent = `Solo los premios ya entregados: ${ranking.length} ganador(es) y ${totalSorteos} sorteo(s).`;
+
+      const filas = ranking.map((r, i) => {
+        const media = r.draws ? Math.round(r.total / r.draws) : 0;
+        return `
+          <tr>
+            <td class="pos">${i + 1}</td>
+            <td>${escapeHtml(r.name)}</td>
+            <td class="num">${kamasHtml(r.total)}</td>
+            <td class="num">${r.draws}</td>
+            <td class="num">${kamasHtml(media)}</td>
+          </tr>`;
+      }).join('');
+
+      box.innerHTML = `
+        <div class="winners-total history-total-box">
+          <span class="wt-label">
+            Total entregado en ${escapeHtml(servers.find((sv) => sv.id === currentServer)?.name ?? 'este servidor')}
+            <span class="wt-sub">${totalSorteos} sorteo(s) · media de ${mediaGlobal.toLocaleString('es-ES')} por sorteo</span>
+          </span>
+          <span class="wt-value">${totalKamas.toLocaleString('es-ES')}<img src="/assets/kama.png" alt="kamas" class="kama-icon" /></span>
+        </div>
+        <div class="history-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th class="pos">#</th>
+                <th>Ganador</th>
+                <th class="num">Total entregado</th>
+                <th class="num">Sorteos</th>
+                <th class="num">Media por sorteo</th>
+              </tr>
+            </thead>
+            <tbody>${filas}</tbody>
+          </table>
+        </div>`;
+    }
+
     async function loadWinners() {
       try {
         const data = await api('/api/winners');
@@ -1186,8 +1531,12 @@
         requestAnimationFrame(() => newCard.classList.add('show'));
       }
 
-      const oldRow = document.querySelector(`.editor-row[data-item-id="${id}"]`);
-      if (oldRow) oldRow.replaceWith(buildEditorRow(nuevo));
+      const oldEditorCard = document.querySelector(`#editorList .item[data-item-id="${id}"]`);
+      if (oldEditorCard) {
+        const newEditorCard = createItemCard(nuevo, { tags: true, exclude: true });
+        oldEditorCard.replaceWith(newEditorCard);
+        requestAnimationFrame(() => newEditorCard.classList.add('show'));
+      }
 
       updateValueTotal();
       return true;
@@ -1205,62 +1554,13 @@
         return;
       }
 
-      lastDrawItems.forEach((it) => list.appendChild(buildEditorRow(it)));
+      lastDrawItems.forEach((it, i) => {
+        const card = createItemCard(it, { tags: true, exclude: true });
+        list.appendChild(card);
+        setTimeout(() => card.classList.add('show'), i * 50);
+      });
 
       info.textContent = `${lastDrawItems.length} objeto(s) del último sorteo.`;
-    }
-
-    function buildEditorRow(it) {
-        const id = itemId(it);
-        const name = it.name?.es ?? it.name ?? id;
-        const imgUrl = it.image_urls?.icon ?? it.image_urls?.sd ?? '';
-
-        const row = document.createElement('div');
-        row.className = 'editor-row';
-        row.dataset.itemId = id;
-        row.innerHTML = `
-          <img src="${escapeHtml(imgUrl)}" loading="lazy" alt="" onerror="this.style.visibility='hidden'" />
-          <span class="er-name" title="${escapeHtml(String(name))}">${escapeHtml(String(name))}</span>
-          <select class="er-color">
-            <option value="">Sin marcar</option>
-            <option value="rare">Raro</option>
-            <option value="epic">Épico</option>
-            <option value="mythic">Mítico</option>
-          </select>
-          <label class="er-exclude"><input type="checkbox" /> Excluir</label>
-        `;
-
-        const select = row.querySelector('.er-color');
-        const checkbox = row.querySelector('.er-exclude input');
-        const sync = () => {
-          const rarity = itemTags[id] ?? '';
-          select.value = rarity;
-          checkbox.checked = excludedIds.has(id);
-          applyRarityClass(row, rarity);
-          row.classList.toggle('excluded', checkbox.checked);
-        };
-        sync();
-
-        select.addEventListener('change', () => {
-          if (select.value) itemTags[id] = select.value;
-          else delete itemTags[id];
-          sync();
-          saveTags();
-          updateExcludedInfo();      // repinta el catálogo y sus contadores
-          refreshRenderedRarities(); // y las tarjetas del resultado del sorteo
-        });
-
-        checkbox.addEventListener('change', () => {
-          if (checkbox.checked) excludedIds.add(id);
-          else excludedIds.delete(id);
-          saveExclusions();
-          updateExcludedInfo();
-          // Al excluir, ese objeto ya no puede salir: se sustituye por otro.
-          if (checkbox.checked && replaceDrawnItem(id)) return;
-          sync();
-        });
-
-        return row;
     }
 
     function renderItemsPage() {
@@ -1288,7 +1588,23 @@
         });
       }
 
-      document.getElementById('count').textContent = `Mostrando ${filtered.length ? start + 1 : 0}-${Math.min(start + pageItems.length, filtered.length)} / ${filtered.length} items`;
+      // Se dice en qué vista estamos y si hay filtros puestos: la búsqueda y el
+      // nivel se aplican dentro de la subpestaña actual, no solo en "Todos".
+      const nombreVista = catalogView === 'all'
+        ? 'items'
+        : catalogView === 'excluded'
+          ? 'excluidos'
+          : RARITY_LABEL[catalogView].toLowerCase() + 's';
+      const filtros = [];
+      if (searchInput.value.trim()) filtros.push(`«${searchInput.value.trim()}»`);
+      const nivelMin = document.getElementById('levelMin').value.trim();
+      const nivelMax = document.getElementById('levelMax').value.trim();
+      if (nivelMin || nivelMax) filtros.push(`nivel ${nivelMin || '1'}-${nivelMax || '200'}`);
+
+      document.getElementById('count').textContent =
+        `Mostrando ${filtered.length ? start + 1 : 0}-${Math.min(start + pageItems.length, filtered.length)} / ${filtered.length} ${nombreVista}`
+        + (filtros.length ? ` · filtrando por ${filtros.join(' y ')}` : '');
+      document.getElementById('levelClear').disabled = filtros.length === 0;
       pageInfoEl.textContent = `Página ${currentPage}/${totalPages}`;
       prevPageBtn.disabled = currentPage <= 1;
       nextPageBtn.disabled = currentPage >= totalPages;
@@ -1365,6 +1681,8 @@
           const num = parseFloat(valueInput.value);
           if (Number.isFinite(num)) itemValues[cardId] = num;
           else delete itemValues[cardId];
+          // En cuanto tiene precio deja de estar señalada como pendiente.
+          if (itemValues[cardId] != null) el.classList.remove('sin-precio');
           updateValueTotal();
         });
       }
@@ -1385,8 +1703,9 @@
           else delete itemTags[cardId];
           syncTags();
           saveTags();
-          // Repinta el catálogo: cambian los contadores y las vistas por rareza.
-          updateExcludedInfo();
+          // Solo se toca esta tarjeta; los contadores y las vistas por rareza
+          // se actualizan sin repintar todo el catálogo.
+          updateAfterCardChange(cardId);
           refreshRenderedRarities();
         });
       }
@@ -1405,8 +1724,11 @@
           if (excludedIds.has(itemId)) excludedIds.delete(itemId);
           else excludedIds.add(itemId);
           syncExcluded();
-          updateExcludedInfo();
+          updateAfterCardChange(itemId);
           saveExclusions();
+          // Si el objeto está en el sorteo en curso ya no puede salir premiado:
+          // se sustituye por otro. Fuera del sorteo, replaceDrawnItem no hace nada.
+          if (excludedIds.has(itemId)) replaceDrawnItem(itemId);
         });
       }
 
@@ -1449,6 +1771,82 @@
 
     function escapeHtml(s){return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;" })[c]);}
 
+    // ---- Servidores ----
+
+    async function loadServers() {
+      try {
+        const data = await api('/api/servers');
+        servers = Array.isArray(data.servers) ? data.servers : [];
+      } catch (e) {
+        console.warn('No se pudieron cargar los servidores:', e.message);
+        servers = [];
+      }
+      if (!servers.some((s) => s.id === currentServer)) {
+        currentServer = servers[0]?.id || '';
+        localStorage.setItem(SERVER_KEY, currentServer);
+      }
+      renderServerPicker();
+    }
+
+    function renderServerPicker() {
+      const actual = servers.find((sv) => sv.id === currentServer);
+      document.getElementById('serverTabName').textContent = actual ? actual.name : 'Servidor';
+      renderServerList();
+    }
+
+    function renderServerList() {
+      const list = document.getElementById('serverList');
+      if (!list) return;
+      list.innerHTML = '';
+
+      servers.forEach((sv) => {
+        const row = document.createElement('div');
+        row.className = 'server-row' + (sv.id === currentServer ? ' current' : '');
+        row.innerHTML = `
+          <button type="button" class="sr-name">${sv.id === currentServer ? '✓ ' : ''}${escapeHtml(sv.name)}</button>
+          <button type="button" class="sr-act sr-rename" title="Renombrar">✎</button>
+          <button type="button" class="sr-act sr-delete" title="Borrar">🗑</button>`;
+
+        row.querySelector('.sr-name').addEventListener('click', async () => {
+          cerrarServerModal();
+          if (sv.id !== currentServer) await switchServer(sv.id);
+        });
+        row.querySelector('.sr-rename').addEventListener('click', () => renombrarServidor(sv));
+        // Debe quedar siempre al menos un servidor.
+        const borrar = row.querySelector('.sr-delete');
+        borrar.disabled = servers.length <= 1;
+        borrar.addEventListener('click', () => borrarServidor(sv));
+
+        list.appendChild(row);
+      });
+    }
+
+    function abrirServerModal() {
+      renderServerList();
+      document.getElementById('serverModalBackdrop').hidden = false;
+    }
+
+    function cerrarServerModal() {
+      document.getElementById('serverModalBackdrop').hidden = true;
+    }
+
+    // Cambiar de servidor solo recarga lo que es suyo; los ajustes de aspecto
+    // y el catálogo de objetos son comunes a todos.
+    async function switchServer(id) {
+      currentServer = id;
+      localStorage.setItem(SERVER_KEY, id);
+      renderServerPicker();
+      selectedIds.clear();
+      await Promise.all([loadExclusions(), loadTags()]);
+      currentPage = 1;
+      renderItemsPage();
+      updateCatalogCounters();
+      updateBulkBar();
+      renderEditor();
+      cargarNombres();
+      await Promise.all([loadWinners(), loadRanking(), loadHistory()]);
+    }
+
     async function loadItems(){
       try{
         await Promise.all([loadExclusions(), loadTags()]);
@@ -1465,25 +1863,138 @@
     }
 
     // Al abrir la página cargamos items y exclusiones sin esperar a que el usuario pulse nada.
+    // El servidor activo se resuelve primero: de él dependen el resto de datos.
     loadSettings();
-    loadWinners();
-    loadRanking();
-    loadItems();
+    loadServers().then(() => {
+      loadWinners();
+      loadRanking();
+      loadItems();
+    });
+
+    document.getElementById('winnerName').addEventListener('input', actualizarBotonSortear);
+    actualizarBotonSortear();
+
+    document.getElementById('serverTab').addEventListener('click', abrirServerModal);
+    document.getElementById('serverModalClose').addEventListener('click', cerrarServerModal);
+    document.getElementById('serverModalBackdrop').addEventListener('click', (ev) => {
+      if (ev.target.id === 'serverModalBackdrop') cerrarServerModal();
+    });
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') cerrarServerModal();
+    });
+
+    document.getElementById('serverAdd').addEventListener('click', async () => {
+      const name = await showPrompt('Nuevo servidor', 'Empieza vacío: sus rarezas, exclusiones, ganadores y ranking son independientes.', '', 'Crear');
+      if (!name) return;
+      try {
+        const data = await api('/api/servers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+        servers = data.servers;
+        cerrarServerModal();
+        await switchServer(data.server.id);
+      } catch (e) {
+        showAlert('No se pudo crear el servidor', e.message);
+      }
+    });
+
+    async function renombrarServidor(sv) {
+      const name = await showPrompt('Renombrar servidor', 'Solo cambia el nombre; los datos se conservan.', sv.name);
+      if (!name || name === sv.name) return;
+      try {
+        const data = await api(`/api/servers/${encodeURIComponent(sv.id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+        servers = data.servers;
+        renderServerPicker();
+      } catch (e) {
+        showAlert('No se pudo renombrar el servidor', e.message);
+      }
+    }
+
+    async function borrarServidor(sv) {
+      const ok = await showConfirm(
+        `Borrar “${sv.name}”`,
+        'Se pierden sus rarezas, exclusiones, ganadores e historial. No se puede deshacer.',
+        'Borrar',
+        true
+      );
+      if (!ok) return;
+      try {
+        const data = await api(`/api/servers/${encodeURIComponent(sv.id)}`, { method: 'DELETE' });
+        servers = data.servers;
+        // Solo hay que recargar datos si el borrado era el servidor en uso.
+        if (sv.id === currentServer) await switchServer(servers[0].id);
+        else renderServerPicker();
+      } catch (e) {
+        showAlert('No se pudo borrar el servidor', e.message);
+      }
+    }
 
     document.getElementById('load').addEventListener('click', loadItems);
-    document.getElementById('saveWinner').addEventListener('click', async () => {
+    // Devuelve true solo si el ganador acabó guardado.
+    async function guardarGanador() {
       const status = document.getElementById('saveWinnerStatus');
       const name = document.getElementById('winnerName').value.trim();
       if (!name) {
         status.textContent = 'Escribe el nombre del ganador antes de guardar.';
-        return;
+        document.getElementById('winnerName').focus();
+        return false;
       }
-      const total = lastDrawItems.reduce((sum, it) => sum + (itemValues[itemId(it)] ?? 0), 0);
+      if (!lastDrawItems.length) {
+        status.textContent = 'No hay ningún sorteo que guardar.';
+        return false;
+      }
+
+      // Un objeto sin precio falsearía el total y el ranking: se exige el valor
+      // de todos antes de registrar nada.
+      const sinPrecio = lastDrawItems.filter((it) => itemValues[itemId(it)] == null);
+      if (sinPrecio.length) {
+        const nombres = sinPrecio.map((it) => it.name?.es ?? it.name ?? itemId(it));
+        const lista = nombres.slice(0, 3).join(', ') + (nombres.length > 3 ? `… (+${nombres.length - 3})` : '');
+        status.textContent = `Falta el precio de ${sinPrecio.length} objeto(s): ${lista}`;
+        // Se marcan en rojo antes del aviso, para que al cerrarlo se vean.
+        document.querySelectorAll('#randomResult .item').forEach((card) => {
+          card.classList.toggle('sin-precio', itemValues[card.dataset.itemId] == null);
+        });
+        await showAlert(
+          'Falta precio en las tarjetas',
+          `No se puede guardar: ${sinPrecio.length} objeto(s) siguen sin precio (${lista}). Escribe su valor en las tarjetas marcadas en rojo.`
+        );
+        // Y se lleva al primero que falta para no tener que buscarlo.
+        const primero = document.querySelector('#randomResult .item.sin-precio .value-input');
+        if (primero) {
+          primero.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          primero.focus();
+        }
+        return false;
+      }
+
+      const total = lastDrawItems.reduce((sum, it) => sum + itemValues[itemId(it)], 0);
       const items = lastDrawItems.map((it) => ({
         id: itemId(it),
         name: it.name?.es ?? it.name ?? itemId(it),
-        value: itemValues[itemId(it)] ?? 0
+        value: itemValues[itemId(it)]
       }));
+
+      // Se confirma antes de tocar el ranking: si el nombre ya existe, el
+      // premio se le suma a esa entrada en vez de crear una nueva.
+      // Mismo criterio que el servidor al fusionar: sin tildes ni mayúsculas.
+      const clave = normalizeText(name).trim();
+      const yaExiste = winners.some((w) => normalizeText(w.name).trim() === clave);
+      const resumen = `${items.length} objeto(s) por un total de ${kamasHtml(total)}.`;
+      const ok = await showModal({
+        title: `Guardar ganador: ${name}`,
+        messageHtml: yaExiste
+          ? `${escapeHtml(name)} ya está en la lista: se le sumarán ${resumen}`
+          : `Se guardará en Ganadores con ${resumen}`,
+        okText: 'Guardar'
+      });
+      if (!ok) return false;
 
       status.textContent = 'Guardando…';
       try {
@@ -1493,16 +2004,48 @@
           body: JSON.stringify({ name, total, items })
         });
         winners = data.winners || [];
+        sorteoGuardado = true;
+        bloquearNombreGanador(false);
         renderWinners();
         loadRanking();   // el nuevo premio puede cambiar el podio
+        loadHistory();
         status.textContent = data.merged
           ? `Sumado a ${data.winner.name}: total ${data.winner.total.toLocaleString('es-ES')}`
           : `Guardado en Ganadores (${total.toLocaleString('es-ES')})`;
         setTimeout(() => { status.textContent = ''; }, 2500);
+        return true;
       } catch (e) {
         status.textContent = 'Error al guardar: ' + e.message;
+        return false;
       }
+    }
+
+    document.getElementById('saveWinner').addEventListener('click', guardarGanador);
+
+    document.getElementById('discardDraw').addEventListener('click', async () => {
+      const ok = await showConfirm(
+        'Descartar el sorteo',
+        'Se pierde el resultado actual y sus valores, y nadie queda registrado como ganador.',
+        'Descartar',
+        true
+      );
+      if (!ok) return;
+      descartarSorteo();
     });
+
+    function descartarSorteo() {
+      lastDrawItems = [];
+      itemValues = {};
+      sorteoGuardado = true;   // ya no hay nada pendiente que avisar
+      bloquearNombreGanador(false);
+      document.getElementById('randomResult').innerHTML = '';
+      document.getElementById('winnerBanner').hidden = true;
+      document.getElementById('saveWinnerRow').hidden = true;
+      document.getElementById('saveWinnerStatus').textContent = '';
+      renderEditor();
+      updateValueTotal();
+      actualizarBotonSortear();
+    }
 
 
     // Vista previa inmediata: se ve el cambio antes de guardar.
@@ -1517,6 +2060,18 @@
     document.getElementById('cfgOverlay').addEventListener('input', (ev) => {
       settings.overlayOpacity = Number(ev.target.value) / 100;
       document.getElementById('cfgOverlayValue').textContent = ev.target.value + '%';
+      applySettings();
+    });
+    document.getElementById('cfgPageTitle').addEventListener('input', (ev) => {
+      settings.pageTitle = ev.target.value.trim() || DEFAULT_SETTINGS.pageTitle;
+      applySettings();
+    });
+    document.getElementById('cfgPageSubtitle').addEventListener('input', (ev) => {
+      settings.pageSubtitle = ev.target.value.trim();
+      applySettings();
+    });
+    document.getElementById('cfgLogoUrl').addEventListener('change', (ev) => {
+      settings.logoUrl = ev.target.value.trim();
       applySettings();
     });
     document.getElementById('cfgBgUrl').addEventListener('change', (ev) => {
@@ -1558,6 +2113,7 @@
 
     document.getElementById('cfgBgFile').addEventListener('change', (ev) => subirImagen(ev, 'background', 'Fondo'));
     document.getElementById('cfgWheelFile').addEventListener('change', (ev) => subirImagen(ev, 'wheel', 'Ruleta'));
+    document.getElementById('cfgLogoFile').addEventListener('change', (ev) => subirImagen(ev, 'logo', 'Logo'));
 
     document.getElementById('cfgWheelUrl').addEventListener('change', (ev) => {
       settings.wheelUrl = ev.target.value.trim();
@@ -1581,6 +2137,32 @@
       previsualizar('slot');
     });
 
+    // Ruleta normal (objetos) / personalizada (nombres).
+    document.querySelectorAll('#random-panel .subtab').forEach((subtab) => {
+      subtab.addEventListener('click', () => {
+        mostrarRuleta(subtab.dataset.draw);
+      });
+    });
+
+    function mostrarRuleta(cual) {
+      document.querySelectorAll('#random-panel .subtab').forEach((b) => {
+        b.classList.toggle('active', b.dataset.draw === cual);
+      });
+      document.querySelectorAll('.draw-subpanel').forEach((panel) => {
+        panel.classList.toggle('active', panel.id === `draw-${cual}-panel`);
+      });
+      // La ruleta de nombres se dibuja al mostrarla: en un panel oculto el SVG
+      // no tiene tamaño y saldría descuadrada.
+      if (cual === 'custom') renderNameWheel();
+
+      // El editor pertenece al sorteo de objetos: no pinta nada en la otra ruleta.
+      const editor = document.getElementById('editorSection');
+      if (cual === 'custom' && editor && !editor.hidden) {
+        editor.hidden = true;
+        document.getElementById('toggleEditor').textContent = 'Editar';
+      }
+    }
+
     // Pestañas de ruleta / tragaperras dentro de Configuración.
     document.querySelectorAll('#config-panel .subtab').forEach((subtab) => {
       subtab.addEventListener('click', () => {
@@ -1590,6 +2172,8 @@
         });
       });
     });
+    // Vive fuera de .app y en posición fija: no le afecta el zoom que aplica y
+    // no se mueve aunque la página entera cambie de tamaño debajo.
     document.getElementById('cfgFontScale').addEventListener('input', (ev) => {
       settings.fontScale = Number(ev.target.value) / 100;
       document.getElementById('cfgFontScaleValue').textContent = ev.target.value + '%';
@@ -1621,6 +2205,7 @@
         rankScope = subtab.dataset.rank;
         document.querySelectorAll('#winners-panel .subtab').forEach((b) => b.classList.toggle('active', b === subtab));
         document.getElementById('newStream').hidden = rankScope !== 'stream';
+        document.getElementById('resetRanking').hidden = rankScope === 'stream';
         loadRanking();
       });
     });
@@ -1639,12 +2224,39 @@
       }
     });
 
+    document.getElementById('resetRanking').addEventListener('click', async () => {
+      const servidor = servers.find((sv) => sv.id === currentServer);
+      const ok = await showConfirm(
+        'Reiniciar el top global',
+        `Se borra el histórico de ganadores de ${servidor ? servidor.name : 'este servidor'}. Los ${winners.length} ganador(es) pendientes de entrega no se tocan y seguirán contando hasta que entregues su premio. No se puede deshacer.`,
+        'Reiniciar',
+        true
+      );
+      if (!ok) return;
+      try {
+        await api('/api/ranking/reset', { method: 'POST' });
+        loadRanking();
+        loadHistory();
+      } catch (e) {
+        showAlert('Error', 'No se pudo reiniciar el top global: ' + e.message);
+      }
+    });
+
+    document.getElementById('historyReload').addEventListener('click', loadHistory);
+
     document.getElementById('cfgPreviewWheel').addEventListener('click', () => previsualizar('wheel'));
     document.getElementById('cfgPreviewSlot').addEventListener('click', () => previsualizar('slot'));
 
     document.getElementById('cfgSave').addEventListener('click', saveSettings);
 
-    document.getElementById('cfgReset').addEventListener('click', () => {
+    document.getElementById('cfgReset').addEventListener('click', async () => {
+      const ok = await showConfirm(
+        'Restaurar valores por defecto',
+        'Se pierden el título, el fondo, la imagen de la ruleta, los colores y los tamaños que tengas puestos. Las rarezas, exclusiones y ganadores no se tocan.',
+        'Restaurar',
+        true
+      );
+      if (!ok) return;
       settings = { ...DEFAULT_SETTINGS };
       applySettings();
       fillConfigForm();
@@ -1712,7 +2324,15 @@
       if (!section.hidden) renderEditor();
     });
 
-    document.getElementById('clearExcluded').addEventListener('click', () => {
+    document.getElementById('clearExcluded').addEventListener('click', async () => {
+      const servidor = servers.find((sv) => sv.id === currentServer);
+      const ok = await showConfirm(
+        'Limpiar exclusiones',
+        `Los ${excludedIds.size} objeto(s) excluidos de ${servidor ? servidor.name : 'este servidor'} vuelven a entrar en los sorteos. Las rarezas no se tocan.`,
+        'Limpiar',
+        true
+      );
+      if (!ok) return;
       excludedIds.clear();
       updateExcludedInfo();
       renderItemsPage();
@@ -1744,6 +2364,7 @@
     document.getElementById('levelClear').addEventListener('click', () => {
       document.getElementById('levelMin').value = '';
       document.getElementById('levelMax').value = '';
+      searchInput.value = '';
       currentPage = 1;
       renderItemsPage();
     });
@@ -1768,6 +2389,8 @@
         document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `${tab.dataset.tab}-panel`));
         // El editor puede haber quedado desfasado si se editó desde el catálogo.
         if (tab.dataset.tab === 'random') renderEditor();
+        if (tab.dataset.tab === 'history') loadHistory();
+        document.getElementById('fontDock').hidden = tab.dataset.tab !== 'config';
         if (tab.dataset.tab === 'config') fillConfigForm();
         // Al salir de Configuración se corta la animación de prueba.
         else cancelarPrevisualizacion();
@@ -1850,10 +2473,32 @@
     }
 
     document.getElementById('rand').addEventListener('click', async ()=>{
+      const nombreGanador = document.getElementById('winnerName').value.trim();
+      if (!nombreGanador) {
+        showAlert('Falta el nombre', 'Escribe el nombre del ganador antes de sortear.');
+        document.getElementById('winnerName').focus();
+        return;
+      }
+
+      // Volver a sortear pisa el resultado anterior: si nadie lo guardó, se
+      // pregunta antes de perderlo.
+      if (lastDrawItems.length && !sorteoGuardado) {
+        const elegido = await showModal({
+          title: 'El sorteo anterior no está guardado',
+          message: `Si sorteas otra vez se pierde el resultado actual y sus valores. ¿Guardas antes el premio de ${document.getElementById('winnerName').value.trim() || 'este sorteo'}?`,
+          okText: 'Guardar y sortear',
+          extraText: 'Descartar y sortear'
+        });
+        if (elegido === false || elegido === null) return;
+        if (elegido === true && !(await guardarGanador())) return;
+        if (elegido === 'extra') descartarSorteo();
+      }
+
       const n = Number(document.getElementById('n').value) || 1;
       // Se captura antes de girar: es el nombre que se anuncia al terminar.
       const winner = document.getElementById('winnerName').value.trim();
       document.getElementById('winnerBanner').hidden = true;
+      bloquearNombreGanador(true);
       showSpinner(n);
 
       try {
@@ -1866,6 +2511,7 @@
         }
         const data = await dataPromise;
         lastDrawItems = data.items || [];
+        sorteoGuardado = false;   // hasta que se guarde, este sorteo está pendiente
         itemValues = {};   // cada sorteo empieza con los valores en blanco
         renderResultCards('randomResult', lastDrawItems);
         renderEditor();
@@ -1899,10 +2545,158 @@
         } else {
           showAlert('Error en el sorteo', e.message);
         }
+        bloquearNombreGanador(false);
       }
       finally{ hideSpinner(); }
     });
 
+    // ---- Ruleta de nombres ----
+    // Independiente del sorteo de objetos: aquí solo se elige a una persona.
+    const NAMES_KEY = 'ruleton.names';
+    let nombreGanador = '';
+    let girandoNombres = false;
+    let vueltaNombres = 0;   // se acumula para que cada giro siga hacia delante
+
+    function clave_nombres() {
+      return NAMES_KEY + ':' + (currentServer || 'sin-servidor');
+    }
+
+    function leerNombres() {
+      return document.getElementById('nameList').value
+        .split('\n')
+        .map((n) => n.trim())
+        .filter(Boolean);
+    }
+
+    function guardarNombres() {
+      try {
+        localStorage.setItem(clave_nombres(), document.getElementById('nameList').value);
+      } catch (e) { /* modo privado: no pasa nada, solo no se recuerda */ }
+    }
+
+    function cargarNombres() {
+      let guardado = '';
+      try { guardado = localStorage.getItem(clave_nombres()) || ''; } catch (e) { guardado = ''; }
+      document.getElementById('nameList').value = guardado;
+      renderNameWheel();
+    }
+
+    function renderNameWheel() {
+      const svg = document.getElementById('nameWheel');
+      if (!svg) return;
+      const nombres = leerNombres();
+      document.getElementById('nameCount').textContent = `${nombres.length} participante(s)`;
+      document.getElementById('spinNames').disabled = nombres.length < 2 || girandoNombres;
+
+      if (!nombres.length) {
+        svg.innerHTML = '<circle cx="100" cy="100" r="95" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.18)" /><text x="100" y="103" text-anchor="middle" fill="#9fb0c8" font-size="10">Escribe algunos nombres</text>';
+        return;
+      }
+
+      const colores = ['#6ee7b7', '#7dd3fc', '#c084fc', '#fbbf24', '#fb7185', '#34d399', '#93c5fd', '#f0abfc'];
+      const seg = 360 / nombres.length;
+      // El 0 se coloca arriba, donde apunta la flecha.
+      const punto = (grados, radio) => {
+        const rad = (grados - 90) * Math.PI / 180;
+        return [100 + radio * Math.cos(rad), 100 + radio * Math.sin(rad)];
+      };
+
+      const partes = nombres.map((nombre, i) => {
+        const a0 = i * seg;
+        const a1 = (i + 1) * seg;
+        const [x0, y0] = punto(a0, 95);
+        const [x1, y1] = punto(a1, 95);
+        const grande = seg > 180 ? 1 : 0;
+        const color = colores[i % colores.length];
+        const medio = a0 + seg / 2;
+        const [tx, ty] = punto(medio, 60);
+        // Con una sola persona el arco degenera: se pinta el círculo entero.
+        const forma = nombres.length === 1
+          ? `<circle cx="100" cy="100" r="95" fill="${color}" />`
+          : `<path d="M100,100 L${x0.toFixed(2)},${y0.toFixed(2)} A95,95 0 ${grande},1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${color}" stroke="rgba(2,6,23,0.35)" stroke-width="0.6" />`;
+        const corto = nombre.length > 14 ? nombre.slice(0, 13) + '…' : nombre;
+        return `${forma}
+          <text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${medio.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)})">${escapeHtml(corto)}</text>`;
+      }).join('');
+
+      svg.innerHTML = partes + '<circle cx="100" cy="100" r="12" fill="rgba(9,15,28,0.9)" stroke="rgba(255,255,255,0.25)" />';
+    }
+
+    async function girarNombres() {
+      const nombres = leerNombres();
+      if (nombres.length < 2 || girandoNombres) return;
+
+      girandoNombres = true;
+      document.getElementById('spinNames').disabled = true;
+      document.getElementById('nameWinnerBanner').hidden = true;
+      document.getElementById('nameWinnerActions').hidden = true;
+
+      const elegido = Math.floor(Math.random() * nombres.length);
+      const seg = 360 / nombres.length;
+      // Se gira hasta dejar el centro de su porción justo bajo la flecha.
+      vueltaNombres += 360 * 6 - ((vueltaNombres + elegido * seg + seg / 2) % 360);
+      const svg = document.getElementById('nameWheel');
+      svg.style.transform = `rotate(${vueltaNombres}deg)`;
+
+      await new Promise((resolve) => setTimeout(resolve, 5200));
+
+      nombreGanador = nombres[elegido];
+      const banner = document.getElementById('nameWinnerBanner');
+      banner.textContent = `🎉 ¡Ganador: ${nombreGanador}!`;
+      banner.hidden = false;
+      document.getElementById('nameWinnerActions').hidden = false;
+      makeConfetti(30);
+
+      if (document.getElementById('nameRemoveWinner').checked) {
+        const resto = nombres.filter((_, i) => i !== elegido);
+        document.getElementById('nameList').value = resto.join('\n');
+        guardarNombres();
+        // La ruleta se repinta desde cero, así que el giro acumulado se olvida.
+        vueltaNombres = 0;
+        svg.style.transition = 'none';
+        svg.style.transform = 'rotate(0deg)';
+        requestAnimationFrame(() => { svg.style.transition = ''; });
+      }
+
+      girandoNombres = false;
+      renderNameWheel();
+    }
+
+    document.getElementById('nameList').addEventListener('input', () => {
+      guardarNombres();
+      if (!girandoNombres) renderNameWheel();
+    });
+
+    document.getElementById('spinNames').addEventListener('click', girarNombres);
+
+    document.getElementById('clearNames').addEventListener('click', async () => {
+      if (!leerNombres().length) return;
+      const ok = await showConfirm('Vaciar la lista', 'Se borran todos los nombres de esta ruleta.', 'Vaciar', true);
+      if (!ok) return;
+      document.getElementById('nameList').value = '';
+      guardarNombres();
+      document.getElementById('nameWinnerBanner').hidden = true;
+      document.getElementById('nameWinnerActions').hidden = true;
+      renderNameWheel();
+    });
+
+    // Puente con el sorteo de objetos: el ganador pasa al campo del nombre.
+    document.getElementById('useNameWinner').addEventListener('click', () => {
+      if (!nombreGanador) return;
+      const campo = document.getElementById('winnerName');
+      if (campo.readOnly) {
+        showAlert('Sorteo en curso', 'Guarda o descarta el sorteo actual antes de cambiar el nombre del ganador.');
+        return;
+      }
+      campo.value = nombreGanador;
+      actualizarBotonSortear();
+      mostrarRuleta('normal');
+      campo.focus();
+    });
+
+    cargarNombres();
+
+    ajustarHuecoBarra();
   </script>
 </body>
 </html>

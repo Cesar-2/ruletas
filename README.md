@@ -150,6 +150,13 @@ npm i --save-dev @types/express @types/cors
 | `GET` | `/api/tags` | Colores asignados por objeto |
 | `PUT` | `/api/tags` | Guarda los colores. Body: `{ "tags": { "123": "gold" } }` |
 | `POST` | `/api/draw` | Sorteo entre participantes (sin uso en la UI actual) |
+| `GET` | `/api/servers` | Lista de servidores de Dofus dados de alta |
+| `POST` | `/api/servers` | Crea uno vacío. Body: `{ "name": "Tal Kasha" }` |
+| `PATCH` | `/api/servers/:id` | Lo renombra. Body: `{ "name": "..." }` |
+| `DELETE` | `/api/servers/:id` | Lo borra con sus datos (nunca el último) |
+
+Las rutas de exclusiones, colores, ganadores y ranking aceptan `?server=<id>`.
+Si se omite se usa el primer servidor de la lista.
 
 Los únicos valores válidos en `tags` son `gold` y `silver`; el resto se descarta al guardar.
 
@@ -162,8 +169,13 @@ Todo se guarda como JSON plano en `data/`, que se crea al arrancar si no existe:
 | Archivo | Contenido |
 |---|---|
 | `items.json` | Caché del catálogo descargado de la API de Dofus |
-| `exclusions.json` | IDs excluidos del sorteo |
-| `tags.json` | Objetos marcados como dorado o plateado |
+| `settings.json` | Aspecto de la página (fondo, colores, tamaños) |
+| `servers.json` | Servidores de Dofus dados de alta |
+| `servers/<id>/exclusions.json` | IDs excluidos del sorteo en ese servidor |
+| `servers/<id>/tags.json` | Rarezas (raro/épico/mítico) en ese servidor |
+| `servers/<id>/winners.json` | Ganadores pendientes de entregar |
+| `servers/<id>/ranking.json` | Histórico de lo ya entregado |
+| `servers/<id>/stream.json` | Top del stream en curso |
 
 En el primer arranque, si `items.json` no existe, el servidor descarga el catálogo de
 `api.dofusdu.de` y lo cachea. A partir de ahí trabaja siempre desde el archivo local; si
@@ -181,6 +193,19 @@ rm data/items.json               # macOS / Linux
 
 **Las exclusiones y los colores son globales**, no por usuario: cualquiera que abra la
 página ve y modifica los mismos datos.
+
+### Servidores
+
+Los precios de los recursos cambian de un servidor de Dofus a otro, así que **rarezas,
+exclusiones, ganadores y ranking se guardan por servidor**. El selector está en la
+cabecera, junto al título: `＋` crea uno, `✎` lo renombra y `🗑` lo borra con sus datos.
+El catálogo de objetos y los ajustes de aspecto son comunes a todos.
+
+El servidor elegido se recuerda en el navegador (`localStorage`), de modo que cada
+equipo puede quedarse en el suyo.
+
+Al actualizar desde una versión anterior, los datos que ya hubiera sueltos en `data/`
+pasan solos al servidor **Principal** en el primer arranque; no hay que hacer nada.
 
 ---
 
