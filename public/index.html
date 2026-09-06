@@ -103,8 +103,9 @@
     .podium-name{font-weight:700;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .podium-total{display:flex;align-items:center;gap:.3rem;font-size:15px;font-weight:600;color:var(--accent);margin-top:.15rem}
     .podium-draws{font-size:12px;color:var(--muted)}
-    .winner-row{display:flex;align-items:center;gap:1rem;padding:.8rem 1rem;margin-top:.7rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
-    .winner-row .wr-main{flex:1;min-width:0}
+    .winner-row{display:flex;align-items:center;flex-wrap:wrap;gap:1rem;padding:.8rem 1rem;margin-top:.7rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
+    .winner-row .wr-main{flex:1 1 220px;min-width:0}
+    .winner-row .wr-side{flex:none;margin-left:auto;text-align:right}
     .winner-row .wr-name{font-size:18px;font-weight:700}
     .winner-row .wr-badge{display:inline-block;vertical-align:middle;margin-left:.4rem;padding:.1rem .5rem;border-radius:999px;font-size:12px;font-weight:600;color:#021018;background:var(--accent)}
     .winner-row .wr-items{font-size:13px;color:var(--muted);margin-top:.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -115,7 +116,8 @@
     .winner-row .wr-date{font-size:12px;color:var(--muted);white-space:nowrap}
     .winner-row .wr-partial{font-size:12px;color:var(--accent);white-space:nowrap;margin-top:.15rem}
     .winner-row .wr-partial .kama-icon{width:14px;height:14px;vertical-align:-2px}
-    .winner-row .wr-actions{display:flex;flex-direction:column;gap:.35rem}
+    .winner-row .wr-actions{display:flex;flex:none;flex-direction:column;gap:.35rem}
+    @media (max-width:520px){.winner-row .wr-side{margin-left:0;text-align:left}.winner-row .wr-actions{flex-direction:row;width:100%}.winner-row .wr-actions button{flex:1}}
     .winner-row button{padding:.45rem .9rem;font-size:14px;box-shadow:none;background:rgba(248,113,113,0.14);color:#fca5a5;border:1px solid rgba(248,113,113,0.4)}
     .winner-row button.wr-part{background:rgba(255,255,255,0.08);color:#e6eef8;border-color:rgba(255,255,255,0.18)}
     .winner-row button:hover{background:rgba(248,113,113,0.25)}
@@ -415,13 +417,13 @@
               <button id="resetRanking" type="button">Reiniciar top global</button>
             </div>
             <div id="podium" class="podium"></div>
-            <div id="winnersTotal" class="winners-total" hidden></div>
           </section>
 
           <section>
             <h3>Ganadores pendientes de entrega</h3>
             <p class="meta">Al entregar el premio, elimina al ganador de la lista.</p>
             <div id="winnersList"></div>
+            <div id="winnersTotal" class="winners-total" hidden></div>
           </section>
         </div>
 
@@ -563,46 +565,48 @@
       </main>
 
     </div>
-
-    <div class="slot-wrapper" id="slotWrapper">
-      <div class="slot-machine" id="slotMachine"></div>
-    </div>
-
-    <div class="roulette-wrapper" id="rouletteWrapper">
-      <div class="roulette-wheel">
-        <span class="pin"></span>
-      </div>
-      <div class="roulette-items" id="rouletteItems"></div>
-    </div>
-    <div class="modal-backdrop" id="serverModalBackdrop" hidden>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="serverModalTitle">
-        <h4 id="serverModalTitle">Elegir servidor</h4>
-        <p class="meta">Los precios cambian de un servidor a otro, así que cada uno guarda sus propias rarezas, exclusiones, ganadores e historial.</p>
-        <div class="server-list" id="serverList"></div>
-        <div class="modal-actions">
-          <button type="button" id="serverAdd">＋ Añadir servidor</button>
-          <button type="button" class="btn-cancel" id="serverModalClose">Cerrar</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-backdrop" id="modalBackdrop" hidden>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-        <h4 id="modalTitle"></h4>
-        <p id="modalMessage"></p>
-        <input type="text" id="modalInput" hidden style="width:100%;margin-bottom:.7rem" />
-        <div class="modal-actions">
-          <button type="button" class="btn-cancel" id="modalCancel">Cancelar</button>
-          <button type="button" class="btn-cancel" id="modalExtra" hidden></button>
-          <button type="button" id="modalOk">Aceptar</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="confetti" id="confetti"></div>
     <footer>Hecho con ❤️ por <strong>kreisinkres</strong></footer>
     <footer class="thanks">Agradecimientos especiales a <strong>Lucyvsanchezz</strong></footer>
   </div>
+
+  <!-- Superpuestos fuera de .app: el zoom del tamano de letra no debe
+       cambiarles el tamano ni moverlos, solo --anim-scale los escala. -->
+  <div class="slot-wrapper" id="slotWrapper">
+    <div class="slot-machine" id="slotMachine"></div>
+  </div>
+
+  <div class="roulette-wrapper" id="rouletteWrapper">
+    <div class="roulette-wheel">
+      <span class="pin"></span>
+    </div>
+    <div class="roulette-items" id="rouletteItems"></div>
+  </div>
+  <div class="modal-backdrop" id="serverModalBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="serverModalTitle">
+      <h4 id="serverModalTitle">Elegir servidor</h4>
+      <p class="meta">Los precios cambian de un servidor a otro, así que cada uno guarda sus propias rarezas, exclusiones, ganadores e historial.</p>
+      <div class="server-list" id="serverList"></div>
+      <div class="modal-actions">
+        <button type="button" id="serverAdd">＋ Añadir servidor</button>
+        <button type="button" class="btn-cancel" id="serverModalClose">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h4 id="modalTitle"></h4>
+      <p id="modalMessage"></p>
+      <input type="text" id="modalInput" hidden style="width:100%;margin-bottom:.7rem" />
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="modalCancel">Cancelar</button>
+        <button type="button" class="btn-cancel" id="modalExtra" hidden></button>
+        <button type="button" id="modalOk">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="confetti" id="confetti"></div>
 
   <script>
     // Modal propio: confirm() y alert() del navegador anteponen el origen
@@ -812,8 +816,19 @@
       fillConfigForm();
     }
 
+    // Los campos de texto mandan sobre lo que haya en memoria: es lo que ve
+    // el usuario en pantalla cuando pulsa Guardar.
+    function leerFormulario() {
+      settings.pageTitle = document.getElementById('cfgPageTitle').value.trim();
+      settings.pageSubtitle = document.getElementById('cfgPageSubtitle').value.trim();
+      settings.logoUrl = document.getElementById('cfgLogoUrl').value.trim();
+      settings.wheelUrl = document.getElementById('cfgWheelUrl').value.trim();
+      settings.backgroundUrl = document.getElementById('cfgBgUrl').value.trim() || DEFAULT_SETTINGS.backgroundUrl;
+    }
+
     async function saveSettings() {
       const status = document.getElementById('cfgStatus');
+      leerFormulario();
       try {
         const data = await api('/api/settings', {
           method: 'PUT',
@@ -822,6 +837,7 @@
         });
         settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
         applySettings();
+        fillConfigForm();
         status.textContent = 'Guardado';
         setTimeout(() => { status.textContent = ''; }, 1800);
       } catch (e) {
@@ -1367,7 +1383,7 @@
             <div class="wr-name">${escapeHtml(w.name)}${(w.draws ?? 1) > 1 ? ` <span class="wr-badge">${w.draws} sorteos</span>` : ''}</div>
             <div class="wr-items" title="${escapeHtml(nombres)}">${escapeHtml(nombres || 'Sin objetos registrados')}</div>
           </div>
-          <div>
+          <div class="wr-side">
             <div class="wr-total">${w.total.toLocaleString('es-ES')}<img src="/assets/kama.png" alt="kamas" class="kama-icon" /></div>
             <div class="wr-date">${escapeHtml(fecha)}</div>
             ${w.entregado ? `<div class="wr-partial">Ya entregado: ${kamasHtml(w.entregado)}</div>` : ''}
@@ -2115,7 +2131,7 @@
       applySettings();
     });
     document.getElementById('cfgPageTitle').addEventListener('input', (ev) => {
-      settings.pageTitle = ev.target.value.trim() || DEFAULT_SETTINGS.pageTitle;
+      settings.pageTitle = ev.target.value.trim();
       applySettings();
     });
     document.getElementById('cfgPageSubtitle').addEventListener('input', (ev) => {
@@ -2139,6 +2155,8 @@
         status.textContent = 'La imagen supera los 12 MB.';
         return;
       }
+      leerFormulario();
+      const pendientes = { pageTitle: settings.pageTitle, pageSubtitle: settings.pageSubtitle };
       status.textContent = 'Subiendo…';
       try {
         const dataUrl = await new Promise((resolve, reject) => {
@@ -2152,7 +2170,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ dataUrl, target })
         });
-        settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
+        settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}), ...pendientes };
         applySettings();
         fillConfigForm();
         status.textContent = etiqueta + ' actualizado';
