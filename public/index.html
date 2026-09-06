@@ -227,6 +227,9 @@
     .slot-reel.spinning{animation:slotBlur .26s linear infinite}
     .slot-reel.stopped{animation:slotStop .45s cubic-bezier(.2,1.6,.4,1);border-color:var(--accent);box-shadow:0 0 0 2px rgba(110,231,183,0.25), 0 0 22px rgba(110,231,183,0.35)}
     .slot-reel.stopped .slot-name{color:#e6eef8}
+    .slot-reel.rare{background:linear-gradient(160deg, rgba(37,99,235,0.55), rgba(13,21,38,0.90));border-color:rgba(96,165,250,0.80)}
+    .slot-reel.epic{background:linear-gradient(160deg, rgba(147,51,234,0.55), rgba(13,21,38,0.90));border-color:rgba(192,132,252,0.80)}
+    .slot-reel.mythic{background:linear-gradient(160deg, rgba(220,38,38,0.55), rgba(13,21,38,0.90));border-color:rgba(248,113,113,0.80)}
     @keyframes slotBlur{0%{transform:translateY(-6px);filter:blur(1.2px)}50%{transform:translateY(4px);filter:blur(1.6px)}100%{transform:translateY(-6px);filter:blur(1.2px)}}
     @keyframes slotStop{0%{transform:translateY(-26px) scale(1.06)}60%{transform:translateY(4px) scale(.99)}100%{transform:none}}
     .roulette-wrapper{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;z-index:1000;pointer-events:none}
@@ -1100,6 +1103,7 @@
     let drawWinners = [];
 
     function pintarSlot(reel, item) {
+      applyRarityClass(reel, itemTags[itemId(item)] ?? '');
       const imgUrl = item.image_urls?.icon ?? item.image_urls?.sd ?? '';
       const nombre = item.name?.es ?? item.name ?? '';
       reel.innerHTML = `
@@ -1243,7 +1247,8 @@
     let editandoResultado = false;
 
     const opcionesResultado = () => ({
-      color: true, value: true, tags: editandoResultado, exclude: editandoResultado
+      color: true, value: true, tags: editandoResultado, exclude: editandoResultado,
+      confirmExclude: true
     });
 
     function renderResultCards(containerId, items) {
@@ -1818,8 +1823,19 @@
           excludeBtn.textContent = off ? 'Volver a incluir' : 'Excluir del sorteo';
         };
         syncExcluded();
-        excludeBtn.addEventListener('click', (ev) => {
+        excludeBtn.addEventListener('click', async (ev) => {
           ev.stopPropagation();
+          // En las tarjetas del sorteo excluir tiene consecuencias: el objeto
+          // sale del premio y se sustituye por otro, asi que se pregunta antes.
+          if (opts.confirmExclude === true && !excludedIds.has(itemId)) {
+            const ok = await showConfirm(
+              'Excluir del sorteo',
+              `«${title}» dejará de participar en los sorteos y se sustituirá por otro recurso en el resultado actual. Puedes volver a incluirlo cuando quieras.`,
+              'Excluir',
+              true
+            );
+            if (!ok) return;
+          }
           if (excludedIds.has(itemId)) excludedIds.delete(itemId);
           else excludedIds.add(itemId);
           syncExcluded();
@@ -2382,6 +2398,11 @@
       selectedIds.forEach((id) => excludedIds.add(id));
       saveExclusions();
       updateExcludedInfo();
+      // Hecha la exclusión, la selección ya no sirve: se limpia y se repinta el
+      // catálogo para que las tarjetas se vean como excluidas.
+      selectedIds.clear();
+      renderItemsPage();
+      updateBulkBar();
     });
 
     document.getElementById('bulkInclude').addEventListener('click', () => {
@@ -2490,6 +2511,13 @@
       tab.addEventListener('click', () => {
         document.querySelectorAll('.tab').forEach((btn) => btn.classList.toggle('active', btn === tab));
         document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `${tab.dataset.tab}-panel`));
+        // La selección del catálogo es para una acción del momento: al cambiar
+        // de pestaña se olvida, para no aplicar una rareza en masa sin querer.
+        if (selectedIds.size) {
+          selectedIds.clear();
+          refreshSelectionUI();
+          updateBulkBar();
+        }
         // El editor puede haber quedado desfasado si se editó desde el catálogo.
         if (tab.dataset.tab === 'random') renderEditor();
         if (tab.dataset.tab === 'history') loadHistory();
