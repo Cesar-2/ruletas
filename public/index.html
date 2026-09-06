@@ -113,7 +113,10 @@
     .item.sin-precio{border-color:rgba(239,68,68,0.7);box-shadow:0 0 0 1px rgba(239,68,68,0.35)}
     .item.sin-precio .value-input{border-color:rgba(239,68,68,0.7)}
     .winner-row .wr-date{font-size:12px;color:var(--muted);white-space:nowrap}
+    .winner-row .wr-partial{font-size:12px;color:var(--accent);white-space:nowrap;margin-top:.15rem}
+    .winner-row .wr-actions{display:flex;flex-direction:column;gap:.35rem}
     .winner-row button{padding:.45rem .9rem;font-size:14px;box-shadow:none;background:rgba(248,113,113,0.14);color:#fca5a5;border:1px solid rgba(248,113,113,0.4)}
+    .winner-row button.wr-part{background:rgba(255,255,255,0.08);color:#e6eef8;border-color:rgba(255,255,255,0.18)}
     .winner-row button:hover{background:rgba(248,113,113,0.25)}
     .editor-list{display:flex;flex-wrap:wrap;gap:12px;max-height:560px;overflow-y:auto;margin-top:.6rem;padding-top:8px}
     .bulk-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.8rem;padding:.6rem .8rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
@@ -1300,6 +1303,34 @@
 
     let winners = [];
 
+
+    // "5m" = 5.000.000, "500k" = 500.000, y se ignoran puntos y espacios.
+    function interpretarKamas(texto) {
+      const limpio = String(texto).trim().toLowerCase().replace(/[.\s]/g, '').replace(',', '.');
+      const m = /^(\d+(?:\.\d+)?)(k|m)?$/.exec(limpio);
+      if (!m) return null;
+      const base = parseFloat(m[1]);
+      if (!Number.isFinite(base)) return null;
+      const factor = m[2] === 'm' ? 1e6 : m[2] === 'k' ? 1e3 : 1;
+      return Math.round(base * factor);
+    }
+
+    async function entregarPremio(w, cantidad) {
+      try {
+        const data = await api(`/api/winners/${encodeURIComponent(w.id)}/deliver`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: cantidad })
+        });
+        winners = data.winners || [];
+        renderWinners();
+        loadRanking();
+        loadHistory();   // lo entregado pasa al histórico
+      } catch (e) {
+        showAlert('No se pudo entregar', e.message);
+      }
+    }
+
     function renderWinners() {
       const list = document.getElementById('winnersList');
       if (!list) return;
@@ -1312,7 +1343,7 @@
       const granTotal = winners.reduce((sum, w) => sum + (w.total ?? 0), 0);
       box.hidden = !winners.length;
       box.innerHTML = `
-        <span class="wt-label">Total pendiente de entregar (${winners.length} ganador(es))</span>
+        <span class="wt-label">Pendiente de entregar (${winners.length} ganador(es))</span>
         <span class="wt-value">${granTotal.toLocaleString('es-ES')}<img src="/assets/kama.png" alt="kamas" class="kama-icon" /></span>
       `;
 
@@ -1338,26 +1369,46 @@
           <div>
             <div class="wr-total">${w.total.toLocaleString('es-ES')}<img src="/assets/kama.png" alt="kamas" class="kama-icon" /></div>
             <div class="wr-date">${escapeHtml(fecha)}</div>
+            ${w.entregado ? `<div class="wr-partial">Ya entregado: ${w.entregado.toLocaleString('es-ES')}</div>` : ''}
           </div>
-          <button type="button">Entregado</button>
+          <div class="wr-actions">
+            <button type="button" class="wr-part">Entregar parte</button>
+            <button type="button" class="wr-all">Entregado</button>
+          </div>
         `;
 
-        row.querySelector('button').addEventListener('click', async () => {
-          const ok = await showConfirm(
-            'Entregar premio',
-            `¿Marcar como entregado y eliminar a ${w.name} de la lista?\n\nValor total: ${w.total.toLocaleString('es-ES')}`,
-            'Sí, entregado',
-            true
+        // Entrega parcial: se descuenta del pendiente y el resto sigue en la lista.
+        row.querySelector('.wr-part').addEventListener('click', async () => {
+          const texto = await showPrompt(
+            `Entregar parte a ${w.name}`,
+            `Pendiente: ${w.total.toLocaleString('es-ES')}. Escribe cuánto le entregas ahora; el resto se queda en la lista.`,
+            '',
+            'Entregar'
           );
-          if (!ok) return;
-          try {
-            const data = await api('/api/winners/' + encodeURIComponent(w.id), { method: 'DELETE' });
-            winners = data.winners || [];
-            renderWinners();
-            loadHistory();   // al entregarlo pasa al histórico
-          } catch (e) {
-            showAlert('No se pudo eliminar', e.message);
+          if (!texto) return;
+
+          // Se admiten separadores de miles y "5m" / "500k" como atajo.
+          const cantidad = interpretarKamas(texto);
+          if (cantidad === null || cantidad <= 0) {
+            showAlert('Cantidad no válida', 'Escribe un número mayor que cero, por ejemplo 5000000 o 5m.');
+            return;
           }
+          if (cantidad > w.total) {
+            showAlert('Cantidad demasiado alta', `Solo quedan ${w.total.toLocaleString('es-ES')} pendientes.`);
+            return;
+          }
+          entregarPremio(w, cantidad);
+        });
+
+        row.querySelector('.wr-all').addEventListener('click', async () => {
+          const ok = await showModal({
+            title: 'Entregar premio',
+            messageHtml: `¿Entregar a ${escapeHtml(w.name)} todo lo pendiente (${kamasHtml(w.total)}) y sacarlo de la lista?`,
+            okText: 'Sí, entregado',
+            danger: true
+          });
+          if (!ok) return;
+          entregarPremio(w, w.total);
         });
 
         list.appendChild(row);

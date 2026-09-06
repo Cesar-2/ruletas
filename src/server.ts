@@ -271,7 +271,8 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 interface Winner {
   id: string;
   name: string;
-  total: number;
+  total: number;      // lo que queda por entregar
+  entregado?: number; // lo ya entregado a cuenta, solo informativo
   items: { id: string; name: string; value: number }[];
   date: string;
   draws?: number;   // cuantos sorteos se han acumulado en esta entrada
@@ -643,7 +644,46 @@ app.post('/api/winners', (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/winners/:id  (se usa al entregar el premio)
+// POST /api/winners/:id/deliver  Body: { amount?: number }
+// Entrega una parte del premio. Sin 'amount' (o con el total pendiente) se
+// entrega entero y el ganador sale de la lista. Los sorteos solo se apuntan al
+// archivo en la entrega que salda la deuda: asi el ranking (archivo +
+// pendientes) suma siempre lo mismo antes y despues de cada entrega.
+app.post('/api/winners/:id/deliver', (req: Request, res: Response) => {
+  const sid = resolveServer(req);
+  try {
+    const winners = readWinners(sid);
+    const winner = winners.find((w) => w.id === req.params.id);
+    if (!winner) return res.status(404).json({ error: 'winner not found' });
+
+    const pendiente = winner.total ?? 0;
+    const pedido = req.body?.amount;
+    const amount = typeof pedido === 'number' && Number.isFinite(pedido) ? pedido : pendiente;
+    if (amount <= 0) return res.status(400).json({ error: 'amount must be greater than zero' });
+    if (amount > pendiente) return res.status(400).json({ error: 'amount is larger than the pending prize' });
+
+    const completa = amount >= pendiente;
+    const archive = readArchive(sid);
+    sumarEntrada(archive.entries, winner.name, amount, completa ? (winner.draws ?? 1) : 0);
+    writeArchive(sid, archive);
+
+    if (completa) {
+      const rest = winners.filter((w) => w.id !== winner.id);
+      writeWinners(sid, rest);
+      return res.json({ winners: rest, delivered: amount, complete: true });
+    }
+
+    winner.total = pendiente - amount;
+    winner.entregado = (winner.entregado ?? 0) + amount;
+    writeWinners(sid, winners);
+    res.json({ winners, delivered: amount, complete: false });
+  } catch (err) {
+    console.error('Failed to deliver prize:', err);
+    res.status(500).json({ error: 'failed to deliver prize' });
+  }
+});
+
+// DELETE /api/winners/:id  (entrega el premio entero; equivale a /deliver)
 app.delete('/api/winners/:id', (req: Request, res: Response) => {
   const sid = resolveServer(req);
   try {
@@ -827,6 +867,7 @@ app.listen(PORT, () => {
   console.log('           (rarezas, exclusiones, ganadores y ranking van por servidor: ?server=<id>)');
   console.log('           GET /api/settings  PUT /api/settings  POST /api/background');
   console.log('           GET /api/winners  POST /api/winners  DELETE /api/winners/:id');
+  console.log('           POST /api/winners/:id/deliver  Body: { amount }  (entrega parcial)');
   console.log('           GET /api/ranking?limit=3&scope=global|stream|delivered  POST /api/stream/reset');
   console.log('           POST /api/ranking/reset');
 });
