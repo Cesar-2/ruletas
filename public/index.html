@@ -247,6 +247,9 @@
     .config-field input[type="range"]{padding:0;accent-color:var(--accent);cursor:pointer}
     .config-check{display:flex;align-items:center;gap:.5rem;height:38px;font-size:14px;color:#e6eef8;cursor:pointer}
     .config-check input{width:18px;height:18px;accent-color:var(--accent);cursor:pointer}
+    /* Un 'display' propio gana al [hidden] del navegador, y el elemento se
+       queda a la vista aunque el JS lo haya ocultado. Esto lo zanja para todos. */
+    [hidden]{display:none !important}
     .config-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.2rem;align-items:center}
     .meta{color:var(--muted);font-size:14px}
     #count{color:var(--muted);margin-top:0.5rem}
