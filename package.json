@@ -4,6 +4,9 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.5.0",
     "accepts": "^2.0.0",
     "acorn": "^8.18.0",
     "acorn-walk": "^8.3.5",
@@ -124,6 +127,7 @@
     "ts-node-dev": "^2.0.0",
     "tsconfig": "^7.0.0",
     "type-is": "^2.1.0",
+    "typescript": "^5.6.3",
     "undici-types": "^8.3.0",
     "unpipe": "^1.0.0",
     "v8-compile-cache-lib": "^3.0.1",
@@ -131,12 +135,6 @@
     "wrappy": "^1.0.2",
     "xtend": "^4.0.2",
     "yn": "^3.1.1"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/node": "^26.5.0",
-    "typescript": "^5.6.3"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
