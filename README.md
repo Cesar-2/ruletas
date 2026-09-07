@@ -333,6 +333,19 @@ Quien ya las tenga personalizadas en su equipo no necesita rehacerlas. En
 Al cargar se pregunta si **añadir** a lo que ya haya o **reemplazarlo**. Las rarezas que
 no sean `rare`, `epic` o `mythic` se descartan.
 
+### Llevarte la lista de ganadores
+
+Igual, en **Configuración → Datos → Ganadores**. Sirve para pasar la lista del equipo
+a la web publicada, que son instalaciones independientes.
+
+- **Descargar ganadores** guarda un JSON con los del servidor abierto.
+- **Cargar desde un archivo** admite esa copia o un `winners.json` suelto de `data/`.
+
+También pregunta si **añadir** o **reemplazar**. Añadiendo, a quien ya esté en la lista
+se le suma el premio en su entrada en vez de duplicarla, igual que cuando le toca dos
+veces sorteando. Todo lo que entra pasa por el mismo filtro que un ganador creado a
+mano, así que un archivo editado no puede colar campos raros.
+
 Al actualizar desde una versión anterior, los datos que ya hubiera sueltos en `data/`
 pasan solos al servidor **Principal** de la primera cuenta que se registre; no hay que
 hacer nada.

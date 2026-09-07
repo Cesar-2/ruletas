@@ -735,6 +735,23 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
             <div class="meta" id="cfgImportStatus"></div>
           </div>
+
+          <div class="config-section">
+            <h4>Ganadores</h4>
+            <p class="meta">Para llevarte la lista a otro equipo o a la web publicada. Es la del servidor que tengas abierto.</p>
+            <div class="config-grid">
+              <div class="config-field">
+                <label>Guardar una copia</label>
+                <button type="button" id="cfgExportWinners">⬇ Descargar ganadores</button>
+              </div>
+              <div class="config-field">
+                <label for="cfgImportWinnersFile">Cargar desde un archivo</label>
+                <input id="cfgImportWinnersFile" type="file" accept="application/json,.json" />
+                <span class="meta">Vale la copia descargada aquí y también un <code>winners.json</code> suelto.</span>
+              </div>
+            </div>
+            <div class="meta" id="cfgImportWinnersStatus"></div>
+          </div>
           </div>
           <div class="config-actions" id="cfgSaveRow">
             <button id="cfgSave" type="button">Guardar</button>
@@ -2688,6 +2705,80 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       enlace.click();
       enlace.remove();
       setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
+    });
+
+    // --- Ganadores: llevarselos de un equipo a otro ------------------------
+    document.getElementById('cfgExportWinners').addEventListener('click', () => {
+      const servidor = servers.find((sv) => sv.id === currentServer);
+      if (!winners.length) {
+        showAlert('Sin ganadores', 'Este servidor no tiene ninguno todavía.');
+        return;
+      }
+      const copia = {
+        tipo: 'ruleton-ganadores',
+        version: 1,
+        servidor: servidor ? servidor.name : '',
+        fecha: new Date().toISOString(),
+        winners
+      };
+      const blob = new Blob([JSON.stringify(copia, null, 2)], { type: 'application/json' });
+      const enlace = document.createElement('a');
+      enlace.href = URL.createObjectURL(blob);
+      enlace.download = `ruleton-ganadores-${slugArchivo(servidor ? servidor.name : 'servidor')}.json`;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
+    });
+
+    // Se admite la copia de arriba y un winners.json suelto (un array).
+    function interpretarGanadores(datos) {
+      if (Array.isArray(datos)) return datos;
+      if (datos && typeof datos === 'object' && Array.isArray(datos.winners)) return datos.winners;
+      return null;
+    }
+
+    document.getElementById('cfgImportWinnersFile').addEventListener('change', async (ev) => {
+      const file = ev.target.files?.[0];
+      const estado = document.getElementById('cfgImportWinnersStatus');
+      ev.target.value = '';
+      if (!file) return;
+      estado.textContent = '';
+
+      let lista = null;
+      try {
+        lista = interpretarGanadores(JSON.parse(await file.text()));
+      } catch (e) {
+        showAlert('Archivo no válido', 'No se pudo leer el archivo como JSON.');
+        return;
+      }
+      if (!lista || !lista.length) {
+        showAlert('Archivo no reconocido', 'Esperaba la copia descargada desde aquí o un winners.json (lista de ganadores).');
+        return;
+      }
+
+      const servidor = servers.find((sv) => sv.id === currentServer);
+      const respuesta = await showModal({
+        title: 'Cargar ganadores',
+        messageHtml: `El archivo trae <strong>${lista.length}</strong> ganador(es), y se cargarán en <strong>${escapeHtml(servidor ? servidor.name : 'este servidor')}</strong>.<br><br>«Añadir» acumula sobre los que ya tengas, sumando a quien se repita; «Reemplazar» deja solo los del archivo.`,
+        okText: 'Añadir',
+        extraText: 'Reemplazar',
+        cancelText: 'Cancelar'
+      });
+      if (!respuesta) return;
+
+      try {
+        const r = await api('/api/winners/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ winners: lista, modo: respuesta === 'extra' ? 'reemplazar' : 'anadir' })
+        });
+        await loadWinners();
+        await loadRanking();
+        estado.textContent = `Cargados ${r.importados}; la lista queda con ${r.total}.`;
+      } catch (e) {
+        estado.textContent = e.message;
+      }
     });
 
     function slugArchivo(nombre) {

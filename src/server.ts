@@ -1278,6 +1278,72 @@ app.get('/api/winners', (req: Request, res: Response) => {
 });
 
 // POST /api/winners  Body: { name, total, items? }
+// POST /api/winners/import  Body: { winners, modo: 'anadir' | 'reemplazar' }
+// Para llevarse la lista de un equipo a otro sin rehacerla a mano.
+app.post('/api/winners/import', (req: Request, res: Response) => {
+  const body = req.body || {};
+  const modo = body.modo === 'reemplazar' ? 'reemplazar' : 'anadir';
+  if (!Array.isArray(body.winners)) {
+    return res.status(400).json({ error: 'body must be { winners: [] }' });
+  }
+
+  // Se sanea igual que al crear uno a mano: un archivo editado no puede meter
+  // aqui nada que no pase por el mismo filtro.
+  const entrantes: Winner[] = [];
+  for (const w of body.winners.slice(0, 5000)) {
+    const name = typeof w?.name === 'string' ? w.name.trim().slice(0, 120) : '';
+    if (!name) continue;
+    entrantes.push({
+      id: typeof w?.id === 'string' && w.id ? w.id : crypto.randomUUID(),
+      name,
+      total: typeof w?.total === 'number' && Number.isFinite(w.total) ? w.total : 0,
+      entregado: typeof w?.entregado === 'number' && Number.isFinite(w.entregado) ? w.entregado : 0,
+      items: Array.isArray(w?.items)
+        ? w.items.slice(0, 100).map((it: any) => ({
+            id: String(it?.id ?? ''),
+            name: String(it?.name ?? '').slice(0, 200),
+            value: typeof it?.value === 'number' && Number.isFinite(it.value) ? it.value : 0
+          }))
+        : [],
+      date: typeof w?.date === 'string' && w.date ? w.date : new Date().toISOString(),
+      draws: typeof w?.draws === 'number' && Number.isFinite(w.draws) ? w.draws : 1
+    });
+  }
+  if (entrantes.length === 0) {
+    return res.status(400).json({ error: 'el archivo no traia ningun ganador valido' });
+  }
+
+  const sid = resolveServer(req);
+  try {
+    let winners: Winner[];
+    if (modo === 'reemplazar') {
+      winners = entrantes;
+    } else {
+      // Igual que al sortear: al mismo nombre se le acumula, no se duplica.
+      winners = readWinners(sid);
+      for (const nuevo of entrantes) {
+        const existente = winners.find((w) => normalizeName(w.name) === normalizeName(nuevo.name));
+        if (existente) {
+          existente.total += nuevo.total;
+          existente.entregado = (existente.entregado ?? 0) + (nuevo.entregado ?? 0);
+          existente.items = existente.items.concat(nuevo.items);
+          existente.draws = (existente.draws ?? 1) + (nuevo.draws ?? 1);
+          existente.date = nuevo.date > existente.date ? nuevo.date : existente.date;
+        } else {
+          // Un id repetido de otra instalacion romperia el borrado y la entrega.
+          if (winners.some((w) => w.id === nuevo.id)) nuevo.id = crypto.randomUUID();
+          winners.push(nuevo);
+        }
+      }
+    }
+    writeWinners(sid, winners);
+    res.json({ ok: true, importados: entrantes.length, total: winners.length, modo });
+  } catch (err) {
+    console.error('Failed to import winners:', err);
+    res.status(500).json({ error: 'failed to import winners' });
+  }
+});
+
 app.post('/api/winners', (req: Request, res: Response) => {
   const body = req.body || {};
   const name = typeof body.name === 'string' ? body.name.trim().slice(0, 120) : '';
