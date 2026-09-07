@@ -15,7 +15,12 @@ app.use(express.json({ limit: '16mb' }));
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const ITEMS_URL = 'https://api.dofusdu.de/dofus3/v1/es/items/resources/all';
-const DATA_DIR = path.join(process.cwd(), 'data');
+// Donde viven los datos. En un hosting, cada despliegue reemplaza la carpeta
+// de la aplicacion, asi que si los datos estan dentro se pierden en cada
+// deploy: con RULETON_DATA se apuntan a una ruta de fuera, que sobrevive.
+const DATA_DIR = process.env.RULETON_DATA
+  ? path.resolve(process.env.RULETON_DATA)
+  : path.join(process.cwd(), 'data');
 const ITEMS_FILE = path.join(DATA_DIR, 'items.json');   // catalogo, comun a todo
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
@@ -27,7 +32,12 @@ const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const INVITE_INICIAL = String(process.env.RULETON_INVITE || '').trim();
 const COOKIE_NAME = 'ruleton_sid';
 const SESSION_DAYS = 30;
-const ASSETS_DIR = path.join(process.cwd(), 'public', 'assets');
+// Los fondos y avatares que se suben son datos del usuario, no del programa:
+// van junto al resto para que tampoco se los lleve un despliegue.
+const ASSETS_DIR = path.join(DATA_DIR, 'assets');
+// Las imagenes que vienen con el proyecto (kama.png, fondo.png) siguen en el
+// repositorio; se sirven como respaldo cuando no hay una subida con ese nombre.
+const ASSETS_REPO = path.join(process.cwd(), 'public', 'assets');
 
 // Cada usuario tiene su propio Ruleton: su aspecto, sus servidores, sus
 // ganadores y su historial, y nadie mas los ve. Dentro de un usuario, los
@@ -283,6 +293,27 @@ function borrarSesionesDe(uid: string): number {
   }
   if (tiradas) writeSessions(sessions);
   return tiradas;
+}
+
+// Las subidas vivian en public/assets. Se llevan junto al resto de datos la
+// primera vez, para no perder el fondo ni los avatares ya puestos. Solo las
+// subidas: las imagenes del repositorio (fondo.png, kama.png) se quedan.
+function migrarAssetsSubidos(): void {
+  if (ASSETS_DIR === ASSETS_REPO || !fs.existsSync(ASSETS_REPO)) return;
+  let movidas = 0;
+  for (const nombre of fs.readdirSync(ASSETS_REPO)) {
+    if (!/^(fondo|avatar)-/.test(nombre)) continue;
+    const destino = path.join(ASSETS_DIR, nombre);
+    if (fs.existsSync(destino)) continue;
+    try {
+      if (!fs.existsSync(ASSETS_DIR)) fs.mkdirSync(ASSETS_DIR, { recursive: true });
+      fs.renameSync(path.join(ASSETS_REPO, nombre), destino);
+      movidas += 1;
+    } catch (err) {
+      console.error(`Failed to migrate asset ${nombre}:`, err);
+    }
+  }
+  if (movidas) console.log(`Movidas ${movidas} imagenes subidas a ${ASSETS_DIR}`);
 }
 
 // Instalaciones anteriores al login: el Ruleton que ya existiera pasa a ser el
@@ -1464,10 +1495,13 @@ app.post('/api/draw', async (req: Request, res: Response) => {
 });
 
 // Serve static UI
+app.use('/assets', express.static(ASSETS_DIR));
 app.use('/', express.static(path.join(process.cwd(), 'public')));
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Datos en: ${DATA_DIR}`);
+  migrarAssetsSubidos();
   console.log('Endpoints: GET /api/items  GET /api/random-items?n=1  POST /api/draw');
   console.log('           GET /api/exclusions  PUT /api/exclusions');
   console.log('           GET /api/tags  PUT /api/tags');

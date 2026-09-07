@@ -247,6 +247,7 @@ El código vive en `data/config.json`, que como todo `data/` no se versiona.
 | Variable | Para qué |
 |---|---|
 | `RULETON_INVITE` | Código inicial para crear cuentas. **Solo se usa la primera vez**, para sembrar `data/config.json`; a partir de ahí manda el panel de acceso |
+| `RULETON_DATA` | Carpeta de los datos. **Imprescindible en un hosting**: apúntala fuera de la carpeta de la aplicación o cada despliegue borrará cuentas, ganadores e imágenes |
 | `TRUST_PROXY=1` | Detrás de un proxy (Render, Fly, nginx…), para reconocer HTTPS |
 | `COOKIE_SECURE=1` | Fuerza que la cookie de sesión solo viaje por HTTPS |
 | `PORT` | Puerto de escucha (por defecto 3000) |
