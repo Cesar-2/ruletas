@@ -939,6 +939,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         : [
             `<button type="button" data-accion="${u.bloqueado ? 'desbloquear' : 'bloquear'}" data-id="${escapeHtml(u.id)}">${u.bloqueado ? 'Devolver acceso' : 'Quitar acceso'}</button>`,
             `<button type="button" class="btn-cancel" data-accion="${u.admin ? 'quitar-admin' : 'hacer-admin'}" data-id="${escapeHtml(u.id)}">${u.admin ? 'Ya no es admin' : 'Hacer admin'}</button>`,
+            `<button type="button" class="btn-cancel" data-accion="password" data-id="${escapeHtml(u.id)}">Restablecer contraseña</button>`,
             u.sesiones > 0 ? `<button type="button" class="btn-cancel" data-accion="cerrar" data-id="${escapeHtml(u.id)}">Cerrar su sesión</button>` : '',
             `<button type="button" class="btn-danger" data-accion="borrar" data-id="${escapeHtml(u.id)}">Borrar</button>`
           ].join('');
@@ -981,6 +982,23 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           if (!ok) return;
           await api(`/api/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
           estado.textContent = 'Cuenta borrada.';
+        } else if (accion === 'password') {
+          const ok = await showModal({
+            title: 'Restablecer la contraseña',
+            message: 'Se le pondrá una contraseña temporal y se cerrará su sesión. Te la enseño una sola vez para que se la pases; después ya no habrá forma de verla.',
+            okText: 'Restablecer'
+          });
+          if (!ok) return;
+          const r = await api(`/api/admin/users/${encodeURIComponent(id)}/password`, { method: 'POST' });
+          // Una sola vez: en disco solo queda el hash, no se puede volver a mirar.
+          await showModal({
+            title: 'Contraseña temporal',
+            messageHtml: `<p class="meta">Pásasela y dile que la cambie en Configuración &gt; Mi cuenta.</p>
+              <p class="codigo-invitacion" style="font-size:20px;margin-top:.8rem;user-select:all">${escapeHtml(r.password)}</p>`,
+            okText: 'Ya la he copiado',
+            confirm: false
+          });
+          estado.textContent = 'Contraseña restablecida.';
         } else if (accion === 'cerrar') {
           await api(`/api/admin/users/${encodeURIComponent(id)}/logout`, { method: 'POST' });
           estado.textContent = 'Sesión cerrada.';

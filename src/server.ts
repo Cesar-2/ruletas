@@ -214,6 +214,15 @@ function hashPassword(password: string, salt: string): string {
   return crypto.scryptSync(password, salt, 64).toString('hex');
 }
 
+// Contrasena temporal legible: se dicta por telefono sin equivocarse y no
+// lleva teclas muertas, que en teclado espanol son una fuente de errores.
+function generarPassword(): string {
+  const abc = '23456789BCDFGHJKMNPQRSTVWXYZ';
+  const azar = crypto.randomBytes(16);
+  const letras = Array.from(azar, (n) => abc[n % abc.length]);
+  return `${letras.slice(0, 4).join('')}-${letras.slice(4, 8).join('')}-${letras.slice(8, 12).join('')}-${letras.slice(12, 16).join('')}`;
+}
+
 function passwordOk(user: User, password: string): boolean {
   const esperado = Buffer.from(user.hash, 'hex');
   const recibido = Buffer.from(hashPassword(password, user.salt), 'hex');
@@ -983,6 +992,33 @@ app.post('/api/admin/users/:id/logout', (req: Request, res: Response) => {
     return res.status(404).json({ error: 'esa cuenta no existe' });
   }
   res.json({ ok: true, sesionesCerradas: borrarSesionesDe(id) });
+});
+
+// POST /api/admin/users/:id/password -> le pone una contrasena temporal
+// La devuelve en claro una sola vez: es la unica forma de que llegue a su
+// dueno, porque en disco solo queda el hash.
+app.post('/api/admin/users/:id/password', (req: Request, res: Response) => {
+  const yo = requireUid(req);
+  const id = String(req.params.id);
+  // Para la propia cuenta esta "Mi cuenta", que pide la contrasena actual.
+  if (id === yo) return res.status(400).json({ error: 'para la tuya usa Mi cuenta' });
+
+  try {
+    const users = readUsers();
+    const user = users.find((u) => u.id === id);
+    if (!user) return res.status(404).json({ error: 'esa cuenta no existe' });
+
+    const password = generarPassword();
+    user.salt = crypto.randomBytes(16).toString('hex');
+    user.hash = hashPassword(password, user.salt);
+    writeUsers(users);
+    // Cambiar la contrasena cierra sus sesiones, aqui tambien.
+    const tiradas = borrarSesionesDe(id);
+    res.json({ password, sesionesCerradas: tiradas });
+  } catch (err) {
+    console.error('Failed to reset password:', err);
+    res.status(500).json({ error: 'failed to reset password' });
+  }
 });
 
 // DELETE /api/admin/users/:id -> borra la cuenta y su Ruleton entero

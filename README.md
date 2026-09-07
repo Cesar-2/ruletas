@@ -235,6 +235,24 @@ maneja todo sin tocar archivos ni reiniciar el servidor:
   puede deshacer.
 - **Cerrar la sesión de alguien** sin quitarle el acceso, y **nombrar a otro
   administrador**.
+- **Restablecer una contraseña olvidada.** Le pone una temporal y te la enseña
+  **una sola vez** para que se la pases; en disco solo queda el hash, así que
+  después ya no hay forma de verla. De paso le cierra la sesión.
+
+#### Si la contraseña perdida es la tuya
+
+No hay recuperación por correo a propósito. Para eso está el comando de rescate,
+que se ejecuta donde estén los datos:
+
+```bash
+npm run password -- --listar              # ver qué cuentas hay
+npm run password -- admin                 # ponerle una temporal y enseñarla
+npm run password -- admin MiClaveNueva1   # o la que tú digas
+```
+
+Respeta `RULETON_DATA`, así que en un hosting basta con entrar por SSH y lanzarlo
+desde la carpeta de la aplicación. También desbloquea la cuenta, por si estaba sin
+acceso.
 
 Contra la propia cuenta no se puede actuar y siempre tiene que quedar al menos un
 administrador: así no hay forma de dejarse fuera del panel. A quien no es administrador
