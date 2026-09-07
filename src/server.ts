@@ -20,9 +20,11 @@ const ITEMS_FILE = path.join(DATA_DIR, 'items.json');   // catalogo, comun a tod
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const USERS_DIR = path.join(DATA_DIR, 'users');
-// Con la app publicada en internet, no se crean cuentas sin este codigo. Si no
-// esta puesto, solo se puede registrar la primera cuenta (la del dueno).
-const INVITE_CODE = String(process.env.RULETON_INVITE || '').trim();
+const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+// Codigo de invitacion de arranque: solo siembra data/config.json la primera
+// vez. A partir de ahi manda el panel de administracion, que es donde el dueno
+// lo cambia sin reiniciar el servidor.
+const INVITE_INICIAL = String(process.env.RULETON_INVITE || '').trim();
 const COOKIE_NAME = 'ruleton_sid';
 const SESSION_DAYS = 30;
 const ASSETS_DIR = path.join(process.cwd(), 'public', 'assets');
@@ -48,6 +50,13 @@ interface User {
   salt: string;
   hash: string;          // scrypt de la contrasena; nunca se guarda en claro
   createdAt: string;
+  admin?: boolean;       // entra al panel de acceso y decide quien usa la web
+  bloqueado?: boolean;   // conserva sus datos, pero no puede entrar
+}
+
+// Ajustes del sitio, comunes a todas las cuentas. Solo los toca el admin.
+interface Config {
+  invite: string;        // codigo para crear cuenta; vacio = registros cerrados
 }
 
 interface Session {
@@ -148,6 +157,47 @@ function writeUsers(users: User[]): void {
   writeJson(USERS_FILE, { users });
 }
 
+// La configuracion nace del entorno la primera vez y a partir de ahi vive en
+// data/config.json, que es lo que edita el panel de acceso.
+function readConfig(): Config {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      if (parsed && typeof parsed === 'object') {
+        return { invite: typeof parsed.invite === 'string' ? parsed.invite : '' };
+      }
+    }
+  } catch (err) {
+    console.error('Failed to read config:', err);
+  }
+  return { invite: INVITE_INICIAL };
+}
+
+function writeConfig(config: Config): void {
+  ensureDataDir();
+  writeJson(CONFIG_FILE, config);
+}
+
+// El codigo que hay que escribir para crear cuenta. Vacio = registros cerrados.
+function inviteActual(): string {
+  return readConfig().invite.trim();
+}
+
+// Sin admin no hay quien abra el panel, asi que la cuenta mas antigua lo es.
+// Cubre las instalaciones anteriores a esta version y el caso de que alguien
+// borre la marca a mano en users.json.
+function asegurarAdmin(): void {
+  const users = readUsers();
+  if (users.length === 0 || users.some((u) => u.admin)) return;
+  const masAntiguo = users.slice().sort((a, b) =>
+    String(a.createdAt || '').localeCompare(String(b.createdAt || '')))[0];
+  masAntiguo.admin = true;
+  masAntiguo.bloqueado = false;
+  writeUsers(users);
+  console.log(`La cuenta "${masAntiguo.username}" pasa a ser la administradora.`);
+}
+
 // La contrasena se guarda derivada con scrypt y una sal distinta por cuenta:
 // del fichero no se puede sacar la original.
 function hashPassword(password: string, salt: string): string {
@@ -218,7 +268,21 @@ function usuarioDe(req: Request): User | null {
   if (!token) return null;
   const ses = readSessions()[token];
   if (!ses || ses.expiresAt < Date.now()) return null;
-  return readUsers().find((u) => u.id === ses.uid) || null;
+  const user = readUsers().find((u) => u.id === ses.uid) || null;
+  // Quitar el acceso surte efecto ya: la sesion que tuviera abierta deja de
+  // valer sin esperar a que caduque la cookie.
+  return user && !user.bloqueado ? user : null;
+}
+
+// Cierra todas las sesiones de una cuenta. Devuelve cuantas ha tirado.
+function borrarSesionesDe(uid: string): number {
+  const sessions = readSessions();
+  let tiradas = 0;
+  for (const [token, ses] of Object.entries(sessions)) {
+    if (ses && ses.uid === uid) { delete sessions[token]; tiradas += 1; }
+  }
+  if (tiradas) writeSessions(sessions);
+  return tiradas;
 }
 
 // Instalaciones anteriores al login: el Ruleton que ya existiera pasa a ser el
@@ -665,7 +729,11 @@ function ponerCookie(req: Request, res: Response, token: string): void {
 }
 
 function datosPublicos(u: User) {
-  return { id: u.id, username: u.username, name: u.name, avatarUrl: u.avatarUrl || '', createdAt: u.createdAt };
+  return {
+    id: u.id, username: u.username, name: u.name,
+    avatarUrl: u.avatarUrl || '', createdAt: u.createdAt,
+    admin: Boolean(u.admin)
+  };
 }
 
 // Guarda una imagen enviada como data URL y devuelve su ruta publica.
@@ -699,7 +767,7 @@ app.get('/api/auth/me', (req: Request, res: Response) => {
     return res.status(401).json({
       error: 'no autenticado',
       primeraCuenta,
-      registroAbierto: primeraCuenta || Boolean(INVITE_CODE)
+      registroAbierto: primeraCuenta || Boolean(inviteActual())
     });
   }
   res.json({ user: datosPublicos(u) });
@@ -722,9 +790,10 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
   try {
     const users = readUsers();
     // La primera cuenta es la del dueno y no pide codigo; a partir de ahi, si.
+    const codigo = inviteActual();
     if (users.length > 0) {
-      if (!INVITE_CODE) return res.status(403).json({ error: 'los registros estan cerrados' });
-      if (invite !== INVITE_CODE) return res.status(403).json({ error: 'codigo de invitacion incorrecto' });
+      if (!codigo) return res.status(403).json({ error: 'los registros estan cerrados' });
+      if (invite !== codigo) return res.status(403).json({ error: 'codigo de invitacion incorrecto' });
     }
     const username = nombre.toLowerCase();
     if (users.some((u) => u.username === username)) {
@@ -740,7 +809,9 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
       name: nombre,
       salt,
       hash: hashPassword(password, salt),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      // La primera cuenta es la del dueno: es quien administra el acceso.
+      admin: users.length === 0
     };
     writeUsers(users.concat(nuevo));
     ensureUserDir(id);
@@ -772,6 +843,11 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
       apuntarFallo(req);
       return res.status(401).json({ error: 'usuario o contrasena incorrectos' });
     }
+    // La contrasena era buena, pero el admin le ha quitado el acceso. Se dice
+    // claro: no es un fallo suyo y repetir el intento no lo va a arreglar.
+    if (user.bloqueado) {
+      return res.status(403).json({ error: 'esta cuenta no tiene acceso; habla con el administrador' });
+    }
     limpiarFallos(req);
     ponerCookie(req, res, crearSesion(user.id));
     res.json({ user: datosPublicos(user) });
@@ -796,6 +872,128 @@ app.use('/api', (req: Request, res: Response, next: any) => {
       req.path === '/auth/register' || req.path === '/auth/logout') return next();
   if (!usuarioDe(req)) return res.status(401).json({ error: 'no autenticado' });
   next();
+});
+
+// --- Panel de acceso ----------------------------------------------------
+// Solo el administrador. Decide el codigo de invitacion y quien puede entrar.
+app.use('/api/admin', (req: Request, res: Response, next: any) => {
+  const u = usuarioDe(req);
+  if (!u) return res.status(401).json({ error: 'no autenticado' });
+  // 404 y no 403: a quien no es admin el panel ni le consta que exista.
+  if (!u.admin) return res.status(404).json({ error: 'no encontrado' });
+  next();
+});
+
+// Cuantas sesiones abiertas tiene cada cuenta, para saber quien esta dentro.
+function sesionesPorUsuario(): Record<string, number> {
+  const cuenta: Record<string, number> = {};
+  const ahora = Date.now();
+  for (const ses of Object.values(readSessions())) {
+    if (ses && ses.expiresAt > ahora) cuenta[ses.uid] = (cuenta[ses.uid] || 0) + 1;
+  }
+  return cuenta;
+}
+
+// GET /api/admin/users -> la lista de cuentas con su estado
+app.get('/api/admin/users', (req: Request, res: Response) => {
+  const sesiones = sesionesPorUsuario();
+  const users = readUsers().map((u) => ({
+    ...datosPublicos(u),
+    bloqueado: Boolean(u.bloqueado),
+    sesiones: sesiones[u.id] || 0,
+    yo: u.id === requireUid(req)
+  }));
+  res.json({ users, invite: inviteActual() });
+});
+
+// PATCH /api/admin/users/:id  Body: { bloqueado?, admin? }
+app.patch('/api/admin/users/:id', (req: Request, res: Response) => {
+  const yo = requireUid(req);
+  const id = String(req.params.id);
+  const body = req.body || {};
+
+  try {
+    const users = readUsers();
+    const user = users.find((u) => u.id === id);
+    if (!user) return res.status(404).json({ error: 'esa cuenta no existe' });
+    // Contra uno mismo no: es lo que evita quedarse fuera del propio panel.
+    if (id === yo) return res.status(400).json({ error: 'no puedes cambiar tu propia cuenta aqui' });
+
+    if (typeof body.admin === 'boolean') {
+      // Sin al menos un admin el panel se queda sin dueno.
+      if (!body.admin && users.filter((u) => u.admin).length <= 1) {
+        return res.status(400).json({ error: 'tiene que quedar al menos un administrador' });
+      }
+      user.admin = body.admin;
+      // Un administrador bloqueado no tendria como administrar nada.
+      if (body.admin) user.bloqueado = false;
+    }
+    if (typeof body.bloqueado === 'boolean') {
+      if (body.bloqueado && user.admin) {
+        return res.status(400).json({ error: 'quitale primero el rol de administrador' });
+      }
+      user.bloqueado = body.bloqueado;
+    }
+
+    writeUsers(users);
+    // Quitar el acceso echa fuera al momento a quien estuviera dentro.
+    const tiradas = user.bloqueado ? borrarSesionesDe(id) : 0;
+    res.json({ user: { ...datosPublicos(user), bloqueado: Boolean(user.bloqueado) }, sesionesCerradas: tiradas });
+  } catch (err) {
+    console.error('Failed to update user:', err);
+    res.status(500).json({ error: 'failed to update user' });
+  }
+});
+
+// POST /api/admin/users/:id/logout -> le cierra la sesion sin quitarle acceso
+app.post('/api/admin/users/:id/logout', (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  if (!readUsers().some((u) => u.id === id)) {
+    return res.status(404).json({ error: 'esa cuenta no existe' });
+  }
+  res.json({ ok: true, sesionesCerradas: borrarSesionesDe(id) });
+});
+
+// DELETE /api/admin/users/:id -> borra la cuenta y su Ruleton entero
+app.delete('/api/admin/users/:id', (req: Request, res: Response) => {
+  const yo = requireUid(req);
+  const id = String(req.params.id);
+  if (id === yo) return res.status(400).json({ error: 'no puedes borrar tu propia cuenta' });
+
+  try {
+    const users = readUsers();
+    const user = users.find((u) => u.id === id);
+    if (!user) return res.status(404).json({ error: 'esa cuenta no existe' });
+    if (user.admin && users.filter((u) => u.admin).length <= 1) {
+      return res.status(400).json({ error: 'tiene que quedar al menos un administrador' });
+    }
+
+    writeUsers(users.filter((u) => u.id !== id));
+    borrarSesionesDe(id);
+    // Con la cuenta se va su Ruleton: sus servidores, ganadores e historial.
+    const dir = userDir(id);
+    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to delete user:', err);
+    res.status(500).json({ error: 'failed to delete user' });
+  }
+});
+
+// PUT /api/admin/invite  Body: { invite }  ("" cierra los registros)
+app.put('/api/admin/invite', (req: Request, res: Response) => {
+  const body = req.body || {};
+  const invite = typeof body.invite === 'string' ? body.invite.trim().slice(0, 60) : '';
+  if (invite && invite.length < 6) {
+    return res.status(400).json({ error: 'el codigo necesita al menos 6 caracteres' });
+  }
+  try {
+    writeConfig({ ...readConfig(), invite });
+    res.json({ invite });
+  } catch (err) {
+    console.error('Failed to save invite:', err);
+    res.status(500).json({ error: 'failed to save invite' });
+  }
 });
 
 // PATCH /api/auth/profile  Body: { name?, avatarDataUrl?, quitarAvatar? }
@@ -1277,11 +1475,18 @@ app.listen(PORT, () => {
   console.log('           PATCH /api/auth/profile  POST /api/auth/password');
   console.log('           GET /api/servers  POST /api/servers  PATCH/DELETE /api/servers/:id');
   console.log('           (cada usuario tiene su propio Ruleton; dentro, ?server=<id>)');
+  console.log('           GET /api/admin/users  PATCH/DELETE /api/admin/users/:id');
+  console.log('           POST /api/admin/users/:id/logout  PUT /api/admin/invite');
   if (readUsers().length === 0) {
     console.log('Todavia no hay ninguna cuenta: la primera que se registre sera la duena');
-    console.log('de los datos que ya hubiera en data/.');
-  } else if (!INVITE_CODE) {
-    console.log('Registros cerrados (no hay RULETON_INVITE). Ponlo para admitir mas cuentas.');
+    console.log('de los datos que ya hubiera en data/, y la administradora del acceso.');
+  } else {
+    asegurarAdmin();
+    const admins = readUsers().filter((u) => u.admin).map((u) => u.username).join(', ');
+    console.log(`Administra el acceso: ${admins} (Configuracion > Acceso).`);
+    if (!inviteActual()) {
+      console.log('Registros cerrados. Se abren poniendo un codigo en ese mismo panel.');
+    }
   }
   console.log('           GET /api/settings  PUT /api/settings  POST /api/background');
   console.log('           GET /api/winners  POST /api/winners  DELETE /api/winners/:id');

@@ -208,6 +208,18 @@
     .copy-name.copied{background:rgba(110,231,183,0.18);border-color:rgba(110,231,183,0.6);color:#6ee7b7}
     .config-panel{margin-bottom:1rem}
     .cfg-nav{margin:.9rem 0 .2rem;flex-wrap:wrap}
+    .acceso-lista{display:flex;flex-direction:column;gap:.5rem;margin-top:.8rem}
+    .acceso-fila{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;padding:.6rem .8rem;border:1px solid rgba(255,255,255,0.12);border-radius:12px;background:rgba(255,255,255,0.04)}
+    .acceso-fila.sin-acceso{opacity:.62;border-style:dashed}
+    .acceso-quien{display:flex;flex-direction:column;min-width:0;flex:1 1 12rem}
+    .acceso-nombre{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .acceso-acciones{display:flex;gap:.4rem;flex-wrap:wrap;margin-left:auto}
+    .acceso-acciones button{padding:.35rem .75rem;font-size:14px}
+    .etiqueta{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,0.18)}
+    .etiqueta.admin{background:rgba(110,231,183,0.16);color:#6ee7b7;border-color:rgba(110,231,183,0.4)}
+    .etiqueta.bloqueado{background:rgba(239,68,68,0.16);color:#fca5a5;border-color:rgba(239,68,68,0.4)}
+    .etiqueta.dentro{background:rgba(255,255,255,0.08);color:var(--muted)}
+    .codigo-invitacion{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em}
     .cfg-tabpanel{display:none}
     .cfg-tabpanel.active{display:block}
     .config-section{margin-top:1.1rem;padding-top:.9rem;border-top:1px solid rgba(255,255,255,0.12)}
@@ -506,6 +518,42 @@
             <button type="button" class="subtab cfgtab" data-cfgtab="animacion">🎬 Animación</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="datos">📦 Datos</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="cuenta">👤 Mi cuenta</button>
+            <button type="button" class="subtab cfgtab" data-cfgtab="acceso" id="cfgtabAcceso" hidden>🔑 Acceso</button>
+          </div>
+
+          <div class="cfg-tabpanel" id="cfgtab-acceso">
+          <div class="config-section">
+            <h4>Quién puede entrar</h4>
+            <p class="meta">Sin código, nadie puede crear una cuenta nueva: los registros quedan
+cerrados y solo entra quien ya la tenga. Pon uno mientras das de alta a la
+gente y bórralo cuando termines.</p>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgInvite">Código de invitación</label>
+                <input id="cfgInvite" type="text" class="codigo-invitacion" maxlength="60" placeholder="(vacío = registros cerrados)" autocomplete="off" />
+              </div>
+              <div class="config-field">
+                <label>&nbsp;</label>
+                <button type="button" id="cfgInviteGen">Generar uno nuevo</button>
+              </div>
+            </div>
+            <div class="config-actions">
+              <button type="button" id="cfgInviteSave">Guardar código</button>
+              <button type="button" class="btn-cancel" id="cfgInviteClear">Cerrar registros</button>
+              <span class="meta" id="cfgInviteStatus" style="margin-left:auto"></span>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h4>Cuentas</h4>
+            <p class="meta">Quitar el acceso conserva el Ruleton de esa cuenta y la echa fuera al
+momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
+            <div class="acceso-lista" id="accesoLista"></div>
+            <div class="config-actions">
+              <button type="button" class="btn-cancel" id="accesoRefrescar">Actualizar lista</button>
+              <span class="meta" id="accesoStatus" style="margin-left:auto"></span>
+            </div>
+          </div>
           </div>
 
           <div class="cfg-tabpanel" id="cfgtab-cuenta">
@@ -862,6 +910,108 @@
       if (quien) quien.textContent = usuario ? `Entras como «${usuario.username}»` : '';
       const campo = document.getElementById('cfgUserName');
       if (campo && usuario) campo.value = usuario.name;
+      const pestana = document.getElementById('cfgtabAcceso');
+      if (pestana) pestana.hidden = !usuario?.admin;
+    }
+
+    // --- Panel de acceso ----------------------------------------------------
+    // Solo lo ve el administrador. El servidor lo comprueba igualmente: esto
+    // es comodidad, no seguridad.
+    function pintarEstadoInvite(codigo) {
+      const estado = document.getElementById('cfgInviteStatus');
+      estado.textContent = codigo
+        ? 'Registros abiertos con ese código.'
+        : 'Registros cerrados: nadie puede crear cuenta.';
+    }
+
+    function filaAcceso(u) {
+      const marcas = [];
+      if (u.admin) marcas.push('<span class="etiqueta admin">admin</span>');
+      if (u.bloqueado) marcas.push('<span class="etiqueta bloqueado">sin acceso</span>');
+      if (u.sesiones > 0 && !u.bloqueado) marcas.push('<span class="etiqueta dentro">dentro</span>');
+
+      // Sobre la propia cuenta no se actúa: es lo que evita dejarse fuera.
+      const acciones = u.yo
+        ? '<span class="meta">Tu cuenta</span>'
+        : [
+            `<button type="button" data-accion="${u.bloqueado ? 'desbloquear' : 'bloquear'}" data-id="${escapeHtml(u.id)}">${u.bloqueado ? 'Devolver acceso' : 'Quitar acceso'}</button>`,
+            `<button type="button" class="btn-cancel" data-accion="${u.admin ? 'quitar-admin' : 'hacer-admin'}" data-id="${escapeHtml(u.id)}">${u.admin ? 'Ya no es admin' : 'Hacer admin'}</button>`,
+            u.sesiones > 0 ? `<button type="button" class="btn-cancel" data-accion="cerrar" data-id="${escapeHtml(u.id)}">Cerrar su sesión</button>` : '',
+            `<button type="button" class="btn-danger" data-accion="borrar" data-id="${escapeHtml(u.id)}">Borrar</button>`
+          ].join('');
+
+      return `<div class="acceso-fila${u.bloqueado ? ' sin-acceso' : ''}">
+        <div class="acceso-quien">
+          <span class="acceso-nombre">${escapeHtml(u.name || u.username)} ${marcas.join(' ')}</span>
+          <span class="meta">@${escapeHtml(u.username)}</span>
+        </div>
+        <div class="acceso-acciones">${acciones}</div>
+      </div>`;
+    }
+
+    async function cargarAcceso() {
+      const lista = document.getElementById('accesoLista');
+      const estado = document.getElementById('accesoStatus');
+      lista.innerHTML = '<span class="meta">Cargando…</span>';
+      try {
+        const data = await api('/api/admin/users');
+        lista.innerHTML = data.users.map(filaAcceso).join('');
+        document.getElementById('cfgInvite').value = data.invite || '';
+        pintarEstadoInvite(data.invite || '');
+        const n = data.users.length;
+        estado.textContent = `${n} cuenta${n === 1 ? '' : 's'}.`;
+      } catch (e) {
+        lista.innerHTML = '';
+        estado.textContent = e.message;
+      }
+    }
+
+    async function accionAcceso(accion, id) {
+      const estado = document.getElementById('accesoStatus');
+      try {
+        if (accion === 'borrar') {
+          const ok = await showModal({
+            title: 'Borrar la cuenta',
+            message: 'Se va con ella su Ruleton entero: servidores, ganadores e historial. No se puede deshacer.',
+            okText: 'Borrar', danger: true
+          });
+          if (!ok) return;
+          await api(`/api/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
+          estado.textContent = 'Cuenta borrada.';
+        } else if (accion === 'cerrar') {
+          await api(`/api/admin/users/${encodeURIComponent(id)}/logout`, { method: 'POST' });
+          estado.textContent = 'Sesión cerrada.';
+        } else {
+          const cuerpo = accion === 'bloquear' ? { bloqueado: true }
+            : accion === 'desbloquear' ? { bloqueado: false }
+            : accion === 'hacer-admin' ? { admin: true }
+            : { admin: false };
+          await api(`/api/admin/users/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cuerpo)
+          });
+          estado.textContent = 'Hecho.';
+        }
+        await cargarAcceso();
+      } catch (e) {
+        estado.textContent = e.message;
+      }
+    }
+
+    async function guardarInvite(codigo) {
+      const estado = document.getElementById('cfgInviteStatus');
+      try {
+        const data = await api('/api/admin/invite', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ invite: codigo })
+        });
+        document.getElementById('cfgInvite').value = data.invite || '';
+        pintarEstadoInvite(data.invite || '');
+      } catch (e) {
+        estado.textContent = e.message;
+      }
     }
 
     function mostrarLogin() {
@@ -2736,6 +2886,25 @@
 
     // Secciones de Configuración: se enseñan de una en una para no soltar todo
     // de golpe. Guardar y Restaurar solo pintan donde hay ajustes que guardar.
+    // Delegado: las filas se repintan enteras en cada cambio.
+    document.getElementById('accesoLista').addEventListener('click', (ev) => {
+      const boton = ev.target.closest('button[data-accion]');
+      if (boton) accionAcceso(boton.dataset.accion, boton.dataset.id);
+    });
+    document.getElementById('accesoRefrescar').addEventListener('click', cargarAcceso);
+    document.getElementById('cfgInviteSave').addEventListener('click', () => {
+      guardarInvite(document.getElementById('cfgInvite').value.trim());
+    });
+    document.getElementById('cfgInviteClear').addEventListener('click', () => guardarInvite(''));
+    document.getElementById('cfgInviteGen').addEventListener('click', () => {
+      // Sin vocales ni caracteres que se confundan al dictarlo en voz alta.
+      const abc = '23456789BCDFGHJKMNPQRSTVWXYZ';
+      const azar = crypto.getRandomValues(new Uint32Array(10));
+      document.getElementById('cfgInvite').value =
+        Array.from(azar, (n) => abc[n % abc.length]).join('');
+      document.getElementById('cfgInviteStatus').textContent = 'Sin guardar todavía.';
+    });
+
     document.querySelectorAll('#config-panel .cfgtab').forEach((tab) => {
       tab.addEventListener('click', () => {
         const cual = tab.dataset.cfgtab;
@@ -2746,6 +2915,8 @@
         document.getElementById('cfgSaveRow').hidden = cual !== 'aspecto' && cual !== 'animacion';
         // Al salir de Animación se corta la animación de prueba.
         if (cual !== 'animacion') cancelarPrevisualizacion();
+        // La lista se pide al abrir, para verla al día sin recargar la página.
+        if (cual === 'acceso') cargarAcceso();
       });
     });
 

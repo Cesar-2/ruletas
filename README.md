@@ -211,19 +211,42 @@ servidor saca de la sesión de quién son los datos: el navegador nunca dice a q
 usuario pertenecen, así que cambiar un parámetro en la URL no sirve de nada.
 
 - **La primera cuenta que se registre es la del dueño** y se queda con los datos que ya
-  hubiera en `data/` (de una versión anterior, sin login). No pide código.
-- **A partir de ahí los registros están cerrados**, salvo que arranques con un código de
-  invitación en `RULETON_INVITE`. Quien quiera crear cuenta tendrá que escribirlo.
+  hubiera en `data/` (de una versión anterior, sin login). No pide código, y es la
+  **administradora**: la única que ve el panel de acceso.
+- **A partir de ahí los registros están cerrados**, salvo que el administrador ponga un
+  código de invitación. Quien quiera crear cuenta tendrá que escribirlo.
 - Las contraseñas se guardan derivadas con `scrypt` y una sal distinta por cuenta: del
   archivo no se puede sacar la original. Mínimo 8 caracteres.
 - La sesión es una cookie `httpOnly` que dura 30 días; **Salir** la cierra en el servidor.
 - Tras 10 intentos fallidos, esa IP se queda 15 minutos sin poder probar más.
 
+#### El panel de acceso
+
+En **Configuración > 🔑 Acceso**, que solo le aparece al administrador. Desde ahí se
+maneja todo sin tocar archivos ni reiniciar el servidor:
+
+- **El código de invitación.** Se escribe, se genera uno al azar o se borra. Vacío
+  significa registros cerrados: nadie puede crear cuenta y solo entra quien ya la
+  tenga. Lo normal es ponerlo mientras das de alta a la gente y borrarlo al terminar.
+- **Quitar el acceso a una cuenta.** La echa fuera al momento (no espera a que caduque
+  su cookie) y le impide volver a entrar, pero **conserva su Ruletón** por si se lo
+  devuelves.
+- **Borrar una cuenta.** Se lleva también sus servidores, ganadores e historial. No se
+  puede deshacer.
+- **Cerrar la sesión de alguien** sin quitarle el acceso, y **nombrar a otro
+  administrador**.
+
+Contra la propia cuenta no se puede actuar y siempre tiene que quedar al menos un
+administrador: así no hay forma de dejarse fuera del panel. A quien no es administrador
+el panel le responde `404`, no `403`: ni le consta que exista.
+
+El código vive en `data/config.json`, que como todo `data/` no se versiona.
+
 #### Publicarlo en internet
 
 | Variable | Para qué |
 |---|---|
-| `RULETON_INVITE` | Código que hay que escribir para crear cuentas nuevas |
+| `RULETON_INVITE` | Código inicial para crear cuentas. **Solo se usa la primera vez**, para sembrar `data/config.json`; a partir de ahí manda el panel de acceso |
 | `TRUST_PROXY=1` | Detrás de un proxy (Render, Fly, nginx…), para reconocer HTTPS |
 | `COOKIE_SECURE=1` | Fuerza que la cookie de sesión solo viaje por HTTPS |
 | `PORT` | Puerto de escucha (por defecto 3000) |
