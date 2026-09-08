@@ -41,10 +41,12 @@ const ASSETS_REPO = path.join(process.cwd(), 'public', 'assets');
 
 // Cada usuario tiene su propio Ruleton: su aspecto, sus servidores, sus
 // ganadores y su historial, y nadie mas los ve. Dentro de un usuario, los
-// precios cambian de un servidor de Dofus a otro, asi que rarezas,
-// exclusiones, ganadores y ranking se guardan por servidor. Lo unico comun a
-// todos es el catalogo de objetos, que es una copia de la API de Dofus.
-const SERVER_FILES = ['exclusions', 'tags', 'winners', 'ranking', 'stream'] as const;
+// precios cambian de un servidor de Dofus a otro, asi que rarezas, ganadores y
+// ranking se guardan por servidor. Las exclusiones no: un objeto que no quieres
+// sortear no lo quieres en ningun servidor, asi que hay una sola lista por
+// usuario. Lo unico comun a todos es el catalogo de objetos, que es una copia
+// de la API de Dofus.
+const SERVER_FILES = ['tags', 'winners', 'ranking', 'stream'] as const;
 type ServerFile = typeof SERVER_FILES[number];
 
 interface GameServer {
@@ -102,6 +104,11 @@ function settingsFile(uid: string): string {
 
 function serversFile(uid: string): string {
   return path.join(userDir(uid), 'servers.json');
+}
+
+// Las exclusiones son del usuario entero, no de un servidor suyo.
+function exclusionsFile(uid: string): string {
+  return path.join(userDir(uid), 'exclusions.json');
 }
 
 function ensureUserDir(uid: string): void {
@@ -449,10 +456,37 @@ async function fetchItemsCached(): Promise<any[]> {
   }
 }
 
-function readExclusions(sid: string): string[] {
-  ensureServerDir(sid);
+// Antes cada servidor guardaba sus exclusiones. Al pasar a una sola lista por
+// usuario se juntan las que hubiera en cada servidor y los archivos viejos se
+// borran, asi que esto solo hace algo la primera vez.
+function migrarExclusionesDeServidores(uid: string): void {
+  const raiz = path.join(userDir(uid), 'servers');
+  if (fs.existsSync(exclusionsFile(uid)) || !fs.existsSync(raiz)) return;
+  const juntas = new Set<string>();
+  const viejos: string[] = [];
   try {
-    const f = serverFile(sid, 'exclusions');
+    for (const sid of fs.readdirSync(raiz)) {
+      const f = path.join(raiz, sid, 'exclusions.json');
+      if (!fs.existsSync(f)) continue;
+      viejos.push(f);
+      const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (Array.isArray(parsed)) parsed.forEach((id) => juntas.add(String(id)));
+    }
+    if (!viejos.length) return;
+    writeJson(exclusionsFile(uid), Array.from(juntas));
+    viejos.forEach((f) => fs.rmSync(f, { force: true }));
+    console.log(`Migradas ${juntas.size} exclusion(es) de ${viejos.length} servidor(es) -> usuario ${uid}`);
+  } catch (err) {
+    console.error('Failed to migrate exclusions:', err);
+  }
+}
+
+function readExclusions(ambito: string): string[] {
+  const { uid } = partirAmbito(ambito);
+  ensureUserDir(uid);
+  migrarExclusionesDeServidores(uid);
+  try {
+    const f = exclusionsFile(uid);
     if (fs.existsSync(f)) {
       const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
       if (Array.isArray(parsed)) return parsed.map(String);
@@ -463,9 +497,11 @@ function readExclusions(sid: string): string[] {
   return [];
 }
 
-function writeExclusions(sid: string, ids: string[]): void {
-  ensureServerDir(sid);
-  writeJson(serverFile(sid, 'exclusions'), ids);
+function writeExclusions(ambito: string, ids: string[]): void {
+  const { uid } = partirAmbito(ambito);
+  ensureUserDir(uid);
+  migrarExclusionesDeServidores(uid);
+  writeJson(exclusionsFile(uid), ids);
 }
 
 type Rarity = 'rare' | 'epic' | 'mythic';

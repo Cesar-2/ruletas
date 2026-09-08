@@ -314,7 +314,7 @@
 </head>
 <body>
   <header class="navbar">
-    <button type="button" class="server-tab" id="serverTab" title="Cambiar de servidor: cada uno guarda sus rarezas, exclusiones, ganadores y ranking">
+    <button type="button" class="server-tab" id="serverTab" title="Cambiar de servidor: cada uno guarda sus rarezas, ganadores y ranking. Las exclusiones son las mismas en todos">
       🌐 <span id="serverTabName">Servidor</span>
     </button>
     <nav class="nav-links" aria-label="Secciones">
@@ -783,7 +783,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
   <div class="modal-backdrop" id="serverModalBackdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="serverModalTitle">
       <h4 id="serverModalTitle">Elegir servidor</h4>
-      <p class="meta">Los precios cambian de un servidor a otro, así que cada uno guarda sus propias rarezas, exclusiones, ganadores e historial.</p>
+      <p class="meta">Los precios cambian de un servidor a otro, así que cada uno guarda sus propias rarezas, ganadores e historial. Las exclusiones son una sola lista, la misma en todos los servidores.</p>
       <div class="server-list" id="serverList"></div>
       <div class="modal-actions">
         <button type="button" id="serverAdd">＋ Añadir servidor</button>
@@ -881,7 +881,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       showModal({ title, message, okText: 'Entendido', confirm: false });
 
     // Servidor de Dofus activo. Los precios cambian de uno a otro, así que
-    // rarezas, exclusiones, ganadores y ranking se guardan por separado y
+    // rarezas, ganadores y ranking se guardan por separado (las exclusiones no:
+    // hay una sola lista para todos los servidores) y
     // toda llamada a la API lleva ?server=<id>.
     const SERVER_KEY = 'ruleton.server';
     let servers = [];
@@ -2158,6 +2159,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       return true;
     }
 
+    // Tras una exclusión en bloque puede haber varios objetos del sorteo que ya
+    // no pueden salir premiados: se sustituyen todos de una vez.
+    function replaceExcludedDrawnItems() {
+      const afectados = lastDrawItems.map(itemId).filter((id) => excludedIds.has(id));
+      for (const id of afectados) {
+        // Si no quedan candidatos no vale la pena seguir intentándolo.
+        if (!replaceDrawnItem(id)) break;
+      }
+    }
+
     // Repinta las tarjetas del sorteo (por ejemplo tras cambiar de servidor o
     // de exclusiones). Sin sorteo en pantalla no hay nada que repintar.
     function renderEditor() {
@@ -2520,7 +2531,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
 
     document.getElementById('serverAdd').addEventListener('click', async () => {
-      const name = await showPrompt('Nuevo servidor', 'Empieza vacío: sus rarezas, exclusiones, ganadores y ranking son independientes.', '', 'Crear');
+      const name = await showPrompt('Nuevo servidor', 'Empieza vacío: sus rarezas, ganadores y ranking son independientes. Las exclusiones se comparten con los demás servidores.', '', 'Crear');
       if (!name) return;
       try {
         const data = await api('/api/servers', {
@@ -2555,7 +2566,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     async function borrarServidor(sv) {
       const ok = await showConfirm(
         `Borrar “${sv.name}”`,
-        'Se pierden sus rarezas, exclusiones, ganadores e historial. No se puede deshacer.',
+        'Se pierden sus rarezas, ganadores e historial. Las exclusiones no se tocan: son comunes a todos los servidores. No se puede deshacer.',
         'Borrar',
         true
       );
@@ -2850,7 +2861,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       const respuesta = await showModal({
         title: 'Cargar exclusiones y rarezas',
-        messageHtml: `El archivo trae ${trae}, y se cargarán en <strong>${escapeHtml(servidor ? servidor.name : 'este servidor')}</strong>.<br><br>«Añadir» conserva lo que ya tengas; «Reemplazar» deja solo lo del archivo.`,
+        messageHtml: `El archivo trae ${trae}. Las rarezas se cargan en <strong>${escapeHtml(servidor ? servidor.name : 'este servidor')}</strong>; las exclusiones valen para todos los servidores.<br><br>«Añadir» conserva lo que ya tengas; «Reemplazar» deja solo lo del archivo.`,
         okText: 'Añadir',
         extraText: 'Reemplazar',
         cancelText: 'Cancelar'
@@ -2862,6 +2873,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (reemplazar) excludedIds.clear();
         copia.exclusions.forEach((id) => excludedIds.add(String(id)));
         await saveExclusions();
+        replaceExcludedDrawnItems();
       }
       if (copia.tags) {
         itemTags = reemplazar ? rarezas : { ...itemTags, ...rarezas };
@@ -3175,6 +3187,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       selectedIds.forEach((id) => excludedIds.add(id));
       saveExclusions();
       updateExcludedInfo();
+      // Lo que estuviera en el sorteo en curso se sustituye por otro recurso.
+      replaceExcludedDrawnItems();
       // Hecha la exclusión, la selección ya no sirve: se limpia y se repinta el
       // catálogo para que las tarjetas se vean como excluidas.
       selectedIds.clear();
@@ -3226,10 +3240,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
 
     document.getElementById('clearExcluded').addEventListener('click', async () => {
-      const servidor = servers.find((sv) => sv.id === currentServer);
       const ok = await showConfirm(
         'Limpiar exclusiones',
-        `Los ${excludedIds.size} objeto(s) excluidos de ${servidor ? servidor.name : 'este servidor'} vuelven a entrar en los sorteos. Las rarezas no se tocan.`,
+        `Los ${excludedIds.size} objeto(s) excluidos vuelven a entrar en los sorteos de todos los servidores. Las rarezas no se tocan.`,
         'Limpiar',
         true
       );
