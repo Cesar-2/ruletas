@@ -3529,14 +3529,22 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const grande = seg > 180 ? 1 : 0;
         const color = colores[i % colores.length];
         const medio = a0 + seg / 2;
-        const [tx, ty] = punto(medio, 60);
+        // El nombre se escribe a lo largo del radio, no cruzado: así cabe más
+        // texto aunque la porción sea estrecha. En la mitad izquierda se
+        // escribe de fuera hacia dentro para que no quede boca abajo.
+        const alReves = medio > 180;
+        const [tx, ty] = punto(medio, alReves ? 90 : 26);
+        const giro = alReves ? medio + 90 : medio - 90;
         // Con una sola persona el arco degenera: se pinta el círculo entero.
         const forma = nombres.length === 1
           ? `<circle cx="100" cy="100" r="95" fill="${color}" />`
           : `<path d="M100,100 L${x0.toFixed(2)},${y0.toFixed(2)} A95,95 0 ${grande},1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${color}" stroke="rgba(2,6,23,0.35)" stroke-width="0.6" />`;
         const corto = nombre.length > 14 ? nombre.slice(0, 13) + '…' : nombre;
-        return `${forma}
-          <text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${medio.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)})">${escapeHtml(corto)}</text>`;
+        // Con una sola persona no hay porción que seguir: se centra y ya.
+        const etiqueta = nombres.length === 1
+          ? `<text x="100" y="60" text-anchor="middle" dominant-baseline="middle">${escapeHtml(corto)}</text>`
+          : `<text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" text-anchor="start" dominant-baseline="middle" transform="rotate(${giro.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)})">${escapeHtml(corto)}</text>`;
+        return forma + etiqueta;
       }).join('');
 
       svg.innerHTML = partes + '<circle cx="100" cy="100" r="12" fill="rgba(9,15,28,0.9)" stroke="rgba(255,255,255,0.25)" />';
