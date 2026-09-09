@@ -1924,7 +1924,7 @@ app.post('/api/carrera/cancelar', (req: Request, res: Response) => {
   res.json(carrera.estado(uid));
 });
 
-// POST /api/carrera/config  Body: { puntos?, duracion?, palabra? }
+// POST /api/carrera/config  Body: { puntos?, duracion?, palabra?, animacion? }
 app.post('/api/carrera/config', (req: Request, res: Response) => {
   const uid = requireUid(req);
   try {

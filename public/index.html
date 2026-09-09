@@ -304,6 +304,18 @@
       transform:translateX(0);transition:transform 0s linear}
     .calle .meta-linea{position:absolute;right:6px;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.18)}
     .calle.llega .quien{color:#e6eef8;font-weight:600}
+    /* Caída: las mismas calles puestas de pie, las balineras bajan. */
+    .pista.caida{display:flex;gap:8px;align-items:stretch;height:230px}
+    .pista.caida .calle{flex:1;min-width:26px;height:auto;margin-bottom:0}
+    .pista.caida .calle .bola{left:50%;margin-left:-11px;top:2px}
+    .pista.caida .calle .quien{left:0;right:0;top:auto;bottom:3px;line-height:1.2;font-size:11px;
+      text-align:center;padding:0 2px;overflow:hidden;text-overflow:ellipsis}
+    .pista.caida .calle .meta-linea{left:0;right:0;top:auto;bottom:0;width:auto;height:2px}
+    /* Barras: sin balinera, se llena la calle entera. */
+    .calle .barra{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:13px;opacity:.5;z-index:0}
+    .pista:not(.barras) .calle .barra{display:none}
+    .pista.barras .calle .bola{display:none}
+    .pista.barras .calle .quien{left:10px}
     .draw-subpanel{display:none}
     .draw-subpanel.active{display:block}
     /* Editor de paquetes: una fila por premio, imagen + nombre + peso. */
@@ -752,6 +764,7 @@
             <button type="button" class="subtab cfgtab active" data-cfgtab="cuenta">👤 Mi cuenta</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="aspecto">🎨 Apariencia</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="animacion">🎬 Animación</button>
+            <button type="button" class="subtab cfgtab" data-cfgtab="minijuegos">🕹️ Minijuegos</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="datos">📦 Datos</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="acceso" id="cfgtabAcceso" hidden>🔑 Acceso</button>
           </div>
@@ -952,6 +965,45 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                   <button id="cfgPreviewSlot" type="button">Probar tragaperras</button>
                 </div>
               </div>
+            </div>
+          </div>
+          </div>
+
+          <div class="cfg-tabpanel" id="cfgtab-minijuegos">
+          <div class="config-section">
+            <h4>Minijuegos</h4>
+            <p class="meta">Cómo se ve cada minijuego. Lo que reparte puntos se ajusta en la pestaña Minijuegos de arriba.</p>
+
+            <div class="subtabs cfg-mini-subtabs">
+              <button type="button" class="subtab active" data-mini="ruleta">🎰 Ruleta</button>
+              <button type="button" class="subtab" data-mini="carrera">🏁 Carrera de balineras</button>
+              <button type="button" class="subtab" data-mini="batalla">⚔️ Batalla de viewers</button>
+            </div>
+
+            <div class="cfg-subpanel active" id="mini-ruleta-panel">
+              <p class="meta">La animación de la ruleta se configura en la pestaña Animación.</p>
+            </div>
+
+            <div class="cfg-subpanel" id="mini-carrera-panel">
+              <div class="config-grid">
+                <div class="config-field">
+                  <label for="cfgCarreraAnimacion">Animación de la carrera</label>
+                  <select id="cfgCarreraAnimacion">
+                    <option value="calles">🏁 Calles horizontales</option>
+                    <option value="caida">⬇️ Caída vertical</option>
+                    <option value="barras">📊 Barras que se llenan</option>
+                  </select>
+                </div>
+                <div class="config-field">
+                  <label for="cfgCarreraGuardar">&nbsp;</label>
+                  <button id="cfgCarreraGuardar" type="button">Guardar animación</button>
+                </div>
+              </div>
+              <p class="meta" id="cfgCarreraGuardado">El resultado no cambia: las tres cuentan la misma carrera.</p>
+            </div>
+
+            <div class="cfg-subpanel" id="mini-batalla-panel">
+              <p class="meta">La batalla se cuenta golpe a golpe; todavía no tiene animaciones que elegir.</p>
             </div>
           </div>
           </div>
@@ -3383,11 +3435,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const pista = document.getElementById('carreraPista');
       pista.hidden = false;
       pista.innerHTML = '';
+      // El resultado es el mismo en las tres; solo cambia cómo se cuenta.
+      pista.className = 'pista ' + (carrera.ajustes?.animacion || 'calles');
       carrera.corredores.forEach((c, i) => {
         const calle = document.createElement('div');
         calle.className = 'calle';
         calle.dataset.clave = c.clave;
         calle.innerHTML = `
+          <span class="barra" style="background:${COLORES_BOLA[i % COLORES_BOLA.length]}"></span>
           <span class="bola" style="background:${COLORES_BOLA[i % COLORES_BOLA.length]}"></span>
           <span class="quien">${escapeHtml(c.nombre)}</span>
           <span class="meta-linea"></span>`;
@@ -3406,7 +3461,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const relato = document.getElementById('carreraRelato');
       // Si la pista aún no tiene ancho (panel recién abierto), se usa un
       // mínimo: si no, las balineras se quedarían clavadas en la salida.
+      const modo = carrera.ajustes?.animacion || 'calles';
       const ancho = Math.max(120, pista.clientWidth - 40);
+      const alto = Math.max(80, (pista.querySelector('.calle')?.clientHeight || 0) - 26);
       const total = (carrera.ajustes?.duracion || 8) * 1000;
       const marcas = carrera.marcas || [];
       const eventos = carrera.eventos || [];
@@ -3420,8 +3477,21 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const bolaDe = (i) => {
         const clave = (carrera.corredores[i] || {}).clave;
         const calle = calles.find((c) => c.dataset.clave === clave);
-        return calle ? { calle, bola: calle.querySelector('.bola') } : null;
+        return calle ? { calle, bola: calle.querySelector('.bola'), barra: calle.querySelector('.barra') } : null;
       };
+
+      // Lo que se mueve en cada instante, según la animación elegida.
+      function avanzar(donde, p, ms) {
+        if (modo === 'barras') {
+          donde.barra.style.transition = `width ${ms}ms linear`;
+          donde.barra.style.width = `${(p * 100).toFixed(1)}%`;
+          return;
+        }
+        donde.bola.style.transition = `transform ${ms}ms linear`;
+        donde.bola.style.transform = modo === 'caida'
+          ? `translateY(${(alto * p).toFixed(1)}px)`
+          : `translateX(${(ancho * p).toFixed(1)}px)`;
+      }
 
       // Sin simulación (una carrera vieja), se va directo al final.
       if (!marcas.length) return 0;
@@ -3432,8 +3502,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           posiciones.forEach((p, i) => {
             const donde = bolaDe(i);
             if (!donde) return;
-            donde.bola.style.transition = `transform ${paso}ms linear`;
-            donde.bola.style.transform = `translateX(${(ancho * p).toFixed(1)}px)`;
+            avanzar(donde, p, paso);
             // El que llega a la meta queda marcado.
             if (p >= 1) donde.calle.classList.add('llega');
           });
@@ -3452,7 +3521,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       // Al cruzar el primero se acaba: el resto se queda donde iba.
       setTimeout(() => {
-        pista.querySelectorAll('.bola').forEach((bola) => { bola.style.transition = 'none'; });
+        pista.querySelectorAll('.bola, .barra').forEach((el) => { el.style.transition = 'none'; });
         const linea = document.createElement('div');
         linea.className = 'gana';
         linea.textContent = `¡${resultado[0].nombre} cruza la meta!`;
@@ -4107,7 +4176,48 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (cual !== 'animacion') cancelarPrevisualizacion();
         // La lista se pide al abrir, para verla al día sin recargar la página.
         if (cual === 'acceso') cargarAcceso();
+        if (cual === 'minijuegos') cargarMinijuegos();
       });
+    });
+
+    // Pestañas de cada minijuego dentro de Configuración.
+    document.querySelectorAll('#config-panel .cfg-mini-subtabs .subtab').forEach((subtab) => {
+      subtab.addEventListener('click', () => {
+        const cual = subtab.dataset.mini;
+        document.querySelectorAll('#config-panel .cfg-mini-subtabs .subtab').forEach((b) => {
+          b.classList.toggle('active', b === subtab);
+        });
+        ['ruleta', 'carrera', 'batalla'].forEach((nombre) => {
+          document.getElementById(`mini-${nombre}-panel`).classList.toggle('active', nombre === cual);
+        });
+      });
+    });
+
+    // Los ajustes se piden al abrir, que la carrera puede haber cambiado
+    // desde otra pestaña del navegador.
+    async function cargarMinijuegos() {
+      try {
+        const c = await api('/api/carrera');
+        document.getElementById('cfgCarreraAnimacion').value = c.ajustes?.animacion || 'calles';
+      } catch (e) {
+        console.warn('No se pudieron leer los ajustes de minijuegos:', e.message);
+      }
+    }
+
+    document.getElementById('cfgCarreraGuardar').addEventListener('click', async () => {
+      const aviso = document.getElementById('cfgCarreraGuardado');
+      try {
+        const hecha = await api('/api/carrera/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ animacion: document.getElementById('cfgCarreraAnimacion').value })
+        });
+        // La carrera que tenga abierta la página se entera del cambio.
+        if (carrera && hecha.ajustes) carrera.ajustes = hecha.ajustes;
+        aviso.textContent = 'Guardado.';
+      } catch (e) {
+        showAlert('No se pudo guardar la animación', e.message);
+      }
     });
 
     // Pestañas de ruleta / tragaperras dentro de Configuración.

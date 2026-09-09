@@ -44,14 +44,20 @@ export interface Carrera {
 const TICKS_MIN = 24;
 const TICKS_MAX = 160;
 
+// Como se ve la carrera. El resultado es el mismo en las tres: solo cambia
+// la forma de contarlo.
+export const ANIMACIONES = ['calles', 'caida', 'barras'] as const;
+export type Animacion = typeof ANIMACIONES[number];
+
 // Los puntos se los lleva solo quien gana; el resto corre por el honor.
 export interface Ajustes {
   puntos: number;       // lo que gana el primero
   duracion: number;     // lo que tarda la carrera, en segundos
   palabra: string;      // lo que se escribe en el chat para apuntarse
+  animacion: Animacion; // como se dibuja
 }
 
-export const AJUSTES_POR_DEFECTO: Ajustes = { puntos: 10, duracion: 8, palabra: '!correr' };
+export const AJUSTES_POR_DEFECTO: Ajustes = { puntos: 10, duracion: 8, palabra: '!correr', animacion: 'calles' };
 const MAX_CORREDORES = 50;
 
 export interface Dependencias {
@@ -102,6 +108,9 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
   }
   if (typeof ajustes.palabra === 'string') {
     actual.palabra = ajustes.palabra.trim().slice(0, 30) || AJUSTES_POR_DEFECTO.palabra;
+  }
+  if (ANIMACIONES.includes(ajustes.animacion as Animacion)) {
+    actual.animacion = ajustes.animacion as Animacion;
   }
   deps.ensureUserDir(uid);
   deps.writeJson(archivoAjustes(uid), { carrera: actual });
