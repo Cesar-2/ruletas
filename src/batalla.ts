@@ -21,6 +21,9 @@ export interface Golpe {
   ataque: string;       // como pega, solo para darle gracia
   dano: number;
   critico: boolean;
+  fallo?: boolean;      // el otro lo esquivo: no quita nada
+  furia?: boolean;      // pegado contra las cuerdas, pega mas fuerte
+  aguanta?: boolean;    // deberia haber caido y se queda con un hilo de vida
   vidaA: number;        // como quedan los dos tras el golpe
   vidaB: number;
 }
@@ -216,18 +219,41 @@ export function repetir(uid: string): Batalla | null {
 // El combate: los dos empiezan con la misma vida y se turnan a golpes hasta
 // que uno cae. Quien empieza se sortea, para que empezar no de ventaja: con
 // las mismas reglas para los dos, cada uno gana la mitad de las veces.
+// Lo que hace que una pelea no se sepa de antemano:
+// - se falla, y el turno perdido lo cambia todo;
+// - se repite golpe, asi que empezar no da la ventaja que daba;
+// - contra las cuerdas se pega mas fuerte, que es de donde salen las remontadas.
+const ESQUIVA = 0.16;
+const CRITICO = 0.15;
+const REPETIR = 0.2;
+const CUERDAS = 30;   // vida a partir de la cual entra la furia
+const AGUANTE = 0.22; // de librarse del golpe final, una vez por pelea
+
 function pelear(duelo: Duelo): void {
   const vidas: Record<string, number> = { [duelo.a]: VIDA, [duelo.b]: VIDA };
   let turno = Math.random() < 0.5 ? duelo.a : duelo.b;
+  // Cada uno se libra como mucho una vez: si no, la pelea no acabaria nunca.
+  const aguante: Record<string, boolean> = { [duelo.a]: true, [duelo.b]: true };
   duelo.golpes = [];
 
   // Un tope por si acaso: con este dano no se llega ni de lejos, pero mas vale
   // que se corte a que se quede dando vueltas para siempre.
   for (let i = 0; i < 200; i++) {
     const otro = turno === duelo.a ? duelo.b : duelo.a;
-    const critico = Math.random() < 0.15;
-    const dano = Math.floor(8 + Math.random() * 13) * (critico ? 2 : 1);
+    const fallo = Math.random() < ESQUIVA;
+    const critico = !fallo && Math.random() < CRITICO;
+    const furia = !fallo && vidas[turno] <= CUERDAS;
+    let dano = 0;
+    if (!fallo) {
+      dano = Math.floor(6 + Math.random() * 17);
+      if (critico) dano *= 2;
+      if (furia) dano = Math.round(dano * 1.5);
+    }
     vidas[otro] = Math.max(0, vidas[otro] - dano);
+    // El que deberia caer a veces se queda en pie por los pelos. De aqui salen
+    // las peleas que parecian sentenciadas y no lo estaban.
+    const aguanta = vidas[otro] <= 0 && aguante[otro] && Math.random() < AGUANTE;
+    if (aguanta) { vidas[otro] = 1; aguante[otro] = false; }
 
     duelo.golpes.push({
       quien: turno,
@@ -235,12 +261,16 @@ function pelear(duelo: Duelo): void {
       ataque: ATAQUES[Math.floor(Math.random() * ATAQUES.length)],
       dano,
       critico,
+      fallo,
+      furia,
+      aguanta,
       vidaA: vidas[duelo.a],
       vidaB: vidas[duelo.b]
     });
 
     if (vidas[otro] <= 0) { duelo.ganador = turno; return; }
-    turno = otro;
+    // A veces no se suelta el turno: es lo que quita la ventaja de empezar.
+    if (Math.random() >= REPETIR) turno = otro;
   }
   // Si por lo que sea no ha caido ninguno, gana el que mas vida tenga.
   duelo.ganador = vidas[duelo.a] >= vidas[duelo.b] ? duelo.a : duelo.b;

@@ -306,6 +306,10 @@
     .muneco.pega{animation:pegar .3s ease-out}
     .muneco.pega .brazo{animation:brazazo .3s ease-out}
     .muneco.recibe{animation:recibir .3s ease-out}
+    @keyframes esquivar{0%,100%{transform:translateX(0)}50%{transform:translateX(calc(var(--dir) * -9px))}}
+    .muneco.esquiva{animation:esquivar .3s ease-out}
+    /* Contra las cuerdas: se le nota que va a por todas. */
+    .muneco.furioso .cabeza,.muneco.furioso .cuerpo{background:#fb923c}
     .muneco.recibe .cabeza,.muneco.recibe .cuerpo{background:#f87171}
     .muneco.cae{transform:rotate(calc(var(--dir) * 78deg)) translateY(7px);opacity:.4;
       transition:transform .45s ease-in,opacity .45s}
@@ -321,6 +325,9 @@
     .relato div.tiron{color:#6ee7b7}
     .relato div.tropiezo{color:#fca5a5}
     .relato div.gana{color:#e6eef8;font-weight:700}
+    .relato div.fallo{color:var(--muted);font-style:italic}
+    .relato div.furia{color:#fb923c;font-weight:600}
+    .relato div.aguanta{color:#7dd3fc;font-weight:700}
     /* La pista: una calle por corredor y la balinera que la recorre. */
     .pista{margin-top:1rem;padding:.8rem;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)}
     .pista[hidden]{display:none}
@@ -3278,7 +3285,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // volver a ponerla: si no, el segundo golpe seguido no se ve.
         const mover = (quien, como) => {
           if (!quien) return;
-          quien.classList.remove('pega', 'recibe');
+          quien.classList.remove('pega', 'recibe', 'esquiva');
           void quien.offsetWidth;
           quien.classList.add(como);
           setTimeout(() => quien.classList.remove(como), 320);
@@ -3296,16 +3303,27 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             const pega = g.quien === d.a ? 'a' : 'b';
             const encaja = pega === 'a' ? 'b' : 'a';
             mover(munecos[pega], 'pega');
-            mover(munecos[encaja], 'recibe');
-            texto.innerHTML = `${escapeHtml(g.quien)} ${escapeHtml(g.ataque)} ${escapeHtml(g.a)}` +
-              ` <span class="pum">−${g.dano}${g.critico ? ' ¡crítico!' : ''}</span>`;
+            mover(munecos[encaja], g.fallo ? 'esquiva' : 'recibe');
+            if (munecos[pega]) munecos[pega].classList.toggle('furioso', !!g.furia);
+            texto.innerHTML = g.fallo
+              ? `${escapeHtml(g.quien)} falla: ${escapeHtml(g.a)} lo esquiva`
+              : `${escapeHtml(g.quien)} ${escapeHtml(g.ataque)} ${escapeHtml(g.a)}` +
+                ` <span class="pum">−${g.dano}${g.critico ? ' ¡crítico!' : ''}${g.furia ? ' ¡con rabia!' : ''}</span>`;
 
             const linea = document.createElement('div');
             const cae = i === d.golpes.length - 1;
-            linea.className = cae ? 'cae' : (g.critico ? 'critico' : '');
+            linea.className = cae ? 'cae'
+              : g.fallo ? 'fallo'
+              : g.aguanta ? 'aguanta'
+              : g.critico ? 'critico'
+              : g.furia ? 'furia' : '';
             linea.textContent = cae
               ? `${g.a} cae. Gana ${d.ganador}.`
-              : `${g.quien} ${g.ataque} ${g.a} y le quita ${g.dano}${g.critico ? ' (¡crítico!)' : ''}.`;
+              : g.fallo
+                ? `${g.quien} lo intenta y ${g.a} lo esquiva.`
+                : `${g.quien} ${g.ataque} ${g.a} y le quita ${g.dano}` +
+                  `${g.critico ? ' (¡crítico!)' : ''}${g.furia ? ' (¡con rabia!)' : ''}.` +
+                  `${g.aguanta ? ` ¡${g.a} aguanta en pie con 1 de vida!` : ''}`;
             relato.appendChild(linea);
             relato.scrollTop = relato.scrollHeight;
 
