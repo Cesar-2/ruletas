@@ -30,6 +30,16 @@ export function interpretar(linea: string): Mensaje | null {
   return { autor: m[1], texto };
 }
 
+// La gente no escribe la palabra sola: le pone emotes detras, un «vamos», o
+// signos. Vale con que este ahi como palabra suelta; asi no se queda fuera
+// medio chat por un adorno.
+export function esLaPalabra(texto: string, palabra: string): boolean {
+  const buscada = String(palabra || '').trim().toLowerCase();
+  if (!buscada) return false;
+  return String(texto || '').toLowerCase().split(/\s+/)
+    .some((t) => t.replace(/[.,;:!?¡¿'"]+$/, '') === buscada);
+}
+
 // El WebSocket de Node es global a partir de Node 22. En uno mas viejo esto
 // reventaba con un error que no decia nada; asi al menos se sabe que arreglar.
 function haceFalta(): typeof WebSocket {

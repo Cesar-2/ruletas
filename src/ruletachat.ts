@@ -93,7 +93,7 @@ export function abrir(uid: string, canal: string, palabra?: string): Estado {
   if (!listas.has(uid)) listas.set(uid, []);
   const buscada = (palabra || leerAjustes(uid).palabra).trim().toLowerCase();
   escuchas.set(uid, chat.conectar(canal, (m) => {
-    if (m.texto.trim().toLowerCase() !== buscada) return;
+    if (!chat.esLaPalabra(m.texto, buscada)) return;
     apuntar(uid, m.autor);
   }));
   return estado(uid);

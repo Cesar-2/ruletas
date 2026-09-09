@@ -218,7 +218,7 @@ export function abrir(uid: string, canal: string, palabra?: string): Carrera {
   const buscada = (palabra || leerAjustes(uid).palabra).trim().toLowerCase();
   escuchas.set(uid, chat.conectar(canal, (m) => {
     if (!carrera.abierta) return;
-    if (m.texto.trim().toLowerCase() !== buscada) return;
+    if (!chat.esLaPalabra(m.texto, buscada)) return;
     apuntar(uid, m.autor);
   }));
   return carrera;

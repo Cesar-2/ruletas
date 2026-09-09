@@ -136,7 +136,7 @@ export function abrir(uid: string, canal: string): Batalla {
   const buscada = ajustes.palabra.trim().toLowerCase();
   escuchas.set(uid, chat.conectar(canal, (m) => {
     if (!batalla.abierta) return;
-    if (m.texto.trim().toLowerCase() !== buscada) return;
+    if (!chat.esLaPalabra(m.texto, buscada)) return;
     entrar(uid, m.autor);
   }));
   return batalla;

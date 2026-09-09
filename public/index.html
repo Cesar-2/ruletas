@@ -82,6 +82,19 @@
     .push-right{margin-left:auto}
     .winner-banner{margin-top:.9rem;padding:.7rem 1rem;border-radius:10px;font-size:20px;font-weight:700;text-align:center;color:#021018;background:linear-gradient(90deg,var(--accent),var(--accent-2));box-shadow:0 8px 26px rgba(110,231,183,0.25)}
     .winner-banner[hidden]{display:none}
+    /* El que gana un minijuego se lee desde el sofa: nombre enorme y entrada
+       con rebote. Lo comparten la carrera y la batalla. */
+    .ganador-grande{margin-top:1rem;padding:1.5rem 1rem;border-radius:16px;text-align:center;color:#021018;
+      background:linear-gradient(90deg,var(--accent),var(--accent-2));box-shadow:0 14px 44px rgba(110,231,183,0.3);
+      animation:entraGanador .45s cubic-bezier(.2,1.5,.4,1)}
+    .ganador-grande[hidden]{display:none}
+    .ganador-grande .corona{display:block;font-size:46px;line-height:1}
+    .ganador-grande .quien-gana{display:block;font-size:52px;font-weight:800;line-height:1.1;
+      word-break:break-word;margin-top:.2rem}
+    .ganador-grande .premio{display:block;margin-top:.35rem;font-size:19px;font-weight:700;opacity:.8}
+    @keyframes entraGanador{0%{transform:scale(.7);opacity:0}100%{transform:scale(1);opacity:1}}
+    /* En pantallas estrechas, un nombre largo se sale: se recorta el tamano. */
+    @media (max-width:640px){.ganador-grande .quien-gana{font-size:34px}.ganador-grande .corona{font-size:36px}}
     .value-total{margin-top:.8rem;padding:.6rem .9rem;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);font-size:17px;font-weight:600}
     .value-total[hidden]{display:none}
     .value-row{display:flex;align-items:center;gap:.4rem;margin-top:auto;padding-top:8px;font-size:13px;color:var(--muted)}
@@ -3214,7 +3227,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const banner = document.getElementById('batallaCampeon');
       banner.hidden = !batalla.campeon || narrando;
       if (batalla.campeon) {
-        banner.textContent = `🏆 ¡Campeón: ${batalla.campeon}!` + (batalla.puntos > 0 ? ` +${batalla.puntos} puntos` : '');
+        banner.className = 'ganador-grande';
+        banner.innerHTML = `
+          <span class="corona">🏆</span>
+          <span class="quien-gana">${escapeHtml(batalla.campeon)}</span>
+          ${batalla.puntos > 0 ? `<span class="premio">+${batalla.puntos} puntos</span>` : ''}`;
       }
 
       // Mientras se apuntan aún no hay cuadro: se enseña quién va entrando.
@@ -3623,15 +3640,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const ganador = resultado[0];
       if (!ganador) { caja.hidden = true; return; }
       caja.hidden = false;
-      // Se reutiliza la tarjeta del podio de ganadores, para que se vea igual.
+      caja.className = 'ganador-grande';
       caja.innerHTML = `
-        <div class="podium-card p1">
-          <span class="podium-medal">🥇</span>
-          <div class="podium-info">
-            <div class="podium-name">${escapeHtml(ganador.nombre)}</div>
-            ${ganador.puntos > 0 ? `<div class="podium-total">+${ganador.puntos} puntos</div>` : ''}
-          </div>
-        </div>`;
+        <span class="corona">🥇</span>
+        <span class="quien-gana">${escapeHtml(ganador.nombre)}</span>
+        ${ganador.puntos > 0 ? `<span class="premio">+${ganador.puntos} puntos</span>` : ''}`;
     }
 
     let puntos = [];

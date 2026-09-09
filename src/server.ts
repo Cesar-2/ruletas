@@ -1926,6 +1926,10 @@ app.post('/api/carrera/abrir', (req: Request, res: Response) => {
     return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
   }
   try {
+    // La palabra que venga manda, y se guarda: es la que se ve en el panel.
+    if (typeof req.body?.palabra === 'string' && req.body.palabra.trim()) {
+      carrera.guardarAjustes(uid, { palabra: req.body.palabra });
+    }
     res.json(carrera.abrir(uid, canal));
   } catch (err) {
     console.error('Failed to open race:', err);
@@ -1998,6 +2002,9 @@ app.post('/api/batalla/abrir', (req: Request, res: Response) => {
     return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
   }
   try {
+    if (typeof req.body?.palabra === 'string' && req.body.palabra.trim()) {
+      batalla.guardarAjustes(uid, { palabra: req.body.palabra });
+    }
     batalla.abrir(uid, canal);
     res.json(batalla.estado(uid));
   } catch (err) {
