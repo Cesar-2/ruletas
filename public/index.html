@@ -271,6 +271,20 @@
     .cuadro .lado.pierde{opacity:.5;text-decoration:line-through}
     .cuadro .vs{font-size:11px;color:var(--muted);text-align:center;padding:.1rem 0}
     .cuadro .pase{font-size:11px;color:var(--muted);font-style:italic}
+    /* La barra de vida de cada luchador durante el combate. */
+    .cuadro .vida{height:5px;border-radius:3px;background:rgba(255,255,255,0.10);overflow:hidden;margin-top:.15rem}
+    .cuadro .vida i{display:block;height:100%;width:100%;background:var(--accent);transition:width .35s ease}
+    .cuadro .vida i.poca{background:#fbbf24}
+    .cuadro .vida i.critica{background:#f87171}
+    .cuadro .duelo.peleando{border-color:rgba(255,255,255,0.35)}
+    .cuadro .golpe{font-size:11px;color:var(--muted);margin-top:.3rem;min-height:1.2em;line-height:1.3}
+    .cuadro .golpe .pum{color:#fbbf24;font-weight:700}
+    .relato{margin-top:1rem;max-height:180px;overflow-y:auto;font-size:13px;
+      border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:.6rem .8rem}
+    .relato[hidden]{display:none}
+    .relato div{padding:.12rem 0;color:var(--muted)}
+    .relato div.critico{color:#fbbf24}
+    .relato div.cae{color:#e6eef8;font-weight:600}
     /* La pista: una calle por corredor y la balinera que la recorre. */
     .pista{margin-top:1rem;padding:.8rem;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)}
     .pista[hidden]{display:none}
@@ -559,6 +573,7 @@
             <p class="meta" id="batallaEstado">Sin batalla abierta.</p>
 
             <div id="batallaCuadro" class="cuadro" hidden></div>
+            <div id="batallaRelato" class="relato" hidden></div>
             <div id="batallaCampeon" class="winner-banner" hidden></div>
 
             <div class="controls" style="margin-top:.8rem">
@@ -3139,6 +3154,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // --- Batalla de viewers -----------------------------------------------
     let batalla = { abierta: false, luchadores: [], rondas: [], campeon: '', puntos: 25 };
     let vigilanteBatalla = null;
+    let narrando = false;   // mientras se cuenta una ronda golpe a golpe
 
     async function cargarBatalla() {
       try {
@@ -3173,7 +3189,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('batallaRepetir').hidden = !batalla.campeon || cuantos < 2;
 
       const banner = document.getElementById('batallaCampeon');
-      banner.hidden = !batalla.campeon;
+      banner.hidden = !batalla.campeon || narrando;
       if (batalla.campeon) {
         banner.textContent = `🏆 ¡Campeón: ${batalla.campeon}!` + (batalla.puntos > 0 ? ` +${batalla.puntos} puntos` : '');
       }
@@ -3190,19 +3206,89 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
 
       cuadro.hidden = false;
-      cuadro.innerHTML = batalla.rondas.map((r) => {
+      // Mientras se cuenta la ronda no se repinta: se borrarian las barras de
+      // vida a medias y se veria el ganador antes de tiempo.
+      if (narrando) return;
+      cuadro.innerHTML = batalla.rondas.map((r, ri) => {
         const titulo = r.duelos.length === 1 ? 'Final' : `Ronda ${r.numero}`;
-        const duelos = r.duelos.map((d) => {
+        const duelos = r.duelos.map((d, di) => {
           if (!d.b) return `<div class="duelo"><div class="lado gana">${escapeHtml(d.a)}</div><div class="pase">pasa sin pelear</div></div>`;
           const clase = (quien) => d.ganador ? (d.ganador === quien ? 'lado gana' : 'lado pierde') : 'lado';
-          return `<div class="duelo">
+          // Las barras arrancan llenas, pero si el duelo ya se peleó se pintan
+          // como quedaron: si no, al repintar volverían a verse a tope.
+          const golpes = d.golpes || [];
+          const ultimo = golpes[golpes.length - 1];
+          const barra = (lado, vida) => {
+            const cual = vida <= 20 ? 'critica' : vida <= 50 ? 'poca' : '';
+            return `<div class="vida"><i data-lado="${lado}" class="${cual}" style="width:${vida}%"></i></div>`;
+          };
+          return `<div class="duelo" data-ronda="${ri}" data-duelo="${di}">
             <div class="${clase(d.a)}">${escapeHtml(d.a)}</div>
+            ${barra('a', ultimo ? ultimo.vidaA : 100)}
             <div class="vs">vs</div>
             <div class="${clase(d.b)}">${escapeHtml(d.b)}</div>
+            ${barra('b', ultimo ? ultimo.vidaB : 100)}
+            <div class="golpe"></div>
           </div>`;
         }).join('');
         return `<div class="ronda"><h4>${titulo}</h4>${duelos}</div>`;
       }).join('');
+    }
+
+    // Cuenta la ronda golpe a golpe: las barras de vida bajan y el relato va
+    // saliendo debajo. Quien ha ganado ya lo decidió el servidor; esto solo lo
+    // enseña. Devuelve una promesa que acaba cuando termina el último duelo.
+    function contarRonda(ronda, indiceRonda) {
+      const cuadro = document.getElementById('batallaCuadro');
+      const relato = document.getElementById('batallaRelato');
+      relato.hidden = false;
+      relato.innerHTML = '';
+
+      const conPelea = ronda.duelos.filter((d) => d.b && d.golpes && d.golpes.length);
+      if (!conPelea.length) return Promise.resolve();
+
+      // Todos los duelos a la vez, para que no se haga eterno con mucha gente.
+      const RITMO = 700;
+      const masLargo = Math.max(...conPelea.map((d) => d.golpes.length));
+
+      ronda.duelos.forEach((d, di) => {
+        if (!d.b || !d.golpes || !d.golpes.length) return;
+        const caja = cuadro.querySelector(`.duelo[data-ronda="${indiceRonda}"][data-duelo="${di}"]`);
+        if (!caja) return;
+        caja.classList.add('peleando');
+        const barras = {
+          a: caja.querySelector('.vida i[data-lado="a"]'),
+          b: caja.querySelector('.vida i[data-lado="b"]')
+        };
+        const texto = caja.querySelector('.golpe');
+
+        d.golpes.forEach((g, i) => {
+          setTimeout(() => {
+            const pinta = (barra, vida) => {
+              barra.style.width = vida + '%';
+              barra.classList.toggle('poca', vida <= 50 && vida > 20);
+              barra.classList.toggle('critica', vida <= 20);
+            };
+            pinta(barras.a, g.vidaA);
+            pinta(barras.b, g.vidaB);
+            texto.innerHTML = `${escapeHtml(g.quien)} ${escapeHtml(g.ataque)} ${escapeHtml(g.a)}` +
+              ` <span class="pum">−${g.dano}${g.critico ? ' ¡crítico!' : ''}</span>`;
+
+            const linea = document.createElement('div');
+            const cae = i === d.golpes.length - 1;
+            linea.className = cae ? 'cae' : (g.critico ? 'critico' : '');
+            linea.textContent = cae
+              ? `${g.a} cae. Gana ${d.ganador}.`
+              : `${g.quien} ${g.ataque} ${g.a} y le quita ${g.dano}${g.critico ? ' (¡crítico!)' : ''}.`;
+            relato.appendChild(linea);
+            relato.scrollTop = relato.scrollHeight;
+
+            if (cae) caja.classList.remove('peleando');
+          }, (i + 1) * RITMO);
+        });
+      });
+
+      return new Promise((listo) => setTimeout(listo, (masLargo + 1) * RITMO));
     }
 
     function vigilarBatalla(encender) {
@@ -3232,7 +3318,26 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (await accionBatalla('/api/batalla/empezar')) vigilarBatalla(false);
     });
     document.getElementById('batallaRonda').addEventListener('click', async () => {
-      if (await accionBatalla('/api/batalla/ronda') && batalla.campeon) {
+      const boton = document.getElementById('batallaRonda');
+      boton.disabled = true;
+      // El servidor devuelve la ronda ya resuelta, con todos los golpes; aquí
+      // se cuenta poco a poco y hasta el final no se dice quién ha ganado.
+      const eraCampeon = batalla.campeon;
+      narrando = true;   // que no se repinte el cuadro y se destripe el final
+      if (!await accionBatalla('/api/batalla/ronda')) {
+        narrando = false;
+        pintarBatalla();
+        return;
+      }
+
+      // La ronda que se acaba de resolver: la última si ya hay campeón, y la
+      // penúltima si se ha creado otra detrás.
+      const indice = batalla.rondas.length - (batalla.campeon ? 1 : 2);
+      if (batalla.rondas[indice]) await contarRonda(batalla.rondas[indice], indice);
+
+      narrando = false;
+      pintarBatalla();
+      if (batalla.campeon && !eraCampeon) {
         cargarPuntos();
         makeConfetti(30);
       }

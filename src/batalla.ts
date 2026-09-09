@@ -13,11 +13,31 @@ export interface Luchador {
   clave: string;        // en minusculas, para no duplicar a la misma persona
 }
 
+// Cada golpe del combate, para poder contarlo en la pagina uno a uno.
+export interface Golpe {
+  quien: string;        // el que pega
+  a: string;            // el que recibe
+  ataque: string;       // como pega, solo para darle gracia
+  dano: number;
+  critico: boolean;
+  vidaA: number;        // como quedan los dos tras el golpe
+  vidaB: number;
+}
+
 export interface Duelo {
   a: string;
   b: string;            // vacio = pasa de ronda sin pelear
   ganador: string;      // vacio hasta que se resuelve
+  golpes: Golpe[];      // el combate, golpe a golpe
 }
+
+export const VIDA = 100;
+
+// Solo para que no todos los golpes se cuenten igual.
+const ATAQUES = [
+  'golpea a', 'arrea un mandoble a', 'lanza un hechizo contra', 'embiste a',
+  'da un cabezazo a', 'patea a', 'sacude a', 'aporrea a'
+];
 
 export interface Ronda {
   numero: number;
@@ -127,8 +147,8 @@ function emparejar(nombres: string[], numero: number): Ronda {
   const duelos: Duelo[] = [];
   for (let i = 0; i < orden.length; i += 2) {
     // El ultimo, si sobra, pasa directo: su duelo ya viene resuelto.
-    if (i + 1 >= orden.length) duelos.push({ a: orden[i], b: '', ganador: orden[i] });
-    else duelos.push({ a: orden[i], b: orden[i + 1], ganador: '' });
+    if (i + 1 >= orden.length) duelos.push({ a: orden[i], b: '', ganador: orden[i], golpes: [] });
+    else duelos.push({ a: orden[i], b: orden[i + 1], ganador: '', golpes: [] });
   }
   return { numero, duelos };
 }
@@ -159,6 +179,39 @@ export function repetir(uid: string): Batalla | null {
   return nueva;
 }
 
+// El combate: los dos empiezan con la misma vida y se turnan a golpes hasta
+// que uno cae. Quien empieza se sortea, para que empezar no de ventaja: con
+// las mismas reglas para los dos, cada uno gana la mitad de las veces.
+function pelear(duelo: Duelo): void {
+  const vidas: Record<string, number> = { [duelo.a]: VIDA, [duelo.b]: VIDA };
+  let turno = Math.random() < 0.5 ? duelo.a : duelo.b;
+  duelo.golpes = [];
+
+  // Un tope por si acaso: con este dano no se llega ni de lejos, pero mas vale
+  // que se corte a que se quede dando vueltas para siempre.
+  for (let i = 0; i < 200; i++) {
+    const otro = turno === duelo.a ? duelo.b : duelo.a;
+    const critico = Math.random() < 0.15;
+    const dano = Math.floor(8 + Math.random() * 13) * (critico ? 2 : 1);
+    vidas[otro] = Math.max(0, vidas[otro] - dano);
+
+    duelo.golpes.push({
+      quien: turno,
+      a: otro,
+      ataque: ATAQUES[Math.floor(Math.random() * ATAQUES.length)],
+      dano,
+      critico,
+      vidaA: vidas[duelo.a],
+      vidaB: vidas[duelo.b]
+    });
+
+    if (vidas[otro] <= 0) { duelo.ganador = turno; return; }
+    turno = otro;
+  }
+  // Si por lo que sea no ha caido ninguno, gana el que mas vida tenga.
+  duelo.ganador = vidas[duelo.a] >= vidas[duelo.b] ? duelo.a : duelo.b;
+}
+
 // Resuelve la ronda pendiente y, si queda mas de uno, monta la siguiente.
 // Devuelve null si no habia nada que resolver.
 export function resolverRonda(uid: string): Batalla | null {
@@ -170,7 +223,7 @@ export function resolverRonda(uid: string): Batalla | null {
   for (const duelo of ronda.duelos) {
     // Los pases de ronda ya venian resueltos.
     if (duelo.ganador) continue;
-    duelo.ganador = Math.random() < 0.5 ? duelo.a : duelo.b;
+    pelear(duelo);
   }
 
   const siguen = ronda.duelos.map((d) => d.ganador);

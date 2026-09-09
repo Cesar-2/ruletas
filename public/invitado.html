@@ -30,6 +30,7 @@
     .cuadro-invitado .duelo.mio{border-color:var(--accent)}
     .cuadro-invitado .gana{font-weight:700}
     .cuadro-invitado .pierde{opacity:.5;text-decoration:line-through}
+    .cuadro-invitado .remate{font-size:11px;color:var(--muted);margin-top:.2rem}
     /* Banners y redes del streamer, al pie. */
     .pie{margin-top:1.4rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.1)}
     .pie[hidden]{display:none}
@@ -549,7 +550,12 @@
         const cuerpo = d.b
           ? `<span class="${clase(d.a)}">${escapar(d.a)}</span> vs <span class="${clase(d.b)}">${escapar(d.b)}</span>`
           : `<span class="gana">${escapar(d.a)}</span> pasa sin pelear`;
-        return `<div class="duelo${mio ? ' mio' : ''}"><strong>${titulo}:</strong> ${cuerpo}</div>`;
+        // Como acabo el combate, para el que quiera el detalle.
+        const ultimo = (d.golpes || []).at(-1);
+        const remate = ultimo
+          ? `<div class="remate">${escapar(ultimo.quien)} ${escapar(ultimo.ataque)} ${escapar(ultimo.a)} y lo tumba (${d.golpes.length} golpes)</div>`
+          : '';
+        return `<div class="duelo${mio ? ' mio' : ''}"><strong>${titulo}:</strong> ${cuerpo}${remate}</div>`;
       }).join('');
     }).join('');
   }
