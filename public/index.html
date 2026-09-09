@@ -261,6 +261,10 @@
     .marcador .fila:nth-child(1) .puesto,.marcador .fila:nth-child(2) .puesto,.marcador .fila:nth-child(3) .puesto{color:#e6eef8}
     .marcador .nombre{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .marcador .puntos{flex:none;font-weight:700;color:var(--accent)}
+    .marcador .editar{width:110px;flex:none;padding:.3rem .45rem;font-size:13px;border-radius:8px;
+      background:var(--card);border:1px solid rgba(255,255,255,0.12);color:var(--accent);font-weight:700;text-align:right}
+    .marcador .quitar{flex:none;padding:.25rem .5rem;font-size:12px;box-shadow:none;
+      background:rgba(248,113,113,0.10);color:#fca5a5;border:1px solid rgba(248,113,113,0.35)}
     /* El cuadro del torneo: una columna por ronda. */
     .cuadro{display:flex;gap:1rem;overflow-x:auto;margin-top:1rem;padding-bottom:.4rem}
     .cuadro .ronda{flex:0 0 200px;display:flex;flex-direction:column;gap:.5rem}
@@ -439,6 +443,7 @@
     <nav class="nav-links" aria-label="Secciones">
       <button type="button" class="tab active" data-tab="catalog">Catálogo</button>
       <button type="button" class="tab" data-tab="games">🎮 Minijuegos</button>
+      <button type="button" class="tab" data-tab="puntos">🏅 Puntos</button>
       <button type="button" class="tab" data-tab="winners">Ganadores (0)</button>
       <button type="button" class="tab" data-tab="history">📜 Historial</button>
       <button type="button" class="tab" data-tab="config">⚙ Configuración</button>
@@ -622,12 +627,6 @@
               <button type="button" id="carreraApuntar">Apuntar</button>
             </div>
           </section>
-
-          <section>
-            <h3>🏅 Marcador</h3>
-            <p class="meta">Lo que lleva acumulado cada espectador. Son de tu cuenta, no de un servidor.</p>
-            <div id="puntosTabla" class="marcador"></div>
-          </section>
           </div>
           <div class="game-subpanel active" id="game-ruleta-panel">
           <section>
@@ -681,6 +680,28 @@
           </section>
 
         </div>
+        </div>
+
+        <div class="tab-panel" id="puntos-panel">
+          <section>
+            <h3>🏅 Marcador de puntos</h3>
+            <p class="meta">Lo que lleva cada espectador de los minijuegos. Puedes corregirlo a mano: escribe la cantidad y sal del campo. Son de tu cuenta, iguales en todos tus servidores.</p>
+
+            <div class="controls">
+              <input id="puntosNombre" type="text" placeholder="Nombre" aria-label="Nombre" style="min-width:160px" />
+              <input id="puntosCuantos" type="number" value="10" style="width:100px" aria-label="Cantidad" />
+              <button type="button" id="puntosDar">Dar</button>
+              <button type="button" id="puntosQuitar">Quitar</button>
+              <span class="meta" id="puntosEstado"></span>
+            </div>
+
+            <div class="toolbar">
+              <input id="puntosBuscar" type="search" placeholder="Buscar a alguien" aria-label="Buscar en el marcador" />
+              <button type="button" id="puntosVaciar" class="btn-cancel">Vaciar el marcador</button>
+            </div>
+
+            <div id="puntosTabla" class="marcador"></div>
+          </section>
         </div>
 
         <div class="tab-panel" id="winners-panel">
@@ -3494,27 +3515,118 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         </div>`;
     }
 
+    let puntos = [];
+
     async function cargarPuntos() {
-      const caja = document.getElementById('puntosTabla');
-      let lista = [];
       try {
-        lista = (await api('/api/puntos')).puntos || [];
+        puntos = (await api('/api/puntos?limite=1000')).puntos || [];
       } catch (e) {
-        caja.innerHTML = '<div class="meta">No se pudieron cargar los puntos.</div>';
+        document.getElementById('puntosTabla').innerHTML = '<div class="meta">No se pudieron cargar los puntos.</div>';
         return;
       }
-      if (!lista.length) {
-        caja.innerHTML = '<div class="meta">Nadie tiene puntos todavía.</div>';
-        return;
-      }
-      const medallas = ['🥇', '🥈', '🥉'];
-      caja.innerHTML = lista.map((p, i) =>
-        `<div class="fila">
-          <span class="puesto">${medallas[i] || (i + 1)}</span>
-          <span class="nombre">${escapeHtml(p.nombre)}</span>
-          <span class="puntos">${p.puntos}</span>
-        </div>`).join('');
+      pintarPuntos();
     }
+
+    function pintarPuntos() {
+      const caja = document.getElementById('puntosTabla');
+      const busca = (document.getElementById('puntosBuscar').value || '').trim().toLowerCase();
+      // El puesto es el del marcador entero, aunque estés filtrando.
+      const lista = puntos
+        .map((p, i) => ({ ...p, puesto: i + 1 }))
+        .filter((p) => !busca || p.nombre.toLowerCase().includes(busca));
+
+      if (!lista.length) {
+        caja.innerHTML = `<div class="meta">${puntos.length ? 'Nadie con ese nombre.' : 'Nadie tiene puntos todavía.'}</div>`;
+        return;
+      }
+
+      const medallas = ['🥇', '🥈', '🥉'];
+      caja.innerHTML = '';
+      lista.forEach((p) => {
+        const fila = document.createElement('div');
+        fila.className = 'fila';
+        fila.innerHTML = `
+          <span class="puesto">${medallas[p.puesto - 1] || p.puesto}</span>
+          <span class="nombre">${escapeHtml(p.nombre)}</span>
+          <input type="number" class="editar" min="0" max="1000000000" value="${p.puntos}" aria-label="Puntos de ${escapeHtml(p.nombre)}" />
+          <button type="button" class="quitar" title="Quitar del marcador">✕</button>`;
+
+        const campo = fila.querySelector('.editar');
+        // Se guarda al salir del campo o con Enter, no a cada tecla.
+        const guardar = async () => {
+          const valor = Math.max(0, Math.floor(Number(campo.value) || 0));
+          if (valor === p.puntos) return;
+          try {
+            puntos = (await api('/api/puntos', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ nombre: p.nombre, puntos: valor })
+            })).puntos;
+            avisoPuntos(`${p.nombre}: ${valor} puntos.`);
+            pintarPuntos();
+          } catch (e) {
+            showAlert('No se pudo guardar', e.message);
+          }
+        };
+        campo.addEventListener('blur', guardar);
+        campo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') campo.blur(); });
+
+        fila.querySelector('.quitar').addEventListener('click', async () => {
+          const ok = await showConfirm('Quitar del marcador',
+            `${p.nombre} pierde sus ${p.puntos} puntos. No se puede deshacer.`, 'Quitar', true);
+          if (!ok) return;
+          try {
+            puntos = (await api(`/api/puntos/${encodeURIComponent(p.nombre)}`, { method: 'DELETE' })).puntos;
+            pintarPuntos();
+          } catch (e) {
+            showAlert('No se pudo quitar', e.message);
+          }
+        });
+        caja.appendChild(fila);
+      });
+    }
+
+    function avisoPuntos(texto) {
+      const donde = document.getElementById('puntosEstado');
+      donde.textContent = texto;
+      setTimeout(() => { if (donde.textContent === texto) donde.textContent = ''; }, 2500);
+    }
+
+    // Dar y quitar de golpe, para premiar o corregir sin buscar la fila.
+    async function moverPuntos(signo) {
+      const nombre = document.getElementById('puntosNombre').value.trim();
+      const cuantos = Math.floor(Number(document.getElementById('puntosCuantos').value) || 0);
+      if (!nombre) { showAlert('Falta el nombre', 'Escribe a quién se los das.'); return; }
+      if (!cuantos) { showAlert('Falta la cantidad', 'Escribe cuántos puntos.'); return; }
+      try {
+        puntos = (await api('/api/puntos/sumar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre, cuantos: cuantos * signo })
+        })).puntos;
+        avisoPuntos(`${signo > 0 ? '+' : '−'}${cuantos} a ${nombre}.`);
+        document.getElementById('puntosNombre').value = '';
+        pintarPuntos();
+      } catch (e) {
+        showAlert('No se pudo', e.message);
+      }
+    }
+
+    document.getElementById('puntosDar').addEventListener('click', () => moverPuntos(1));
+    document.getElementById('puntosQuitar').addEventListener('click', () => moverPuntos(-1));
+    document.getElementById('puntosBuscar').addEventListener('input', pintarPuntos);
+
+    document.getElementById('puntosVaciar').addEventListener('click', async () => {
+      const ok = await showConfirm('Vaciar el marcador',
+        `Los ${puntos.length} espectador(es) del marcador pierden sus puntos. No se puede deshacer.`, 'Vaciar', true);
+      if (!ok) return;
+      try {
+        puntos = (await api('/api/puntos/vaciar', { method: 'POST' })).puntos;
+        pintarPuntos();
+      } catch (e) {
+        showAlert('No se pudo vaciar', e.message);
+      }
+    });
 
     function vigilar(encender) {
       if (vigilante) { clearInterval(vigilante); vigilante = null; }
@@ -4300,7 +4412,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // La ruleta ahora vive dentro de Minijuegos.
         if (tab.dataset.tab === 'history') loadHistory();
         // La ruleta es el minijuego que sale abierto, asi que se repinta.
-        if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarBatalla(); cargarPuntos(); }
+        if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarBatalla(); }
+        if (tab.dataset.tab === 'puntos') cargarPuntos();
         document.getElementById('fontDock').hidden = tab.dataset.tab !== 'config';
         if (tab.dataset.tab === 'config') fillConfigForm();
         // Al salir de Configuración se corta la animación de prueba.

@@ -1980,9 +1980,44 @@ app.post('/api/batalla/config', (req: Request, res: Response) => {
   res.json(batalla.estado(uid));
 });
 
-// GET /api/puntos -> la tabla de puntos
+// GET /api/puntos?limite=N -> la tabla de puntos
 app.get('/api/puntos', (req: Request, res: Response) => {
-  res.json({ puntos: carrera.tabla(requireUid(req)) });
+  const limite = Math.max(1, Math.min(1000, Number(req.query.limite) || 20));
+  res.json({ puntos: carrera.tabla(requireUid(req), limite) });
+});
+
+// PUT /api/puntos  Body: { nombre, puntos } -> pone esa cantidad exacta
+app.put('/api/puntos', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  if (!carrera.ponerPuntos(uid, String(req.body?.nombre || ''), req.body?.puntos)) {
+    return res.status(400).json({ error: 'hace falta un nombre' });
+  }
+  res.json({ puntos: carrera.tabla(uid, 1000) });
+});
+
+// POST /api/puntos/sumar  Body: { nombre, cuantos } -> suma o resta
+app.post('/api/puntos/sumar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const nombre = String(req.body?.nombre || '').trim();
+  if (!nombre) return res.status(400).json({ error: 'hace falta un nombre' });
+  carrera.sumarPuntos(uid, nombre, Math.floor(Number(req.body?.cuantos) || 0));
+  res.json({ puntos: carrera.tabla(uid, 1000) });
+});
+
+// DELETE /api/puntos/:nombre -> lo quita del marcador
+app.delete('/api/puntos/:nombre', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  if (!carrera.borrarPuntos(uid, String(req.params.nombre))) {
+    return res.status(404).json({ error: 'no esta en el marcador' });
+  }
+  res.json({ puntos: carrera.tabla(uid, 1000) });
+});
+
+// POST /api/puntos/vaciar -> deja el marcador a cero
+app.post('/api/puntos/vaciar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  carrera.vaciarPuntos(uid);
+  res.json({ puntos: carrera.tabla(uid, 1000) });
 });
 
 // Serve static UI

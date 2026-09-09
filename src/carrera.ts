@@ -161,6 +161,32 @@ export function tabla(uid: string, limite = 20): { nombre: string; puntos: numbe
     .slice(0, limite);
 }
 
+// Pone una cantidad exacta, en vez de sumar. Sirve para corregir a mano y para
+// dar de alta a alguien que no ha jugado todavia.
+export function ponerPuntos(uid: string, nombre: string, cuantos: number): boolean {
+  const limpio = String(nombre || '').trim().slice(0, 40);
+  if (!limpio) return false;
+  const valor = Math.max(0, Math.min(1000000000, Math.floor(Number(cuantos) || 0)));
+  const m = leerPuntos(uid);
+  m[limpio.toLowerCase()] = { nombre: limpio, puntos: valor };
+  guardarPuntos(uid, m);
+  return true;
+}
+
+export function borrarPuntos(uid: string, nombre: string): boolean {
+  const clave = String(nombre || '').trim().toLowerCase();
+  const m = leerPuntos(uid);
+  if (!m[clave]) return false;
+  delete m[clave];
+  guardarPuntos(uid, m);
+  return true;
+}
+
+// Deja el marcador a cero del todo.
+export function vaciarPuntos(uid: string): void {
+  guardarPuntos(uid, {});
+}
+
 // --- La carrera ---------------------------------------------------------
 
 // Abre la inscripcion y se pone a escuchar el chat. Quien escriba la palabra
