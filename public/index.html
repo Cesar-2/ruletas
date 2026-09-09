@@ -285,6 +285,10 @@
     .relato div{padding:.12rem 0;color:var(--muted)}
     .relato div.critico{color:#fbbf24}
     .relato div.cae{color:#e6eef8;font-weight:600}
+    .relato div.lidera{color:#7dd3fc}
+    .relato div.tiron{color:#6ee7b7}
+    .relato div.tropiezo{color:#fca5a5}
+    .relato div.gana{color:#e6eef8;font-weight:700}
     /* La pista: una calle por corredor y la balinera que la recorre. */
     .pista{margin-top:1rem;padding:.8rem;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)}
     .pista[hidden]{display:none}
@@ -608,6 +612,7 @@
             <p class="meta" id="carreraEstado">Sin carrera abierta.</p>
 
             <div class="pista" id="carreraPista" hidden></div>
+            <div id="carreraRelato" class="relato" hidden></div>
             <div id="carreraPodio" class="podium" hidden></div>
 
             <div class="controls" style="margin-top:.8rem">
@@ -3470,42 +3475,66 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // El servidor ya ha decidido el orden; esto solo lo cuenta. Cada balinera
     // tarda según su puesto, con un pelín de variación que nunca cambia el
     // orden, para que no parezcan todas iguales.
-    // La carrera se acaba cuando cruza el primero: el ganador llega justo al
-    // cumplirse la duración que has puesto, y a los demás se les congela donde
-    // estén. Devuelve lo que tarda, que es esa misma duración.
+    // Retransmite la carrera que ha simulado el servidor: en cada instante se
+    // mueve cada balinera a donde iba, así que se adelantan entre ellas de
+    // verdad. La página no decide nada; solo lo cuenta.
     function animarCarrera(resultado) {
       const pista = document.getElementById('carreraPista');
-      const ancho = pista.clientWidth - 40;
+      const relato = document.getElementById('carreraRelato');
+      // Si la pista aún no tiene ancho (panel recién abierto), se usa un
+      // mínimo: si no, las balineras se quedarían clavadas en la salida.
+      const ancho = Math.max(120, pista.clientWidth - 40);
       const total = (carrera.ajustes?.duracion || 8) * 1000;
-      // Separación entre los que no ganan: solo es para que no vayan en bloque.
-      const PASO = Math.max(150, total * 0.12);
+      const marcas = carrera.marcas || [];
+      const eventos = carrera.eventos || [];
+
+      relato.hidden = false;
+      relato.innerHTML = '';
 
       // Se busca la calle comparando en JavaScript y no con un selector: los
       // nombres vienen del chat y pueden traer cualquier cosa.
       const calles = Array.from(pista.querySelectorAll('.calle'));
-      resultado.forEach((r) => {
-        const clave = r.nombre.trim().toLowerCase();
+      const bolaDe = (i) => {
+        const clave = (carrera.corredores[i] || {}).clave;
         const calle = calles.find((c) => c.dataset.clave === clave);
-        if (!calle) return;
-        // El ganador llega en el tiempo justo; los demás irían más lentos y se
-        // quedan a medias, porque la carrera termina antes.
-        const duracion = r.puesto === 1
-          ? total
-          : total + (r.puesto - 1) * PASO + Math.random() * PASO;
-        const bola = calle.querySelector('.bola');
-        bola.style.transition = `transform ${duracion}ms cubic-bezier(.35,.05,.6,1)`;
-        // En el siguiente cuadro, para que el navegador vea el cambio.
-        requestAnimationFrame(() => { bola.style.transform = `translateX(${ancho}px)`; });
-        if (r.puesto === 1) setTimeout(() => calle.classList.add('llega'), total);
+        return calle ? { calle, bola: calle.querySelector('.bola') } : null;
+      };
+
+      // Sin simulación (una carrera vieja), se va directo al final.
+      if (!marcas.length) return 0;
+
+      const paso = total / marcas.length;
+      marcas.forEach((posiciones, t) => {
+        setTimeout(() => {
+          posiciones.forEach((p, i) => {
+            const donde = bolaDe(i);
+            if (!donde) return;
+            donde.bola.style.transition = `transform ${paso}ms linear`;
+            donde.bola.style.transform = `translateX(${(ancho * p).toFixed(1)}px)`;
+            // El que llega a la meta queda marcado.
+            if (p >= 1) donde.calle.classList.add('llega');
+          });
+
+          for (const e of eventos) {
+            if (e.tick !== t) continue;
+            const linea = document.createElement('div');
+            linea.className = /se pone primero|sale en cabeza/.test(e.texto) ? 'lidera'
+              : /tirón/.test(e.texto) ? 'tiron' : 'tropiezo';
+            linea.textContent = e.texto;
+            relato.appendChild(linea);
+            relato.scrollTop = relato.scrollHeight;
+          }
+        }, t * paso);
       });
 
-      // Al cruzar el primero se para todo: cada balinera se queda donde iba.
+      // Al cruzar el primero se acaba: el resto se queda donde iba.
       setTimeout(() => {
-        pista.querySelectorAll('.bola').forEach((bola) => {
-          const donde = getComputedStyle(bola).transform;
-          bola.style.transition = 'none';
-          if (donde && donde !== 'none') bola.style.transform = donde;
-        });
+        pista.querySelectorAll('.bola').forEach((bola) => { bola.style.transition = 'none'; });
+        const linea = document.createElement('div');
+        linea.className = 'gana';
+        linea.textContent = `¡${resultado[0].nombre} cruza la meta!`;
+        relato.appendChild(linea);
+        relato.scrollTop = relato.scrollHeight;
       }, total);
 
       return total;
@@ -3567,6 +3596,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           body: JSON.stringify({ palabra: document.getElementById('carreraPalabra').value.trim() })
         });
         document.getElementById('carreraPodio').hidden = true;
+        document.getElementById('carreraRelato').hidden = true;
         pintarCarrera();
         vigilar(true);
       } catch (e) {
@@ -3606,9 +3636,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         showAlert('No se pudo repetir', e.message);
         return;
       }
-      // El podio anterior sobra; la pista la redibuja pintarCarrera() desde
-      // cero, así que las balineras vuelven solas a la salida.
+      // El podio y el relato anteriores sobran; la pista la redibuja
+      // pintarCarrera() desde cero, así que las balineras vuelven a la salida.
       document.getElementById('carreraPodio').hidden = true;
+      document.getElementById('carreraRelato').hidden = true;
       pintarCarrera();
       vigilar(true);
     });

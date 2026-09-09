@@ -21,12 +21,28 @@ export interface Resultado {
   puntos: number;
 }
 
+// Algo que pasa a mitad de carrera y merece contarse.
+export interface Evento {
+  tick: number;
+  texto: string;
+}
+
 export interface Carrera {
   abierta: boolean;         // si se admiten apuntados
   corredores: Corredor[];
   resultado: Resultado[];   // vacio hasta que se corre
   corridaEn: string;        // cuando se corrio
+  // La carrera tick a tick: para cada instante, lo que lleva recorrido cada
+  // corredor (de 0 a 1, en el mismo orden que `corredores`). La pagina no
+  // decide nada; solo reproduce esto.
+  marcas: number[][];
+  eventos: Evento[];
 }
+
+// Cuantos instantes tiene la carrera. Ni tan pocos que se vea a saltos ni
+// tantos que la respuesta se haga enorme con mucha gente.
+const TICKS_MIN = 24;
+const TICKS_MAX = 160;
 
 // Los puntos se los lleva solo quien gana; el resto corre por el honor.
 export interface Ajustes {
@@ -53,7 +69,7 @@ const carreras = new Map<string, Carrera>();
 const escuchas = new Map<string, chat.Conexion>();
 
 export function estado(uid: string): Carrera & { escuchando: string; ajustes: Ajustes } {
-  const c = carreras.get(uid) || { abierta: false, corredores: [], resultado: [], corridaEn: '' };
+  const c = carreras.get(uid) || { abierta: false, corredores: [], resultado: [], corridaEn: '', marcas: [], eventos: [] };
   return { ...c, escuchando: escuchas.get(uid)?.canal || '', ajustes: leerAjustes(uid) };
 }
 
@@ -151,7 +167,7 @@ export function tabla(uid: string, limite = 20): { nombre: string; puntos: numbe
 // se apunta; el resto de mensajes se ignoran.
 export function abrir(uid: string, canal: string, palabra?: string): Carrera {
   cerrarEscucha(uid);
-  const carrera: Carrera = { abierta: true, corredores: [], resultado: [], corridaEn: '' };
+  const carrera: Carrera = { abierta: true, corredores: [], resultado: [], corridaEn: '', marcas: [], eventos: [] };
   carreras.set(uid, carrera);
 
   const buscada = (palabra || leerAjustes(uid).palabra).trim().toLowerCase();
@@ -182,6 +198,78 @@ function cerrarEscucha(uid: string): void {
   if (e) { escuchas.delete(uid); e.cerrar(); }
 }
 
+// Simula la carrera instante a instante. Cada balinera avanza un poco al azar
+// en cada tick, con algun tropiezo y algun tiron, asi que se adelantan entre
+// ellas por el camino. Todas juegan con las mismas reglas: nadie tiene ventaja.
+//
+// Deja en la carrera las marcas (lo recorrido por cada uno en cada instante) y
+// los eventos que merece la pena contar, y devuelve el orden de llegada.
+function simular(carrera: Carrera, duracion: number): Corredor[] {
+  const cuantos = carrera.corredores.length;
+  const ticks = Math.max(TICKS_MIN, Math.min(TICKS_MAX, Math.round(duracion * 4)));
+
+  const avance: number[][] = [];   // lo que avanza cada uno en cada tick
+  const tropiezos: Evento[] = [];
+  for (let c = 0; c < cuantos; c++) {
+    const suyo: number[] = [];
+    for (let t = 0; t < ticks; t++) {
+      // Base con bastante variacion, para que la cosa se mueva.
+      let paso = 0.6 + Math.random() * 0.8;
+      if (Math.random() < 0.04) {
+        paso *= 0.25;
+        tropiezos.push({ tick: t, texto: `${carrera.corredores[c].nombre} tropieza` });
+      } else if (Math.random() < 0.04) {
+        paso *= 2.2;
+        tropiezos.push({ tick: t, texto: `${carrera.corredores[c].nombre} pega un tirón` });
+      }
+      suyo.push(paso);
+    }
+    avance.push(suyo);
+  }
+
+  // Acumulado y, con ello, quien va ganando en cada instante.
+  const recorrido: number[][] = avance.map((pasos) => {
+    let suma = 0;
+    return pasos.map((p) => (suma += p));
+  });
+  const totales = recorrido.map((r) => r[ticks - 1]);
+  const meta = Math.max(...totales);
+
+  // Se normaliza para que el ganador acabe justo en la meta (1) y los demas
+  // se queden por detras, que es lo que se vera en la pista.
+  carrera.marcas = [];
+  for (let t = 0; t < ticks; t++) {
+    carrera.marcas.push(recorrido.map((r) => Math.min(1, r[t] / meta)));
+  }
+
+  // Los eventos: los tropiezos y tirones, y los cambios de lider.
+  const eventos: Evento[] = tropiezos.slice();
+  let lider = -1;
+  for (let t = 0; t < ticks; t++) {
+    const posiciones = carrera.marcas[t];
+    let mejor = 0;
+    for (let c = 1; c < cuantos; c++) if (posiciones[c] > posiciones[mejor]) mejor = c;
+    if (mejor !== lider) {
+      // El primer lider no es un adelantamiento: es la salida.
+      eventos.push({
+        tick: t,
+        texto: lider < 0
+          ? `${carrera.corredores[mejor].nombre} sale en cabeza`
+          : `${carrera.corredores[mejor].nombre} se pone primero`
+      });
+      lider = mejor;
+    }
+  }
+  eventos.sort((a, b) => a.tick - b.tick);
+  carrera.eventos = eventos;
+
+  // El orden de llegada es el de lo recorrido al final.
+  return carrera.corredores
+    .map((c, i) => ({ c, total: totales[i] }))
+    .sort((x, y) => y.total - x.total)
+    .map((x) => x.c);
+}
+
 // Cierra la inscripcion, decide el orden de llegada y reparte los puntos.
 export function correr(uid: string): Carrera | null {
   const carrera = carreras.get(uid);
@@ -193,13 +281,9 @@ export function correr(uid: string): Carrera | null {
   carrera.abierta = false;
   cerrarEscucha(uid);
 
-  // Orden al azar, que es lo que hace una carrera de balineras: el resultado
-  // no depende de nada del corredor.
-  const orden = carrera.corredores.slice();
-  for (let i = orden.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [orden[i], orden[j]] = [orden[j], orden[i]];
-  }
+  // La carrera se simula aqui: todos corren con las mismas reglas, asi que
+  // gana cualquiera por igual, pero por el camino hay adelantamientos.
+  const orden = simular(carrera, leerAjustes(uid).duracion);
 
   const premio = leerAjustes(uid).puntos;
   carrera.resultado = orden.map((c, i) => {
