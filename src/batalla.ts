@@ -107,7 +107,10 @@ export function estado(uid: string): Batalla & { escuchando: string; palabra: st
   const b = batallas.get(uid) || {
     abierta: false, luchadores: [], rondas: [], campeon: '', puntos: leerAjustes(uid).puntos
   };
-  return { ...b, escuchando: escuchando(uid), palabra: leerAjustes(uid).palabra };
+  const ajustes = leerAjustes(uid);
+  // Los puntos que se enseñan son los ajustados ahora mismo, no los que
+  // hubiera al abrir: se pueden cambiar en cualquier momento.
+  return { ...b, puntos: ajustes.puntos, escuchando: escuchando(uid), palabra: ajustes.palabra };
 }
 
 // La conexion al chat mientras hay inscripcion abierta.
@@ -260,7 +263,11 @@ export function resolverRonda(uid: string): Batalla | null {
   const siguen = ronda.duelos.map((d) => d.ganador);
   if (siguen.length === 1) {
     batalla.campeon = siguen[0];
-    if (batalla.puntos > 0) deps.sumarPuntos(uid, batalla.campeon, batalla.puntos);
+    // Se mira el ajuste ahora, no el de cuando se abrio el torneo: asi se
+    // puede cambiar el premio con la batalla ya en marcha.
+    const premio = leerAjustes(uid).puntos;
+    batalla.puntos = premio;
+    if (premio > 0) deps.sumarPuntos(uid, batalla.campeon, premio);
   } else {
     batalla.rondas.push(emparejar(siguen, batalla.rondas.length + 1));
   }

@@ -3067,6 +3067,28 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
+    // Rellena un campo de ajustes salvo que lo estes editando: estos paneles
+    // se refrescan solos cada 2 s mientras se apunta la gente, y si no, lo que
+    // escribes desaparece a media palabra.
+    function ponerSiNoLoTocas(id, valor) {
+      const campo = document.getElementById(id);
+      if (!campo || campo === document.activeElement || campo.dataset.tocado === '1') return;
+      campo.value = valor;
+    }
+
+    // En cuanto tocas uno, deja de refrescarse hasta que lo guardas.
+    ['carreraPalabra', 'carreraPuntos', 'carreraDuracion', 'batallaPalabra', 'batallaPuntos'].forEach((id) => {
+      const campo = document.getElementById(id);
+      if (campo) campo.addEventListener('input', () => { campo.dataset.tocado = '1'; });
+    });
+
+    function olvidarTocados(ids) {
+      ids.forEach((id) => {
+        const campo = document.getElementById(id);
+        if (campo) delete campo.dataset.tocado;
+      });
+    }
+
     // --- Batalla de viewers -----------------------------------------------
     let batalla = { abierta: false, luchadores: [], rondas: [], campeon: '', puntos: 25 };
     let vigilanteBatalla = null;
@@ -3079,8 +3101,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         console.warn('No se pudo leer la batalla:', e.message);
         return;
       }
-      document.getElementById('batallaPuntos').value = batalla.puntos;
-      if (batalla.palabra) document.getElementById('batallaPalabra').value = batalla.palabra;
+      ponerSiNoLoTocas('batallaPuntos', batalla.puntos);
+      if (batalla.palabra) ponerSiNoLoTocas('batallaPalabra', batalla.palabra);
       pintarBatalla();
     }
 
@@ -3275,6 +3297,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
     document.getElementById('batallaGuardar').addEventListener('click', async () => {
       if (await accionBatalla('/api/batalla/config', { puntos: document.getElementById('batallaPuntos').value, palabra: document.getElementById('batallaPalabra').value })) {
+        olvidarTocados(['batallaPalabra', 'batallaPuntos']);
         document.getElementById('batallaGuardado').textContent = 'Guardado.';
       }
     });
@@ -3313,9 +3336,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
       // Los ajustes guardados mandan sobre lo que ponga en los campos.
       if (carrera.ajustes) {
-        document.getElementById('carreraPalabra').value = carrera.ajustes.palabra;
-        document.getElementById('carreraPuntos').value = carrera.ajustes.puntos;
-        document.getElementById('carreraDuracion').value = carrera.ajustes.duracion;
+        ponerSiNoLoTocas('carreraPalabra', carrera.ajustes.palabra);
+        ponerSiNoLoTocas('carreraPuntos', carrera.ajustes.puntos);
+        ponerSiNoLoTocas('carreraDuracion', carrera.ajustes.duracion);
       }
       pintarCarrera();
     }
@@ -3333,6 +3356,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           })
         });
         // Se reescriben con lo que ha quedado, que el servidor acota.
+        olvidarTocados(['carreraPalabra', 'carreraPuntos', 'carreraDuracion']);
         document.getElementById('carreraPalabra').value = carrera.ajustes.palabra;
         document.getElementById('carreraPuntos').value = carrera.ajustes.puntos;
         document.getElementById('carreraDuracion').value = carrera.ajustes.duracion;
