@@ -269,10 +269,15 @@ El código vive en `data/config.json`, que como todo `data/` no se versiona.
 | `TRUST_PROXY=1` | Detrás de un proxy (Render, Fly, nginx…), para reconocer HTTPS |
 | `COOKIE_SECURE=1` | Fuerza que la cookie de sesión solo viaje por HTTPS |
 | `PORT` | Puerto de escucha (por defecto 3000) |
+| `TWITCH_REDIRECT` | Solo para los puntos de canal de Twitch: `https://tu-dominio/api/twitch/callback`. Tiene que coincidir con la URL de redireccion de la app de Twitch. Sin ella se usa `localhost`, que en un hosting no vale |
 
 ```bash
 RULETON_INVITE=lo-que-quieras TRUST_PROXY=1 COOKIE_SECURE=1 npm run dev
 ```
+
+Los minijuegos que leen el chat (carrera, batalla, inscripción de la ruleta) **no
+necesitan nada de esto**: se conectan de salida y como anónimos, así que basta con
+que cada streamer ponga su canal en Configuración > Mi cuenta.
 
 Sírvelo **siempre por HTTPS**: sin él, la contraseña y la cookie viajan en claro.
 
