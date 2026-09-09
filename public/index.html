@@ -383,15 +383,15 @@
     .pista.parada .calle .bicho{animation:none;transform:scaleX(-1)}
     /* Jugar y cancelar no se buscan: estan siempre en la esquina, encima de
        todo. Cada juego tiene la suya, dentro de su panel. */
-    .acciones-flotantes{position:fixed;right:1.2rem;bottom:1.2rem;z-index:40;
+    .acciones-flotantes{position:fixed;right:1.2rem;bottom:1.2rem;z-index:40;zoom:var(--font-scale);
       display:flex;gap:.5rem;align-items:center;padding:.5rem;border-radius:14px;
       background:rgba(10,16,28,0.82);backdrop-filter:blur(8px);
       border:1px solid rgba(255,255,255,0.12);box-shadow:0 12px 32px rgba(2,6,23,.55)}
     .acciones-flotantes button{font-size:15px;padding:.6rem 1.1rem}
     .acciones-flotantes button[hidden]{display:none}
     .acciones-flotantes[hidden]{display:none}
-    /* Hueco al final del panel para que la barra no tape lo ultimo. */
-    .game-subpanel{padding-bottom:5rem}
+    /* Hueco al final para que la barra no tape lo ultimo del panel. */
+    .game-subpanel{padding-bottom:5.5rem}
     @media (max-width:640px){
       .acciones-flotantes{right:.6rem;bottom:.6rem;left:.6rem;justify-content:center;flex-wrap:wrap}
     }
@@ -668,12 +668,6 @@
             <div class="draw-controls">
               <button type="button" id="batallaAbrir">Abrir inscripción</button>
             </div>
-            <div class="acciones-flotantes">
-              <button type="button" id="batallaEmpezar" disabled>Empezar torneo</button>
-              <button type="button" id="batallaRonda" disabled>Siguiente ronda</button>
-              <button type="button" id="batallaRepetir" hidden>Volver a jugar</button>
-              <button type="button" id="batallaCancelar" class="btn-cancel" hidden>Cancelar</button>
-            </div>
             <p class="meta" id="batallaEstado">Sin batalla abierta.</p>
 
             <div id="batallaCampeon" class="winner-banner" hidden></div>
@@ -706,11 +700,6 @@
 
             <div class="draw-controls">
               <button type="button" id="carreraAbrir">Abrir inscripción</button>
-            </div>
-            <div class="acciones-flotantes">
-              <button type="button" id="carreraCorrer" disabled>¡Correr!</button>
-              <button type="button" id="carreraRepetir" hidden>Volver a correr</button>
-              <button type="button" id="carreraCancelar" class="btn-cancel" hidden>Cancelar</button>
             </div>
             <p class="meta" id="carreraEstado">Sin carrera abierta.</p>
 
@@ -1154,6 +1143,21 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     </div>
     <footer>Hecho con ❤️ por <strong>kreisinkres</strong></footer>
     <footer class="thanks">Agradecimientos especiales a <strong>Lucyvsanchezz</strong></footer>
+  </div>
+
+  <!-- Jugar y cancelar, en la esquina. Aqui fuera porque .app lleva zoom y
+       dentro de el una posicion fija se descuadra al cambiar el tamano de
+       letra: se aplica el zoom aparte, como hace la barra de arriba. -->
+  <div class="acciones-flotantes" data-juego="carrera" hidden>
+    <button type="button" id="carreraCorrer" disabled>¡Correr!</button>
+    <button type="button" id="carreraRepetir" hidden>Volver a correr</button>
+    <button type="button" id="carreraCancelar" class="btn-cancel" hidden>Cancelar</button>
+  </div>
+  <div class="acciones-flotantes" data-juego="batalla" hidden>
+    <button type="button" id="batallaEmpezar" disabled>Empezar torneo</button>
+    <button type="button" id="batallaRonda" disabled>Siguiente ronda</button>
+    <button type="button" id="batallaRepetir" hidden>Volver a jugar</button>
+    <button type="button" id="batallaCancelar" class="btn-cancel" hidden>Cancelar</button>
   </div>
 
   <!-- Superpuestos fuera de .app: el zoom del tamano de letra no debe
@@ -3261,7 +3265,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('batallaCancelar').hidden = !batalla.abierta && !empezada;
       // Otra vez con los mismos: solo tiene sentido con el torneo terminado.
       document.getElementById('batallaRepetir').hidden = !batalla.campeon || cuantos < 2;
-      ajustarAcciones(empezar);
+      ajustarAcciones();
 
       const banner = document.getElementById('batallaCampeon');
       banner.hidden = !batalla.campeon || narrando;
@@ -3521,6 +3525,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // panel oculto el SVG no tiene tamaño.
         if (cual === 'ruleta') { renderEditor(); retomarInscripcion(); }
         if (cual === 'batalla') cargarBatalla();
+        ajustarAcciones();
       });
     });
 
@@ -3566,10 +3571,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // En la esquina solo debe haber lo que se puede pulsar ahora mismo: un
     // boton apagado que no viene a cuento estorba, y la barra vacia tambien.
-    function ajustarAcciones(alguno) {
-      const barra = alguno.closest('.acciones-flotantes');
-      if (!barra) return;
-      barra.hidden = !Array.from(barra.querySelectorAll('button')).some((b) => !b.hidden);
+    // Como viven fuera de los paneles, tambien miran si su juego esta abierto.
+    function ajustarAcciones() {
+      const enMinijuegos = document.getElementById('games-panel')?.classList.contains('active');
+      document.querySelectorAll('.acciones-flotantes').forEach((barra) => {
+        const juego = barra.dataset.juego;
+        const suPanel = document.getElementById(`game-${juego}-panel`);
+        const aLaVista = enMinijuegos && suPanel?.classList.contains('active');
+        const algo = Array.from(barra.querySelectorAll('button')).some((b) => !b.hidden);
+        barra.hidden = !aLaVista || !algo;
+      });
     }
 
     function pintarCarrera() {
@@ -3590,7 +3601,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('carreraAbrir').disabled = corriendo;
       // Otra con los mismos: solo con la carrera ya corrida.
       document.getElementById('carreraRepetir').hidden = corriendo || !carrera.resultado.length || cuantos < 2;
-      ajustarAcciones(correr);
+      ajustarAcciones();
 
       // La pista se dibuja mientras se apuntan, para que se vea llenarse.
       if (!cuantos) {
@@ -4652,6 +4663,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (tab.dataset.tab === 'history') loadHistory();
         // La ruleta es el minijuego que sale abierto, asi que se repinta.
         if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarBatalla(); }
+      ajustarAcciones();
         if (tab.dataset.tab === 'puntos') cargarPuntos();
         document.getElementById('fontDock').hidden = tab.dataset.tab !== 'config';
         if (tab.dataset.tab === 'config') fillConfigForm();
