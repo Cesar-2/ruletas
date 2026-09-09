@@ -1,12 +1,13 @@
-// Batalla de viewers: un torneo de duelos uno contra uno. Se apuntan con el
-// mismo codigo de invitado que usan los paquetones, se emparejan de dos en
-// dos, y el que gana pasa a la siguiente ronda hasta que queda un campeon.
+// Batalla de viewers: un torneo de duelos uno contra uno. Se apuntan por el
+// chat, como en la carrera, se emparejan de dos en dos, y el que gana pasa a
+// la siguiente ronda hasta que queda un campeon.
 //
 // Quien decide cada duelo es esto, no el navegador: la pagina solo lo cuenta.
 // Los puntos van al mismo marcador que la carrera de balineras.
 
 import fs from 'fs';
 import path from 'path';
+import * as chat from './chat';
 
 export interface Luchador {
   nombre: string;
@@ -54,9 +55,10 @@ export interface Batalla {
 
 export interface Ajustes {
   puntos: number;
+  palabra: string;      // lo que se escribe en el chat para apuntarse
 }
 
-export const AJUSTES_POR_DEFECTO: Ajustes = { puntos: 25 };
+export const AJUSTES_POR_DEFECTO: Ajustes = { puntos: 25, palabra: '!pelea' };
 const MAX_LUCHADORES = 64;
 
 export interface Dependencias {
@@ -93,27 +95,55 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
   if (ajustes.puntos != null) {
     actual.puntos = Math.max(0, Math.min(1000000, Math.floor(Number(ajustes.puntos) || 0)));
   }
+  if (typeof ajustes.palabra === 'string') {
+    actual.palabra = ajustes.palabra.trim().slice(0, 30) || AJUSTES_POR_DEFECTO.palabra;
+  }
   deps.ensureUserDir(uid);
   deps.writeJson(archivoAjustes(uid), actual);
   return actual;
 }
 
-export function estado(uid: string): Batalla {
-  return batallas.get(uid) || {
+export function estado(uid: string): Batalla & { escuchando: string; palabra: string } {
+  const b = batallas.get(uid) || {
     abierta: false, luchadores: [], rondas: [], campeon: '', puntos: leerAjustes(uid).puntos
   };
+  return { ...b, escuchando: escuchando(uid), palabra: leerAjustes(uid).palabra };
 }
 
-export function abrir(uid: string): Batalla {
+// La conexion al chat mientras hay inscripcion abierta.
+const escuchas = new Map<string, chat.Conexion>();
+
+function cerrarEscucha(uid: string): void {
+  const e = escuchas.get(uid);
+  if (e) { escuchas.delete(uid); e.cerrar(); }
+}
+
+// Abre la inscripcion y se pone a escuchar el chat: quien escriba la palabra
+// se apunta, igual que en la carrera.
+export function abrir(uid: string, canal: string): Batalla {
+  cerrarEscucha(uid);
+  const ajustes = leerAjustes(uid);
   const batalla: Batalla = {
-    abierta: true, luchadores: [], rondas: [], campeon: '', puntos: leerAjustes(uid).puntos
+    abierta: true, luchadores: [], rondas: [], campeon: '', puntos: ajustes.puntos
   };
   batallas.set(uid, batalla);
+
+  const buscada = ajustes.palabra.trim().toLowerCase();
+  escuchas.set(uid, chat.conectar(canal, (m) => {
+    if (!batalla.abierta) return;
+    if (m.texto.trim().toLowerCase() !== buscada) return;
+    entrar(uid, m.autor);
+  }));
   return batalla;
 }
 
 export function cancelar(uid: string): void {
+  cerrarEscucha(uid);
   batallas.delete(uid);
+}
+
+export function escuchando(uid: string): string {
+  return escuchas.get(uid)?.canal || '';
 }
 
 // Apuntarse. Lo llama tanto el invitado con su codigo como el dueño a mano.
@@ -158,6 +188,7 @@ export function empezar(uid: string): Batalla | null {
   const batalla = batallas.get(uid);
   if (!batalla || !batalla.abierta || batalla.luchadores.length < 2) return null;
   batalla.abierta = false;
+  cerrarEscucha(uid);
   batalla.rondas = [emparejar(batalla.luchadores.map((l) => l.nombre), 1)];
   return batalla;
 }

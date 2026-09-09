@@ -558,9 +558,11 @@
           <div class="game-subpanel" id="game-batalla-panel">
           <section>
             <h3>⚔️ Batalla de viewers</h3>
-            <p class="meta">Un torneo de duelos uno contra uno. Los viewers entran con un <strong>código de invitado</strong>, igual que a los paquetones, y se apuntan desde su página. Si son impares, a alguien le toca pasar de ronda sin pelear. <strong>Solo el campeón gana puntos</strong>, al mismo marcador que la carrera.</p>
+            <p class="meta">Un torneo de duelos uno contra uno. Los viewers se apuntan escribiendo en tu chat de Twitch, como en la carrera. Si son impares, a alguien le toca pasar de ronda sin pelear. <strong>Solo el campeón gana puntos</strong>, al mismo marcador. El canal se pone en Configuración › Mi cuenta.</p>
 
             <div class="draw-controls">
+              <label class="meta" for="batallaPalabra">Se apuntan escribiendo</label>
+              <input id="batallaPalabra" type="text" value="!pelea" style="width:110px" aria-label="Palabra para apuntarse" />
               <label class="meta" for="batallaPuntos">Puntos al campeón</label>
               <input id="batallaPuntos" type="number" min="0" max="1000000" value="25" style="width:100px" />
               <button type="button" id="batallaGuardar">Guardar</button>
@@ -632,7 +634,6 @@
             <div class="subtabs">
               <button type="button" class="subtab active" data-draw="normal">🎰 Ruletas</button>
               <button type="button" class="subtab" data-draw="custom">🎡 Personalizada</button>
-              <button type="button" class="subtab" data-draw="packs">🎁 Paquetones</button>
             </div>
 
             <div class="draw-subpanel active" id="draw-normal-panel">
@@ -677,27 +678,6 @@
             </div>
             </div>
 
-            <div class="draw-subpanel" id="draw-packs-panel">
-            <h3>🎁 Paquetones para invitados</h3>
-            <p class="meta">El invitado <strong>elige un paquetón</strong> y gira: sale <strong>uno</strong> de los objetos que lleva dentro. Cada objeto se clasifica por color y el <strong>% se pone por color</strong>, dentro de cada paquetón: primero se sortea el color y después, entre los objetos de ese color, uno al azar. Un color sin objetos no sale por mucho % que tenga. Son los de este servidor.</p>
-
-            <div class="pack-list" id="packList"></div>
-            <div class="controls">
-              <button type="button" id="addPack">+ Añadir paquetón</button>
-              <button type="button" id="savePacks">Guardar paquetones</button>
-              <span class="meta" id="packStatus"></span>
-            </div>
-
-            <h3 style="margin-top:1.8rem">🎟️ Códigos de acceso</h3>
-            <p class="meta">Cada código sirve para entrar <strong>una sola vez</strong> y trae las tiradas que le pongas. Al entrar, la persona <strong>elige en qué servidor juega</strong> entre los tuyos que tengan paquetones, y ahí se apuntan sus premios. Si cierra la página pierde lo que le quedara y necesita otro código. La lista es de toda tu cuenta, no solo de este servidor.</p>
-            <div class="controls">
-              <label for="codeSpins" class="meta">Tiradas</label>
-              <input id="codeSpins" type="number" value="1" min="1" max="50" style="width:80px" />
-              <button type="button" id="newCode">Crear código</button>
-              <span class="meta" id="codeStatus"></span>
-            </div>
-            <div id="codeList" class="code-list"></div>
-            </div>
           </section>
 
         </div>
@@ -707,10 +687,6 @@
           <div class="subtabs" id="winnersServers"></div>
 
           <section>
-            <h3>🎁 Ganadores por código</h3>
-            <p class="meta">Los que han jugado con un código de invitado. Son de este servidor: los premios pertenecen a él, como el resto de ganadores.</p>
-            <div id="guestWinners"></div>
-          </section>
 
           <section>
             <h3>🏆 Top 3</h3>
@@ -849,25 +825,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             <div class="config-actions">
               <button type="button" id="cfgTwitchSave">Guardar canal</button>
               <span class="meta" id="cfgTwitchStatus" style="margin-left:auto"></span>
-            </div>
-          </div>
-
-          <div class="config-section">
-            <h4>Banners y redes sociales</h4>
-            <p class="meta">Los ve quien entra con un código de invitado, debajo de su ruleta. Son de tu cuenta: iguales en todos tus servidores.</p>
-
-            <label class="meta">Banners</label>
-            <div id="bannerList" class="banner-lista"></div>
-            <div class="controls">
-              <button type="button" id="addBanner">+ Añadir banner</button>
-            </div>
-
-            <label class="meta" style="margin-top:1rem;display:block">Redes sociales</label>
-            <div id="socialList" class="social-lista"></div>
-            <div class="controls">
-              <button type="button" id="addSocial">+ Añadir red</button>
-              <button type="button" id="saveMarca">Guardar banners y redes</button>
-              <span class="meta" id="marcaStatus"></span>
             </div>
           </div>
 
@@ -1567,8 +1524,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     function fillConfigForm() {
       cargarTwitch();
-      renderBanners();
-      renderSocials();
       document.getElementById('cfgPageTitle').value = settings.pageTitle || '';
       document.getElementById('cfgPageSubtitle').value = settings.pageSubtitle || '';
       document.getElementById('cfgLogoUrl').value = settings.logoUrl || '';
@@ -2475,53 +2430,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           winnersServer = sv.id;
           renderWinnersServers();
           loadWinners();
-          loadGuestWinners();
           loadRanking();
         });
         cont.appendChild(boton);
-      });
-    }
-
-    // Los ganadores por código van aparte de los del sorteo normal: ni suman
-    // en el ranking ni se entregan por kamas, son premios de los paquetes.
-    async function loadGuestWinners() {
-      const cont = document.getElementById('guestWinners');
-      let lista = [];
-      try {
-        lista = (await api(rutaGanadores('/api/guest-winners'))).winners || [];
-      } catch (e) {
-        cont.innerHTML = '<div class="meta">No se pudieron cargar.</div>';
-        return;
-      }
-      if (!lista.length) {
-        cont.innerHTML = '<div class="meta">Nadie ha jugado todavía con un código en este servidor.</div>';
-        return;
-      }
-      cont.innerHTML = '';
-      lista.forEach((w) => {
-        const fila = document.createElement('div');
-        fila.className = 'code-row';
-        // Lo que hay que entregarle: el objeto que le salió y de qué paquete.
-        const premios = w.premios.map((p) => {
-          const color = RARITY_COLOR[p.rarity] || RARITY_COLOR.common;
-          return `<span class="punto-premio" style="background:${color}" title="${RARITY_COLOR_NAME[p.rarity] || 'Gris'}"></span>`
-            + `${escapeHtml(p.name)} <span class="meta">(${escapeHtml(p.pack)})</span>`;
-        }).join(' · ');
-        fila.innerHTML = `
-          <span><strong>${escapeHtml(w.nombre)}</strong> <span class="meta">· código ${escapeHtml(w.code)}</span></span>
-          <span class="meta">${w.premios.length} premio(s): ${premios}</span>
-          <span class="hueco"><button type="button" class="guest-del">Quitar</button></span>`;
-        fila.querySelector('.guest-del').addEventListener('click', async () => {
-          const ok = await showConfirm('Quitar de la lista', `Se borra lo que ganó ${w.nombre}. No se puede deshacer.`, 'Quitar', true);
-          if (!ok) return;
-          try {
-            await api(rutaGanadores(`/api/guest-winners/${encodeURIComponent(w.id)}`), { method: 'DELETE' });
-            await loadGuestWinners();
-          } catch (e) {
-            showAlert('No se pudo quitar', e.message);
-          }
-        });
-        cont.appendChild(fila);
       });
     }
 
@@ -2896,7 +2807,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       updateBulkBar();
       renderEditor();
       cargarNombres();
-      await Promise.all([loadWinners(), loadGuestWinners(), loadRatios(), loadRanking(), loadHistory()]);
+      await Promise.all([loadWinners(), loadRatios(), loadRanking(), loadHistory()]);
     }
 
     async function loadItems(){
@@ -2925,7 +2836,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       await loadServers();
       cargarNombres();
       loadWinners();
-      loadGuestWinners();
       loadRatios();
       loadRanking();
       loadItems();
@@ -3170,6 +3080,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         return;
       }
       document.getElementById('batallaPuntos').value = batalla.puntos;
+      if (batalla.palabra) document.getElementById('batallaPalabra').value = batalla.palabra;
       pintarBatalla();
     }
 
@@ -3183,7 +3094,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('batallaEstado').textContent = batalla.campeon
         ? `Terminada. Campeón: ${batalla.campeon}.`
         : batalla.abierta
-          ? `Inscripción abierta: ${cuantos} apuntado(s). Se apuntan desde su página, con el código que les des.`
+          ? `Inscripción abierta en ${batalla.escuchando || 'el chat'}: escriben «${document.getElementById('batallaPalabra').value.trim() || '!pelea'}» para apuntarse. ${cuantos} apuntado(s).`
           : empezada
             ? `Torneo en marcha, ronda ${batalla.rondas.length}.`
             : 'Sin batalla abierta.';
@@ -3363,7 +3274,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (await accionBatalla('/api/batalla/entrar', { nombre: campo.value.trim() })) campo.value = '';
     });
     document.getElementById('batallaGuardar').addEventListener('click', async () => {
-      if (await accionBatalla('/api/batalla/config', { puntos: document.getElementById('batallaPuntos').value })) {
+      if (await accionBatalla('/api/batalla/config', { puntos: document.getElementById('batallaPuntos').value, palabra: document.getElementById('batallaPalabra').value })) {
         document.getElementById('batallaGuardado').textContent = 'Guardado.';
       }
     });
@@ -3671,134 +3582,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
-    // --- Banners y redes de la cuenta -------------------------------------
-    const REDES = ['twitch', 'youtube', 'kick', 'x', 'instagram', 'tiktok', 'discord', 'web'];
-    const RED_NOMBRE = { twitch: 'Twitch', youtube: 'YouTube', kick: 'Kick', x: 'X / Twitter',
-      instagram: 'Instagram', tiktok: 'TikTok', discord: 'Discord', web: 'Web' };
-
-    function renderBanners() {
-      const cont = document.getElementById('bannerList');
-      const lista = settings.banners || [];
-      if (!lista.length) {
-        cont.innerHTML = '<div class="meta">Ningún banner todavía.</div>';
-        return;
-      }
-      cont.innerHTML = '';
-      lista.forEach((b, i) => {
-        const fila = document.createElement('div');
-        fila.className = 'banner-fila';
-        fila.innerHTML = `
-          ${b.imageUrl ? `<img src="${escapeHtml(b.imageUrl)}" alt="" />` : '<div class="sin-imagen">sin imagen</div>'}
-          <input type="text" value="${escapeHtml(b.linkUrl || '')}" placeholder="Enlace al pulsarlo (opcional)" />
-          <button type="button" class="b-img">Imagen</button>
-          <button type="button" class="b-del">Quitar</button>`;
-        fila.querySelector('input').addEventListener('input', (ev) => {
-          settings.banners[i].linkUrl = ev.target.value.trim();
-        });
-        fila.querySelector('.b-img').addEventListener('click', () => subirImagenBanner(i));
-        fila.querySelector('.b-del').addEventListener('click', () => {
-          settings.banners.splice(i, 1);
-          renderBanners();
-        });
-        cont.appendChild(fila);
-      });
-    }
-
-    // La imagen se sube igual que el fondo o la de un paquetón.
-    function subirImagenBanner(i) {
-      const file = document.createElement('input');
-      file.type = 'file';
-      file.accept = 'image/*';
-      file.addEventListener('change', () => {
-        const f = file.files && file.files[0];
-        if (!f) return;
-        const lector = new FileReader();
-        lector.onload = async () => {
-          try {
-            const r = await api('/api/banners/image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ dataUrl: lector.result })
-            });
-            settings.banners[i].imageUrl = r.url;
-            renderBanners();
-            document.getElementById('marcaStatus').textContent = 'Imagen puesta; recuerda guardar.';
-          } catch (e) {
-            showAlert('No se pudo subir la imagen', e.message);
-          }
-        };
-        lector.readAsDataURL(f);
-      });
-      file.click();
-    }
-
-    function renderSocials() {
-      const cont = document.getElementById('socialList');
-      const lista = settings.socials || [];
-      if (!lista.length) {
-        cont.innerHTML = '<div class="meta">Ninguna red todavía.</div>';
-        return;
-      }
-      cont.innerHTML = '';
-      lista.forEach((r, i) => {
-        const fila = document.createElement('div');
-        fila.className = 'social-fila';
-        const opciones = REDES.map((x) =>
-          `<option value="${x}" ${x === r.red ? 'selected' : ''}>${RED_NOMBRE[x]}</option>`).join('');
-        fila.innerHTML = `
-          <select aria-label="Red social">${opciones}</select>
-          <input type="text" value="${escapeHtml(r.url || '')}" placeholder="https://..." />
-          <button type="button" class="s-del">Quitar</button>`;
-        fila.querySelector('select').addEventListener('change', (ev) => {
-          settings.socials[i].red = ev.target.value;
-        });
-        fila.querySelector('input').addEventListener('input', (ev) => {
-          settings.socials[i].url = ev.target.value.trim();
-        });
-        fila.querySelector('.s-del').addEventListener('click', () => {
-          settings.socials.splice(i, 1);
-          renderSocials();
-        });
-        cont.appendChild(fila);
-      });
-    }
-
-    async function guardarMarca() {
-      const estado = document.getElementById('marcaStatus');
-      const antes = (settings.banners || []).length + (settings.socials || []).length;
-      try {
-        const guardado = await api('/api/settings', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ banners: settings.banners || [], socials: settings.socials || [] })
-        });
-        settings.banners = guardado.settings.banners || [];
-        settings.socials = guardado.settings.socials || [];
-        renderBanners();
-        renderSocials();
-        // El servidor tira lo que no vale: banner sin imagen, o enlace que no
-        // empieza por http(s). Se avisa para que no parezca que se ha perdido.
-        const perdidos = antes - settings.banners.length - settings.socials.length;
-        estado.textContent = perdidos > 0
-          ? `Guardado. Se descartaron ${perdidos}: falta la imagen o la dirección no empieza por http.`
-          : 'Guardado.';
-      } catch (e) {
-        showAlert('No se pudieron guardar', e.message);
-      }
-    }
-
-    document.getElementById('addBanner').addEventListener('click', () => {
-      if (!settings.banners) settings.banners = [];
-      settings.banners.push({ imageUrl: '', linkUrl: '' });
-      renderBanners();
-    });
-    document.getElementById('addSocial').addEventListener('click', () => {
-      if (!settings.socials) settings.socials = [];
-      settings.socials.push({ red: 'twitch', url: '' });
-      renderSocials();
-    });
-    document.getElementById('saveMarca').addEventListener('click', guardarMarca);
-
     // --- Ratio de salida de cada color ------------------------------------
     let ratios = { common: 70, rare: 20, epic: 8, mythic: 2 };
 
@@ -3873,288 +3656,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         showAlert('No se pudieron guardar los ratios', e.message);
       }
     }
-
-    // --- Paquetes y códigos de invitado -----------------------------------
-    let packs = [];
-    let codes = [];
-
-    async function loadPacks() {
-      try {
-        packs = (await api('/api/packs')).packs || [];
-      } catch (e) {
-        packs = [];
-        console.warn('No se pudieron cargar los paquetes:', e.message);
-      }
-      renderPacks();
-    }
-
-    function renderPacks() {
-      const cont = document.getElementById('packList');
-      if (!packs.length) {
-        cont.innerHTML = '<div class="meta">Todavía no hay paquetones. Añade uno para que los invitados tengan algo que ganar.</div>';
-        return;
-      }
-      cont.innerHTML = '';
-      packs.forEach((p, i) => {
-        if (!Array.isArray(p.items)) p.items = [];
-        const bloque = document.createElement('div');
-        bloque.className = 'pack-bloque';
-        const fila = document.createElement('div');
-        fila.className = 'pack-row';
-        const jugable = p.items.length > 0;
-        fila.innerHTML = `
-          ${p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="" />` : '<div class="sin-imagen">🎁</div>'}
-          <div class="pack-nombre"><input type="text" value="${escapeHtml(p.name || '')}" placeholder="Nombre del paquetón" maxlength="60" /></div>
-          <div class="pack-prob">${jugable ? '' : '<span title="Ningún objeto puede salir">sin premios</span>'}</div>
-          <div class="pack-acciones">
-            <button type="button" class="pack-img">Imagen</button>
-            <button type="button" class="pack-del">Quitar</button>
-          </div>`;
-
-        fila.querySelector('.pack-nombre input').addEventListener('input', (ev) => {
-          packs[i].name = ev.target.value;
-        });
-        fila.querySelector('.pack-img').addEventListener('click', () => elegirImagenPack(i));
-        fila.querySelector('.pack-del').addEventListener('click', async () => {
-          const ok = await showConfirm('Quitar paquetón', `«${p.name || 'Sin nombre'}» deja de estar en la ruleta de invitados.`, 'Quitar', true);
-          if (!ok) return;
-          packs.splice(i, 1);
-          renderPacks();
-        });
-        bloque.appendChild(fila);
-
-        // Los objetos del paquete: cada uno con su probabilidad. Al girar sale
-        // uno de estos, así que el % es lo que decide el sorteo.
-        const dentro = document.createElement('div');
-        dentro.className = 'pack-items';
-        const aviso = document.createElement('p');
-        aviso.className = 'meta';
-        dentro.appendChild(aviso);
-
-        // Cabecera de columnas, para saber qué es cada campo. Solo cuando hay
-        // filas debajo: sobre una lista vacía no diría nada.
-        if (p.items.length) {
-          const cabecera = document.createElement('div');
-          cabecera.className = 'pack-item pack-cabecera';
-          cabecera.innerHTML = `
-            <span class="col-nombre">Objeto</span>
-            <span class="col-color">Rareza</span>
-            <span class="col-quitar"></span>`;
-          dentro.appendChild(cabecera);
-        }
-
-        // Una fila por objeto: cuánto, qué es, y de qué color. El % no va
-        // aquí: se pone una sola vez en Configuración › Datos.
-        p.items.forEach((it, j) => {
-          if (!RARITIES.includes(it.rarity)) it.rarity = 'common';
-          const linea = document.createElement('div');
-          linea.className = 'pack-item';
-          linea.innerHTML = `
-            <input type="text" value="${escapeHtml(it.name || '')}" placeholder="Nombre del objeto" maxlength="60" />
-            <span class="item-colores tag-colores"></span>
-            <button type="button" class="item-del">✕</button>`;
-
-          linea.querySelector('input[type=text]').addEventListener('input', (ev) => {
-            packs[i].items[j].name = ev.target.value;
-          });
-
-          // Los mismos cuatro colores que en el catálogo, en pequeño.
-          const tira = linea.querySelector('.item-colores');
-          RARITIES.forEach((r) => {
-            const boton = document.createElement('button');
-            boton.type = 'button';
-            boton.className = 'tag-color';
-            boton.dataset.rarity = r;
-            boton.style.background = RARITY_COLOR[r];
-            boton.title = RARITY_COLOR_NAME[r];
-            boton.setAttribute('aria-label', RARITY_COLOR_NAME[r]);
-            boton.addEventListener('click', () => {
-              packs[i].items[j].rarity = r;
-              tira.querySelectorAll('.tag-color').forEach((b) => {
-                b.classList.toggle('puesto', b.dataset.rarity === r);
-              });
-            });
-            tira.appendChild(boton);
-          });
-          tira.querySelectorAll('.tag-color').forEach((b) => {
-            b.classList.toggle('puesto', b.dataset.rarity === it.rarity);
-          });
-
-          linea.querySelector('.item-del').addEventListener('click', () => {
-            packs[i].items.splice(j, 1);
-            renderPacks();
-          });
-          dentro.appendChild(linea);
-        });
-
-        const anadir = document.createElement('button');
-        anadir.type = 'button';
-        anadir.textContent = '+ Añadir objeto';
-        anadir.className = 'anadir-objeto';
-        anadir.addEventListener('click', () => {
-          packs[i].items.push({ name: '', rarity: 'common' });
-          renderPacks();
-        });
-        dentro.appendChild(anadir);
-
-        // El reparto por color no se enseña: las probabilidades se llevan solo
-        // en Configuración, y aquí sobran.
-        aviso.textContent = packs[i].items.length
-          ? 'Puede salir uno de estos:'
-          : 'Vacío: añade los objetos que pueden salir en este paquetón.';
-        fila.querySelector('.pack-prob').innerHTML = packs[i].items.length
-          ? ''
-          : '<span title="No tiene objetos">sin premios</span>';
-        bloque.appendChild(dentro);
-        cont.appendChild(bloque);
-      });
-    }
-
-    // La imagen se sube como el fondo: se lee en dataUrl y el servidor la deja
-    // en /assets, junto al resto de lo que sube el usuario.
-    function elegirImagenPack(i) {
-      const file = document.createElement('input');
-      file.type = 'file';
-      file.accept = 'image/*';
-      file.addEventListener('change', () => {
-        const f = file.files && file.files[0];
-        if (!f) return;
-        const lector = new FileReader();
-        lector.onload = async () => {
-          try {
-            const r = await api('/api/packs/image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ dataUrl: lector.result })
-            });
-            packs[i].imageUrl = r.url;
-            renderPacks();
-            document.getElementById('packStatus').textContent = 'Imagen puesta; recuerda guardar.';
-          } catch (e) {
-            showAlert('No se pudo subir la imagen', e.message);
-          }
-        };
-        lector.readAsDataURL(f);
-      });
-      file.click();
-    }
-
-    async function savePacks() {
-      const estado = document.getElementById('packStatus');
-      const sinNombre = packs.filter((p) => !String(p.name || '').trim()).length;
-      if (sinNombre) {
-        showAlert('Falta el nombre', `Hay ${sinNombre} paquetón(es) sin nombre. El servidor los descarta al guardar, así que ponles uno antes.`);
-        return;
-      }
-      try {
-        packs = (await api('/api/packs', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ packs })
-        })).packs || [];
-        renderPacks();
-        estado.textContent = `Guardados ${packs.length} paquetón(es).`;
-      } catch (e) {
-        estado.textContent = '';
-        showAlert('No se pudieron guardar los paquetones', e.message);
-      }
-    }
-
-    async function loadCodes() {
-      try {
-        codes = (await api('/api/codes')).codes || [];
-      } catch (e) {
-        codes = [];
-        console.warn('No se pudieron cargar los códigos:', e.message);
-      }
-      renderCodes();
-    }
-
-    function renderCodes() {
-      const cont = document.getElementById('codeList');
-      if (!codes.length) {
-        cont.innerHTML = '<div class="meta">Ningún código todavía.</div>';
-        return;
-      }
-      cont.innerHTML = '';
-      codes.forEach((c) => {
-        const fila = document.createElement('div');
-        fila.className = 'code-row';
-        const usado = Boolean(c.usado);
-        const quedan = c.tiradas - c.gastadas;
-        const detalle = usado
-          ? `${escapeHtml(c.nombre || 'Invitado')}${c.servidor ? ` · ${escapeHtml(c.servidor)}` : ' · sin elegir servidor'} · ${c.gastadas} de ${c.tiradas} tiradas${quedan > 0 ? ` (le quedaban ${quedan})` : ''}`
-          : `${c.tiradas} tirada(s)`;
-        fila.innerHTML = `
-          <span class="clave">${escapeHtml(c.code)}</span>
-          <span class="estado ${usado ? 'usado' : 'libre'}">${usado ? 'ya usado' : 'sin usar'}</span>
-          <span class="meta">${detalle}</span>
-          <span class="hueco">
-            ${usado ? '' : '<button type="button" class="code-copy">Copiar enlace</button>'}
-            <button type="button" class="code-del">Borrar</button>
-          </span>`;
-
-        const copiar = fila.querySelector('.code-copy');
-        if (copiar) {
-          copiar.addEventListener('click', () => {
-            copyToClipboard(`${location.origin}/invitado  ·  código: ${c.code}`).then((ok) => {
-              copiar.textContent = ok ? '¡Copiado!' : 'Error al copiar';
-              setTimeout(() => { copiar.textContent = 'Copiar enlace'; }, 1200);
-            });
-          });
-        }
-        fila.querySelector('.code-del').addEventListener('click', async () => {
-          const ok = await showConfirm(
-            'Borrar código',
-            usado
-              ? `El código ${c.code} ya se usó. Si esa persona sigue dentro, se queda fuera al instante. Sus premios no se borran.`
-              : `El código ${c.code} dejará de servir. No se puede deshacer.`,
-            'Borrar', true);
-          if (!ok) return;
-          try {
-            await api(`/api/codes/${encodeURIComponent(c.code)}`, { method: 'DELETE' });
-            await loadCodes();
-          } catch (e) {
-            showAlert('No se pudo borrar', e.message);
-          }
-        });
-        cont.appendChild(fila);
-      });
-    }
-
-    document.getElementById('addPack').addEventListener('click', () => {
-      packs.push({ id: '', name: '', imageUrl: '', items: [] });
-      renderPacks();
-      document.getElementById('packStatus').textContent = '';
-    });
-
-    document.getElementById('savePacks').addEventListener('click', savePacks);
-
-    document.getElementById('saveRatios').addEventListener('click', saveRatios);
-
-    document.getElementById('newCode').addEventListener('click', async () => {
-      const tiradas = Math.max(1, Math.min(50, Number(document.getElementById('codeSpins').value) || 1));
-      // Los paquetones pueden estar en otro servidor: el invitado elige. Solo
-      // se avisa si no hay ninguno en el que se está mirando, por si acaso.
-      if (!packs.filter((p) => (p.items || []).length).length) {
-        const seguir = await showConfirm(
-          'Este servidor no tiene paquetones',
-          'El invitado solo podrá elegir entre los servidores que sí tengan premios preparados. Si no hay ninguno, no podrá jugar.',
-          'Crear igualmente', false);
-        if (!seguir) return;
-      }
-      try {
-        const r = await api('/api/codes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tiradas })
-        });
-        await loadCodes();
-        document.getElementById('codeStatus').textContent = `Creado ${r.code} con ${r.tiradas} tirada(s).`;
-      } catch (e) {
-        showAlert('No se pudo crear el código', e.message);
-      }
-    });
 
     // --- Copiar exclusiones y rarezas entre equipos -------------------------
     // Quien ya las tenga personalizadas en local no tiene que rehacerlas: se
@@ -4462,7 +3963,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (cual === 'custom') renderNameWheel();
       // Los paquetes y los códigos se piden al abrir la pestaña, no al cargar
       // la página: así se ve al momento lo que haya gastado un invitado.
-      if (cual === 'packs') { loadPacks(); loadCodes(); }
 
       // El editor pertenece al sorteo de objetos: no pinta nada en la otra ruleta.
       if (cual === 'custom' && editandoResultado) {
