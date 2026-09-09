@@ -261,6 +261,16 @@
     .marcador .fila:nth-child(1) .puesto,.marcador .fila:nth-child(2) .puesto,.marcador .fila:nth-child(3) .puesto{color:#e6eef8}
     .marcador .nombre{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .marcador .puntos{flex:none;font-weight:700;color:var(--accent)}
+    /* El cuadro del torneo: una columna por ronda. */
+    .cuadro{display:flex;gap:1rem;overflow-x:auto;margin-top:1rem;padding-bottom:.4rem}
+    .cuadro .ronda{flex:0 0 200px;display:flex;flex-direction:column;gap:.5rem}
+    .cuadro .ronda h4{margin:0 0 .2rem;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+    .cuadro .duelo{padding:.45rem .6rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);font-size:13px}
+    .cuadro .lado{display:flex;align-items:center;gap:.4rem;padding:.15rem 0;color:var(--muted)}
+    .cuadro .lado.gana{color:#e6eef8;font-weight:700}
+    .cuadro .lado.pierde{opacity:.5;text-decoration:line-through}
+    .cuadro .vs{font-size:11px;color:var(--muted);text-align:center;padding:.1rem 0}
+    .cuadro .pase{font-size:11px;color:var(--muted);font-style:italic}
     /* La pista: una calle por corredor y la balinera que la recorre. */
     .pista{margin-top:1rem;padding:.8rem;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)}
     .pista[hidden]{display:none}
@@ -524,6 +534,37 @@
           <div class="subtabs">
             <button type="button" class="subtab active" data-game="ruleta">🎰 Ruleta</button>
             <button type="button" class="subtab" data-game="carrera">🏁 Carrera de balineras</button>
+            <button type="button" class="subtab" data-game="batalla">⚔️ Batalla de viewers</button>
+          </div>
+
+          <div class="game-subpanel" id="game-batalla-panel">
+          <section>
+            <h3>⚔️ Batalla de viewers</h3>
+            <p class="meta">Un torneo de duelos uno contra uno. Los viewers entran con un <strong>código de invitado</strong>, igual que a los paquetones, y se apuntan desde su página. Si son impares, a alguien le toca pasar de ronda sin pelear. <strong>Solo el campeón gana puntos</strong>, al mismo marcador que la carrera.</p>
+
+            <div class="draw-controls">
+              <label class="meta" for="batallaPuntos">Puntos al campeón</label>
+              <input id="batallaPuntos" type="number" min="0" max="1000000" value="25" style="width:100px" />
+              <button type="button" id="batallaGuardar">Guardar</button>
+              <span class="meta" id="batallaGuardado"></span>
+            </div>
+
+            <div class="draw-controls">
+              <button type="button" id="batallaAbrir">Abrir inscripción</button>
+              <button type="button" id="batallaEmpezar" disabled>Empezar torneo</button>
+              <button type="button" id="batallaRonda" disabled>Siguiente ronda</button>
+              <button type="button" id="batallaCancelar" class="btn-cancel" hidden>Cancelar</button>
+            </div>
+            <p class="meta" id="batallaEstado">Sin batalla abierta.</p>
+
+            <div id="batallaCuadro" class="cuadro" hidden></div>
+            <div id="batallaCampeon" class="winner-banner" hidden></div>
+
+            <div class="controls" style="margin-top:.8rem">
+              <input id="batallaNombre" type="text" placeholder="Apuntar a alguien a mano" aria-label="Apuntar a mano" />
+              <button type="button" id="batallaApuntar">Apuntar</button>
+            </div>
+          </section>
           </div>
 
           <div class="game-subpanel" id="game-carrera-panel">
@@ -3093,6 +3134,120 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
+    // --- Batalla de viewers -----------------------------------------------
+    let batalla = { abierta: false, luchadores: [], rondas: [], campeon: '', puntos: 25 };
+    let vigilanteBatalla = null;
+
+    async function cargarBatalla() {
+      try {
+        batalla = await api('/api/batalla');
+      } catch (e) {
+        console.warn('No se pudo leer la batalla:', e.message);
+        return;
+      }
+      document.getElementById('batallaPuntos').value = batalla.puntos;
+      pintarBatalla();
+    }
+
+    function pintarBatalla() {
+      const cuantos = batalla.luchadores.length;
+      const empezada = batalla.rondas.length > 0;
+      // Queda ronda por resolver si su último duelo aún no tiene ganador.
+      const ultima = batalla.rondas[batalla.rondas.length - 1];
+      const pendiente = Boolean(ultima && ultima.duelos.some((d) => !d.ganador));
+
+      document.getElementById('batallaEstado').textContent = batalla.campeon
+        ? `Terminada. Campeón: ${batalla.campeon}.`
+        : batalla.abierta
+          ? `Inscripción abierta: ${cuantos} apuntado(s). Se apuntan desde su página, con el código que les des.`
+          : empezada
+            ? `Torneo en marcha, ronda ${batalla.rondas.length}.`
+            : 'Sin batalla abierta.';
+
+      document.getElementById('batallaEmpezar').disabled = !batalla.abierta || cuantos < 2;
+      document.getElementById('batallaRonda').disabled = !pendiente;
+      document.getElementById('batallaCancelar').hidden = !batalla.abierta && !empezada;
+
+      const banner = document.getElementById('batallaCampeon');
+      banner.hidden = !batalla.campeon;
+      if (batalla.campeon) {
+        banner.textContent = `🏆 ¡Campeón: ${batalla.campeon}!` + (batalla.puntos > 0 ? ` +${batalla.puntos} puntos` : '');
+      }
+
+      // Mientras se apuntan aún no hay cuadro: se enseña quién va entrando.
+      const cuadro = document.getElementById('batallaCuadro');
+      if (!empezada) {
+        cuadro.hidden = !cuantos;
+        cuadro.innerHTML = cuantos
+          ? `<div class="ronda"><h4>Apuntados (${cuantos})</h4>` +
+            batalla.luchadores.map((l) => `<div class="duelo">${escapeHtml(l.nombre)}</div>`).join('') + '</div>'
+          : '';
+        return;
+      }
+
+      cuadro.hidden = false;
+      cuadro.innerHTML = batalla.rondas.map((r) => {
+        const titulo = r.duelos.length === 1 ? 'Final' : `Ronda ${r.numero}`;
+        const duelos = r.duelos.map((d) => {
+          if (!d.b) return `<div class="duelo"><div class="lado gana">${escapeHtml(d.a)}</div><div class="pase">pasa sin pelear</div></div>`;
+          const clase = (quien) => d.ganador ? (d.ganador === quien ? 'lado gana' : 'lado pierde') : 'lado';
+          return `<div class="duelo">
+            <div class="${clase(d.a)}">${escapeHtml(d.a)}</div>
+            <div class="vs">vs</div>
+            <div class="${clase(d.b)}">${escapeHtml(d.b)}</div>
+          </div>`;
+        }).join('');
+        return `<div class="ronda"><h4>${titulo}</h4>${duelos}</div>`;
+      }).join('');
+    }
+
+    function vigilarBatalla(encender) {
+      if (vigilanteBatalla) { clearInterval(vigilanteBatalla); vigilanteBatalla = null; }
+      // Mientras se apuntan, se pregunta cada 2 s quién ha entrado con su código.
+      if (encender) vigilanteBatalla = setInterval(cargarBatalla, 2000);
+    }
+
+    async function accionBatalla(ruta, cuerpo) {
+      try {
+        batalla = await api(ruta, cuerpo ? {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo)
+        } : { method: 'POST' });
+        pintarBatalla();
+        return true;
+      } catch (e) {
+        showAlert('Batalla', e.message);
+        return false;
+      }
+    }
+
+    document.getElementById('batallaAbrir').addEventListener('click', async () => {
+      if (await accionBatalla('/api/batalla/abrir')) vigilarBatalla(true);
+    });
+    document.getElementById('batallaEmpezar').addEventListener('click', async () => {
+      // Ya no se apunta nadie más: deja de preguntar.
+      if (await accionBatalla('/api/batalla/empezar')) vigilarBatalla(false);
+    });
+    document.getElementById('batallaRonda').addEventListener('click', async () => {
+      if (await accionBatalla('/api/batalla/ronda') && batalla.campeon) {
+        cargarPuntos();
+        makeConfetti(30);
+      }
+    });
+    document.getElementById('batallaCancelar').addEventListener('click', async () => {
+      await accionBatalla('/api/batalla/cancelar');
+      vigilarBatalla(false);
+    });
+    document.getElementById('batallaApuntar').addEventListener('click', async () => {
+      const campo = document.getElementById('batallaNombre');
+      if (!campo.value.trim()) return;
+      if (await accionBatalla('/api/batalla/entrar', { nombre: campo.value.trim() })) campo.value = '';
+    });
+    document.getElementById('batallaGuardar').addEventListener('click', async () => {
+      if (await accionBatalla('/api/batalla/config', { puntos: document.getElementById('batallaPuntos').value })) {
+        document.getElementById('batallaGuardado').textContent = 'Guardado.';
+      }
+    });
+
     // --- Carrera de balineras ---------------------------------------------
     const COLORES_BOLA = ['#6ee7b7', '#7dd3fc', '#c084fc', '#fbbf24', '#fb7185',
       '#34d399', '#93c5fd', '#f0abfc', '#f97316', '#a3e635'];
@@ -3114,6 +3269,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // La ruleta de nombres necesita repintarse al hacerse visible: en un
         // panel oculto el SVG no tiene tamaño.
         if (cual === 'ruleta') renderEditor();
+        if (cual === 'batalla') cargarBatalla();
       });
     });
 
@@ -4450,7 +4606,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // La ruleta ahora vive dentro de Minijuegos.
         if (tab.dataset.tab === 'history') loadHistory();
         // La ruleta es el minijuego que sale abierto, asi que se repinta.
-        if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarPuntos(); }
+        if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarBatalla(); cargarPuntos(); }
         document.getElementById('fontDock').hidden = tab.dataset.tab !== 'config';
         if (tab.dataset.tab === 'config') fillConfigForm();
         // Al salir de Configuración se corta la animación de prueba.

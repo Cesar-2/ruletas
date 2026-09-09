@@ -20,6 +20,16 @@
     .marca[hidden]{display:none}
     .marca img{height:34px;width:auto;border-radius:8px}
     .marca span{font-size:15px;font-weight:600;color:var(--muted)}
+    /* La batalla de viewers. */
+    .batalla{margin-top:1.4rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.1)}
+    .batalla[hidden]{display:none}
+    .batalla h2{margin:0 0 .3rem;font-size:18px}
+    .cuadro-invitado{display:flex;flex-direction:column;gap:.4rem;margin-top:.8rem;font-size:13px}
+    .cuadro-invitado .duelo{padding:.4rem .6rem;border-radius:10px;background:rgba(255,255,255,0.05);
+      border:1px solid rgba(255,255,255,0.10)}
+    .cuadro-invitado .duelo.mio{border-color:var(--accent)}
+    .cuadro-invitado .gana{font-weight:700}
+    .cuadro-invitado .pierde{opacity:.5;text-decoration:line-through}
     /* Banners y redes del streamer, al pie. */
     .pie{margin-top:1.4rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.1)}
     .pie[hidden]{display:none}
@@ -160,6 +170,15 @@
         <ol id="listaPremios"></ol>
       </div>
       <div class="error" id="errorRuleta"></div>
+    </div>
+
+    <!-- La batalla de viewers, si hay una abierta. -->
+    <div class="batalla" id="batalla" hidden>
+      <h2>⚔️ Batalla de viewers</h2>
+      <p class="meta" id="batallaTexto"></p>
+      <div class="acciones"><button type="button" id="batallaEntrar">Apuntarme</button></div>
+      <div id="batallaCuadro" class="cuadro-invitado"></div>
+      <div class="error" id="batallaError"></div>
     </div>
 
     <!-- Los banners y las redes del streamer, al pie de todo. -->
@@ -361,6 +380,9 @@
     packs = estado.packs || [];
     restantes = estado.restantes;
     $('dondeJuega').textContent = estado.servidor ? '· ' + estado.servidor : '';
+    miNombre = (estado.nombre || '').trim().toLowerCase();
+    mirarBatalla();
+    if (!vigilanteBatalla) vigilanteBatalla = setInterval(mirarBatalla, 3000);
     // Con un solo paquete no hay nada que elegir: se escoge solo.
     elegido = packs.length === 1 ? 0 : -1;
     $('pantallaCodigo').hidden = true;
@@ -424,6 +446,9 @@
     try {
       await api('/api/guest/logout', { method: 'POST' });
     } catch (e) { /* aunque falle, se vuelve a la pantalla del codigo */ }
+    if (vigilanteBatalla) { clearInterval(vigilanteBatalla); vigilanteBatalla = null; }
+    $('batalla').hidden = true;
+    miNombre = '';
     packs = [];
     restantes = 0;
     elegido = -1;
@@ -485,6 +510,58 @@
       $('premio').hidden = false;
       pintarEstado();
     }, 4700);
+  });
+
+  // --- Batalla de viewers ------------------------------------------------
+  // Se apunta con el mismo codigo con el que entro; el nombre es el que puso.
+  let miNombre = '';
+  let vigilanteBatalla = null;
+
+  async function mirarBatalla() {
+    let b;
+    try {
+      b = await api('/api/guest/batalla');
+    } catch (e) {
+      $('batalla').hidden = true;
+      return;
+    }
+    const empezada = b.empezada;
+    // Si no hay nada abierto ni en marcha, no se le enseña la sección.
+    if (!b.abierta && !empezada) { $('batalla').hidden = true; return; }
+    $('batalla').hidden = false;
+
+    $('batallaTexto').textContent = b.campeon
+      ? (b.campeon.toLowerCase() === miNombre ? '🏆 ¡Has ganado la batalla!' : `Ganó ${b.campeon}.`)
+      : b.abierta
+        ? (b.apuntado
+            ? `Estás dentro. Sois ${b.cuantos}. Espera a que empiece.`
+            : `Torneo de duelos: gana ${b.puntos} puntos quien llegue al final. Sois ${b.cuantos}.`)
+        : `Torneo en marcha, ronda ${b.rondas.length}.`;
+
+    const boton = $('batallaEntrar');
+    boton.hidden = !b.abierta || b.apuntado;
+
+    $('batallaCuadro').innerHTML = (b.rondas || []).map((r) => {
+      const titulo = r.duelos.length === 1 ? 'Final' : `Ronda ${r.numero}`;
+      return r.duelos.map((d) => {
+        const mio = [d.a, d.b].some((x) => (x || '').toLowerCase() === miNombre);
+        const clase = (quien) => !d.ganador ? '' : (d.ganador === quien ? 'gana' : 'pierde');
+        const cuerpo = d.b
+          ? `<span class="${clase(d.a)}">${escapar(d.a)}</span> vs <span class="${clase(d.b)}">${escapar(d.b)}</span>`
+          : `<span class="gana">${escapar(d.a)}</span> pasa sin pelear`;
+        return `<div class="duelo${mio ? ' mio' : ''}"><strong>${titulo}:</strong> ${cuerpo}</div>`;
+      }).join('');
+    }).join('');
+  }
+
+  $('batallaEntrar').addEventListener('click', async () => {
+    $('batallaError').textContent = '';
+    try {
+      await api('/api/guest/batalla', { method: 'POST' });
+      mirarBatalla();
+    } catch (e) {
+      $('batallaError').textContent = e.message;
+    }
   });
 
   // Si recarga sin cerrar el navegador, la cookie sigue viva y se vuelve a

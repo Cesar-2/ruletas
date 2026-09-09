@@ -3,6 +3,7 @@ import axios from 'axios';
 import cors from 'cors';
 import * as twitch from './twitch';
 import * as carrera from './carrera';
+import * as batalla from './batalla';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -1332,6 +1333,33 @@ app.post('/api/guest/logout', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// GET /api/guest/batalla -> si hay batalla y como va
+app.get('/api/guest/batalla', (req: Request, res: Response) => {
+  const codigo = invitadoDe(req);
+  if (!codigo) return res.status(401).json({ error: 'sin visita' });
+  const b = batalla.estado(codigo.uid);
+  const yo = (codigo.nombre || '').trim().toLowerCase();
+  res.json({
+    abierta: b.abierta,
+    empezada: b.rondas.length > 0,
+    apuntado: b.luchadores.some((l) => l.clave === yo),
+    cuantos: b.luchadores.length,
+    puntos: b.puntos,
+    rondas: b.rondas,
+    campeon: b.campeon
+  });
+});
+
+// POST /api/guest/batalla -> apuntarse con el nombre con el que entro
+app.post('/api/guest/batalla', (req: Request, res: Response) => {
+  const codigo = invitadoDe(req);
+  if (!codigo) return res.status(401).json({ error: 'sin visita' });
+  if (!codigo.nombre) return res.status(409).json({ error: 'entra con un nombre para poder pelear' });
+  const r = batalla.entrar(codigo.uid, codigo.nombre);
+  if (!r.ok) return res.status(409).json({ error: r.error });
+  res.json({ ok: true });
+});
+
 // GET /api/guest/state -> lo que le queda y sus premios
 app.get('/api/guest/state', (req: Request, res: Response) => {
   const codigo = invitadoDe(req);
@@ -2323,6 +2351,54 @@ app.post('/api/carrera/config', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/batalla -> como va el torneo
+app.get('/api/batalla', (req: Request, res: Response) => {
+  res.json(batalla.estado(requireUid(req)));
+});
+
+// POST /api/batalla/abrir -> abre la inscripcion
+app.post('/api/batalla/abrir', (req: Request, res: Response) => {
+  res.json(batalla.abrir(requireUid(req)));
+});
+
+// POST /api/batalla/entrar  Body: { nombre }  (para apuntar a mano)
+app.post('/api/batalla/entrar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const r = batalla.entrar(uid, String(req.body?.nombre || ''));
+  if (!r.ok) return res.status(409).json({ error: r.error });
+  res.json(batalla.estado(uid));
+});
+
+// POST /api/batalla/empezar -> cierra la inscripcion y monta la primera ronda
+app.post('/api/batalla/empezar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const b = batalla.empezar(uid);
+  if (!b) return res.status(409).json({ error: 'hacen falta al menos dos, y que no haya empezado' });
+  res.json(b);
+});
+
+// POST /api/batalla/ronda -> resuelve la ronda pendiente
+app.post('/api/batalla/ronda', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const b = batalla.resolverRonda(uid);
+  if (!b) return res.status(409).json({ error: 'no hay ninguna ronda pendiente' });
+  res.json(b);
+});
+
+// POST /api/batalla/cancelar
+app.post('/api/batalla/cancelar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  batalla.cancelar(uid);
+  res.json(batalla.estado(uid));
+});
+
+// POST /api/batalla/config  Body: { puntos }
+app.post('/api/batalla/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  batalla.guardarAjustes(uid, req.body || {});
+  res.json(batalla.estado(uid));
+});
+
 // GET /api/puntos -> la tabla de puntos
 app.get('/api/puntos', (req: Request, res: Response) => {
   res.json({ puntos: carrera.tabla(requireUid(req)) });
@@ -2457,6 +2533,8 @@ app.delete('/api/guest-winners/:id', (req: Request, res: Response) => {
   }
 });
 carrera.iniciar({ userDir, ensureUserDir, writeJson });
+// La batalla reparte en el mismo marcador que la carrera.
+batalla.iniciar({ userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos });
 
 twitch.iniciar(
   {
