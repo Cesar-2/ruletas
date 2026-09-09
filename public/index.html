@@ -3341,7 +3341,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         document.getElementById('carreraPista').hidden = true;
         return;
       }
-      if (!corriendo) dibujarPista();
+      // Con la carrera terminada NO se redibuja: se perderían las balineras
+      // congeladas donde llegaron y la marca del ganador.
+      if (!corriendo && !carrera.resultado.length) dibujarPista();
     }
 
     function dibujarPista() {
@@ -3363,24 +3365,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // El servidor ya ha decidido el orden; esto solo lo cuenta. Cada balinera
     // tarda según su puesto, con un pelín de variación que nunca cambia el
     // orden, para que no parezcan todas iguales.
+    // La carrera se acaba cuando cruza el primero: el ganador llega justo al
+    // cumplirse la duración que has puesto, y a los demás se les congela donde
+    // estén. Devuelve lo que tarda, que es esa misma duración.
     function animarCarrera(resultado) {
       const pista = document.getElementById('carreraPista');
       const ancho = pista.clientWidth - 40;
-      // Lo que dura la carrera lo pone el usuario; el reparto entre puestos se
-      // saca de ahi, para que siempre quepa dentro de ese tiempo.
       const total = (carrera.ajustes?.duracion || 8) * 1000;
-      const cuantos = Math.max(resultado.length, 2);
-      const SALIDA = 400;   // lo que tarda el primero como mínimo
-      // La separación entre puestos, acotada a lo que quepa: con muchos
-      // corredores y poca duración se aprieta, pero nunca se pasa del tiempo
-      // que ha puesto el usuario.
-      const cabe = (total - SALIDA) / (cuantos - 0.5);
-      const PASO = Math.max(20, Math.min((total * 0.35) / cuantos, cabe));
-      const JITTER = PASO * 0.5;
-      // El último llega justo al cumplirse la duración: por eso se descuenta
-      // también el jitter, que si no se sumaría por encima del tope.
-      const base = Math.max(SALIDA, total - PASO * (cuantos - 1) - JITTER);
-      let ultima = 0;
+      // Separación entre los que no ganan: solo es para que no vayan en bloque.
+      const PASO = Math.max(150, total * 0.12);
 
       // Se busca la calle comparando en JavaScript y no con un selector: los
       // nombres vienen del chat y pueden traer cualquier cosa.
@@ -3389,31 +3382,46 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const clave = r.nombre.trim().toLowerCase();
         const calle = calles.find((c) => c.dataset.clave === clave);
         if (!calle) return;
-        const jitter = Math.random() * JITTER;
-        const duracion = base + (r.puesto - 1) * PASO + jitter;
-        ultima = Math.max(ultima, duracion);
+        // El ganador llega en el tiempo justo; los demás irían más lentos y se
+        // quedan a medias, porque la carrera termina antes.
+        const duracion = r.puesto === 1
+          ? total
+          : total + (r.puesto - 1) * PASO + Math.random() * PASO;
         const bola = calle.querySelector('.bola');
         bola.style.transition = `transform ${duracion}ms cubic-bezier(.35,.05,.6,1)`;
         // En el siguiente cuadro, para que el navegador vea el cambio.
         requestAnimationFrame(() => { bola.style.transform = `translateX(${ancho}px)`; });
-        setTimeout(() => calle.classList.add('llega'), duracion);
+        if (r.puesto === 1) setTimeout(() => calle.classList.add('llega'), total);
       });
-      return ultima;
+
+      // Al cruzar el primero se para todo: cada balinera se queda donde iba.
+      setTimeout(() => {
+        pista.querySelectorAll('.bola').forEach((bola) => {
+          const donde = getComputedStyle(bola).transform;
+          bola.style.transition = 'none';
+          if (donde && donde !== 'none') bola.style.transform = donde;
+        });
+      }, total);
+
+      return total;
     }
 
+    // Solo hay un ganador: los demás no llegan a cruzar, así que no hay
+    // segundo ni tercero que enseñar.
     function pintarPodio(resultado) {
       const caja = document.getElementById('carreraPodio');
-      const medallas = ['🥇', '🥈', '🥉'];
+      const ganador = resultado[0];
+      if (!ganador) { caja.hidden = true; return; }
       caja.hidden = false;
-      // Se reutilizan las tarjetas del podio de ganadores, para que se vea igual.
-      caja.innerHTML = resultado.slice(0, 3).map((r, i) =>
-        `<div class="podium-card p${i + 1}">
-          <span class="podium-medal">${medallas[i]}</span>
+      // Se reutiliza la tarjeta del podio de ganadores, para que se vea igual.
+      caja.innerHTML = `
+        <div class="podium-card p1">
+          <span class="podium-medal">🥇</span>
           <div class="podium-info">
-            <div class="podium-name">${escapeHtml(r.nombre)}</div>
-            ${r.puntos > 0 ? `<div class="podium-total">+${r.puntos} puntos</div>` : '<div class="podium-draws">sin puntos</div>'}
+            <div class="podium-name">${escapeHtml(ganador.nombre)}</div>
+            ${ganador.puntos > 0 ? `<div class="podium-total">+${ganador.puntos} puntos</div>` : ''}
           </div>
-        </div>`).join('');
+        </div>`;
     }
 
     async function cargarPuntos() {
