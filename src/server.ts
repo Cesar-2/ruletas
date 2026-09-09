@@ -1,6 +1,8 @@
 ﻿import express, { Request, Response } from 'express';
 import axios from 'axios';
 import cors from 'cors';
+import * as twitch from './twitch';
+import * as carrera from './carrera';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -941,6 +943,25 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// GET /api/twitch/callback -> la vuelta de Twitch tras autorizar
+app.get('/api/twitch/callback', async (req: Request, res: Response) => {
+  const code = String(req.query.code || '');
+  const state = String(req.query.state || '');
+  const uid = state ? twitch.uidDelState(state) : null;
+  // Sin un "state" valido no se sigue: es lo unico que ata esta vuelta a
+  // quien empezo el alta.
+  if (!uid || !code) return res.status(400).send('Vuelta de Twitch no valida. Vuelve a intentarlo desde Configuracion.');
+
+  try {
+    await twitch.completarAlta(uid, code);
+    twitch.escuchar(uid);
+    res.redirect('/?twitch=ok');
+  } catch (err) {
+    console.error('Failed to connect Twitch:', err);
+    res.redirect('/?twitch=error');
+  }
+});
+
 // A partir de aqui, toda la API pide sesion. El catalogo tambien: es una app
 // privada, no un servicio publico de consulta.
 app.use('/api', (req: Request, res: Response, next: any) => {
@@ -1632,9 +1653,183 @@ app.post('/api/draw', async (req: Request, res: Response) => {
   }
 });
 
+// --- Twitch: canjes de puntos de canal ----------------------------------
+// El modulo vive en twitch.ts; aqui solo se le presta lo que necesita del
+// Ruleton y se publican las rutas.
+
+// Sortea para un canje y deja al espectador como ganador, igual que si se
+// hubiera sorteado a mano desde la pagina.
+async function sortearParaTwitch(uid: string, sid: string, nombre: string, n: number): Promise<string[]> {
+  const ambito = `${uid}/${sid}`;
+  const todos = await fetchItemsCached();
+  const excluidos = new Set(readExclusions(ambito));
+  const disponibles = todos.filter((it) => !excluidos.has(getItemId(it)));
+  if (!disponibles.length) throw new Error('no quedan objetos que sortear');
+
+  const elegidos = shuffle(disponibles).slice(0, Math.max(1, Math.min(n, disponibles.length)));
+  const items = elegidos.map((it) => ({
+    id: getItemId(it),
+    name: String(it?.name?.es ?? it?.name ?? '').slice(0, 200),
+    value: 0
+  }));
+
+  const winners = readWinners(ambito);
+  const existente = winners.find((w) => normalizeName(w.name) === normalizeName(nombre));
+  if (existente) {
+    existente.items = existente.items.concat(items);
+    existente.draws = (existente.draws ?? 1) + 1;
+    existente.date = new Date().toISOString();
+    winners.splice(winners.indexOf(existente), 1);
+    winners.unshift(existente);
+  } else {
+    winners.unshift({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: nombre.slice(0, 120),
+      total: 0,
+      items,
+      date: new Date().toISOString(),
+      draws: 1
+    });
+  }
+  writeWinners(ambito, winners);
+  return items.map((it) => it.name);
+}
+
+// GET /api/twitch/status -> si hay credenciales, si esta conectado y sus ajustes
+app.get('/api/twitch/status', (req: Request, res: Response) => {
+  res.json(twitch.estado(requireUid(req)));
+});
+
+// GET /api/twitch/connect -> manda al usuario a autorizar en Twitch
+app.get('/api/twitch/connect', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  if (!twitch.hayCredenciales(uid)) {
+    return res.status(409).json({ error: 'pon antes el Client ID y el Client Secret de tu app de Twitch' });
+  }
+  res.redirect(twitch.urlDeAutorizacion(uid));
+});
+
+// POST /api/twitch/credentials  Body: { clientId, clientSecret }
+// El secreto se guarda pero no vuelve nunca: del estado solo sale si esta puesto.
+app.post('/api/twitch/credentials', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  try {
+    twitch.guardarCredenciales(uid, req.body?.clientId, req.body?.clientSecret);
+    res.json(twitch.estado(uid));
+  } catch (err) {
+    console.error('Failed to save twitch credentials:', err);
+    res.status(500).json({ error: 'failed to save credentials' });
+  }
+});
+
+// POST /api/twitch/config  Body: { canal?, servidor?, recompensa?, objetos? }
+// El canal se puede poner sin haber conectado nada: leer un chat publico no
+// necesita credenciales.
+app.post('/api/twitch/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  twitch.guardarAjustes(uid, req.body || {});
+  res.json(twitch.estado(uid));
+});
+
+// POST /api/twitch/disconnect -> corta y olvida las credenciales guardadas
+app.post('/api/twitch/disconnect', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  twitch.borrarCuenta(uid);
+  res.json(twitch.estado(uid));
+});
+
+// --- Carrera de balineras y puntos --------------------------------------
+// Los espectadores se apuntan por el chat (que se lee sin credenciales) y los
+// primeros se llevan puntos. Quien decide el orden es el servidor.
+
+// GET /api/carrera -> la carrera en curso y su resultado
+app.get('/api/carrera', (req: Request, res: Response) => {
+  res.json(carrera.estado(requireUid(req)));
+});
+
+// POST /api/carrera/abrir  Body: { canal, palabra? }
+app.post('/api/carrera/abrir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  // El canal es un ajuste de la cuenta (Configuracion > Mi cuenta).
+  const canal = twitch.estado(uid).canal;
+  if (!canal) {
+    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  }
+  try {
+    res.json(carrera.abrir(uid, canal));
+  } catch (err) {
+    console.error('Failed to open race:', err);
+    res.status(500).json({ error: 'failed to open race' });
+  }
+});
+
+// POST /api/carrera/apuntar  Body: { nombre }  (para añadir a mano)
+app.post('/api/carrera/apuntar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const ok = carrera.apuntar(uid, String(req.body?.nombre || ''));
+  if (!ok) return res.status(409).json({ error: 'no se pudo apuntar: repetido, vacio o carrera cerrada' });
+  res.json(carrera.estado(uid));
+});
+
+// POST /api/carrera/correr -> cierra la inscripcion, decide y reparte puntos
+app.post('/api/carrera/correr', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const antes = carrera.estado(uid);
+  const hecha = carrera.correr(uid);
+  if (!hecha) {
+    // Se dice el motivo de verdad: si no, "faltan corredores" confunde cuando
+    // lo que pasa es que esa carrera ya se corrio.
+    const porque = !antes.abierta && antes.resultado.length
+      ? 'esa carrera ya se corrio; abre otra'
+      : 'hacen falta al menos dos corredores';
+    return res.status(409).json({ error: porque });
+  }
+  res.json(hecha);
+});
+
+// POST /api/carrera/cancelar
+app.post('/api/carrera/cancelar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  carrera.cancelar(uid);
+  res.json(carrera.estado(uid));
+});
+
+// POST /api/carrera/config  Body: { puntos?, duracion?, palabra? }
+app.post('/api/carrera/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  try {
+    carrera.guardarAjustes(uid, req.body || {});
+    res.json(carrera.estado(uid));
+  } catch (err) {
+    console.error('Failed to save race settings:', err);
+    res.status(500).json({ error: 'failed to save race settings' });
+  }
+});
+
+// GET /api/puntos -> la tabla de puntos
+app.get('/api/puntos', (req: Request, res: Response) => {
+  res.json({ puntos: carrera.tabla(requireUid(req)) });
+});
+
 // Serve static UI
 app.use('/assets', express.static(ASSETS_DIR));
 app.use('/', express.static(path.join(process.cwd(), 'public')));
+
+carrera.iniciar({ userDir, ensureUserDir, writeJson });
+
+twitch.iniciar(
+  {
+    userDir,
+    ensureUserDir,
+    writeJson,
+    sortearPara: sortearParaTwitch,
+    servidoresDe: (uid: string) => readServers(uid)
+  },
+  {
+    redirect: process.env.TWITCH_REDIRECT || `http://localhost:${PORT}/api/twitch/callback`,
+    usuarios: readUsers().map((u) => u.id)
+  }
+);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

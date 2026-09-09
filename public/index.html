@@ -227,6 +227,27 @@
     .config-section > h4{margin:0;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:var(--accent)}
     .config-section > .meta{margin:.15rem 0 0}
     .config-section .subtabs{margin-top:1.1rem}
+    .game-subpanel{display:none}
+    .game-subpanel.active{display:block}
+    /* El marcador: una fila por espectador, con su puesto y sus puntos. */
+    .marcador{display:flex;flex-direction:column;gap:.35rem;margin-top:.6rem}
+    .marcador .fila{display:flex;align-items:center;gap:.6rem;padding:.45rem .7rem;border-radius:10px;
+      background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
+    .marcador .puesto{width:26px;flex:none;text-align:center;font-weight:700;color:var(--muted)}
+    .marcador .fila:nth-child(1) .puesto,.marcador .fila:nth-child(2) .puesto,.marcador .fila:nth-child(3) .puesto{color:#e6eef8}
+    .marcador .nombre{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .marcador .puntos{flex:none;font-weight:700;color:var(--accent)}
+    /* La pista: una calle por corredor y la balinera que la recorre. */
+    .pista{margin-top:1rem;padding:.8rem;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)}
+    .pista[hidden]{display:none}
+    .calle{position:relative;height:26px;margin-bottom:6px;border-radius:13px;background:rgba(255,255,255,0.05);overflow:hidden}
+    .calle:last-child{margin-bottom:0}
+    .calle .quien{position:absolute;left:38px;top:0;line-height:26px;font-size:13px;color:var(--muted);white-space:nowrap;z-index:1}
+    .calle .bola{position:absolute;left:2px;top:2px;width:22px;height:22px;border-radius:50%;z-index:2;
+      box-shadow:0 0 0 1px rgba(255,255,255,0.35) inset, 0 2px 6px rgba(2,6,23,.6);
+      transform:translateX(0);transition:transform 0s linear}
+    .calle .meta-linea{position:absolute;right:6px;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.18)}
+    .calle.llega .quien{color:#e6eef8;font-weight:600}
     .draw-subpanel{display:none}
     .draw-subpanel.active{display:block}
     .font-dock{position:fixed;right:1rem;bottom:1rem;z-index:70;display:flex;flex-direction:column;gap:.35rem;padding:.7rem .9rem;border-radius:12px;background:rgba(9,15,28,0.94);border:1px solid rgba(255,255,255,0.14);box-shadow:0 10px 30px rgba(2,6,23,0.6);backdrop-filter:blur(8px)}
@@ -319,7 +340,7 @@
     </button>
     <nav class="nav-links" aria-label="Secciones">
       <button type="button" class="tab active" data-tab="catalog">Catálogo</button>
-      <button type="button" class="tab" data-tab="random">Ruleta</button>
+      <button type="button" class="tab" data-tab="games">🎮 Minijuegos</button>
       <button type="button" class="tab" data-tab="winners">Ganadores (0)</button>
       <button type="button" class="tab" data-tab="history">📜 Historial</button>
       <button type="button" class="tab" data-tab="config">⚙ Configuración</button>
@@ -426,7 +447,75 @@
           </section>
         </div>
 
-        <div class="tab-panel" id="random-panel">
+
+        <div class="tab-panel" id="winners-panel">
+          <section>
+            <h3>🏆 Top 3</h3>
+            <div class="subtabs">
+              <button type="button" class="subtab active" data-rank="global">🌍 Global</button>
+              <button type="button" class="subtab" data-rank="stream">📺 Este stream</button>
+            </div>
+            <div class="rank-bar">
+              <p class="meta" id="rankInfo">Acumulado de todos los sorteos, incluidos los premios ya entregados.</p>
+              <button id="newStream" type="button" hidden>Empezar nuevo stream</button>
+              <button id="resetRanking" type="button">Reiniciar top global</button>
+            </div>
+            <div id="podium" class="podium"></div>
+          </section>
+
+          <section>
+            <h3>Ganadores pendientes de entrega</h3>
+            <p class="meta">Al entregar el premio, elimina al ganador de la lista.</p>
+            <div id="winnersList"></div>
+            <div id="winnersTotal" class="winners-total" hidden></div>
+          </section>
+        </div>
+
+        <div class="tab-panel" id="games-panel">
+          <div class="subtabs">
+            <button type="button" class="subtab active" data-game="ruleta">🎰 Ruleta</button>
+            <button type="button" class="subtab" data-game="carrera">🏁 Carrera de balineras</button>
+          </div>
+
+          <div class="game-subpanel" id="game-carrera-panel">
+          <section>
+            <h3>🏁 Carrera de balineras</h3>
+            <p class="meta">Los espectadores se apuntan escribiendo en tu chat de Twitch y las balineras corren. <strong>Solo el primero gana puntos.</strong> No hace falta conectar nada: el chat se lee sin credenciales. El canal se pone en Configuración › Mi cuenta.</p>
+
+            <div class="draw-controls">
+              <label class="meta" for="carreraPalabra">Se apuntan escribiendo</label>
+              <input id="carreraPalabra" type="text" value="!correr" style="width:110px" aria-label="Palabra para apuntarse" />
+              <label class="meta" for="carreraPuntos">Puntos al ganador</label>
+              <input id="carreraPuntos" type="number" min="0" max="1000000" value="10" style="width:100px" />
+              <label class="meta" for="carreraDuracion">Duración (s)</label>
+              <input id="carreraDuracion" type="number" min="3" max="600" value="8" style="width:80px" />
+              <button type="button" id="carreraGuardar">Guardar</button>
+              <span class="meta" id="carreraGuardado"></span>
+            </div>
+
+            <div class="draw-controls">
+              <button type="button" id="carreraAbrir">Abrir inscripción</button>
+              <button type="button" id="carreraCorrer" disabled>¡Correr!</button>
+              <button type="button" id="carreraCancelar" class="btn-cancel" hidden>Cancelar</button>
+            </div>
+            <p class="meta" id="carreraEstado">Sin carrera abierta.</p>
+
+            <div class="pista" id="carreraPista" hidden></div>
+            <div id="carreraPodio" class="podium" hidden></div>
+
+            <div class="controls" style="margin-top:.8rem">
+              <input id="carreraNombre" type="text" placeholder="Apuntar a alguien a mano" aria-label="Apuntar a mano" />
+              <button type="button" id="carreraApuntar">Apuntar</button>
+            </div>
+          </section>
+
+          <section>
+            <h3>🏅 Marcador</h3>
+            <p class="meta">Lo que lleva acumulado cada espectador. Son de tu cuenta, no de un servidor.</p>
+            <div id="puntosTabla" class="marcador"></div>
+          </section>
+          </div>
+          <div class="game-subpanel active" id="game-ruleta-panel">
           <section>
             <div class="subtabs">
               <button type="button" class="subtab active" data-draw="normal">🎰 Ruletas</button>
@@ -477,28 +566,6 @@
           </section>
 
         </div>
-
-        <div class="tab-panel" id="winners-panel">
-          <section>
-            <h3>🏆 Top 3</h3>
-            <div class="subtabs">
-              <button type="button" class="subtab active" data-rank="global">🌍 Global</button>
-              <button type="button" class="subtab" data-rank="stream">📺 Este stream</button>
-            </div>
-            <div class="rank-bar">
-              <p class="meta" id="rankInfo">Acumulado de todos los sorteos, incluidos los premios ya entregados.</p>
-              <button id="newStream" type="button" hidden>Empezar nuevo stream</button>
-              <button id="resetRanking" type="button">Reiniciar top global</button>
-            </div>
-            <div id="podium" class="podium"></div>
-          </section>
-
-          <section>
-            <h3>Ganadores pendientes de entrega</h3>
-            <p class="meta">Al entregar el premio, elimina al ganador de la lista.</p>
-            <div id="winnersList"></div>
-            <div id="winnersTotal" class="winners-total" hidden></div>
-          </section>
         </div>
 
         <div class="tab-panel" id="history-panel">
@@ -601,6 +668,22 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               <span class="meta" id="cfgPassStatus" style="margin-left:auto"></span>
             </div>
           </div>
+          <div class="config-section">
+            <h4>Twitch</h4>
+            <p class="meta">Tu canal, para los minijuegos que leen el chat. <strong>No hace falta conectar nada</strong>: los chats públicos se leen sin permisos. Es de tu cuenta, igual en todos tus servidores.</p>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgTwitchCanal">Canal de Twitch</label>
+                <input id="cfgTwitchCanal" type="text" maxlength="60" placeholder="tu_canal" />
+                <span class="meta">Puedes pegar la dirección entera; se queda con el nombre.</span>
+              </div>
+            </div>
+            <div class="config-actions">
+              <button type="button" id="cfgTwitchSave">Guardar canal</button>
+              <span class="meta" id="cfgTwitchStatus" style="margin-left:auto"></span>
+            </div>
+          </div>
+
           </div>
 
           <div class="cfg-tabpanel active" id="cfgtab-aspecto">
@@ -1286,6 +1369,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     function fillConfigForm() {
+      cargarTwitch();
       document.getElementById('cfgPageTitle').value = settings.pageTitle || '';
       document.getElementById('cfgPageSubtitle').value = settings.pageSubtitle || '';
       document.getElementById('cfgLogoUrl').value = settings.logoUrl || '';
@@ -2695,6 +2779,289 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
 
+    // --- Twitch: el canal, que usan los minijuegos ------------------------
+    let twitchEstado = { canal: '' };
+
+    async function cargarTwitch() {
+      try {
+        twitchEstado = await api('/api/twitch/status');
+      } catch (e) {
+        console.warn('No se pudo leer el estado de Twitch:', e.message);
+        return;
+      }
+      const campo = document.getElementById('cfgTwitchCanal');
+      if (campo) campo.value = twitchEstado.canal || '';
+    }
+
+    document.getElementById('cfgTwitchSave').addEventListener('click', async () => {
+      const estado = document.getElementById('cfgTwitchStatus');
+      try {
+        twitchEstado = await api('/api/twitch/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ canal: document.getElementById('cfgTwitchCanal').value })
+        });
+        // Se reescribe con lo que ha quedado guardado: si pegaste la
+        // direccion entera, aqui se ve ya solo el nombre del canal.
+        document.getElementById('cfgTwitchCanal').value = twitchEstado.canal || '';
+        estado.textContent = twitchEstado.canal ? 'Guardado.' : 'Canal vacío: los minijuegos del chat no podrán abrirse.';
+      } catch (e) {
+        showAlert('No se pudo guardar el canal', e.message);
+      }
+    });
+
+    // --- Carrera de balineras ---------------------------------------------
+    const COLORES_BOLA = ['#6ee7b7', '#7dd3fc', '#c084fc', '#fbbf24', '#fb7185',
+      '#34d399', '#93c5fd', '#f0abfc', '#f97316', '#a3e635'];
+    let carrera = { abierta: false, corredores: [], resultado: [], escuchando: '' };
+    let vigilante = null;      // el temporizador que refresca los apuntados
+    let corriendo = false;
+
+    // Cambio entre minijuegos. La ruleta es uno más, así que su panel vive
+    // aquí dentro igual que la carrera.
+    document.querySelectorAll('#games-panel > .subtabs .subtab').forEach((subtab) => {
+      subtab.addEventListener('click', () => {
+        const cual = subtab.dataset.game;
+        document.querySelectorAll('#games-panel > .subtabs .subtab').forEach((b) => {
+          b.classList.toggle('active', b === subtab);
+        });
+        document.querySelectorAll('.game-subpanel').forEach((panel) => {
+          panel.classList.toggle('active', panel.id === `game-${cual}-panel`);
+        });
+        // La ruleta de nombres necesita repintarse al hacerse visible: en un
+        // panel oculto el SVG no tiene tamaño.
+        if (cual === 'ruleta') renderEditor();
+      });
+    });
+
+    async function cargarCarrera() {
+      try {
+        carrera = await api('/api/carrera');
+      } catch (e) {
+        console.warn('No se pudo leer la carrera:', e.message);
+        return;
+      }
+      // Los ajustes guardados mandan sobre lo que ponga en los campos.
+      if (carrera.ajustes) {
+        document.getElementById('carreraPalabra').value = carrera.ajustes.palabra;
+        document.getElementById('carreraPuntos').value = carrera.ajustes.puntos;
+        document.getElementById('carreraDuracion').value = carrera.ajustes.duracion;
+      }
+      pintarCarrera();
+    }
+
+    document.getElementById('carreraGuardar').addEventListener('click', async () => {
+      const aviso = document.getElementById('carreraGuardado');
+      try {
+        carrera = await api('/api/carrera/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            palabra: document.getElementById('carreraPalabra').value,
+            puntos: document.getElementById('carreraPuntos').value,
+            duracion: document.getElementById('carreraDuracion').value
+          })
+        });
+        // Se reescriben con lo que ha quedado, que el servidor acota.
+        document.getElementById('carreraPalabra').value = carrera.ajustes.palabra;
+        document.getElementById('carreraPuntos').value = carrera.ajustes.puntos;
+        document.getElementById('carreraDuracion').value = carrera.ajustes.duracion;
+        aviso.textContent = 'Guardado.';
+        pintarCarrera();
+      } catch (e) {
+        showAlert('No se pudieron guardar los ajustes', e.message);
+      }
+    });
+
+    function pintarCarrera() {
+      const estado = document.getElementById('carreraEstado');
+      const cuantos = carrera.corredores.length;
+      estado.textContent = carrera.abierta
+        ? `Inscripción abierta en ${carrera.escuchando || 'el chat'}: escriben «${document.getElementById('carreraPalabra').value.trim() || '!correr'}» para apuntarse. ${cuantos} apuntado(s).`
+        : carrera.resultado.length
+          ? `Carrera terminada con ${cuantos} corredor(es). Abre otra para volver a jugar.`
+          : 'Sin carrera abierta.';
+
+      document.getElementById('carreraCorrer').disabled = corriendo || !carrera.abierta || cuantos < 2;
+      document.getElementById('carreraCancelar').hidden = !carrera.abierta;
+      document.getElementById('carreraAbrir').disabled = corriendo;
+
+      // La pista se dibuja mientras se apuntan, para que se vea llenarse.
+      if (!cuantos) {
+        document.getElementById('carreraPista').hidden = true;
+        return;
+      }
+      if (!corriendo) dibujarPista();
+    }
+
+    function dibujarPista() {
+      const pista = document.getElementById('carreraPista');
+      pista.hidden = false;
+      pista.innerHTML = '';
+      carrera.corredores.forEach((c, i) => {
+        const calle = document.createElement('div');
+        calle.className = 'calle';
+        calle.dataset.clave = c.clave;
+        calle.innerHTML = `
+          <span class="bola" style="background:${COLORES_BOLA[i % COLORES_BOLA.length]}"></span>
+          <span class="quien">${escapeHtml(c.nombre)}</span>
+          <span class="meta-linea"></span>`;
+        pista.appendChild(calle);
+      });
+    }
+
+    // El servidor ya ha decidido el orden; esto solo lo cuenta. Cada balinera
+    // tarda según su puesto, con un pelín de variación que nunca cambia el
+    // orden, para que no parezcan todas iguales.
+    function animarCarrera(resultado) {
+      const pista = document.getElementById('carreraPista');
+      const ancho = pista.clientWidth - 40;
+      // Lo que dura la carrera lo pone el usuario; el reparto entre puestos se
+      // saca de ahi, para que siempre quepa dentro de ese tiempo.
+      const total = (carrera.ajustes?.duracion || 8) * 1000;
+      const cuantos = Math.max(resultado.length, 2);
+      const SALIDA = 400;   // lo que tarda el primero como mínimo
+      // La separación entre puestos, acotada a lo que quepa: con muchos
+      // corredores y poca duración se aprieta, pero nunca se pasa del tiempo
+      // que ha puesto el usuario.
+      const cabe = (total - SALIDA) / (cuantos - 0.5);
+      const PASO = Math.max(20, Math.min((total * 0.35) / cuantos, cabe));
+      const JITTER = PASO * 0.5;
+      // El último llega justo al cumplirse la duración: por eso se descuenta
+      // también el jitter, que si no se sumaría por encima del tope.
+      const base = Math.max(SALIDA, total - PASO * (cuantos - 1) - JITTER);
+      let ultima = 0;
+
+      // Se busca la calle comparando en JavaScript y no con un selector: los
+      // nombres vienen del chat y pueden traer cualquier cosa.
+      const calles = Array.from(pista.querySelectorAll('.calle'));
+      resultado.forEach((r) => {
+        const clave = r.nombre.trim().toLowerCase();
+        const calle = calles.find((c) => c.dataset.clave === clave);
+        if (!calle) return;
+        const jitter = Math.random() * JITTER;
+        const duracion = base + (r.puesto - 1) * PASO + jitter;
+        ultima = Math.max(ultima, duracion);
+        const bola = calle.querySelector('.bola');
+        bola.style.transition = `transform ${duracion}ms cubic-bezier(.35,.05,.6,1)`;
+        // En el siguiente cuadro, para que el navegador vea el cambio.
+        requestAnimationFrame(() => { bola.style.transform = `translateX(${ancho}px)`; });
+        setTimeout(() => calle.classList.add('llega'), duracion);
+      });
+      return ultima;
+    }
+
+    function pintarPodio(resultado) {
+      const caja = document.getElementById('carreraPodio');
+      const medallas = ['🥇', '🥈', '🥉'];
+      caja.hidden = false;
+      // Se reutilizan las tarjetas del podio de ganadores, para que se vea igual.
+      caja.innerHTML = resultado.slice(0, 3).map((r, i) =>
+        `<div class="podium-card p${i + 1}">
+          <span class="podium-medal">${medallas[i]}</span>
+          <div class="podium-info">
+            <div class="podium-name">${escapeHtml(r.nombre)}</div>
+            ${r.puntos > 0 ? `<div class="podium-total">+${r.puntos} puntos</div>` : '<div class="podium-draws">sin puntos</div>'}
+          </div>
+        </div>`).join('');
+    }
+
+    async function cargarPuntos() {
+      const caja = document.getElementById('puntosTabla');
+      let lista = [];
+      try {
+        lista = (await api('/api/puntos')).puntos || [];
+      } catch (e) {
+        caja.innerHTML = '<div class="meta">No se pudieron cargar los puntos.</div>';
+        return;
+      }
+      if (!lista.length) {
+        caja.innerHTML = '<div class="meta">Nadie tiene puntos todavía.</div>';
+        return;
+      }
+      const medallas = ['🥇', '🥈', '🥉'];
+      caja.innerHTML = lista.map((p, i) =>
+        `<div class="fila">
+          <span class="puesto">${medallas[i] || (i + 1)}</span>
+          <span class="nombre">${escapeHtml(p.nombre)}</span>
+          <span class="puntos">${p.puntos}</span>
+        </div>`).join('');
+    }
+
+    function vigilar(encender) {
+      if (vigilante) { clearInterval(vigilante); vigilante = null; }
+      // Mientras la inscripción está abierta se pregunta cada 2 s quién se ha
+      // apuntado por el chat; el resto del tiempo no se molesta al servidor.
+      if (encender) vigilante = setInterval(cargarCarrera, 2000);
+    }
+
+    document.getElementById('carreraAbrir').addEventListener('click', async () => {
+      // El canal sale de Configuración; aquí solo se elige la palabra.
+      try {
+        carrera = await api('/api/carrera/abrir', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ palabra: document.getElementById('carreraPalabra').value.trim() })
+        });
+        document.getElementById('carreraPodio').hidden = true;
+        pintarCarrera();
+        vigilar(true);
+      } catch (e) {
+        showAlert('No se pudo abrir la carrera', e.message);
+      }
+    });
+
+    document.getElementById('carreraCorrer').addEventListener('click', async () => {
+      if (corriendo) return;
+      corriendo = true;
+      vigilar(false);
+      pintarCarrera();
+      let hecha;
+      try {
+        hecha = await api('/api/carrera/correr', { method: 'POST' });
+      } catch (e) {
+        corriendo = false;
+        showAlert('No se pudo correr', e.message);
+        pintarCarrera();
+        return;
+      }
+      carrera = { ...carrera, ...hecha };
+      const tarda = animarCarrera(hecha.resultado);
+      setTimeout(() => {
+        corriendo = false;
+        pintarPodio(hecha.resultado);
+        cargarPuntos();
+        pintarCarrera();
+        makeConfetti(30);
+      }, tarda + 200);
+    });
+
+    document.getElementById('carreraCancelar').addEventListener('click', async () => {
+      try {
+        carrera = await api('/api/carrera/cancelar', { method: 'POST' });
+      } catch (e) { /* se repinta igual */ }
+      vigilar(false);
+      document.getElementById('carreraPista').hidden = true;
+      pintarCarrera();
+    });
+
+    document.getElementById('carreraApuntar').addEventListener('click', async () => {
+      const campo = document.getElementById('carreraNombre');
+      const nombre = campo.value.trim();
+      if (!nombre) return;
+      try {
+        carrera = await api('/api/carrera/apuntar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre })
+        });
+        campo.value = '';
+        pintarCarrera();
+      } catch (e) {
+        showAlert('No se pudo apuntar', e.message);
+      }
+    });
+
     // --- Copiar exclusiones y rarezas entre equipos -------------------------
     // Quien ya las tenga personalizadas en local no tiene que rehacerlas: se
     // descargan de un sitio y se cargan en otro.
@@ -2983,14 +3350,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
 
     // Ruleta normal (objetos) / personalizada (nombres).
-    document.querySelectorAll('#random-panel .subtab').forEach((subtab) => {
+    document.querySelectorAll('#game-ruleta-panel .subtab').forEach((subtab) => {
       subtab.addEventListener('click', () => {
         mostrarRuleta(subtab.dataset.draw);
       });
     });
 
     function mostrarRuleta(cual) {
-      document.querySelectorAll('#random-panel .subtab').forEach((b) => {
+      document.querySelectorAll('#game-ruleta-panel .subtab').forEach((b) => {
         b.classList.toggle('active', b.dataset.draw === cual);
       });
       document.querySelectorAll('.draw-subpanel').forEach((panel) => {
@@ -3309,8 +3676,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           updateBulkBar();
         }
         // El editor puede haber quedado desfasado si se editó desde el catálogo.
-        if (tab.dataset.tab === 'random') renderEditor();
+        // La ruleta ahora vive dentro de Minijuegos.
         if (tab.dataset.tab === 'history') loadHistory();
+        // La ruleta es el minijuego que sale abierto, asi que se repinta.
+        if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarPuntos(); }
         document.getElementById('fontDock').hidden = tab.dataset.tab !== 'config';
         if (tab.dataset.tab === 'config') fillConfigForm();
         // Al salir de Configuración se corta la animación de prueba.
