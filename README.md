@@ -279,6 +279,9 @@ Los minijuegos que leen el chat (carrera, batalla, inscripción de la ruleta) **
 necesitan nada de esto**: se conectan de salida y como anónimos, así que basta con
 que cada streamer ponga su canal en Configuración > Mi cuenta.
 
+Eso sí, piden **Node 22 o más nuevo**: usan el `WebSocket` que Node trae de serie a
+partir de esa versión. En uno más viejo, abrir la carrera responde diciéndolo.
+
 Sírvelo **siempre por HTTPS**: sin él, la contraseña y la cookie viajan en claro.
 
 #### En un VPS (Hostinger y similares)

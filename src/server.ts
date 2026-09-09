@@ -1891,7 +1891,7 @@ app.post('/api/ruleta-chat/abrir', (req: Request, res: Response) => {
     res.json(ruletachat.abrir(uid, canal));
   } catch (err) {
     console.error('Failed to open wheel signup:', err);
-    res.status(500).json({ error: 'failed to open wheel signup' });
+    res.status(500).json({ error: (err as Error).message || 'failed to open wheel signup' });
   }
 });
 
@@ -1929,7 +1929,7 @@ app.post('/api/carrera/abrir', (req: Request, res: Response) => {
     res.json(carrera.abrir(uid, canal));
   } catch (err) {
     console.error('Failed to open race:', err);
-    res.status(500).json({ error: 'failed to open race' });
+    res.status(500).json({ error: (err as Error).message || 'failed to open race' });
   }
 });
 
@@ -1997,8 +1997,13 @@ app.post('/api/batalla/abrir', (req: Request, res: Response) => {
   if (!canal) {
     return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
   }
-  batalla.abrir(uid, canal);
-  res.json(batalla.estado(uid));
+  try {
+    batalla.abrir(uid, canal);
+    res.json(batalla.estado(uid));
+  } catch (err) {
+    console.error('Failed to open battle:', err);
+    res.status(500).json({ error: (err as Error).message || 'failed to open battle' });
+  }
 });
 
 // POST /api/batalla/entrar  Body: { nombre }  (para apuntar a mano)

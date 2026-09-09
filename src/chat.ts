@@ -30,15 +30,29 @@ export function interpretar(linea: string): Mensaje | null {
   return { autor: m[1], texto };
 }
 
+// El WebSocket de Node es global a partir de Node 22. En uno mas viejo esto
+// reventaba con un error que no decia nada; asi al menos se sabe que arreglar.
+function haceFalta(): typeof WebSocket {
+  const WS = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+  if (!WS) {
+    throw new Error(
+      'este servidor no trae WebSocket: los minijuegos que leen el chat ' +
+      'necesitan Node 22 o mas nuevo (este es ' + process.version + ')'
+    );
+  }
+  return WS;
+}
+
 // Abre la conexion y llama a `alMensaje` con cada mensaje del chat.
 export function conectar(canal: string, alMensaje: (m: Mensaje) => void): Conexion {
+  const WS = haceFalta();
   const limpio = String(canal || '').trim().toLowerCase().replace(/^#/, '');
   let ws: WebSocket | null = null;
   let cerrada = false;
 
   const abrir = () => {
     if (cerrada || !limpio) return;
-    const s = new WebSocket(IRC_WS);
+    const s = new WS(IRC_WS);
     ws = s;
 
     s.addEventListener('open', () => {
