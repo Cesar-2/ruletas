@@ -208,30 +208,38 @@ function simular(carrera: Carrera, duracion: number): Corredor[] {
   const cuantos = carrera.corredores.length;
   const ticks = Math.max(TICKS_MIN, Math.min(TICKS_MAX, Math.round(duracion * 4)));
 
-  const avance: number[][] = [];   // lo que avanza cada uno en cada tick
+  // Se simula tick a tick porque lo que corre cada uno depende de por donde
+  // va: el que se queda atras aprieta y al de delante le cuesta mas. Sin esto
+  // el que coge ventaja al principio gana casi siempre, y no hay carrera.
+  const EMPUJE = 2.4;
+  const recorrido: number[][] = Array.from({ length: cuantos }, () => [] as number[]);
+  const posicion = new Array(cuantos).fill(0);
   const tropiezos: Evento[] = [];
-  for (let c = 0; c < cuantos; c++) {
-    const suyo: number[] = [];
-    for (let t = 0; t < ticks; t++) {
-      // Base con bastante variacion, para que la cosa se mueva.
-      let paso = 0.6 + Math.random() * 0.8;
-      if (Math.random() < 0.04) {
-        paso *= 0.25;
+
+  for (let t = 0; t < ticks; t++) {
+    const lider = Math.max(...posicion);
+    // Hacia el final la cosa se descontrola un poco mas, para que se decida
+    // en la recta final y no a mitad de carrera.
+    const recta = 1 + 1.2 * (t / ticks);
+
+    for (let c = 0; c < cuantos; c++) {
+      // Cuanto le falta para alcanzar al primero, de 0 (va lider) a 1.
+      const atras = lider > 0 ? Math.min(1, (lider - posicion[c]) / lider) : 0;
+      let paso = (0.6 + Math.random() * 0.8) * (1 + EMPUJE * atras);
+
+      if (Math.random() < 0.05 * recta) {
+        paso *= 0.2;
         tropiezos.push({ tick: t, texto: `${carrera.corredores[c].nombre} tropieza` });
-      } else if (Math.random() < 0.04) {
-        paso *= 2.2;
+      } else if (Math.random() < 0.05 * recta) {
+        paso *= 2.4;
         tropiezos.push({ tick: t, texto: `${carrera.corredores[c].nombre} pega un tirón` });
       }
-      suyo.push(paso);
+
+      posicion[c] += paso;
+      recorrido[c].push(posicion[c]);
     }
-    avance.push(suyo);
   }
 
-  // Acumulado y, con ello, quien va ganando en cada instante.
-  const recorrido: number[][] = avance.map((pasos) => {
-    let suma = 0;
-    return pasos.map((p) => (suma += p));
-  });
   const totales = recorrido.map((r) => r[ticks - 1]);
   const meta = Math.max(...totales);
 
