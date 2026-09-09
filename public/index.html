@@ -807,6 +807,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 <input id="cfgUserName" type="text" maxlength="40" />
               </div>
               <div class="config-field">
+                <label for="cfgTwitchCanal">Canal de Twitch</label>
+                <input id="cfgTwitchCanal" type="text" maxlength="60" placeholder="tu_canal" />
+                <span class="meta">De donde leen el chat los minijuegos. Puedes pegar la dirección entera; se queda con el nombre. No hace falta conectar nada.</span>
+              </div>
+              <div class="config-field">
                 <label for="cfgAvatarFile">Foto de la cuenta</label>
                 <input id="cfgAvatarFile" type="file" accept="image/*" />
                 <button type="button" id="cfgAvatarClear">Quitar la foto</button>
@@ -831,21 +836,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             <div class="config-actions">
               <button type="button" id="cfgPassSave">Cambiar contraseña</button>
               <span class="meta" id="cfgPassStatus" style="margin-left:auto"></span>
-            </div>
-          </div>
-          <div class="config-section">
-            <h4>Twitch</h4>
-            <p class="meta">Tu canal, para los minijuegos que leen el chat. <strong>No hace falta conectar nada</strong>: los chats públicos se leen sin permisos. Es de tu cuenta, igual en todos tus servidores.</p>
-            <div class="config-grid">
-              <div class="config-field">
-                <label for="cfgTwitchCanal">Canal de Twitch</label>
-                <input id="cfgTwitchCanal" type="text" maxlength="60" placeholder="tu_canal" />
-                <span class="meta">Puedes pegar la dirección entera; se queda con el nombre.</span>
-              </div>
-            </div>
-            <div class="config-actions">
-              <button type="button" id="cfgTwitchSave">Guardar canal</button>
-              <span class="meta" id="cfgTwitchStatus" style="margin-left:auto"></span>
             </div>
           </div>
 
@@ -1189,6 +1179,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (quien) quien.textContent = usuario ? `Entras como «${usuario.username}»` : '';
       const campo = document.getElementById('cfgUserName');
       if (campo && usuario) campo.value = usuario.name;
+      const canal = document.getElementById('cfgTwitchCanal');
+      // Se reescribe con lo guardado: si pegaste la dirección entera, aquí se
+      // ve ya solo el nombre del canal.
+      if (canal && usuario) canal.value = usuario.twitchCanal || '';
       const pestana = document.getElementById('cfgtabAcceso');
       if (pestana) pestana.hidden = !usuario?.admin;
     }
@@ -1409,7 +1403,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     async function guardarCuenta(extra = {}) {
       const estado = document.getElementById('cfgUserStatus');
-      const cuerpo = { name: document.getElementById('cfgUserName').value.trim(), ...extra };
+      const cuerpo = {
+        name: document.getElementById('cfgUserName').value.trim(),
+        twitchCanal: document.getElementById('cfgTwitchCanal').value,
+        ...extra
+      };
       if (avatarPendiente && !extra.quitarAvatar) cuerpo.avatarDataUrl = avatarPendiente;
 
       estado.textContent = 'Guardando…';
@@ -1544,7 +1542,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     function fillConfigForm() {
-      cargarTwitch();
       document.getElementById('cfgPageTitle').value = settings.pageTitle || '';
       document.getElementById('cfgPageSubtitle').value = settings.pageSubtitle || '';
       document.getElementById('cfgLogoUrl').value = settings.logoUrl || '';
@@ -3056,37 +3053,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       actualizarBotonSortear();
     }
 
-
-    // --- Twitch: el canal, que usan los minijuegos ------------------------
-    let twitchEstado = { canal: '' };
-
-    async function cargarTwitch() {
-      try {
-        twitchEstado = await api('/api/twitch/status');
-      } catch (e) {
-        console.warn('No se pudo leer el estado de Twitch:', e.message);
-        return;
-      }
-      const campo = document.getElementById('cfgTwitchCanal');
-      if (campo) campo.value = twitchEstado.canal || '';
-    }
-
-    document.getElementById('cfgTwitchSave').addEventListener('click', async () => {
-      const estado = document.getElementById('cfgTwitchStatus');
-      try {
-        twitchEstado = await api('/api/twitch/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ canal: document.getElementById('cfgTwitchCanal').value })
-        });
-        // Se reescribe con lo que ha quedado guardado: si pegaste la
-        // direccion entera, aqui se ve ya solo el nombre del canal.
-        document.getElementById('cfgTwitchCanal').value = twitchEstado.canal || '';
-        estado.textContent = twitchEstado.canal ? 'Guardado.' : 'Canal vacío: los minijuegos del chat no podrán abrirse.';
-      } catch (e) {
-        showAlert('No se pudo guardar el canal', e.message);
-      }
-    });
 
     // Rellena un campo de ajustes salvo que lo estes editando: estos paneles
     // se refrescan solos cada 2 s mientras se apunta la gente, y si no, lo que

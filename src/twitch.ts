@@ -34,9 +34,6 @@ interface TwitchCuenta {
   refreshToken: string;
   login: string;        // el canal que salio al autorizar, en minusculas
   userId: string;       // el id del canal en Twitch
-  // El canal cuyo chat se lee (carreras y demas minijuegos). Se puede poner
-  // sin autorizar nada: leer un chat publico no necesita credenciales.
-  canal: string;
   servidor: string;     // en que servidor del Ruleton se apuntan los premios
   recompensa: string;   // titulo de la recompensa; vacio = cualquiera
   objetos: number;      // cuantos objetos se sortean por canje
@@ -74,7 +71,7 @@ export function guardarCredenciales(uid: string, clientId: unknown, clientSecret
   const previa = leerCuenta(uid);
   const cuenta: TwitchCuenta = previa || {
     clientId: '', clientSecret: '', accessToken: '', refreshToken: '',
-    login: '', userId: '', canal: '', servidor: deps.servidoresDe(uid)[0]?.id || '', recompensa: '', objetos: 1
+    login: '', userId: '', servidor: deps.servidoresDe(uid)[0]?.id || '', recompensa: '', objetos: 1
   };
   const id = String(clientId || '').trim().slice(0, 100);
   const secreto = String(clientSecret || '').trim().slice(0, 100);
@@ -176,8 +173,6 @@ export async function completarAlta(uid: string, code: string): Promise<TwitchCu
     refreshToken: t.refresh_token,
     login: datos.login,
     userId: datos.id,
-    // Al autorizar se rellena el canal si aun no habia ninguno.
-    canal: anterior?.canal || datos.login,
     // Lo que ya estuviera configurado se respeta; si no, el primer servidor.
     servidor: anterior?.servidor || deps.servidoresDe(uid)[0]?.id || '',
     recompensa: anterior?.recompensa || '',
@@ -211,16 +206,11 @@ async function refrescar(uid: string, cuenta: TwitchCuenta): Promise<TwitchCuent
 
 // --- Ajustes que toca el usuario ---------------------------------------
 
-export function guardarAjustes(uid: string, ajustes: { canal?: string; servidor?: string; recompensa?: string; objetos?: number }): TwitchCuenta {
+export function guardarAjustes(uid: string, ajustes: { servidor?: string; recompensa?: string; objetos?: number }): TwitchCuenta {
   const cuenta = leerCuenta(uid) || {
     clientId: '', clientSecret: '', accessToken: '', refreshToken: '',
-    login: '', userId: '', canal: '', servidor: deps.servidoresDe(uid)[0]?.id || '', recompensa: '', objetos: 1
+    login: '', userId: '', servidor: deps.servidoresDe(uid)[0]?.id || '', recompensa: '', objetos: 1
   };
-  if (typeof ajustes.canal === 'string') {
-    // Se admite pegar la direccion entera del canal, no solo el nombre.
-    cuenta.canal = ajustes.canal.trim().toLowerCase()
-      .replace(/^https?:\/\/(www\.)?twitch\.tv\//, '').replace(/^#/, '').replace(/\/.*$/, '').slice(0, 30);
-  }
   if (typeof ajustes.servidor === 'string') cuenta.servidor = ajustes.servidor;
   if (typeof ajustes.recompensa === 'string') cuenta.recompensa = ajustes.recompensa.trim().slice(0, 80);
   if (ajustes.objetos != null) cuenta.objetos = Math.max(1, Math.min(10, Math.floor(Number(ajustes.objetos) || 1)));
@@ -238,9 +228,9 @@ export function estado(uid: string) {
     credenciales: hayCredenciales(uid),
     conectado: Boolean(cuenta?.refreshToken),
     escuchando: sockets.has(uid),
-    // El canal que se escucha: el que haya puesto o, si no, el que salio al
-    // autorizar la app.
-    canal: cuenta?.canal || cuenta?.login || '',
+    // El canal que salio al autorizar la app; el que se escucha en el chat
+    // vive en el perfil del usuario.
+    login: cuenta?.login || '',
     servidor: cuenta?.servidor || '',
     recompensa: cuenta?.recompensa || '',
     objetos: cuenta?.objetos || 1

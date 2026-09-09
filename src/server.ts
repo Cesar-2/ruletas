@@ -62,6 +62,7 @@ interface User {
   username: string;      // en minusculas, es con lo que se entra
   name: string;          // como se escribio, para saludar
   avatarUrl?: string;    // foto de la cuenta (vacio = iniciales)
+  twitchCanal?: string;  // su canal, para los minijuegos que leen el chat
   salt: string;
   hash: string;          // scrypt de la contrasena; nunca se guarda en claro
   createdAt: string;
@@ -846,6 +847,7 @@ function datosPublicos(u: User) {
   return {
     id: u.id, username: u.username, name: u.name,
     avatarUrl: u.avatarUrl || '', createdAt: u.createdAt,
+    twitchCanal: u.twitchCanal || '',
     admin: Boolean(u.admin)
   };
 }
@@ -1156,7 +1158,21 @@ app.put('/api/admin/invite', (req: Request, res: Response) => {
   }
 });
 
-// PATCH /api/auth/profile  Body: { name?, avatarDataUrl?, quitarAvatar? }
+// Del canal solo interesa el nombre, aunque peguen la direccion entera.
+function limpiarCanal(valor: unknown): string {
+  return String(valor || '').trim().toLowerCase()
+    .replace(/^https?:\/\/(www\.)?twitch\.tv\//, '')
+    .replace(/^#/, '')
+    .replace(/\/.*$/, '')
+    .slice(0, 30);
+}
+
+// El canal de un usuario, que es de donde leen el chat los minijuegos.
+function canalDe(uid: string): string {
+  return readUsers().find((u) => u.id === uid)?.twitchCanal || '';
+}
+
+// PATCH /api/auth/profile  Body: { name?, avatarDataUrl?, quitarAvatar?, twitchCanal? }
 app.patch('/api/auth/profile', (req: Request, res: Response) => {
   const body = req.body || {};
   try {
@@ -1168,6 +1184,9 @@ app.patch('/api/auth/profile', (req: Request, res: Response) => {
       const name = body.name.trim().slice(0, 40);
       if (!name) return res.status(400).json({ error: 'el nombre no puede quedar vacio' });
       yo.name = name;
+    }
+    if (typeof body.twitchCanal === 'string') {
+      yo.twitchCanal = limpiarCanal(body.twitchCanal);
     }
     if (body.quitarAvatar === true) {
       yo.avatarUrl = '';
@@ -1853,8 +1872,8 @@ app.get('/api/carrera', (req: Request, res: Response) => {
 // POST /api/carrera/abrir  Body: { canal, palabra? }
 app.post('/api/carrera/abrir', (req: Request, res: Response) => {
   const uid = requireUid(req);
-  // El canal es un ajuste de la cuenta (Configuracion > Mi cuenta).
-  const canal = twitch.estado(uid).canal;
+  // El canal sale del perfil (Configuracion > Mi cuenta).
+  const canal = canalDe(uid);
   if (!canal) {
     return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
   }
@@ -1893,7 +1912,7 @@ app.post('/api/carrera/correr', (req: Request, res: Response) => {
 // POST /api/carrera/repetir -> otra carrera con los mismos corredores
 app.post('/api/carrera/repetir', (req: Request, res: Response) => {
   const uid = requireUid(req);
-  const otra = carrera.repetir(uid, twitch.estado(uid).canal);
+  const otra = carrera.repetir(uid, canalDe(uid));
   if (!otra) return res.status(409).json({ error: 'no hay una carrera anterior con corredores' });
   res.json(carrera.estado(uid));
 });
@@ -1925,8 +1944,8 @@ app.get('/api/batalla', (req: Request, res: Response) => {
 // POST /api/batalla/abrir -> abre la inscripcion y escucha el chat
 app.post('/api/batalla/abrir', (req: Request, res: Response) => {
   const uid = requireUid(req);
-  // El canal es el de la cuenta (Configuracion > Mi cuenta), como en la carrera.
-  const canal = twitch.estado(uid).canal;
+  // El canal sale del perfil, como en la carrera.
+  const canal = canalDe(uid);
   if (!canal) {
     return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
   }
