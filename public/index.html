@@ -381,6 +381,19 @@
     @keyframes trote{0%,100%{transform:translateY(0) scaleX(-1)}50%{transform:translateY(-1px) scaleX(-1)}}
     /* Con la carrera parada no hay pataleo: se quedan quietos. */
     .pista.parada .calle .bicho{animation:none;transform:scaleX(-1)}
+    /* Jugar y cancelar no se buscan: estan siempre en la esquina, encima de
+       todo. Cada juego tiene la suya, dentro de su panel. */
+    .acciones-flotantes{position:fixed;right:1.2rem;bottom:1.2rem;z-index:40;
+      display:flex;gap:.5rem;align-items:center;padding:.5rem;border-radius:14px;
+      background:rgba(10,16,28,0.82);backdrop-filter:blur(8px);
+      border:1px solid rgba(255,255,255,0.12);box-shadow:0 12px 32px rgba(2,6,23,.55)}
+    .acciones-flotantes button{font-size:15px;padding:.6rem 1.1rem}
+    .acciones-flotantes button[hidden]{display:none}
+    /* Hueco al final del panel para que la barra no tape lo ultimo. */
+    .game-subpanel{padding-bottom:5rem}
+    @media (max-width:640px){
+      .acciones-flotantes{right:.6rem;bottom:.6rem;left:.6rem;justify-content:center;flex-wrap:wrap}
+    }
     .draw-subpanel{display:none}
     .draw-subpanel.active{display:block}
     /* Editor de paquetes: una fila por premio, imagen + nombre + peso. */
@@ -653,6 +666,8 @@
 
             <div class="draw-controls">
               <button type="button" id="batallaAbrir">Abrir inscripción</button>
+            </div>
+            <div class="acciones-flotantes">
               <button type="button" id="batallaEmpezar" disabled>Empezar torneo</button>
               <button type="button" id="batallaRonda" disabled>Siguiente ronda</button>
               <button type="button" id="batallaRepetir" hidden>Volver a jugar</button>
@@ -690,6 +705,8 @@
 
             <div class="draw-controls">
               <button type="button" id="carreraAbrir">Abrir inscripción</button>
+            </div>
+            <div class="acciones-flotantes">
               <button type="button" id="carreraCorrer" disabled>¡Correr!</button>
               <button type="button" id="carreraRepetir" hidden>Volver a correr</button>
               <button type="button" id="carreraCancelar" class="btn-cancel" hidden>Cancelar</button>
