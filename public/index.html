@@ -11,7 +11,9 @@
       --anim-scale:1; --font-scale:1;
     }
     *{box-sizing:border-box}
-    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; font-size:18px; background:linear-gradient(rgba(7,16,34,var(--overlay)), rgba(11,18,32,calc(var(--overlay) + 0.13))), var(--bg-image) center center / cover no-repeat fixed #071022; color:#e6eef8; min-height:100vh; margin:0; padding:2rem; padding-top:5rem}   /* el hueco real de la barra fija lo mide el JS */
+    /* Las fuentes de emoji van al final: sin ellas los emoticonos del título
+       salen en blanco y negro, o como un cuadro, según el sistema. */
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji'; font-size:18px; background:linear-gradient(rgba(7,16,34,var(--overlay)), rgba(11,18,32,calc(var(--overlay) + 0.13))), var(--bg-image) center center / cover no-repeat fixed #071022; color:#e6eef8; min-height:100vh; margin:0; padding:2rem; padding-top:5rem}   /* el hueco real de la barra fija lo mide el JS */
     /* zoom agranda todo lo de dentro, así que el ancho máximo se divide entre
        la escala: la página sigue midiendo 950 px en pantalla y el contenido se
        recoloca (menos tarjetas por fila) en vez de desbordarse a lo ancho. */
@@ -184,14 +186,36 @@
     .item{position:relative;width:220px;padding:14px;display:flex;flex-direction:column;border-radius:12px;background:rgba(13,21,38,0.86);backdrop-filter: blur(10px);border:1px solid rgba(255,255,255,0.14);transition:transform 2s cubic-bezier(.2,.9,.2,1), box-shadow .5s ease, opacity 2s ease;opacity:0;transform:translateY(24px) scale(.98)}
     .item.show{opacity:1;transform:none;box-shadow:0 8px 24px rgba(2,6,23,0.55)}
     .item:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 18px 40px rgba(2,6,23,0.6)}
-    .thumb{height:88px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+    .thumb{position:relative;height:88px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
     .thumb img{max-width:80%;max-height:80%;border-radius:8px;transition:transform .35s ease, box-shadow .35s ease}
     .item:hover .thumb img{transform:scale(1.06);box-shadow:0 10px 30px rgba(0,0,0,0.6)}
     .item .title{font-weight:600;margin-bottom:6px;font-size:16px}
     /* Altura fija de 2 líneas: iguala la posición del campo de valor y los
        botones entre tarjetas, aunque los nombres tengan longitudes distintas. */
     .item .title{margin-bottom:10px;line-height:1.4;min-height:2.8em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-    .item-level{display:inline-block;align-self:flex-start;margin-bottom:8px;padding:.12rem .5rem;border-radius:999px;font-size:12px;font-weight:600;color:#e6eef8;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.16)}
+    /* A la izquierda: la derecha la ocupa la casilla de seleccionar. */
+    .item-level{position:absolute;top:0;left:0;padding:.1rem .45rem;border-radius:999px;font-size:11px;font-weight:600;color:#e6eef8;background:rgba(9,15,28,0.78);border:1px solid rgba(255,255,255,0.16)}
+    /* El común es el color de siempre de la tarjeta: no la tiñe de nada. */
+    /* El comun no tiñe la tarjeta: se queda como estaba, solo un pelin gris. */
+    .item.common{border-color:rgba(148,163,184,0.45)}
+    /* Los cuatro colores de rareza: una tira fina bajo el objeto, del mismo
+       tamaño y forma que el resto de controles de la tarjeta. */
+    .tag-colores{display:flex;gap:3px;margin-top:6px;margin-bottom:10px}
+    .tag-color{flex:1;height:12px;padding:0;border-radius:4px;cursor:pointer;
+      border:1px solid rgba(255,255,255,0.12);box-shadow:none;opacity:.75;transition:opacity .15s ease}
+    .tag-color:hover{opacity:.95}
+    .tag-color.puesto{opacity:1;border-color:rgba(255,255,255,0.7)}
+    /* La pestaña es una .subtab normal; solo se le añade el punto de color. */
+    .subtab-color{display:inline-flex;align-items:center;gap:.35rem}
+    .subtab-color .punto{width:9px;height:9px;border-radius:3px;display:inline-block}
+
+    /* En Configuracion los cuatro colores van en fila, uno al lado de otro. */
+    .ratios-lista{display:flex;gap:1rem;flex-wrap:wrap;margin:.6rem 0}
+    .ratio-fila{display:flex;align-items:center;gap:.45rem;margin-bottom:.35rem}
+    .ratio-fila .punto{width:9px;height:9px;border-radius:3px;flex:none}
+    .ratio-fila input{width:62px;padding:.3rem .4rem;font-size:13px;border-radius:6px;
+      background:var(--card);border:1px solid rgba(255,255,255,0.10);color:inherit}
+    .ratio-fila .real{margin-left:auto;font-size:12px;color:var(--muted)}
     .item.rare{background:linear-gradient(160deg, rgba(37,99,235,0.55), rgba(13,21,38,0.90));border-color:rgba(96,165,250,0.80);box-shadow:0 8px 24px rgba(2,6,23,0.55), 0 10px 30px rgba(37,99,235,0.30)}
     .item.epic{background:linear-gradient(160deg, rgba(147,51,234,0.55), rgba(13,21,38,0.90));border-color:rgba(192,132,252,0.80);box-shadow:0 8px 24px rgba(2,6,23,0.55), 0 10px 30px rgba(147,51,234,0.30)}
     .item.mythic{background:linear-gradient(160deg, rgba(220,38,38,0.55), rgba(13,21,38,0.90));border-color:rgba(248,113,113,0.80);box-shadow:0 8px 24px rgba(2,6,23,0.55), 0 10px 30px rgba(220,38,38,0.30)}
@@ -250,6 +274,52 @@
     .calle.llega .quien{color:#e6eef8;font-weight:600}
     .draw-subpanel{display:none}
     .draw-subpanel.active{display:block}
+    /* Editor de paquetes: una fila por premio, imagen + nombre + peso. */
+    .pack-row{display:flex;gap:.7rem;align-items:center;padding:.6rem;margin-bottom:.6rem;border-radius:12px;background:var(--card);border:1px solid rgba(255,255,255,0.1)}
+    .pack-row img{width:56px;height:56px;object-fit:cover;border-radius:8px;background:rgba(255,255,255,0.06);flex:none}
+    .pack-row .sin-imagen{width:56px;height:56px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font-size:22px;background:rgba(255,255,255,0.06);color:var(--muted)}
+    .pack-row .pack-nombre{flex:1;min-width:120px}
+    .pack-row .pack-peso{width:78px;flex:none}
+    .pack-row input[type=text],.pack-row input[type=number]{width:100%;padding:.45rem .55rem;border-radius:8px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.06);color:inherit;font-size:14px}
+    .pack-row .pack-acciones{display:flex;flex-direction:column;gap:.3rem;flex:none}
+    .pack-row .pack-acciones button{padding:.3rem .55rem;font-size:12px}
+    .pack-prob{font-size:12px;color:var(--muted);width:52px;text-align:right;flex:none}
+    /* El contenido del lote cuelga debajo de su fila. */
+    .pack-bloque{margin-bottom:.6rem;border-radius:12px;background:var(--card);border:1px solid rgba(255,255,255,0.1)}
+    .pack-bloque .pack-row{margin:0;background:none;border:none}
+    .pack-items{padding:0 .7rem .7rem 4.6rem}
+    .pack-item{display:flex;gap:.5rem;align-items:center;margin-bottom:.35rem}
+    .pack-item input[type=text]{flex:1;padding:.35rem .5rem;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.05);color:inherit;font-size:13px}
+    .pack-item button{padding:.25rem .5rem;font-size:12px}
+    /* Banners y redes de la cuenta. */
+    .banner-lista,.social-lista{display:flex;flex-direction:column;gap:.5rem;margin:.5rem 0}
+    .banner-fila,.social-fila{display:flex;gap:.5rem;align-items:center;padding:.5rem;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,0.1)}
+    .banner-fila img{width:120px;height:38px;object-fit:cover;border-radius:6px;flex:none;background:rgba(255,255,255,0.06)}
+    .banner-fila .sin-imagen{width:120px;height:38px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);background:rgba(255,255,255,0.06)}
+    .banner-fila input,.social-fila input{flex:1;padding:.35rem .5rem;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.05);color:inherit;font-size:13px}
+    .social-fila select{padding:.35rem .5rem;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:var(--card);color:inherit;font-size:13px;width:130px;flex:none}
+    .banner-fila button,.social-fila button{padding:.3rem .6rem;font-size:12px;box-shadow:none;background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
+    /* Cabecera de columnas: mismas anchuras que la fila de abajo. */
+    .pack-cabecera{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.15rem}
+    .pack-cabecera .col-nombre{flex:1}
+    .pack-cabecera .col-color{width:92px;flex:none}
+    .pack-cabecera .col-quitar{width:26px;flex:none}
+    /* Los cuatro colores del objeto, en la propia fila. */
+    .item-colores{display:flex;gap:3px;flex:none;width:92px;margin:0}
+    .item-colores .tag-color{height:16px}
+    .anadir-objeto{padding:.3rem .6rem;font-size:12px;box-shadow:none;
+      background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
+    /* El % por color del paquetón, debajo de sus objetos. */
+    .punto-premio{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:.3rem;vertical-align:middle}
+    .pack-items .meta{font-size:12px;margin:.1rem 0 .4rem}
+    .code-list{margin-top:.8rem;display:flex;flex-direction:column;gap:.5rem}
+    .code-row{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;padding:.55rem .7rem;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,0.1)}
+    .code-row .clave{font-family:ui-monospace,Menlo,monospace;font-size:16px;letter-spacing:.06em}
+    .code-row .estado{font-size:12px;padding:.15rem .5rem;border-radius:999px}
+    .code-row .estado.libre{color:#6ee7b7;background:rgba(110,231,183,0.14)}
+    .code-row .estado.usado{color:#fbbf24;background:rgba(251,191,36,0.14)}
+    .code-row .hueco{margin-left:auto;display:flex;gap:.4rem}
+    .code-row button{padding:.3rem .6rem;font-size:12px}
     .font-dock{position:fixed;right:1rem;bottom:1rem;z-index:70;display:flex;flex-direction:column;gap:.35rem;padding:.7rem .9rem;border-radius:12px;background:rgba(9,15,28,0.94);border:1px solid rgba(255,255,255,0.14);box-shadow:0 10px 30px rgba(2,6,23,0.6);backdrop-filter:blur(8px)}
     .font-dock[hidden]{display:none}
     .font-dock label{font-size:13px;color:var(--muted)}
@@ -403,9 +473,10 @@
             </div>
             <div class="subtabs">
               <button type="button" class="subtab active" data-view="all">Todos</button>
-              <button type="button" class="subtab" data-view="rare">Raros (0)</button>
-              <button type="button" class="subtab" data-view="epic">Épicos (0)</button>
-              <button type="button" class="subtab" data-view="mythic">Míticos (0)</button>
+              <button type="button" class="subtab subtab-color" data-view="common" title="Gris (sin marcar)"><span class="punto" style="background:#a8b8cc"></span><span class="cuantos">0</span></button>
+              <button type="button" class="subtab subtab-color" data-view="rare" title="Azul"><span class="punto" style="background:#3b82f6"></span><span class="cuantos">0</span></button>
+              <button type="button" class="subtab subtab-color" data-view="epic" title="Morado"><span class="punto" style="background:#a855f7"></span><span class="cuantos">0</span></button>
+              <button type="button" class="subtab subtab-color" data-view="mythic" title="Rojo"><span class="punto" style="background:#ef4444"></span><span class="cuantos">0</span></button>
               <button type="button" class="subtab" data-view="excluded">Excluidos (0)</button>
             </div>
             <div class="bulk-bar" id="bulkBar">
@@ -448,28 +519,6 @@
         </div>
 
 
-        <div class="tab-panel" id="winners-panel">
-          <section>
-            <h3>🏆 Top 3</h3>
-            <div class="subtabs">
-              <button type="button" class="subtab active" data-rank="global">🌍 Global</button>
-              <button type="button" class="subtab" data-rank="stream">📺 Este stream</button>
-            </div>
-            <div class="rank-bar">
-              <p class="meta" id="rankInfo">Acumulado de todos los sorteos, incluidos los premios ya entregados.</p>
-              <button id="newStream" type="button" hidden>Empezar nuevo stream</button>
-              <button id="resetRanking" type="button">Reiniciar top global</button>
-            </div>
-            <div id="podium" class="podium"></div>
-          </section>
-
-          <section>
-            <h3>Ganadores pendientes de entrega</h3>
-            <p class="meta">Al entregar el premio, elimina al ganador de la lista.</p>
-            <div id="winnersList"></div>
-            <div id="winnersTotal" class="winners-total" hidden></div>
-          </section>
-        </div>
 
         <div class="tab-panel" id="games-panel">
           <div class="subtabs">
@@ -520,6 +569,7 @@
             <div class="subtabs">
               <button type="button" class="subtab active" data-draw="normal">🎰 Ruletas</button>
               <button type="button" class="subtab" data-draw="custom">🎡 Personalizada</button>
+              <button type="button" class="subtab" data-draw="packs">🎁 Paquetones</button>
             </div>
 
             <div class="draw-subpanel active" id="draw-normal-panel">
@@ -563,12 +613,66 @@
               </div>
             </div>
             </div>
+
+            <div class="draw-subpanel" id="draw-packs-panel">
+            <h3>🎁 Paquetones para invitados</h3>
+            <p class="meta">El invitado <strong>elige un paquetón</strong> y gira: sale <strong>uno</strong> de los objetos que lleva dentro. Cada objeto se clasifica por color y el <strong>% se pone por color</strong>, dentro de cada paquetón: primero se sortea el color y después, entre los objetos de ese color, uno al azar. Un color sin objetos no sale por mucho % que tenga. Son los de este servidor.</p>
+
+            <div class="pack-list" id="packList"></div>
+            <div class="controls">
+              <button type="button" id="addPack">+ Añadir paquetón</button>
+              <button type="button" id="savePacks">Guardar paquetones</button>
+              <span class="meta" id="packStatus"></span>
+            </div>
+
+            <h3 style="margin-top:1.8rem">🎟️ Códigos de acceso</h3>
+            <p class="meta">Cada código sirve para entrar <strong>una sola vez</strong> y trae las tiradas que le pongas. Al entrar, la persona <strong>elige en qué servidor juega</strong> entre los tuyos que tengan paquetones, y ahí se apuntan sus premios. Si cierra la página pierde lo que le quedara y necesita otro código. La lista es de toda tu cuenta, no solo de este servidor.</p>
+            <div class="controls">
+              <label for="codeSpins" class="meta">Tiradas</label>
+              <input id="codeSpins" type="number" value="1" min="1" max="50" style="width:80px" />
+              <button type="button" id="newCode">Crear código</button>
+              <span class="meta" id="codeStatus"></span>
+            </div>
+            <div id="codeList" class="code-list"></div>
+            </div>
           </section>
 
         </div>
+
+        <div class="tab-panel" id="winners-panel">
+          <div class="subtabs" id="winnersServers"></div>
+
+          <section>
+            <h3>🎁 Ganadores por código</h3>
+            <p class="meta">Los que han jugado con un código de invitado. Son de este servidor: los premios pertenecen a él, como el resto de ganadores.</p>
+            <div id="guestWinners"></div>
+          </section>
+
+          <section>
+            <h3>🏆 Top 3</h3>
+            <div class="subtabs">
+              <button type="button" class="subtab active" data-rank="global">🌍 Global</button>
+              <button type="button" class="subtab" data-rank="stream">📺 Este stream</button>
+            </div>
+            <div class="rank-bar">
+              <p class="meta" id="rankInfo">Acumulado de todos los sorteos, incluidos los premios ya entregados.</p>
+              <button id="newStream" type="button" hidden>Empezar nuevo stream</button>
+              <button id="resetRanking" type="button">Reiniciar top global</button>
+            </div>
+            <div id="podium" class="podium"></div>
+          </section>
+
+          <section>
+            <h3>Ganadores pendientes de entrega</h3>
+            <p class="meta">Al entregar el premio, elimina al ganador de la lista.</p>
+            <div id="winnersList"></div>
+            <div id="winnersTotal" class="winners-total" hidden></div>
+          </section>
         </div>
 
         <div class="tab-panel" id="history-panel">
+          <div class="subtabs" id="historyServers"></div>
+
           <section>
             <h3>📜 Historial de ganadores</h3>
             <div class="rank-bar">
@@ -584,10 +688,10 @@
           <h3>Configuración</h3>
 
           <div class="subtabs cfg-nav">
-            <button type="button" class="subtab cfgtab active" data-cfgtab="aspecto">🎨 Apariencia</button>
+            <button type="button" class="subtab cfgtab active" data-cfgtab="cuenta">👤 Mi cuenta</button>
+            <button type="button" class="subtab cfgtab" data-cfgtab="aspecto">🎨 Apariencia</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="animacion">🎬 Animación</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="datos">📦 Datos</button>
-            <button type="button" class="subtab cfgtab" data-cfgtab="cuenta">👤 Mi cuenta</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="acceso" id="cfgtabAcceso" hidden>🔑 Acceso</button>
           </div>
 
@@ -626,7 +730,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           </div>
           </div>
 
-          <div class="cfg-tabpanel" id="cfgtab-cuenta">
+          <div class="cfg-tabpanel active" id="cfgtab-cuenta">
           <div class="config-section">
             <h4>Mi cuenta</h4>
             <div class="cuenta-cabecera">
@@ -684,9 +788,28 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
           </div>
 
+          <div class="config-section">
+            <h4>Banners y redes sociales</h4>
+            <p class="meta">Los ve quien entra con un código de invitado, debajo de su ruleta. Son de tu cuenta: iguales en todos tus servidores.</p>
+
+            <label class="meta">Banners</label>
+            <div id="bannerList" class="banner-lista"></div>
+            <div class="controls">
+              <button type="button" id="addBanner">+ Añadir banner</button>
+            </div>
+
+            <label class="meta" style="margin-top:1rem;display:block">Redes sociales</label>
+            <div id="socialList" class="social-lista"></div>
+            <div class="controls">
+              <button type="button" id="addSocial">+ Añadir red</button>
+              <button type="button" id="saveMarca">Guardar banners y redes</button>
+              <span class="meta" id="marcaStatus"></span>
+            </div>
           </div>
 
-          <div class="cfg-tabpanel active" id="cfgtab-aspecto">
+          </div>
+
+          <div class="cfg-tabpanel" id="cfgtab-aspecto">
           <div class="config-section">
             <h4>Página</h4>
             <div class="config-grid">
@@ -802,6 +925,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           </div>
 
           <div class="cfg-tabpanel" id="cfgtab-datos">
+          <div class="config-section">
+            <h4>Ratio de salida de cada color</h4>
+            <p class="meta">Cuánto sale cada color, tanto en la ruleta de objetos como en los paquetones de invitados. No hace falta que sumen 100: cuenta lo que pesa cada uno frente a los demás. Con todo a cero se sortea sin mirar el color. Son los de este servidor.</p>
+            <div id="ratioList" class="ratios-lista"></div>
+            <div class="controls">
+              <button type="button" id="saveRatios">Guardar ratios</button>
+              <span class="meta" id="ratioStatus"></span>
+            </div>
+          </div>
+
           <div class="config-section">
             <h4>Exclusiones y rarezas</h4>
             <p class="meta" id="dataTransferInfo">Se copian de un equipo a otro sin rehacerlas a mano. Las exclusiones son una sola lista para todos los servidores; las rarezas son las del servidor que tengas abierto.</p>
@@ -1370,6 +1503,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     function fillConfigForm() {
       cargarTwitch();
+      renderBanners();
+      renderSocials();
       document.getElementById('cfgPageTitle').value = settings.pageTitle || '';
       document.getElementById('cfgPageSubtitle').value = settings.pageSubtitle || '';
       document.getElementById('cfgLogoUrl').value = settings.logoUrl || '';
@@ -1432,11 +1567,23 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     }
 
-    const RARITIES = ['rare', 'epic', 'mythic'];
-    const RARITY_LABEL = { rare: 'Raro', epic: 'Épico', mythic: 'Mítico' };
+    const RARITIES = ['common', 'rare', 'epic', 'mythic'];
+    // Las rarezas son colores, sin nombre. El del color se usa solo para
+    // lectores de pantalla y para los títulos al pasar por encima.
+    const RARITY_COLOR = { common: '#a8b8cc', rare: '#3b82f6', epic: '#a855f7', mythic: '#ef4444' };
+    const RARITY_COLOR_NAME = { common: 'Gris', rare: 'Azul', epic: 'Morado', mythic: 'Rojo' };
 
     function applyRarityClass(el, rarity) {
       RARITIES.forEach((r) => el.classList.toggle(r, rarity === r));
+    }
+
+    // Deja encendido el boton del color que tiene el objeto. Sin marca es
+    // comun, asi que se enciende el gris.
+    function marcarBotonDeColor(card, rarity) {
+      const puesto = rarity || 'common';
+      card.querySelectorAll('.tag-color').forEach((b) => {
+        b.classList.toggle('puesto', b.dataset.rarity === puesto);
+      });
     }
 
     // Repinta la rareza en las tarjetas ya renderizadas sin recrearlas, para no
@@ -1445,8 +1592,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.querySelectorAll('#randomResult .item').forEach((card) => {
         const rarity = itemTags[card.dataset.itemId] ?? '';
         applyRarityClass(card, rarity);
-        const select = card.querySelector('.tag-select');
-        if (select) select.value = rarity;
+        marcarBotonDeColor(card, rarity);
         card.classList.toggle('excluded', excludedIds.has(card.dataset.itemId));
         const excludeBtn = card.querySelector('.exclude-toggle');
         if (excludeBtn) {
@@ -1467,12 +1613,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       return String(it.ankama_id ?? it.id ?? it._id ?? '');
     }
 
+    // Mientras esto sea false la lista en memoria no vale nada: guardarla
+    // borraría de un golpe las exclusiones de todos los servidores.
+    let exclusionesCargadas = false;
+
     async function loadExclusions() {
       try {
         const data = await api('/api/exclusions');
         excludedIds.clear();
         (data.ids || []).forEach((id) => excludedIds.add(String(id)));
+        exclusionesCargadas = true;
       } catch (e) {
+        exclusionesCargadas = false;
         console.warn('No se pudieron cargar las exclusiones:', e.message);
       }
     }
@@ -1499,6 +1651,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     async function saveExclusions() {
+      // Si la carga inicial falló no se sabe qué había: escribir ahora dejaría
+      // la lista vacía en el servidor. Mejor no tocar nada y avisar.
+      if (!exclusionesCargadas) {
+        showAlert('Exclusiones no guardadas', 'No se pudo leer la lista al abrir la página, así que no se sobrescribe. Recarga e inténtalo otra vez.');
+        return;
+      }
       try {
         await api('/api/exclusions', {
           method: 'PUT',
@@ -1561,8 +1719,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (!card) return;
       const rarity = itemTags[id] ?? '';
       applyRarityClass(card, rarity);
-      const select = card.querySelector('.tag-select');
-      if (select) select.value = rarity;
+      marcarBotonDeColor(card, rarity);
       const off = excludedIds.has(id);
       card.classList.toggle('excluded', off);
       const excludeBtn = card.querySelector('.exclude-toggle');
@@ -1586,11 +1743,17 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const excludedTab = document.querySelector('#catalog-panel .subtab[data-view="excluded"]');
       if (excludedTab) excludedTab.textContent = `Excluidos (${total})`;
 
+      // El común no se guarda en itemTags: es lo que queda sin marcar, así que
+      // se cuenta restando del total del catálogo.
       const tagValues = Object.values(itemTags);
-      const plural = { rare: 'Raros', epic: 'Épicos', mythic: 'Míticos' };
+      const marcados = tagValues.filter((v) => v && v !== 'common').length;
       RARITIES.forEach((r) => {
         const tab = document.querySelector(`.subtab[data-view="${r}"]`);
-        if (tab) tab.textContent = `${plural[r]} (${tagValues.filter((v) => v === r).length})`;
+        if (!tab) return;
+        const cuantos = r === 'common'
+          ? Math.max(0, allItems.length - marcados)
+          : tagValues.filter((v) => v === r).length;
+        tab.querySelector('.cuantos').textContent = cuantos;
       });
     }
 
@@ -1928,7 +2091,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     async function entregarPremio(w, cantidad) {
       try {
-        const data = await api(`/api/winners/${encodeURIComponent(w.id)}/deliver`, {
+        const data = await api(rutaGanadores(`/api/winners/${encodeURIComponent(w.id)}/deliver`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ amount: cantidad })
@@ -2121,7 +2284,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     async function loadRanking() {
       try {
         // El parametro extra evita que el navegador reutilice una respuesta previa.
-        const data = await api(`/api/ranking?limit=3&scope=${rankScope}&_=` + Date.now());
+        const data = await api(rutaGanadores(`/api/ranking?limit=3&scope=${rankScope}&_=` + Date.now()));
         renderPodium(data.ranking || []);
         describirStream(data.startedAt);
       } catch (e) {
@@ -2131,11 +2294,42 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // Historial completo: cada persona con su total acumulado, cuantos sorteos
     // ganó, más el total entregado del servidor.
+    // Qué servidor se está mirando en el historial. Como en Ganadores, es solo
+    // de esta pestaña: no cambia el servidor con el que se sortea.
+    let historyServer = '';
+
+    function rutaHistorial(path) {
+      const sep = path.includes('?') ? '&' : '?';
+      return path + sep + 'server=' + encodeURIComponent(historyServer || currentServer);
+    }
+
+    function renderHistoryServers() {
+      const cont = document.getElementById('historyServers');
+      if (!cont) return;
+      if (!historyServer || !servers.some((sv) => sv.id === historyServer)) {
+        historyServer = currentServer || (servers[0] && servers[0].id) || '';
+      }
+      cont.innerHTML = '';
+      servers.forEach((sv) => {
+        const boton = document.createElement('button');
+        boton.type = 'button';
+        boton.className = 'subtab' + (sv.id === historyServer ? ' active' : '');
+        boton.textContent = sv.name;
+        boton.addEventListener('click', () => {
+          if (historyServer === sv.id) return;
+          historyServer = sv.id;
+          renderHistoryServers();
+          loadHistory();
+        });
+        cont.appendChild(boton);
+      });
+    }
+
     async function loadHistory() {
       const box = document.getElementById('historyTable');
       try {
         // Solo lo entregado: los premios pendientes aún no son historia.
-        const data = await api('/api/ranking?limit=500&scope=delivered&_=' + Date.now());
+        const data = await api(rutaHistorial('/api/ranking?limit=500&scope=delivered&_=' + Date.now()));
         renderHistory(data.ranking || []);
       } catch (e) {
         box.innerHTML = '<div class="meta">No se pudo cargar el historial: ' + escapeHtml(e.message) + '</div>';
@@ -2170,7 +2364,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       box.innerHTML = `
         <div class="winners-total history-total-box">
           <span class="wt-label">
-            Total entregado en ${escapeHtml(servers.find((sv) => sv.id === currentServer)?.name ?? 'este servidor')}
+            Total entregado en ${escapeHtml(servers.find((sv) => sv.id === (historyServer || currentServer))?.name ?? 'este servidor')}
             <span class="wt-sub">${totalSorteos} sorteo(s) entregado(s)</span>
           </span>
           <span class="wt-value">${totalKamas.toLocaleString('es-ES')}<img src="/assets/kama.png" alt="kamas" class="kama-icon" /></span>
@@ -2190,9 +2384,86 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         </div>`;
     }
 
+    // Qué servidor se está mirando en la pestaña de Ganadores. Es solo de esa
+    // pestaña: no cambia el servidor con el que se sortea.
+    let winnersServer = '';
+
+    // Añade el servidor que se está mirando a una ruta de la API.
+    function rutaGanadores(path) {
+      const sep = path.includes('?') ? '&' : '?';
+      return path + sep + 'server=' + encodeURIComponent(winnersServer || currentServer);
+    }
+
+    function renderWinnersServers() {
+      const cont = document.getElementById('winnersServers');
+      if (!cont) return;
+      if (!winnersServer || !servers.some((sv) => sv.id === winnersServer)) {
+        winnersServer = currentServer || (servers[0] && servers[0].id) || '';
+      }
+      cont.innerHTML = '';
+      servers.forEach((sv) => {
+        const boton = document.createElement('button');
+        boton.type = 'button';
+        boton.className = 'subtab' + (sv.id === winnersServer ? ' active' : '');
+        boton.textContent = sv.name;
+        boton.addEventListener('click', () => {
+          if (winnersServer === sv.id) return;
+          winnersServer = sv.id;
+          renderWinnersServers();
+          loadWinners();
+          loadGuestWinners();
+          loadRanking();
+        });
+        cont.appendChild(boton);
+      });
+    }
+
+    // Los ganadores por código van aparte de los del sorteo normal: ni suman
+    // en el ranking ni se entregan por kamas, son premios de los paquetes.
+    async function loadGuestWinners() {
+      const cont = document.getElementById('guestWinners');
+      let lista = [];
+      try {
+        lista = (await api(rutaGanadores('/api/guest-winners'))).winners || [];
+      } catch (e) {
+        cont.innerHTML = '<div class="meta">No se pudieron cargar.</div>';
+        return;
+      }
+      if (!lista.length) {
+        cont.innerHTML = '<div class="meta">Nadie ha jugado todavía con un código en este servidor.</div>';
+        return;
+      }
+      cont.innerHTML = '';
+      lista.forEach((w) => {
+        const fila = document.createElement('div');
+        fila.className = 'code-row';
+        // Lo que hay que entregarle: el objeto que le salió y de qué paquete.
+        const premios = w.premios.map((p) => {
+          const color = RARITY_COLOR[p.rarity] || RARITY_COLOR.common;
+          return `<span class="punto-premio" style="background:${color}" title="${RARITY_COLOR_NAME[p.rarity] || 'Gris'}"></span>`
+            + `${escapeHtml(p.name)} <span class="meta">(${escapeHtml(p.pack)})</span>`;
+        }).join(' · ');
+        fila.innerHTML = `
+          <span><strong>${escapeHtml(w.nombre)}</strong> <span class="meta">· código ${escapeHtml(w.code)}</span></span>
+          <span class="meta">${w.premios.length} premio(s): ${premios}</span>
+          <span class="hueco"><button type="button" class="guest-del">Quitar</button></span>`;
+        fila.querySelector('.guest-del').addEventListener('click', async () => {
+          const ok = await showConfirm('Quitar de la lista', `Se borra lo que ganó ${w.nombre}. No se puede deshacer.`, 'Quitar', true);
+          if (!ok) return;
+          try {
+            await api(rutaGanadores(`/api/guest-winners/${encodeURIComponent(w.id)}`), { method: 'DELETE' });
+            await loadGuestWinners();
+          } catch (e) {
+            showAlert('No se pudo quitar', e.message);
+          }
+        });
+        cont.appendChild(fila);
+      });
+    }
+
     async function loadWinners() {
       try {
-        const data = await api('/api/winners');
+        const data = await api(rutaGanadores('/api/winners'));
         winners = data.winners || [];
       } catch (e) {
         console.warn('No se pudieron cargar los ganadores:', e.message);
@@ -2273,7 +2544,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const emptyMsg = catalogView === 'excluded'
           ? 'No has excluido ningún objeto. Usa “Excluir del sorteo” en las tarjetas.'
           : RARITIES.includes(catalogView)
-            ? `Ningún objeto marcado como ${RARITY_LABEL[catalogView]} todavía.`
+            ? `Ningún objeto de color ${RARITY_COLOR_NAME[catalogView].toLowerCase()} todavía.`
             : null;
         container.innerHTML = `<div class="meta">${emptyMsg && !searchInput.value.trim() ? emptyMsg : 'No se encontraron resultados.'}</div>`;
       } else {
@@ -2290,7 +2561,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         ? 'items'
         : catalogView === 'excluded'
           ? 'excluidos'
-          : RARITY_LABEL[catalogView].toLowerCase() + 's';
+          : 'de color ' + RARITY_COLOR_NAME[catalogView].toLowerCase();
       const filtros = [];
       if (searchInput.value.trim()) filtros.push(`«${searchInput.value.trim()}»`);
       const nivelMin = document.getElementById('levelMin').value.trim();
@@ -2315,17 +2586,17 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       el.dataset.itemId = String(it.ankama_id ?? it.id ?? it._id ?? '');
       el.innerHTML = `
         ${opts.select === true ? '<input type="checkbox" class="select-box" aria-label="Seleccionar objeto" />' : ''}
-        <div class="thumb"><img src="${escapeHtml(imgUrl)}" loading="lazy" alt="${escapeHtml(title)}" onerror="this.style.display='none'"/></div>
+        <div class="thumb">
+          ${it.level != null ? `<span class="item-level">Nv. ${escapeHtml(String(it.level))}</span>` : ''}
+          <img src="${escapeHtml(imgUrl)}" loading="lazy" alt="${escapeHtml(title)}" onerror="this.style.display='none'"/>
+        </div>
         <div class="title">${escapeHtml(title)}</div>
-        ${it.level != null ? `<div class="item-level">Nv. ${escapeHtml(String(it.level))}</div>` : ''}
         ${allowTags ? `
-        <div class="tag-row">
-          <select class="tag-select" aria-label="Rareza">
-            <option value="">Sin marcar</option>
-            <option value="rare">Raro</option>
-            <option value="epic">Épico</option>
-            <option value="mythic">Mítico</option>
-          </select>
+        <div class="tag-row tag-colores">
+            <button type="button" class="tag-color" data-rarity="common" style="background:#a8b8cc" title="Gris" aria-label="Gris"></button>
+            <button type="button" class="tag-color" data-rarity="rare" style="background:#3b82f6" title="Azul" aria-label="Azul"></button>
+            <button type="button" class="tag-color" data-rarity="epic" style="background:#a855f7" title="Morado" aria-label="Morado"></button>
+            <button type="button" class="tag-color" data-rarity="mythic" style="background:#ef4444" title="Rojo" aria-label="Rojo"></button>
         </div>` : ''}
         ${opts.value === true ? `
         <div class="value-row">
@@ -2387,22 +2658,28 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (opts.color === true) applyRarityClass(el, itemTags[cardId] ?? '');
 
       if (allowTags) {
-        const tagSelect = el.querySelector('.tag-select');
+        const botones = Array.from(el.querySelectorAll('.tag-color'));
         const syncTags = () => {
-          const current = itemTags[cardId] ?? '';
-          tagSelect.value = current;
+          // Sin marca, el objeto es común: se enseña el gris como el puesto.
+          const current = itemTags[cardId] || 'common';
+          botones.forEach((b) => b.classList.toggle('puesto', b.dataset.rarity === current));
           applyRarityClass(el, current);
         };
         syncTags();
-        tagSelect.addEventListener('change', () => {
-          if (tagSelect.value) itemTags[cardId] = tagSelect.value;
-          else delete itemTags[cardId];
-          syncTags();
-          saveTags();
-          // Solo se toca esta tarjeta; los contadores y las vistas por rareza
-          // se actualizan sin repintar todo el catálogo.
-          updateAfterCardChange(cardId);
-          refreshRenderedRarities();
+        botones.forEach((boton) => {
+          boton.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const color = boton.dataset.rarity;
+            // El común es la ausencia de marca, así que no se guarda.
+            if (color === 'common') delete itemTags[cardId];
+            else itemTags[cardId] = color;
+            syncTags();
+            saveTags();
+            // Solo se toca esta tarjeta; los contadores y las vistas por color
+            // se actualizan sin repintar todo el catálogo.
+            updateAfterCardChange(cardId);
+            refreshRenderedRarities();
+          });
         });
       }
 
@@ -2493,6 +2770,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         localStorage.setItem(SERVER_KEY, currentServer);
       }
       renderServerPicker();
+      renderWinnersServers();
+      renderHistoryServers();
     }
 
     function renderServerPicker() {
@@ -2541,6 +2820,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // y el catálogo de objetos son comunes a todos.
     async function switchServer(id) {
       currentServer = id;
+      winnersServer = id;
+      historyServer = id;
       localStorage.setItem(SERVER_KEY, id);
       renderServerPicker();
       selectedIds.clear();
@@ -2551,7 +2832,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       updateBulkBar();
       renderEditor();
       cargarNombres();
-      await Promise.all([loadWinners(), loadRanking(), loadHistory()]);
+      await Promise.all([loadWinners(), loadGuestWinners(), loadRatios(), loadRanking(), loadHistory()]);
     }
 
     async function loadItems(){
@@ -2580,6 +2861,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       await loadServers();
       cargarNombres();
       loadWinners();
+      loadGuestWinners();
+      loadRatios();
       loadRanking();
       loadItems();
     }
@@ -3062,6 +3345,491 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
+    // --- Banners y redes de la cuenta -------------------------------------
+    const REDES = ['twitch', 'youtube', 'kick', 'x', 'instagram', 'tiktok', 'discord', 'web'];
+    const RED_NOMBRE = { twitch: 'Twitch', youtube: 'YouTube', kick: 'Kick', x: 'X / Twitter',
+      instagram: 'Instagram', tiktok: 'TikTok', discord: 'Discord', web: 'Web' };
+
+    function renderBanners() {
+      const cont = document.getElementById('bannerList');
+      const lista = settings.banners || [];
+      if (!lista.length) {
+        cont.innerHTML = '<div class="meta">Ningún banner todavía.</div>';
+        return;
+      }
+      cont.innerHTML = '';
+      lista.forEach((b, i) => {
+        const fila = document.createElement('div');
+        fila.className = 'banner-fila';
+        fila.innerHTML = `
+          ${b.imageUrl ? `<img src="${escapeHtml(b.imageUrl)}" alt="" />` : '<div class="sin-imagen">sin imagen</div>'}
+          <input type="text" value="${escapeHtml(b.linkUrl || '')}" placeholder="Enlace al pulsarlo (opcional)" />
+          <button type="button" class="b-img">Imagen</button>
+          <button type="button" class="b-del">Quitar</button>`;
+        fila.querySelector('input').addEventListener('input', (ev) => {
+          settings.banners[i].linkUrl = ev.target.value.trim();
+        });
+        fila.querySelector('.b-img').addEventListener('click', () => subirImagenBanner(i));
+        fila.querySelector('.b-del').addEventListener('click', () => {
+          settings.banners.splice(i, 1);
+          renderBanners();
+        });
+        cont.appendChild(fila);
+      });
+    }
+
+    // La imagen se sube igual que el fondo o la de un paquetón.
+    function subirImagenBanner(i) {
+      const file = document.createElement('input');
+      file.type = 'file';
+      file.accept = 'image/*';
+      file.addEventListener('change', () => {
+        const f = file.files && file.files[0];
+        if (!f) return;
+        const lector = new FileReader();
+        lector.onload = async () => {
+          try {
+            const r = await api('/api/banners/image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ dataUrl: lector.result })
+            });
+            settings.banners[i].imageUrl = r.url;
+            renderBanners();
+            document.getElementById('marcaStatus').textContent = 'Imagen puesta; recuerda guardar.';
+          } catch (e) {
+            showAlert('No se pudo subir la imagen', e.message);
+          }
+        };
+        lector.readAsDataURL(f);
+      });
+      file.click();
+    }
+
+    function renderSocials() {
+      const cont = document.getElementById('socialList');
+      const lista = settings.socials || [];
+      if (!lista.length) {
+        cont.innerHTML = '<div class="meta">Ninguna red todavía.</div>';
+        return;
+      }
+      cont.innerHTML = '';
+      lista.forEach((r, i) => {
+        const fila = document.createElement('div');
+        fila.className = 'social-fila';
+        const opciones = REDES.map((x) =>
+          `<option value="${x}" ${x === r.red ? 'selected' : ''}>${RED_NOMBRE[x]}</option>`).join('');
+        fila.innerHTML = `
+          <select aria-label="Red social">${opciones}</select>
+          <input type="text" value="${escapeHtml(r.url || '')}" placeholder="https://..." />
+          <button type="button" class="s-del">Quitar</button>`;
+        fila.querySelector('select').addEventListener('change', (ev) => {
+          settings.socials[i].red = ev.target.value;
+        });
+        fila.querySelector('input').addEventListener('input', (ev) => {
+          settings.socials[i].url = ev.target.value.trim();
+        });
+        fila.querySelector('.s-del').addEventListener('click', () => {
+          settings.socials.splice(i, 1);
+          renderSocials();
+        });
+        cont.appendChild(fila);
+      });
+    }
+
+    async function guardarMarca() {
+      const estado = document.getElementById('marcaStatus');
+      const antes = (settings.banners || []).length + (settings.socials || []).length;
+      try {
+        const guardado = await api('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ banners: settings.banners || [], socials: settings.socials || [] })
+        });
+        settings.banners = guardado.settings.banners || [];
+        settings.socials = guardado.settings.socials || [];
+        renderBanners();
+        renderSocials();
+        // El servidor tira lo que no vale: banner sin imagen, o enlace que no
+        // empieza por http(s). Se avisa para que no parezca que se ha perdido.
+        const perdidos = antes - settings.banners.length - settings.socials.length;
+        estado.textContent = perdidos > 0
+          ? `Guardado. Se descartaron ${perdidos}: falta la imagen o la dirección no empieza por http.`
+          : 'Guardado.';
+      } catch (e) {
+        showAlert('No se pudieron guardar', e.message);
+      }
+    }
+
+    document.getElementById('addBanner').addEventListener('click', () => {
+      if (!settings.banners) settings.banners = [];
+      settings.banners.push({ imageUrl: '', linkUrl: '' });
+      renderBanners();
+    });
+    document.getElementById('addSocial').addEventListener('click', () => {
+      if (!settings.socials) settings.socials = [];
+      settings.socials.push({ red: 'twitch', url: '' });
+      renderSocials();
+    });
+    document.getElementById('saveMarca').addEventListener('click', guardarMarca);
+
+    // --- Ratio de salida de cada color ------------------------------------
+    let ratios = { common: 70, rare: 20, epic: 8, mythic: 2 };
+
+    // Admite decimales, con coma o con punto: en un teclado español lo que
+    // sale al escribir es la coma. Lo que no se entienda cuenta como 0.
+    function leerDecimal(texto) {
+      const num = Number(String(texto).trim().replace(',', '.'));
+      return Number.isFinite(num) ? Math.max(0, Math.min(100, num)) : 0;
+    }
+
+    async function loadRatios() {
+      try {
+        ratios = (await api('/api/ratios')).ratios || ratios;
+      } catch (e) {
+        console.warn('No se pudieron cargar los ratios:', e.message);
+      }
+      renderRatios();
+    }
+
+    function renderRatios() {
+      const cont = document.getElementById('ratioList');
+      if (!cont) return;
+      cont.innerHTML = '';
+      const etiquetas = [];
+
+      // Igual que en los paquetones: se enseña el % real sobre la suma, y se
+      // recalcula sin repintar para no perder el foco al escribir.
+      const refrescar = () => {
+        const suma = RARITIES.reduce((s, r) => s + (Number(ratios[r]) || 0), 0);
+        etiquetas.forEach(({ span, r }) => {
+          span.textContent = suma > 0
+            ? ((Number(ratios[r]) || 0) / suma * 100).toFixed(1) + '%'
+            : '—';
+        });
+        document.getElementById('ratioStatus').textContent = suma > 0
+          ? ''
+          : 'Todo a cero: se sortea sin mirar el color.';
+      };
+
+      RARITIES.forEach((r) => {
+        const fila = document.createElement('div');
+        fila.className = 'ratio-fila';
+        fila.innerHTML = `
+          <span class="punto" style="background:${RARITY_COLOR[r]}" title="${RARITY_COLOR_NAME[r]}"></span>
+          <input type="text" inputmode="decimal" maxlength="7"
+                 value="${Number(ratios[r]) || 0}" aria-label="Ratio de ${RARITY_COLOR_NAME[r]}" />
+          <span class="real"></span>`;
+        const campo = fila.querySelector('input');
+        campo.addEventListener('input', (ev) => {
+          ratios[r] = leerDecimal(ev.target.value);
+          refrescar();
+        });
+        // Al salir se deja escrito lo que se ha guardado, ya con punto.
+        campo.addEventListener('blur', () => { campo.value = ratios[r]; });
+        etiquetas.push({ span: fila.querySelector('.real'), r });
+        cont.appendChild(fila);
+      });
+      refrescar();
+    }
+
+    async function saveRatios() {
+      const estado = document.getElementById('ratioStatus');
+      try {
+        ratios = (await api('/api/ratios', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ratios })
+        })).ratios;
+        renderRatios();
+        estado.textContent = 'Guardado.';
+      } catch (e) {
+        showAlert('No se pudieron guardar los ratios', e.message);
+      }
+    }
+
+    // --- Paquetes y códigos de invitado -----------------------------------
+    let packs = [];
+    let codes = [];
+
+    async function loadPacks() {
+      try {
+        packs = (await api('/api/packs')).packs || [];
+      } catch (e) {
+        packs = [];
+        console.warn('No se pudieron cargar los paquetes:', e.message);
+      }
+      renderPacks();
+    }
+
+    function renderPacks() {
+      const cont = document.getElementById('packList');
+      if (!packs.length) {
+        cont.innerHTML = '<div class="meta">Todavía no hay paquetones. Añade uno para que los invitados tengan algo que ganar.</div>';
+        return;
+      }
+      cont.innerHTML = '';
+      packs.forEach((p, i) => {
+        if (!Array.isArray(p.items)) p.items = [];
+        const bloque = document.createElement('div');
+        bloque.className = 'pack-bloque';
+        const fila = document.createElement('div');
+        fila.className = 'pack-row';
+        const jugable = p.items.length > 0;
+        fila.innerHTML = `
+          ${p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="" />` : '<div class="sin-imagen">🎁</div>'}
+          <div class="pack-nombre"><input type="text" value="${escapeHtml(p.name || '')}" placeholder="Nombre del paquetón" maxlength="60" /></div>
+          <div class="pack-prob">${jugable ? '' : '<span title="Ningún objeto puede salir">sin premios</span>'}</div>
+          <div class="pack-acciones">
+            <button type="button" class="pack-img">Imagen</button>
+            <button type="button" class="pack-del">Quitar</button>
+          </div>`;
+
+        fila.querySelector('.pack-nombre input').addEventListener('input', (ev) => {
+          packs[i].name = ev.target.value;
+        });
+        fila.querySelector('.pack-img').addEventListener('click', () => elegirImagenPack(i));
+        fila.querySelector('.pack-del').addEventListener('click', async () => {
+          const ok = await showConfirm('Quitar paquetón', `«${p.name || 'Sin nombre'}» deja de estar en la ruleta de invitados.`, 'Quitar', true);
+          if (!ok) return;
+          packs.splice(i, 1);
+          renderPacks();
+        });
+        bloque.appendChild(fila);
+
+        // Los objetos del paquete: cada uno con su probabilidad. Al girar sale
+        // uno de estos, así que el % es lo que decide el sorteo.
+        const dentro = document.createElement('div');
+        dentro.className = 'pack-items';
+        const aviso = document.createElement('p');
+        aviso.className = 'meta';
+        dentro.appendChild(aviso);
+
+        // Cabecera de columnas, para saber qué es cada campo. Solo cuando hay
+        // filas debajo: sobre una lista vacía no diría nada.
+        if (p.items.length) {
+          const cabecera = document.createElement('div');
+          cabecera.className = 'pack-item pack-cabecera';
+          cabecera.innerHTML = `
+            <span class="col-nombre">Objeto</span>
+            <span class="col-color">Rareza</span>
+            <span class="col-quitar"></span>`;
+          dentro.appendChild(cabecera);
+        }
+
+        // Una fila por objeto: cuánto, qué es, y de qué color. El % no va
+        // aquí: se pone una sola vez en Configuración › Datos.
+        p.items.forEach((it, j) => {
+          if (!RARITIES.includes(it.rarity)) it.rarity = 'common';
+          const linea = document.createElement('div');
+          linea.className = 'pack-item';
+          linea.innerHTML = `
+            <input type="text" value="${escapeHtml(it.name || '')}" placeholder="Nombre del objeto" maxlength="60" />
+            <span class="item-colores tag-colores"></span>
+            <button type="button" class="item-del">✕</button>`;
+
+          linea.querySelector('input[type=text]').addEventListener('input', (ev) => {
+            packs[i].items[j].name = ev.target.value;
+          });
+
+          // Los mismos cuatro colores que en el catálogo, en pequeño.
+          const tira = linea.querySelector('.item-colores');
+          RARITIES.forEach((r) => {
+            const boton = document.createElement('button');
+            boton.type = 'button';
+            boton.className = 'tag-color';
+            boton.dataset.rarity = r;
+            boton.style.background = RARITY_COLOR[r];
+            boton.title = RARITY_COLOR_NAME[r];
+            boton.setAttribute('aria-label', RARITY_COLOR_NAME[r]);
+            boton.addEventListener('click', () => {
+              packs[i].items[j].rarity = r;
+              tira.querySelectorAll('.tag-color').forEach((b) => {
+                b.classList.toggle('puesto', b.dataset.rarity === r);
+              });
+            });
+            tira.appendChild(boton);
+          });
+          tira.querySelectorAll('.tag-color').forEach((b) => {
+            b.classList.toggle('puesto', b.dataset.rarity === it.rarity);
+          });
+
+          linea.querySelector('.item-del').addEventListener('click', () => {
+            packs[i].items.splice(j, 1);
+            renderPacks();
+          });
+          dentro.appendChild(linea);
+        });
+
+        const anadir = document.createElement('button');
+        anadir.type = 'button';
+        anadir.textContent = '+ Añadir objeto';
+        anadir.className = 'anadir-objeto';
+        anadir.addEventListener('click', () => {
+          packs[i].items.push({ name: '', rarity: 'common' });
+          renderPacks();
+        });
+        dentro.appendChild(anadir);
+
+        // El reparto por color no se enseña: las probabilidades se llevan solo
+        // en Configuración, y aquí sobran.
+        aviso.textContent = packs[i].items.length
+          ? 'Puede salir uno de estos:'
+          : 'Vacío: añade los objetos que pueden salir en este paquetón.';
+        fila.querySelector('.pack-prob').innerHTML = packs[i].items.length
+          ? ''
+          : '<span title="No tiene objetos">sin premios</span>';
+        bloque.appendChild(dentro);
+        cont.appendChild(bloque);
+      });
+    }
+
+    // La imagen se sube como el fondo: se lee en dataUrl y el servidor la deja
+    // en /assets, junto al resto de lo que sube el usuario.
+    function elegirImagenPack(i) {
+      const file = document.createElement('input');
+      file.type = 'file';
+      file.accept = 'image/*';
+      file.addEventListener('change', () => {
+        const f = file.files && file.files[0];
+        if (!f) return;
+        const lector = new FileReader();
+        lector.onload = async () => {
+          try {
+            const r = await api('/api/packs/image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ dataUrl: lector.result })
+            });
+            packs[i].imageUrl = r.url;
+            renderPacks();
+            document.getElementById('packStatus').textContent = 'Imagen puesta; recuerda guardar.';
+          } catch (e) {
+            showAlert('No se pudo subir la imagen', e.message);
+          }
+        };
+        lector.readAsDataURL(f);
+      });
+      file.click();
+    }
+
+    async function savePacks() {
+      const estado = document.getElementById('packStatus');
+      const sinNombre = packs.filter((p) => !String(p.name || '').trim()).length;
+      if (sinNombre) {
+        showAlert('Falta el nombre', `Hay ${sinNombre} paquetón(es) sin nombre. El servidor los descarta al guardar, así que ponles uno antes.`);
+        return;
+      }
+      try {
+        packs = (await api('/api/packs', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ packs })
+        })).packs || [];
+        renderPacks();
+        estado.textContent = `Guardados ${packs.length} paquetón(es).`;
+      } catch (e) {
+        estado.textContent = '';
+        showAlert('No se pudieron guardar los paquetones', e.message);
+      }
+    }
+
+    async function loadCodes() {
+      try {
+        codes = (await api('/api/codes')).codes || [];
+      } catch (e) {
+        codes = [];
+        console.warn('No se pudieron cargar los códigos:', e.message);
+      }
+      renderCodes();
+    }
+
+    function renderCodes() {
+      const cont = document.getElementById('codeList');
+      if (!codes.length) {
+        cont.innerHTML = '<div class="meta">Ningún código todavía.</div>';
+        return;
+      }
+      cont.innerHTML = '';
+      codes.forEach((c) => {
+        const fila = document.createElement('div');
+        fila.className = 'code-row';
+        const usado = Boolean(c.usado);
+        const quedan = c.tiradas - c.gastadas;
+        const detalle = usado
+          ? `${escapeHtml(c.nombre || 'Invitado')}${c.servidor ? ` · ${escapeHtml(c.servidor)}` : ' · sin elegir servidor'} · ${c.gastadas} de ${c.tiradas} tiradas${quedan > 0 ? ` (le quedaban ${quedan})` : ''}`
+          : `${c.tiradas} tirada(s)`;
+        fila.innerHTML = `
+          <span class="clave">${escapeHtml(c.code)}</span>
+          <span class="estado ${usado ? 'usado' : 'libre'}">${usado ? 'ya usado' : 'sin usar'}</span>
+          <span class="meta">${detalle}</span>
+          <span class="hueco">
+            ${usado ? '' : '<button type="button" class="code-copy">Copiar enlace</button>'}
+            <button type="button" class="code-del">Borrar</button>
+          </span>`;
+
+        const copiar = fila.querySelector('.code-copy');
+        if (copiar) {
+          copiar.addEventListener('click', () => {
+            copyToClipboard(`${location.origin}/invitado  ·  código: ${c.code}`).then((ok) => {
+              copiar.textContent = ok ? '¡Copiado!' : 'Error al copiar';
+              setTimeout(() => { copiar.textContent = 'Copiar enlace'; }, 1200);
+            });
+          });
+        }
+        fila.querySelector('.code-del').addEventListener('click', async () => {
+          const ok = await showConfirm(
+            'Borrar código',
+            usado
+              ? `El código ${c.code} ya se usó. Si esa persona sigue dentro, se queda fuera al instante. Sus premios no se borran.`
+              : `El código ${c.code} dejará de servir. No se puede deshacer.`,
+            'Borrar', true);
+          if (!ok) return;
+          try {
+            await api(`/api/codes/${encodeURIComponent(c.code)}`, { method: 'DELETE' });
+            await loadCodes();
+          } catch (e) {
+            showAlert('No se pudo borrar', e.message);
+          }
+        });
+        cont.appendChild(fila);
+      });
+    }
+
+    document.getElementById('addPack').addEventListener('click', () => {
+      packs.push({ id: '', name: '', imageUrl: '', items: [] });
+      renderPacks();
+      document.getElementById('packStatus').textContent = '';
+    });
+
+    document.getElementById('savePacks').addEventListener('click', savePacks);
+
+    document.getElementById('saveRatios').addEventListener('click', saveRatios);
+
+    document.getElementById('newCode').addEventListener('click', async () => {
+      const tiradas = Math.max(1, Math.min(50, Number(document.getElementById('codeSpins').value) || 1));
+      // Los paquetones pueden estar en otro servidor: el invitado elige. Solo
+      // se avisa si no hay ninguno en el que se está mirando, por si acaso.
+      if (!packs.filter((p) => (p.items || []).length).length) {
+        const seguir = await showConfirm(
+          'Este servidor no tiene paquetones',
+          'El invitado solo podrá elegir entre los servidores que sí tengan premios preparados. Si no hay ninguno, no podrá jugar.',
+          'Crear igualmente', false);
+        if (!seguir) return;
+      }
+      try {
+        const r = await api('/api/codes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tiradas })
+        });
+        await loadCodes();
+        document.getElementById('codeStatus').textContent = `Creado ${r.code} con ${r.tiradas} tirada(s).`;
+      } catch (e) {
+        showAlert('No se pudo crear el código', e.message);
+      }
+    });
+
     // --- Copiar exclusiones y rarezas entre equipos -------------------------
     // Quien ya las tenga personalizadas en local no tiene que rehacerlas: se
     // descargan de un sitio y se cargan en otro.
@@ -3366,6 +4134,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // La ruleta de nombres se dibuja al mostrarla: en un panel oculto el SVG
       // no tiene tamaño y saldría descuadrada.
       if (cual === 'custom') renderNameWheel();
+      // Los paquetes y los códigos se piden al abrir la pestaña, no al cargar
+      // la página: así se ve al momento lo que haya gastado un invitado.
+      if (cual === 'packs') { loadPacks(); loadCodes(); }
 
       // El editor pertenece al sorteo de objetos: no pinta nada en la otra ruleta.
       if (cual === 'custom' && editandoResultado) {
@@ -3465,7 +4236,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       );
       if (!ok) return;
       try {
-        await api('/api/stream/reset', { method: 'POST' });
+        await api(rutaGanadores('/api/stream/reset'), { method: 'POST' });
         loadRanking();
       } catch (e) {
         showAlert('Error', 'No se pudo empezar el stream: ' + e.message);
@@ -3482,7 +4253,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       );
       if (!ok) return;
       try {
-        await api('/api/ranking/reset', { method: 'POST' });
+        await api(rutaGanadores('/api/ranking/reset'), { method: 'POST' });
         loadRanking();
         loadHistory();
       } catch (e) {

@@ -26,6 +26,9 @@ const DATA_DIR = process.env.RULETON_DATA
 const ITEMS_FILE = path.join(DATA_DIR, 'items.json');   // catalogo, comun a todo
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+// Los codigos de invitado son pocos y hay que buscarlos por codigo y por
+// token, asi que van todos juntos en un archivo y no repartidos por servidor.
+const CODES_FILE = path.join(DATA_DIR, 'guest-codes.json');
 const USERS_DIR = path.join(DATA_DIR, 'users');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 // Codigo de invitacion de arranque: solo siembra data/config.json la primera
@@ -33,6 +36,9 @@ const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 // lo cambia sin reiniciar el servidor.
 const INVITE_INICIAL = String(process.env.RULETON_INVITE || '').trim();
 const COOKIE_NAME = 'ruleton_sid';
+// La visita del invitado va por su cuenta: cookie propia y de sesion, para
+// que al cerrar el navegador se acabe y tenga que pedir otro codigo.
+const GUEST_COOKIE = 'ruleton_invitado';
 const SESSION_DAYS = 30;
 // Los fondos y avatares que se suben son datos del usuario, no del programa:
 // van junto al resto para que tampoco se los lleve un despliegue.
@@ -48,7 +54,7 @@ const ASSETS_REPO = path.join(process.cwd(), 'public', 'assets');
 // sortear no lo quieres en ningun servidor, asi que hay una sola lista por
 // usuario. Lo unico comun a todos es el catalogo de objetos, que es una copia
 // de la API de Dofus.
-const SERVER_FILES = ['tags', 'winners', 'ranking', 'stream'] as const;
+const SERVER_FILES = ['tags', 'winners', 'ranking', 'stream', 'packs', 'guests', 'ratios'] as const;
 type ServerFile = typeof SERVER_FILES[number];
 
 interface GameServer {
@@ -476,7 +482,9 @@ function migrarExclusionesDeServidores(uid: string): void {
     }
     if (!viejos.length) return;
     writeJson(exclusionsFile(uid), Array.from(juntas));
-    viejos.forEach((f) => fs.rmSync(f, { force: true }));
+    // Los archivos viejos se quedan donde estan: ya no se leen (la migracion
+    // no vuelve a entrar en cuanto existe el del usuario), pero son la unica
+    // copia de una lista que puede costar horas de rehacer.
     console.log(`Migradas ${juntas.size} exclusion(es) de ${viejos.length} servidor(es) -> usuario ${uid}`);
   } catch (err) {
     console.error('Failed to migrate exclusions:', err);
@@ -506,10 +514,43 @@ function writeExclusions(ambito: string, ids: string[]): void {
   writeJson(exclusionsFile(uid), ids);
 }
 
-type Rarity = 'rare' | 'epic' | 'mythic';
-const RARITIES: Rarity[] = ['rare', 'epic', 'mythic'];
+// Las rarezas son colores, sin nombre: gris, azul, morado y rojo. Un objeto
+// sin marcar es comun (gris), que es el color por defecto.
+type Rarity = 'common' | 'rare' | 'epic' | 'mythic';
+const RARITIES: Rarity[] = ['common', 'rare', 'epic', 'mythic'];
 
 type Tags = Record<string, Rarity>;
+
+// Cuanto sale cada color en el sorteo. No hace falta que sumen 100: cuenta lo
+// que pesa cada uno frente a los demas, como en los paquetones.
+type Ratios = Record<Rarity, number>;
+const RATIOS_POR_DEFECTO: Ratios = { common: 70, rare: 20, epic: 8, mythic: 2 };
+
+function readRatios(ambito: string): Ratios {
+  ensureServerDir(ambito);
+  try {
+    const f = serverFile(ambito, 'ratios');
+    if (fs.existsSync(f)) {
+      const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (parsed && typeof parsed === 'object') {
+        const salida = { ...RATIOS_POR_DEFECTO };
+        for (const r of RARITIES) {
+          const n = Number(parsed[r]);
+          if (Number.isFinite(n) && n >= 0) salida[r] = Math.min(100, n);
+        }
+        return salida;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to read ratios:', err);
+  }
+  return { ...RATIOS_POR_DEFECTO };
+}
+
+function writeRatios(ambito: string, ratios: Ratios): void {
+  ensureServerDir(ambito);
+  writeJson(serverFile(ambito, 'ratios'), ratios);
+}
 
 function readTags(sid: string): Tags {
   ensureServerDir(sid);
@@ -530,11 +571,30 @@ function writeTags(sid: string, tags: Tags): void {
   writeJson(serverFile(sid, 'tags'), tags);
 }
 
+// Un banner es una imagen que, si se quiere, lleva a algun sitio.
+interface Banner {
+  imageUrl: string;
+  linkUrl: string;
+}
+
+// Las redes que se pueden poner. La lista es cerrada para que la pagina del
+// invitado sepa como pintar cada una y no le entre cualquier cosa.
+const REDES = ['twitch', 'youtube', 'kick', 'x', 'instagram', 'tiktok', 'discord', 'web'] as const;
+type Red = typeof REDES[number];
+
+interface Social {
+  red: Red;
+  url: string;
+}
+
 interface Settings {
   pageTitle: string;        // titulo de la cabecera y de la pestana
   pageSubtitle: string;     // lema bajo el titulo (vacio = no se muestra)
   logoUrl: string;          // imagen junto al titulo (vacio = sin logo)
   backgroundUrl: string;
+  // Cartelitos y enlaces del streamer, que ve quien entra con un codigo.
+  banners: Banner[];
+  socials: Social[];
   wheelUrl: string;      // vacio = ruleta de colores por defecto
   showWheel: boolean;    // se mantiene por compatibilidad con datos antiguos
   animation: 'slot' | 'wheel' | 'none';
@@ -551,6 +611,8 @@ const DEFAULT_SETTINGS: Settings = {
   pageSubtitle: 'Sorteos de recursos de Dofus',
   logoUrl: '',
   backgroundUrl: '/assets/fondo.png',
+  banners: [],
+  socials: [],
   wheelUrl: '',
   showWheel: true,
   animation: 'slot',
@@ -830,6 +892,15 @@ function guardarImagen(dataUrl: unknown, prefijo: string): { url?: string; error
   return { url: `/assets/${filename}` };
 }
 
+// Un enlace que se puede pintar sin miedo: solo http(s) o algo de /assets.
+// Asi no se cuela un "javascript:..." en un href que van a ver otros.
+function enlaceSeguro(valor: unknown): string {
+  const texto = String(valor || '').trim().slice(0, 2000);
+  if (!texto) return '';
+  if (texto.startsWith('/assets/')) return texto;
+  return /^https?:\/\//i.test(texto) ? texto : '';
+}
+
 // El usuario de la peticion; las rutas protegidas ya han comprobado que existe.
 function requireUid(req: Request): string {
   const u = usuarioDe(req);
@@ -959,6 +1030,373 @@ app.get('/api/twitch/callback', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Failed to connect Twitch:', err);
     res.redirect('/?twitch=error');
+  }
+});
+
+// --- Paquetes, codigos de invitado y sus ganadores ----------------------
+// Un paquete es un premio dibujado a mano: una imagen, un nombre y el peso
+// que tiene en la ruleta. No sale del catalogo de Dofus.
+// Cada objeto de un paquete tiene su propia probabilidad: la ruleta gira
+// entre los objetos del paquete que haya elegido el invitado, y sale uno.
+interface PackItem {
+  name: string;
+  rarity: Rarity;       // el color al que pertenece dentro del paqueton
+}
+
+// El paquete es la opcion que escoge el invitado, no el premio en si.
+interface Pack {
+  id: string;
+  name: string;
+  imageUrl: string;
+  items: PackItem[];
+}
+
+// Un codigo deja entrar una sola vez. Al canjearlo se marca usado y se guarda
+// el token de esa visita: mientras dure, gasta tiradas. Si la pierde (cierra
+// el navegador) el codigo ya no vale y necesita otro.
+interface GuestCode {
+  code: string;
+  uid: string;
+  // Vacio hasta que el invitado elige servidor; una vez elegido no cambia,
+  // porque sus premios pertenecen a ese servidor.
+  sid: string;
+  tiradas: number;      // las que se dieron
+  gastadas: number;
+  creado: string;
+  usado?: string;       // cuando entro
+  token?: string;
+  nombre?: string;      // como se llamo el invitado
+}
+
+interface GuestWin {
+  id: string;
+  code: string;
+  nombre: string;
+  premios: { pack: string; imageUrl: string; name: string; rarity: Rarity }[];
+  date: string;
+}
+
+function readPacks(ambito: string): Pack[] {
+  ensureServerDir(ambito);
+  try {
+    const f = serverFile(ambito, 'packs');
+    if (fs.existsSync(f)) {
+      const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.error('Failed to read packs:', err);
+  }
+  return [];
+}
+
+function writePacks(ambito: string, packs: Pack[]): void {
+  ensureServerDir(ambito);
+  writeJson(serverFile(ambito, 'packs'), packs);
+}
+
+function readGuestWins(ambito: string): GuestWin[] {
+  ensureServerDir(ambito);
+  try {
+    const f = serverFile(ambito, 'guests');
+    if (fs.existsSync(f)) {
+      const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.error('Failed to read guest wins:', err);
+  }
+  return [];
+}
+
+function writeGuestWins(ambito: string, wins: GuestWin[]): void {
+  ensureServerDir(ambito);
+  writeJson(serverFile(ambito, 'guests'), wins);
+}
+
+function readCodes(): GuestCode[] {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(CODES_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(CODES_FILE, 'utf8'));
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.error('Failed to read codes:', err);
+  }
+  return [];
+}
+
+function writeCodes(codes: GuestCode[]): void {
+  ensureDataDir();
+  writeJson(CODES_FILE, codes);
+}
+
+// Sin letras ni numeros que se confundan al dictarlos por voz (0/O, 1/I).
+function generarCodigo(): string {
+  const abc = '23456789BCDFGHJKMNPQRSTVWXYZ';
+  const azar = crypto.randomBytes(9);
+  const l = Array.from(azar, (n) => abc[n % abc.length]);
+  return `${l.slice(0, 3).join('')}-${l.slice(3, 6).join('')}-${l.slice(6, 9).join('')}`;
+}
+
+// La visita en curso de un invitado, sacada de su cookie.
+function invitadoDe(req: Request): GuestCode | null {
+  const token = leerCookie(req, GUEST_COOKIE);
+  if (!token) return null;
+  return readCodes().find((c) => c.token === token) || null;
+}
+
+// Elige un paquete respetando los pesos. Los pesos no tienen que sumar 100:
+// lo que cuenta es cuanto pesa cada uno sobre el total.
+// Los objetos de un paqueton, agrupados por color. Un color sin objetos no
+// puede salir por mucho % que tenga.
+// El color de un objeto. Los guardados antes de que hubiera colores no traen
+// ninguno: son comunes.
+function colorDe(it: PackItem): Rarity {
+  return RARITIES.includes(it?.rarity) ? it.rarity : 'common';
+}
+
+function porColor(pack: Pack): Record<Rarity, PackItem[]> {
+  const grupos: Record<Rarity, PackItem[]> = { common: [], rare: [], epic: [], mythic: [] };
+  for (const it of pack.items || []) grupos[colorDe(it)].push(it);
+  return grupos;
+}
+
+function elegirItem(pack: Pack, ratios: Ratios): PackItem | null {
+  const grupos = porColor(pack);
+  const posibles = RARITIES.filter((r) => grupos[r].length && Number(ratios[r]) > 0);
+
+  // Con todos los % a cero se sortea plano entre todos los objetos, igual que
+  // hace la ruleta principal cuando no hay ratios.
+  if (!posibles.length) {
+    const todos = pack.items || [];
+    return todos.length ? todos[Math.floor(Math.random() * todos.length)] : null;
+  }
+
+  const total = posibles.reduce((suma, r) => suma + Number(ratios[r]), 0);
+  let punto = Math.random() * total;
+  let color = posibles[posibles.length - 1];
+  for (const r of posibles) {
+    punto -= Number(ratios[r]);
+    if (punto <= 0) { color = r; break; }
+  }
+  const monton = grupos[color];
+  return monton[Math.floor(Math.random() * monton.length)];
+}
+
+// Un paquete solo se puede jugar si algo suyo puede salir.
+function packJugable(p: Pack): boolean {
+  return Boolean((p.items || []).length);
+}
+
+// --- Interfaz de invitado (sin cuenta) ----------------------------------
+// Estas tres rutas van antes del muro de sesion a proposito: son las unicas
+// que puede tocar quien no esta registrado. No dan catalogo, ni ganadores, ni
+// ajustes: solo su ruleta de paquetes y las tiradas que le quedan.
+
+// Lo que se le enseña de un paquete: nombre, imagen y peso (para dibujar la
+// ruleta). El id no le hace falta.
+function packPublico(p: Pack, ratios: Ratios) {
+  const grupos = porColor(p);
+  const conPeso = RARITIES.filter((r) => grupos[r].length && Number(ratios[r]) > 0);
+  const plano = conPeso.length === 0;
+
+  // Solo lo que puede salir, y sin decir con que probabilidad: al invitado no
+  // le llega ningun peso, asi que no puede calcularla ni mirando la respuesta.
+  const items = (p.items || [])
+    .filter((it) => plano || Number(ratios[colorDe(it)]) > 0)
+    .map((it) => ({ name: it.name }));
+
+  return { name: p.name, imageUrl: p.imageUrl, items };
+}
+
+// Los servidores del dueño en los que hay algo que ganar. Si uno no tiene
+// paquetones preparados no se le ofrece: entraria a una pantalla vacia.
+function servidoresJugables(uid: string): { id: string; name: string }[] {
+  return readServers(uid).filter((sv) => readPacks(`${uid}/${sv.id}`).some(packJugable));
+}
+
+// Solo lo que hace falta para que la pagina del invitado se vea como la del
+// streamer: ni ganadores, ni ajustes de sus ruletas, ni nada suyo.
+function aspectoDe(uid: string) {
+  const st = readSettings(uid);
+  return {
+    pageTitle: st.pageTitle,
+    logoUrl: st.logoUrl,
+    backgroundUrl: st.backgroundUrl,
+    overlayOpacity: st.overlayOpacity,
+    accentColor: st.accentColor,
+    accentColor2: st.accentColor2,
+    banners: st.banners || [],
+    socials: st.socials || []
+  };
+}
+
+function estadoInvitado(codigo: GuestCode) {
+  const base = {
+    nombre: codigo.nombre || '',
+    restantes: Math.max(0, codigo.tiradas - codigo.gastadas),
+    tiradas: codigo.tiradas,
+    aspecto: aspectoDe(codigo.uid)
+  };
+  // Todavia no ha elegido servidor: se le da la lista para que escoja.
+  if (!codigo.sid) {
+    return { ...base, servidor: '', servidores: servidoresJugables(codigo.uid), packs: [] };
+  }
+  const ambito = `${codigo.uid}/${codigo.sid}`;
+  const servidor = readServers(codigo.uid).find((sv) => sv.id === codigo.sid);
+  return {
+    ...base,
+    servidor: servidor ? servidor.name : codigo.sid,
+    servidores: [],
+    packs: readPacks(ambito).filter(packJugable).map((p) => packPublico(p, readRatios(ambito)))
+  };
+}
+
+// POST /api/guest/redeem  Body: { codigo, nombre? }
+app.post('/api/guest/redeem', (req: Request, res: Response) => {
+  if (bloqueado(req)) {
+    return res.status(429).json({ error: 'demasiados intentos; prueba dentro de un rato' });
+  }
+  const pedido = String(req.body?.codigo || '').trim().toUpperCase();
+  const nombre = String(req.body?.nombre || '').trim().slice(0, 40);
+  if (!pedido) return res.status(400).json({ error: 'falta el codigo' });
+
+  try {
+    const codes = readCodes();
+    const codigo = codes.find((c) => c.code === pedido);
+    // Mismo mensaje si no existe o si ya se uso: no se ayuda a adivinar.
+    if (!codigo || codigo.usado) {
+      apuntarFallo(req);
+      return res.status(404).json({ error: 'ese codigo no vale' });
+    }
+    if (!codigo.sid && !servidoresJugables(codigo.uid).length) {
+      return res.status(409).json({ error: 'todavia no hay premios preparados' });
+    }
+
+    limpiarFallos(req);
+    codigo.usado = new Date().toISOString();
+    codigo.token = crypto.randomBytes(32).toString('hex');
+    if (nombre) codigo.nombre = nombre;
+    writeCodes(codes);
+
+    const seguro = process.env.COOKIE_SECURE === '1' || req.protocol === 'https';
+    // Sin maxAge: es cookie de sesion y muere al cerrar el navegador.
+    res.cookie(GUEST_COOKIE, codigo.token, { httpOnly: true, sameSite: 'lax', secure: seguro, path: '/' });
+    res.json(estadoInvitado(codigo));
+  } catch (err) {
+    console.error('Failed to redeem code:', err);
+    res.status(500).json({ error: 'failed to redeem code' });
+  }
+});
+
+// POST /api/guest/server  Body: { server } -> fija donde juega
+app.post('/api/guest/server', (req: Request, res: Response) => {
+  const codes = readCodes();
+  const token = leerCookie(req, GUEST_COOKIE);
+  const codigo = token ? codes.find((c) => c.token === token) : null;
+  if (!codigo) return res.status(401).json({ error: 'sin visita' });
+  // Elegido uno, no se cambia: si no, se podria ir picoteando de todos.
+  if (codigo.sid) return res.status(409).json({ error: 'ya estas jugando en un servidor' });
+
+  const pedido = String(req.body?.server || '').trim();
+  const vale = servidoresJugables(codigo.uid).some((sv) => sv.id === pedido);
+  if (!vale) return res.status(400).json({ error: 'ese servidor no vale' });
+
+  try {
+    codigo.sid = pedido;
+    writeCodes(codes);
+    res.json(estadoInvitado(codigo));
+  } catch (err) {
+    console.error('Failed to pick server:', err);
+    res.status(500).json({ error: 'failed to pick server' });
+  }
+});
+
+// POST /api/guest/logout -> cierra la visita del invitado
+app.post('/api/guest/logout', (req: Request, res: Response) => {
+  const token = leerCookie(req, GUEST_COOKIE);
+  if (token) {
+    const codes = readCodes();
+    const codigo = codes.find((c) => c.token === token);
+    // Se le quita el token: el codigo ya estaba usado, asi que salir cierra
+    // la visita para siempre. Lo que le quedara de tiradas se pierde, que es
+    // lo que ya pasaba al cerrar el navegador.
+    if (codigo) {
+      delete codigo.token;
+      writeCodes(codes);
+    }
+  }
+  res.clearCookie(GUEST_COOKIE, { path: '/' });
+  res.json({ ok: true });
+});
+
+// GET /api/guest/state -> lo que le queda y sus premios
+app.get('/api/guest/state', (req: Request, res: Response) => {
+  const codigo = invitadoDe(req);
+  if (!codigo) return res.status(401).json({ error: 'sin visita' });
+  res.json(estadoInvitado(codigo));
+});
+
+// POST /api/guest/spin  Body: { pack } -> gasta una tirada en el paquete que
+// haya elegido y devuelve el objeto que le toca de dentro.
+app.post('/api/guest/spin', (req: Request, res: Response) => {
+  const codes = readCodes();
+  const token = leerCookie(req, GUEST_COOKIE);
+  const codigo = token ? codes.find((c) => c.token === token) : null;
+  if (!codigo) return res.status(401).json({ error: 'sin visita' });
+  if (codigo.gastadas >= codigo.tiradas) return res.status(409).json({ error: 'no te quedan tiradas' });
+  if (!codigo.sid) return res.status(409).json({ error: 'elige primero un servidor' });
+
+  try {
+    const ambito = `${codigo.uid}/${codigo.sid}`;
+    // El invitado elige por su posicion en la lista que se le enseño, que es
+    // la de los paquetes jugables: asi no necesita conocer ids internos.
+    const jugables = readPacks(ambito).filter(packJugable);
+    if (!jugables.length) return res.status(409).json({ error: 'todavia no hay premios preparados' });
+    const cual = Math.floor(Number(req.body?.pack));
+    const pack = jugables[Number.isFinite(cual) && cual >= 0 ? cual : -1];
+    if (!pack) return res.status(400).json({ error: 'elige un paquete' });
+
+    const elegido = elegirItem(pack, readRatios(ambito));
+    if (!elegido) return res.status(409).json({ error: 'ese paquete no tiene premios' });
+
+    // La tirada se apunta antes de contestar: si algo falla despues, es
+    // preferible que le sobre un premio a que pueda repetirla.
+    codigo.gastadas += 1;
+    writeCodes(codes);
+
+    // El premio va a la lista de ganadores invitados de ese servidor, que es
+    // aparte de la de los sorteos normales.
+    const wins = readGuestWins(ambito);
+    const suyo = wins.find((w) => w.code === codigo.code);
+    // Se guarda tal y como estaba al ganarlo, y de que paquete salio: si luego
+    // se reforma el paquete, el premio de esa persona no cambia.
+    const premio = {
+      pack: pack.name,
+      imageUrl: pack.imageUrl,
+      name: elegido.name,
+      rarity: colorDe(elegido)
+    };
+    if (suyo) {
+      suyo.premios.push(premio);
+      suyo.date = new Date().toISOString();
+    } else {
+      wins.unshift({
+        id: crypto.randomBytes(8).toString('hex'),
+        code: codigo.code,
+        nombre: codigo.nombre || 'Invitado',
+        premios: [premio],
+        date: new Date().toISOString()
+      });
+    }
+    writeGuestWins(ambito, wins);
+
+    res.json({ premio, restantes: codigo.tiradas - codigo.gastadas });
+  } catch (err) {
+    console.error('Failed to spin:', err);
+    res.status(500).json({ error: 'failed to spin' });
   }
 });
 
@@ -1516,6 +1954,12 @@ app.get('/api/settings', (req: Request, res: Response) => {
   res.json({ settings: readSettings(requireUid(req)) });
 });
 
+// Corta por caracteres de verdad, no por unidades UTF-16: un emoji ocupa dos,
+// y cortar por la mitad deja un simbolo roto en el titulo.
+function recortar(texto: string, largo: number): string {
+  return Array.from(texto).slice(0, largo).join('');
+}
+
 // PUT /api/settings  Body: campos parciales de Settings
 app.put('/api/settings', (req: Request, res: Response) => {
   const body = req.body || {};
@@ -1524,11 +1968,24 @@ app.put('/api/settings', (req: Request, res: Response) => {
   const next: Settings = { ...current };
 
   // Un titulo vacio dejaria la cabecera en blanco: se ignora y se queda el actual.
-  if (typeof body.pageTitle === 'string' && body.pageTitle.trim()) next.pageTitle = body.pageTitle.trim().slice(0, 80);
+  if (typeof body.pageTitle === 'string' && body.pageTitle.trim()) next.pageTitle = recortar(body.pageTitle.trim(), 80);
   // Subtitulo y logo si admiten quedarse vacios: es como se ocultan.
-  if (typeof body.pageSubtitle === 'string') next.pageSubtitle = body.pageSubtitle.trim().slice(0, 140);
+  if (typeof body.pageSubtitle === 'string') next.pageSubtitle = recortar(body.pageSubtitle.trim(), 140);
   if (typeof body.logoUrl === 'string') next.logoUrl = body.logoUrl.trim().slice(0, 2000);
   if (typeof body.backgroundUrl === 'string') next.backgroundUrl = body.backgroundUrl.slice(0, 2000);
+
+  if (Array.isArray(body.banners)) {
+    next.banners = body.banners.slice(0, 8).map((b: any) => ({
+      imageUrl: enlaceSeguro(b?.imageUrl),
+      linkUrl: enlaceSeguro(b?.linkUrl)
+    })).filter((b: Banner) => b.imageUrl);
+  }
+  if (Array.isArray(body.socials)) {
+    next.socials = body.socials.slice(0, 10).map((r: any) => ({
+      red: (REDES.includes(r?.red) ? r.red : 'web') as Red,
+      url: enlaceSeguro(r?.url)
+    })).filter((r: Social) => r.url);
+  }
   if (typeof body.wheelUrl === 'string') next.wheelUrl = body.wheelUrl.slice(0, 2000);
   if (typeof body.showWheel === 'boolean') next.showWheel = body.showWheel;
   if (body.animation === 'slot' || body.animation === 'wheel' || body.animation === 'none') {
@@ -1584,6 +2041,29 @@ app.post('/api/background', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/ratios -> cuanto sale cada color en el sorteo
+app.get('/api/ratios', (req: Request, res: Response) => {
+  res.json({ ratios: readRatios(resolveServer(req)) });
+});
+
+// PUT /api/ratios  Body: { ratios: { common, rare, epic, mythic } }
+app.put('/api/ratios', (req: Request, res: Response) => {
+  const entra = req.body?.ratios;
+  if (!entra || typeof entra !== 'object') return res.status(400).json({ error: 'body must be { ratios: {} }' });
+  try {
+    const limpio = { ...RATIOS_POR_DEFECTO };
+    for (const r of RARITIES) {
+      const num = Number((entra as any)[r]);
+      limpio[r] = Number.isFinite(num) ? Math.max(0, Math.min(100, num)) : 0;
+    }
+    writeRatios(resolveServer(req), limpio);
+    res.json({ ratios: limpio });
+  } catch (err) {
+    console.error('Failed to write ratios:', err);
+    res.status(500).json({ error: 'failed to save ratios' });
+  }
+});
+
 // GET /api/tags -> { tags: { [itemId]: 'rare' | 'epic' | 'mythic' } }
 app.get('/api/tags', (req: Request, res: Response) => {
   res.json({ tags: readTags(resolveServer(req)) });
@@ -1614,13 +2094,50 @@ app.get('/api/random-items', async (req: Request, res: Response) => {
     const all = await fetchItemsCached();
     if (all.length === 0) return res.status(500).json({ error: 'no items available' });
 
-    // Participan todos menos los excluidos. La rareza (raro/épico/mítico) es
-    // solo una marca visual de "objeto caro" y no afecta al sorteo.
-    const excluded = new Set(readExclusions(resolveServer(req)));
+    // Participan todos menos los excluidos.
+    const ambito = resolveServer(req);
+    const excluded = new Set(readExclusions(ambito));
     const items = all.filter((it) => !excluded.has(getItemId(it)));
     if (items.length === 0) return res.status(409).json({ error: 'all items are excluded' });
-    const shuffled = shuffle(items);
-    const selected = shuffled.slice(0, Math.max(0, Math.min(n, shuffled.length)));
+
+    const cuantos = Math.max(0, Math.min(n, items.length));
+    const tags = readTags(ambito);
+    const ratios = readRatios(ambito);
+
+    // Un monton por color, ya barajado: sacar del final es sacar uno al azar.
+    const montones: Record<Rarity, any[]> = { common: [], rare: [], epic: [], mythic: [] };
+    for (const it of items) montones[(tags[getItemId(it)] as Rarity) || 'common'].push(it);
+    for (const r of RARITIES) montones[r] = shuffle(montones[r]);
+
+    // Con todos los ratios a cero no hay nada que respetar: se sortea plano,
+    // como se hacia antes de que los colores contaran.
+    const sumaRatios = RARITIES.reduce((s, r) => s + ratios[r], 0);
+    if (sumaRatios <= 0) {
+      const selected = shuffle(items).slice(0, cuantos);
+      return res.json({ count: selected.length, items: selected });
+    }
+
+    const selected: any[] = [];
+    for (let k = 0; k < cuantos; k++) {
+      // Solo compiten los colores que tengan ratio y que aun tengan objetos:
+      // un color al que no le queden se reparte entre los demas.
+      const posibles = RARITIES.filter((r) => ratios[r] > 0 && montones[r].length);
+      if (posibles.length) {
+        const total = posibles.reduce((s, r) => s + ratios[r], 0);
+        let punto = Math.random() * total;
+        let elegido = posibles[posibles.length - 1];
+        for (const r of posibles) {
+          punto -= ratios[r];
+          if (punto <= 0) { elegido = r; break; }
+        }
+        selected.push(montones[elegido].pop());
+      } else {
+        // Ningun color con ratio tiene ya objetos: se completa con lo que quede.
+        const resto = RARITIES.filter((r) => montones[r].length);
+        if (!resto.length) break;
+        selected.push(montones[resto[Math.floor(Math.random() * resto.length)]].pop());
+      }
+    }
     res.json({ count: selected.length, items: selected });
   } catch (err) {
     res.status(500).json({ error: 'failed to select random items' });
@@ -1812,9 +2329,133 @@ app.get('/api/puntos', (req: Request, res: Response) => {
 });
 
 // Serve static UI
+// La pagina del invitado, para poder pasarle un enlace limpio.
+app.get('/invitado', (_req: Request, res: Response) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'invitado.html'));
+});
+
 app.use('/assets', express.static(ASSETS_DIR));
 app.use('/', express.static(path.join(process.cwd(), 'public')));
 
+// --- Paquetes y codigos, para quien tiene cuenta ------------------------
+
+// GET /api/packs -> { packs: Pack[] }
+app.get('/api/packs', (req: Request, res: Response) => {
+  res.json({ packs: readPacks(resolveServer(req)) });
+});
+
+// PUT /api/packs  Body: { packs: Pack[] }
+app.put('/api/packs', (req: Request, res: Response) => {
+  const entra = req.body?.packs;
+  if (!Array.isArray(entra)) return res.status(400).json({ error: 'body must be { packs: [] }' });
+  try {
+    const limpios: Pack[] = entra.slice(0, 60).map((p: any) => ({
+      id: String(p?.id || crypto.randomBytes(6).toString('hex')),
+      name: recortar(String(p?.name || '').trim(), 60),
+      imageUrl: String(p?.imageUrl || '').trim().slice(0, 2000),
+      // Los objetos del paqueton, cada uno con su color. Sin nombre no se
+      // guarda: seria una linea vacia.
+      items: (Array.isArray(p?.items) ? p.items : []).slice(0, 40).map((it: any) => ({
+        name: recortar(String(it?.name || '').trim(), 60),
+        rarity: (RARITIES.includes(it?.rarity) ? it.rarity : 'common') as Rarity
+      })).filter((it: PackItem) => it.name)
+    })).filter((p: Pack) => p.name);
+    writePacks(resolveServer(req), limpios);
+    res.json({ packs: limpios });
+  } catch (err) {
+    console.error('Failed to write packs:', err);
+    res.status(500).json({ error: 'failed to save packs' });
+  }
+});
+
+// POST /api/packs/image  Body: { dataUrl } -> { url }
+app.post('/api/packs/image', (req: Request, res: Response) => {
+  const guardada = guardarImagen(req.body?.dataUrl, 'paquete');
+  if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
+  res.json({ url: guardada.url });
+});
+
+// POST /api/banners/image  Body: { dataUrl } -> { url }
+app.post('/api/banners/image', (req: Request, res: Response) => {
+  const guardada = guardarImagen(req.body?.dataUrl, 'banner');
+  if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
+  res.json({ url: guardada.url });
+});
+
+// GET /api/codes -> los codigos de este servidor, el ultimo primero
+app.get('/api/codes', (req: Request, res: Response) => {
+  const { uid } = partirAmbito(resolveServer(req));
+  const nombres = new Map(readServers(uid).map((sv) => [sv.id, sv.name]));
+  // Todos los del usuario: un codigo ya no pertenece a un servidor, y hasta
+  // que alguien lo usa no se sabe donde va a jugar.
+  const codes = readCodes()
+    .filter((c) => c.uid === uid)
+    .map((c) => ({
+      code: c.code,
+      tiradas: c.tiradas,
+      gastadas: c.gastadas,
+      creado: c.creado,
+      usado: c.usado || '',
+      nombre: c.nombre || '',
+      servidor: c.sid ? (nombres.get(c.sid) || c.sid) : ''
+    }))
+    .reverse();
+  res.json({ codes });
+});
+
+// POST /api/codes  Body: { tiradas } -> crea uno nuevo sin usar
+app.post('/api/codes', (req: Request, res: Response) => {
+  const tiradas = Math.max(1, Math.min(50, Number(req.body?.tiradas) || 1));
+  try {
+    const { uid } = partirAmbito(resolveServer(req));
+    const codes = readCodes();
+    let code = generarCodigo();
+    while (codes.some((c) => c.code === code)) code = generarCodigo();
+    // Sin servidor: lo elige el invitado al entrar.
+    const nuevo: GuestCode = { code, uid, sid: '', tiradas, gastadas: 0, creado: new Date().toISOString() };
+    codes.push(nuevo);
+    writeCodes(codes);
+    res.json({ code: nuevo.code, tiradas: nuevo.tiradas });
+  } catch (err) {
+    console.error('Failed to create code:', err);
+    res.status(500).json({ error: 'failed to create code' });
+  }
+});
+
+// DELETE /api/codes/:code -> lo anula; si estaba dentro, lo echa
+app.delete('/api/codes/:code', (req: Request, res: Response) => {
+  try {
+    const { uid } = partirAmbito(resolveServer(req));
+    const codes = readCodes();
+    const fuera = codes.filter((c) => !(c.code === req.params.code && c.uid === uid));
+    if (fuera.length === codes.length) return res.status(404).json({ error: 'no encontrado' });
+    writeCodes(fuera);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to delete code:', err);
+    res.status(500).json({ error: 'failed to delete code' });
+  }
+});
+
+// GET /api/guest-winners -> los que han jugado con codigo en este servidor
+app.get('/api/guest-winners', (req: Request, res: Response) => {
+  res.json({ winners: readGuestWins(resolveServer(req)) });
+});
+
+// DELETE /api/guest-winners/:id
+app.delete('/api/guest-winners/:id', (req: Request, res: Response) => {
+  try {
+    const ambito = resolveServer(req);
+    const wins = readGuestWins(ambito);
+    const fuera = wins.filter((w) => w.id !== req.params.id);
+    if (fuera.length === wins.length) return res.status(404).json({ error: 'no encontrado' });
+    writeGuestWins(ambito, fuera);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to delete guest winner:', err);
+    res.status(500).json({ error: 'failed to delete guest winner' });
+  }
+});
 carrera.iniciar({ userDir, ensureUserDir, writeJson });
 
 twitch.iniciar(
