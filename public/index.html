@@ -763,7 +763,6 @@
           <div class="subtabs cfg-nav">
             <button type="button" class="subtab cfgtab active" data-cfgtab="cuenta">👤 Mi cuenta</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="aspecto">🎨 Apariencia</button>
-            <button type="button" class="subtab cfgtab" data-cfgtab="animacion">🎬 Animación</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="minijuegos">🕹️ Minijuegos</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="datos">📦 Datos</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="acceso" id="cfgtabAcceso" hidden>🔑 Acceso</button>
@@ -912,8 +911,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           </div>
           </div>
 
-          <div class="cfg-tabpanel" id="cfgtab-animacion">
+          <div class="cfg-tabpanel" id="cfgtab-minijuegos">
           <div class="config-section">
+            <h4>Minijuegos</h4>
+            <p class="meta">Cómo se ve cada minijuego. Lo que reparte puntos se ajusta en la pestaña Minijuegos de arriba.</p>
+
+            <div class="subtabs cfg-mini-subtabs">
+              <button type="button" class="subtab active" data-mini="ruleta">🎡 Ruletas</button>
+              <button type="button" class="subtab" data-mini="carrera">🏁 Carrera de balineras</button>
+              <button type="button" class="subtab" data-mini="batalla">⚔️ Batalla de viewers</button>
+            </div>
+
+            <div class="cfg-subpanel active" id="mini-ruleta-panel">
             <h4>Animación del sorteo</h4>
             <div class="config-grid">
               <div class="config-field">
@@ -966,22 +975,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 </div>
               </div>
             </div>
-          </div>
-          </div>
-
-          <div class="cfg-tabpanel" id="cfgtab-minijuegos">
-          <div class="config-section">
-            <h4>Minijuegos</h4>
-            <p class="meta">Cómo se ve cada minijuego. Lo que reparte puntos se ajusta en la pestaña Minijuegos de arriba.</p>
-
-            <div class="subtabs cfg-mini-subtabs">
-              <button type="button" class="subtab active" data-mini="ruleta">🎰 Ruleta</button>
-              <button type="button" class="subtab" data-mini="carrera">🏁 Carrera de balineras</button>
-              <button type="button" class="subtab" data-mini="batalla">⚔️ Batalla de viewers</button>
-            </div>
-
-            <div class="cfg-subpanel active" id="mini-ruleta-panel">
-              <p class="meta">La animación de la ruleta se configura en la pestaña Animación.</p>
             </div>
 
             <div class="cfg-subpanel" id="mini-carrera-panel">
@@ -4171,9 +4164,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         document.querySelectorAll('.cfg-tabpanel').forEach((panel) => {
           panel.classList.toggle('active', panel.id === `cfgtab-${cual}`);
         });
-        document.getElementById('cfgSaveRow').hidden = cual !== 'aspecto' && cual !== 'animacion';
-        // Al salir de Animación se corta la animación de prueba.
-        if (cual !== 'animacion') cancelarPrevisualizacion();
+        document.getElementById('cfgSaveRow').hidden = cual !== 'aspecto' && cual !== 'minijuegos';
+        // Al salir de Minijuegos se corta la animación de prueba.
+        if (cual !== 'minijuegos') cancelarPrevisualizacion();
         // La lista se pide al abrir, para verla al día sin recargar la página.
         if (cual === 'acceso') cargarAcceso();
         if (cual === 'minijuegos') cargarMinijuegos();
@@ -4224,7 +4217,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     document.querySelectorAll('#config-panel .cfg-anim-subtabs .subtab').forEach((subtab) => {
       subtab.addEventListener('click', () => {
         document.querySelectorAll('#config-panel .cfg-anim-subtabs .subtab').forEach((b) => b.classList.toggle('active', b === subtab));
-        document.querySelectorAll('.cfg-subpanel').forEach((panel) => {
+        document.querySelectorAll('#mini-ruleta-panel .cfg-subpanel').forEach((panel) => {
           panel.classList.toggle('active', panel.id === `cfg-${subtab.dataset.cfg}-panel`);
         });
       });
