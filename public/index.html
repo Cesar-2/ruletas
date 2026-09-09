@@ -281,6 +281,34 @@
     .cuadro .vida i.poca{background:#fbbf24}
     .cuadro .vida i.critica{background:#f87171}
     .cuadro .duelo.peleando{border-color:rgba(255,255,255,0.35)}
+    /* El ring: los dos muñecos, uno frente al otro. Cada uno mira hacia el
+       contrario, y --dir dice hacia donde es «adelante» para él. */
+    .cuadro .ring{position:relative;height:58px;margin:.1rem 0 .35rem;border-radius:8px;
+      background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))}
+    .cuadro .ring::after{content:'';position:absolute;left:8px;right:8px;bottom:5px;height:1px;
+      background:rgba(255,255,255,0.12)}
+    .muneco{--dir:1;position:absolute;bottom:6px;width:34px;height:50px;color:#7dd3fc}
+    .muneco.lado-b{--dir:-1;right:10px;color:#fb7185}
+    .muneco.lado-a{left:10px}
+    .muneco span{position:absolute;background:currentColor}
+    .muneco .cabeza{left:9px;top:0;width:16px;height:16px;border-radius:50%}
+    .muneco .cuerpo{left:12px;top:17px;width:10px;height:19px;border-radius:5px}
+    .muneco .brazo{left:21px;top:20px;width:14px;height:5px;border-radius:3px;transform-origin:0 50%}
+    .muneco.lado-b .brazo{left:auto;right:21px;transform-origin:100% 50%}
+    .muneco .pierna{top:35px;width:5px;height:15px;border-radius:3px}
+    .muneco .pierna.izq{left:12px}
+    .muneco .pierna.der{left:19px}
+    /* Pega, encaja o se cae: lo mismo que cuenta el relato, pero visto. */
+    @keyframes pegar{0%,100%{transform:translateX(0)}40%{transform:translateX(calc(var(--dir) * 15px))}}
+    @keyframes brazazo{0%,100%{transform:rotate(0)}40%{transform:rotate(calc(var(--dir) * -55deg))}}
+    @keyframes recibir{0%,100%{transform:translateX(0)}30%{transform:translateX(calc(var(--dir) * 7px))}
+      65%{transform:translateX(calc(var(--dir) * -3px))}}
+    .muneco.pega{animation:pegar .3s ease-out}
+    .muneco.pega .brazo{animation:brazazo .3s ease-out}
+    .muneco.recibe{animation:recibir .3s ease-out}
+    .muneco.recibe .cabeza,.muneco.recibe .cuerpo{background:#f87171}
+    .muneco.cae{transform:rotate(calc(var(--dir) * 78deg)) translateY(7px);opacity:.4;
+      transition:transform .45s ease-in,opacity .45s}
     .cuadro .golpe{font-size:11px;color:var(--muted);margin-top:.3rem;min-height:1.2em;line-height:1.3}
     .cuadro .golpe .pum{color:#fbbf24;font-weight:700}
     .relato{margin-top:1rem;max-height:180px;overflow-y:auto;font-size:13px;
@@ -997,7 +1025,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
 
             <div class="cfg-subpanel" id="mini-batalla-panel">
-              <p class="meta">La batalla se cuenta golpe a golpe; todavía no tiene animaciones que elegir.</p>
+              <p class="meta">Los duelos se pelean golpe a golpe entre dos muñecos, uno por luchador. Todavía no hay nada que elegir aquí.</p>
             </div>
           </div>
           </div>
@@ -3194,7 +3222,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             const cual = vida <= 20 ? 'critica' : vida <= 50 ? 'poca' : '';
             return `<div class="vida"><i data-lado="${lado}" class="${cual}" style="width:${vida}%"></i></div>`;
           };
+          const caido = (quien) => d.ganador && d.ganador !== quien ? ' cae' : '';
           return `<div class="duelo" data-ronda="${ri}" data-duelo="${di}">
+            <div class="ring">${muneco('a', caido(d.a))}${muneco('b', caido(d.b))}</div>
             <div class="${clase(d.a)}">${escapeHtml(d.a)}</div>
             ${barra('a', ultimo ? ultimo.vidaA : 100)}
             <div class="vs">vs</div>
@@ -3207,7 +3237,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }).join('');
     }
 
-    // Cuenta la ronda golpe a golpe: las barras de vida bajan y el relato va
+    // Un muñeco: cabeza, tronco, un brazo con el que pega y dos piernas.
+    function muneco(lado, extra) {
+      return `<div class="muneco lado-${lado}${extra}">
+        <span class="cabeza"></span><span class="cuerpo"></span><span class="brazo"></span>
+        <span class="pierna izq"></span><span class="pierna der"></span></div>`;
+    }
+
+    // Cuenta la ronda golpe a golpe: los muñecos se pegan, las barras de vida bajan y el relato va
     // saliendo debajo. Quien ha ganado ya lo decidió el servidor; esto solo lo
     // enseña. Devuelve una promesa que acaba cuando termina el último duelo.
     function contarRonda(ronda, indiceRonda) {
@@ -3233,6 +3270,19 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           b: caja.querySelector('.vida i[data-lado="b"]')
         };
         const texto = caja.querySelector('.golpe');
+        const munecos = {
+          a: caja.querySelector('.muneco.lado-a'),
+          b: caja.querySelector('.muneco.lado-b')
+        };
+        // Reiniciar la animación pide sacar la clase, forzar el repintado y
+        // volver a ponerla: si no, el segundo golpe seguido no se ve.
+        const mover = (quien, como) => {
+          if (!quien) return;
+          quien.classList.remove('pega', 'recibe');
+          void quien.offsetWidth;
+          quien.classList.add(como);
+          setTimeout(() => quien.classList.remove(como), 320);
+        };
 
         d.golpes.forEach((g, i) => {
           setTimeout(() => {
@@ -3243,6 +3293,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             };
             pinta(barras.a, g.vidaA);
             pinta(barras.b, g.vidaB);
+            const pega = g.quien === d.a ? 'a' : 'b';
+            const encaja = pega === 'a' ? 'b' : 'a';
+            mover(munecos[pega], 'pega');
+            mover(munecos[encaja], 'recibe');
             texto.innerHTML = `${escapeHtml(g.quien)} ${escapeHtml(g.ataque)} ${escapeHtml(g.a)}` +
               ` <span class="pum">−${g.dano}${g.critico ? ' ¡crítico!' : ''}</span>`;
 
@@ -3255,7 +3309,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             relato.appendChild(linea);
             relato.scrollTop = relato.scrollHeight;
 
-            if (cae) caja.classList.remove('peleando');
+            if (cae) {
+              caja.classList.remove('peleando');
+              // El que se queda sin vida se va al suelo.
+              if (munecos[encaja]) munecos[encaja].classList.add('cae');
+            }
           }, (i + 1) * RITMO);
         });
       });
