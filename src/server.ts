@@ -4,6 +4,7 @@ import cors from 'cors';
 import * as twitch from './twitch';
 import * as carrera from './carrera';
 import * as batalla from './batalla';
+import * as ruletachat from './ruletachat';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -1869,6 +1870,53 @@ app.get('/api/carrera', (req: Request, res: Response) => {
   res.json(carrera.estado(requireUid(req)));
 });
 
+// --- Ruleta de nombres: quien se apunta por el chat ---------------------
+
+// GET /api/ruleta-chat -> quien lleva apuntado
+app.get('/api/ruleta-chat', (req: Request, res: Response) => {
+  res.json(ruletachat.estado(requireUid(req)));
+});
+
+// POST /api/ruleta-chat/abrir  Body: { palabra? }
+app.post('/api/ruleta-chat/abrir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const canal = canalDe(uid);
+  if (!canal) {
+    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  }
+  try {
+    if (typeof req.body?.palabra === 'string') {
+      ruletachat.guardarAjustes(uid, { palabra: req.body.palabra });
+    }
+    res.json(ruletachat.abrir(uid, canal));
+  } catch (err) {
+    console.error('Failed to open wheel signup:', err);
+    res.status(500).json({ error: 'failed to open wheel signup' });
+  }
+});
+
+// POST /api/ruleta-chat/cerrar -> se deja de escuchar; la lista se queda
+app.post('/api/ruleta-chat/cerrar', (req: Request, res: Response) => {
+  res.json(ruletachat.cerrar(requireUid(req)));
+});
+
+// POST /api/ruleta-chat/vaciar -> la pagina ya se llevo los nombres
+app.post('/api/ruleta-chat/vaciar', (req: Request, res: Response) => {
+  res.json(ruletachat.vaciar(requireUid(req)));
+});
+
+// POST /api/ruleta-chat/config  Body: { palabra }
+app.post('/api/ruleta-chat/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  try {
+    ruletachat.guardarAjustes(uid, req.body || {});
+    res.json(ruletachat.estado(uid));
+  } catch (err) {
+    console.error('Failed to save wheel signup settings:', err);
+    res.status(500).json({ error: 'failed to save wheel signup settings' });
+  }
+});
+
 // POST /api/carrera/abrir  Body: { canal, palabra? }
 app.post('/api/carrera/abrir', (req: Request, res: Response) => {
   const uid = requireUid(req);
@@ -2044,6 +2092,7 @@ app.use('/assets', express.static(ASSETS_DIR));
 app.use('/', express.static(path.join(process.cwd(), 'public')));
 
 carrera.iniciar({ userDir, ensureUserDir, writeJson });
+ruletachat.iniciar({ userDir, ensureUserDir, writeJson });
 // La batalla reparte en el mismo marcador que la carrera.
 batalla.iniciar({ userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos });
 

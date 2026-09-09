@@ -708,6 +708,13 @@
             </div>
             <h3>🎡 Ruleta de nombres</h3>
             <p class="meta">Escribe un nombre por línea y gira: uno de ellos sale ganador. La lista se guarda en este navegador, por servidor.</p>
+            <div class="controls">
+              <label class="meta" for="nameChatPalabra">Se apuntan por el chat escribiendo</label>
+              <input id="nameChatPalabra" type="text" value="!ruleta" style="width:110px" aria-label="Palabra para apuntarse" />
+              <button type="button" id="nameChatAbrir">Abrir inscripción</button>
+              <button type="button" id="nameChatCerrar" class="btn-cancel" hidden>Cerrar inscripción</button>
+              <span class="meta" id="nameChatEstado"></span>
+            </div>
             <div class="names-layout">
               <div class="names-side">
                 <textarea id="nameList" rows="10" placeholder="Un nombre por línea&#10;Lucy&#10;Chimbita&#10;Suix&#10;Anna"></textarea>
@@ -2906,6 +2913,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       updateBulkBar();
       renderEditor();
       cargarNombres();
+    retomarInscripcion();
       await Promise.all([loadWinners(), loadRatios(), loadRanking(), loadHistory()]);
     }
 
@@ -3145,7 +3153,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     // En cuanto tocas uno, deja de refrescarse hasta que lo guardas.
-    ['carreraPalabra', 'carreraPuntos', 'carreraDuracion', 'batallaPalabra', 'batallaPuntos'].forEach((id) => {
+    ['carreraPalabra', 'carreraPuntos', 'carreraDuracion', 'batallaPalabra', 'batallaPuntos',
+      'nameChatPalabra'].forEach((id) => {
       const campo = document.getElementById(id);
       if (campo) campo.addEventListener('input', () => { campo.dataset.tocado = '1'; });
     });
@@ -3433,7 +3442,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         });
         // La ruleta de nombres necesita repintarse al hacerse visible: en un
         // panel oculto el SVG no tiene tamaño.
-        if (cual === 'ruleta') renderEditor();
+        if (cual === 'ruleta') { renderEditor(); retomarInscripcion(); }
         if (cual === 'batalla') cargarBatalla();
       });
     });
@@ -4727,6 +4736,84 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       return NAMES_KEY + ':' + (currentServer || 'sin-servidor');
     }
 
+    // ---- Apuntarse por el chat ----
+    // El servidor escucha el chat y va guardando a quien escribe la palabra;
+    // aquí solo se recogen y se meten en la lista, que sigue siendo del
+    // navegador. Lo recogido se borra del servidor: así, si luego se quita a
+    // alguien de la lista a mano, no vuelve a colarse solo.
+    let vigilanteNombres = null;
+
+    function pintarInscripcion(estado) {
+      const aviso = document.getElementById('nameChatEstado');
+      document.getElementById('nameChatAbrir').hidden = estado.abierta;
+      document.getElementById('nameChatCerrar').hidden = !estado.abierta;
+      aviso.textContent = estado.abierta
+        ? `Escuchando ${estado.escuchando || 'el chat'}: escriben «${estado.palabra}» para entrar.`
+        : '';
+    }
+
+    function meterEnLaLista(nombres) {
+      if (!nombres.length) return 0;
+      const caja = document.getElementById('nameList');
+      const yaEstan = leerNombres().map((n) => n.toLowerCase());
+      const nuevos = nombres.filter((n) => !yaEstan.includes(n.toLowerCase()));
+      if (!nuevos.length) return 0;
+      const texto = caja.value.replace(/\s+$/, '');
+      caja.value = (texto ? texto + '\n' : '') + nuevos.join('\n') + '\n';
+      guardarNombres();
+      renderNameWheel();
+      return nuevos.length;
+    }
+
+    async function recogerInscritos() {
+      let estado;
+      try {
+        estado = await api('/api/ruleta-chat');
+      } catch (e) {
+        console.warn('No se pudo leer la inscripción:', e.message);
+        return;
+      }
+      ponerSiNoLoTocas('nameChatPalabra', estado.palabra);
+      pintarInscripcion(estado);
+      if (!estado.abierta && !vigilanteNombres) return;
+      if (meterEnLaLista(estado.nombres)) {
+        try { await api('/api/ruleta-chat/vaciar', { method: 'POST' }); } catch (e) { /* al siguiente */ }
+      }
+    }
+
+    function vigilarNombres(encender) {
+      if (vigilanteNombres) { clearInterval(vigilanteNombres); vigilanteNombres = null; }
+      // Mientras esta abierta, se pregunta cada 2 s quien ha entrado.
+      if (encender) vigilanteNombres = setInterval(recogerInscritos, 2000);
+    }
+
+    document.getElementById('nameChatAbrir').addEventListener('click', async () => {
+      try {
+        const estado = await api('/api/ruleta-chat/abrir', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ palabra: document.getElementById('nameChatPalabra').value })
+        });
+        olvidarTocados(['nameChatPalabra']);
+        document.getElementById('nameChatPalabra').value = estado.palabra;
+        pintarInscripcion(estado);
+        vigilarNombres(true);
+      } catch (e) {
+        showAlert('No se pudo abrir la inscripción', e.message);
+      }
+    });
+
+    document.getElementById('nameChatCerrar').addEventListener('click', async () => {
+      try {
+        // Una ultima recogida, por si alguien entro justo antes de cerrar.
+        await recogerInscritos();
+        pintarInscripcion(await api('/api/ruleta-chat/cerrar', { method: 'POST' }));
+      } catch (e) {
+        showAlert('No se pudo cerrar la inscripción', e.message);
+      }
+      vigilarNombres(false);
+    });
+
     function leerNombres() {
       return document.getElementById('nameList').value
         .split('\n')
@@ -4738,6 +4825,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       try {
         localStorage.setItem(clave_nombres(), document.getElementById('nameList').value);
       } catch (e) { /* modo privado: no pasa nada, solo no se recuerda */ }
+    }
+
+    // Puede seguir abierta de antes de recargar la pagina: se retoma.
+    async function retomarInscripcion() {
+      try {
+        const estado = await api('/api/ruleta-chat');
+        ponerSiNoLoTocas('nameChatPalabra', estado.palabra);
+        pintarInscripcion(estado);
+        if (estado.abierta) vigilarNombres(true);
+      } catch (e) {
+        console.warn('No se pudo leer la inscripción:', e.message);
+      }
     }
 
     function cargarNombres() {

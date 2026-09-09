@@ -115,7 +115,16 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
     actual.animacion = ajustes.animacion as Animacion;
   }
   deps.ensureUserDir(uid);
-  deps.writeJson(archivoAjustes(uid), { carrera: actual });
+  // El archivo lo comparten los minijuegos: se reescribe entero para no
+  // llevarse por delante los ajustes de los otros.
+  let todo: Record<string, unknown> = {};
+  try {
+    const f = archivoAjustes(uid);
+    if (fs.existsSync(f)) todo = JSON.parse(fs.readFileSync(f, "utf8")) || {};
+  } catch (err) {
+    console.error("Failed to read minigame settings:", err);
+  }
+  deps.writeJson(archivoAjustes(uid), { ...todo, carrera: actual });
   return actual;
 }
 
