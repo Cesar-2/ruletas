@@ -280,7 +280,18 @@
       background:rgba(248,113,113,0.10);color:#fca5a5;border:1px solid rgba(248,113,113,0.35)}
     /* El cuadro del torneo: una columna por ronda. */
     .cuadro{display:flex;gap:1rem;overflow-x:auto;margin-top:1rem;padding-bottom:.4rem}
-    .cuadro .ronda{flex:0 0 200px;display:flex;flex-direction:column;gap:.5rem}
+    .cuadro .ronda{flex:1 1 100%;display:flex;flex-direction:column;gap:.5rem}
+    /* Los duelos de la ronda, en rejilla: con mucha gente no se hace una
+       columna infinita. */
+    .cuadro .duelos{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.5rem}
+    /* Resuelto: fuera el ring, las barras y el relato. Solo queda quien pasa. */
+    .cuadro .duelo.resuelto{padding:.3rem .55rem;transition:padding .3s ease}
+    .cuadro .duelo.resuelto .ring,
+    .cuadro .duelo.resuelto .vida,
+    .cuadro .duelo.resuelto .vs,
+    .cuadro .duelo.resuelto .golpe,
+    .cuadro .duelo.resuelto .lado.pierde{display:none}
+    .cuadro .duelo.resuelto .lado.gana::before{content:'✔';margin-right:.35rem;opacity:.55}
     .cuadro .ronda h4{margin:0 0 .2rem;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
     .cuadro .duelo{padding:.45rem .6rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);font-size:13px}
     .cuadro .lado{display:flex;align-items:center;gap:.4rem;padding:.15rem 0;color:var(--muted)}
@@ -3249,10 +3260,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // Mientras se cuenta la ronda no se repinta: se borrarian las barras de
       // vida a medias y se veria el ganador antes de tiempo.
       if (narrando) return;
-      cuadro.innerHTML = batalla.rondas.map((r, ri) => {
+      // Solo la ultima: es la que se va a pelear, o la que acaba de coronar.
+      // Las de antes ya se han visto y solo ocuparian pantalla.
+      cuadro.innerHTML = batalla.rondas.slice(-1).map((r) => {
+        const ri = batalla.rondas.length - 1;
         const titulo = r.duelos.length === 1 ? 'Final' : `Ronda ${r.numero}`;
         const duelos = r.duelos.map((d, di) => {
-          if (!d.b) return `<div class="duelo"><div class="lado gana">${escapeHtml(d.a)}</div><div class="pase">pasa sin pelear</div></div>`;
+          if (!d.b) return `<div class="duelo resuelto"><div class="lado gana">${escapeHtml(d.a)}</div><div class="pase">pasa sin pelear</div></div>`;
           const clase = (quien) => d.ganador ? (d.ganador === quien ? 'lado gana' : 'lado pierde') : 'lado';
           // Las barras arrancan llenas, pero si el duelo ya se peleó se pintan
           // como quedaron: si no, al repintar volverían a verse a tope.
@@ -3263,7 +3277,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             return `<div class="vida"><i data-lado="${lado}" class="${cual}" style="width:${vida}%"></i></div>`;
           };
           const caido = (quien) => d.ganador && d.ganador !== quien ? ' cae' : '';
-          return `<div class="duelo" data-ronda="${ri}" data-duelo="${di}">
+          // Ya peleado (se recarga la pagina, o es la final del campeon): sale
+          // encogido de entrada, sin volver a contarlo.
+          return `<div class="duelo${d.ganador ? ' resuelto' : ''}" data-ronda="${ri}" data-duelo="${di}">
             <div class="ring">${muneco('a', caido(d.a))}${muneco('b', caido(d.b))}</div>
             <div class="${clase(d.a)}">${escapeHtml(d.a)}</div>
             ${barra('a', ultimo ? ultimo.vidaA : 100)}
@@ -3273,7 +3289,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             <div class="golpe"></div>
           </div>`;
         }).join('');
-        return `<div class="ronda"><h4>${titulo}</h4>${duelos}</div>`;
+        return `<div class="ronda"><h4>${titulo}</h4><div class="duelos">${duelos}</div></div>`;
       }).join('');
     }
 
@@ -3364,6 +3380,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               caja.classList.remove('peleando');
               // El que se queda sin vida se va al suelo.
               if (munecos[encaja]) munecos[encaja].classList.add('cae');
+              // Y un momento despues el recuadro se encoge: ya solo importa
+              // quien pasa de ronda.
+              // Al pintar el duelo todavia no habia ganador, asi que los
+              // nombres no llevaban marca: se les pone ahora, que es lo unico
+              // que va a quedar a la vista.
+              const lados = caja.querySelectorAll('.lado');
+              if (lados[0]) lados[0].className = 'lado ' + (pega === 'a' ? 'gana' : 'pierde');
+              if (lados[1]) lados[1].className = 'lado ' + (pega === 'b' ? 'gana' : 'pierde');
+              setTimeout(() => caja.classList.add('resuelto'), 900);
             }
           }, (i + 1) * RITMO);
         });
