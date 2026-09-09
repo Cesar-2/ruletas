@@ -553,6 +553,7 @@
               <button type="button" id="batallaAbrir">Abrir inscripción</button>
               <button type="button" id="batallaEmpezar" disabled>Empezar torneo</button>
               <button type="button" id="batallaRonda" disabled>Siguiente ronda</button>
+              <button type="button" id="batallaRepetir" hidden>Volver a jugar</button>
               <button type="button" id="batallaCancelar" class="btn-cancel" hidden>Cancelar</button>
             </div>
             <p class="meta" id="batallaEstado">Sin batalla abierta.</p>
@@ -586,6 +587,7 @@
             <div class="draw-controls">
               <button type="button" id="carreraAbrir">Abrir inscripción</button>
               <button type="button" id="carreraCorrer" disabled>¡Correr!</button>
+              <button type="button" id="carreraRepetir" hidden>Volver a correr</button>
               <button type="button" id="carreraCancelar" class="btn-cancel" hidden>Cancelar</button>
             </div>
             <p class="meta" id="carreraEstado">Sin carrera abierta.</p>
@@ -3167,6 +3169,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('batallaEmpezar').disabled = !batalla.abierta || cuantos < 2;
       document.getElementById('batallaRonda').disabled = !pendiente;
       document.getElementById('batallaCancelar').hidden = !batalla.abierta && !empezada;
+      // Otra vez con los mismos: solo tiene sentido con el torneo terminado.
+      document.getElementById('batallaRepetir').hidden = !batalla.campeon || cuantos < 2;
 
       const banner = document.getElementById('batallaCampeon');
       banner.hidden = !batalla.campeon;
@@ -3233,6 +3237,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         makeConfetti(30);
       }
     });
+    document.getElementById('batallaRepetir').addEventListener('click', async () => {
+      // El cuadro se sortea de nuevo, así que no salen los mismos duelos.
+      await accionBatalla('/api/batalla/repetir');
+    });
+
     document.getElementById('batallaCancelar').addEventListener('click', async () => {
       await accionBatalla('/api/batalla/cancelar');
       vigilarBatalla(false);
@@ -3324,6 +3333,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('carreraCorrer').disabled = corriendo || !carrera.abierta || cuantos < 2;
       document.getElementById('carreraCancelar').hidden = !carrera.abierta;
       document.getElementById('carreraAbrir').disabled = corriendo;
+      // Otra con los mismos: solo con la carrera ya corrida.
+      document.getElementById('carreraRepetir').hidden = corriendo || !carrera.resultado.length || cuantos < 2;
 
       // La pista se dibuja mientras se apuntan, para que se vea llenarse.
       if (!cuantos) {
@@ -3473,6 +3484,20 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         pintarCarrera();
         makeConfetti(30);
       }, tarda + 200);
+    });
+
+    document.getElementById('carreraRepetir').addEventListener('click', async () => {
+      try {
+        carrera = await api('/api/carrera/repetir', { method: 'POST' });
+      } catch (e) {
+        showAlert('No se pudo repetir', e.message);
+        return;
+      }
+      // El podio anterior sobra; la pista la redibuja pintarCarrera() desde
+      // cero, así que las balineras vuelven solas a la salida.
+      document.getElementById('carreraPodio').hidden = true;
+      pintarCarrera();
+      vigilar(true);
     });
 
     document.getElementById('carreraCancelar').addEventListener('click', async () => {

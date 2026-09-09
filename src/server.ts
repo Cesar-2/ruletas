@@ -2332,6 +2332,14 @@ app.post('/api/carrera/correr', (req: Request, res: Response) => {
   res.json(hecha);
 });
 
+// POST /api/carrera/repetir -> otra carrera con los mismos corredores
+app.post('/api/carrera/repetir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const otra = carrera.repetir(uid, twitch.estado(uid).canal);
+  if (!otra) return res.status(409).json({ error: 'no hay una carrera anterior con corredores' });
+  res.json(carrera.estado(uid));
+});
+
 // POST /api/carrera/cancelar
 app.post('/api/carrera/cancelar', (req: Request, res: Response) => {
   const uid = requireUid(req);
@@ -2383,6 +2391,14 @@ app.post('/api/batalla/ronda', (req: Request, res: Response) => {
   const b = batalla.resolverRonda(uid);
   if (!b) return res.status(409).json({ error: 'no hay ninguna ronda pendiente' });
   res.json(b);
+});
+
+// POST /api/batalla/repetir -> otro torneo con los mismos luchadores
+app.post('/api/batalla/repetir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const otra = batalla.repetir(uid);
+  if (!otra) return res.status(409).json({ error: 'no hay un torneo anterior con luchadores' });
+  res.json(otra);
 });
 
 // POST /api/batalla/cancelar

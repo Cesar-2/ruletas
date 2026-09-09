@@ -142,6 +142,23 @@ export function empezar(uid: string): Batalla | null {
   return batalla;
 }
 
+// Otro torneo con los mismos luchadores. El cuadro se sortea de nuevo, asi
+// que no repite los mismos duelos: va directo a la primera ronda.
+export function repetir(uid: string): Batalla | null {
+  const anterior = batallas.get(uid);
+  if (!anterior || anterior.luchadores.length < 2) return null;
+  const nueva: Batalla = {
+    abierta: false,
+    luchadores: anterior.luchadores.slice(),
+    rondas: [],
+    campeon: '',
+    puntos: leerAjustes(uid).puntos
+  };
+  nueva.rondas = [emparejar(nueva.luchadores.map((l) => l.nombre), 1)];
+  batallas.set(uid, nueva);
+  return nueva;
+}
+
 // Resuelve la ronda pendiente y, si queda mas de uno, monta la siguiente.
 // Devuelve null si no habia nada que resolver.
 export function resolverRonda(uid: string): Batalla | null {

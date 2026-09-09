@@ -212,6 +212,18 @@ export function correr(uid: string): Carrera | null {
   return carrera;
 }
 
+// Otra carrera con los mismos corredores, sin volver a pedirlos por el chat.
+// Se deja la inscripcion abierta y el chat escuchando, por si se apunta
+// alguien mas mientras tanto.
+export function repetir(uid: string, canal: string): Carrera | null {
+  const anterior = carreras.get(uid);
+  if (!anterior || anterior.corredores.length < 2) return null;
+  const mismos = anterior.corredores.slice();
+  const nueva = abrir(uid, canal);
+  nueva.corredores = mismos;
+  return nueva;
+}
+
 // Tira la carrera actual y deja de escuchar.
 export function cancelar(uid: string): void {
   cerrarEscucha(uid);
