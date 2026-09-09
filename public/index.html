@@ -301,21 +301,22 @@
     .calle .quien{position:absolute;left:38px;top:0;line-height:26px;font-size:13px;color:var(--muted);white-space:nowrap;z-index:1}
     .calle .bola{position:absolute;left:2px;top:2px;width:22px;height:22px;border-radius:50%;z-index:2;
       box-shadow:0 0 0 1px rgba(255,255,255,0.35) inset, 0 2px 6px rgba(2,6,23,.6);
-      transform:translateX(0);transition:transform 0s linear}
+      transform:translateX(0);transition:transform 0s linear;
+      display:flex;align-items:center;justify-content:center}
     .calle .meta-linea{position:absolute;right:6px;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.18)}
     .calle.llega .quien{color:#e6eef8;font-weight:600}
-    /* Caída: las mismas calles puestas de pie, las balineras bajan. */
-    .pista.caida{display:flex;gap:8px;align-items:stretch;height:230px}
-    .pista.caida .calle{flex:1;min-width:26px;height:auto;margin-bottom:0}
-    .pista.caida .calle .bola{left:50%;margin-left:-11px;top:2px}
-    .pista.caida .calle .quien{left:0;right:0;top:auto;bottom:3px;line-height:1.2;font-size:11px;
-      text-align:center;padding:0 2px;overflow:hidden;text-overflow:ellipsis}
-    .pista.caida .calle .meta-linea{left:0;right:0;top:auto;bottom:0;width:auto;height:2px}
-    /* Barras: sin balinera, se llena la calle entera. */
-    .calle .barra{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:13px;opacity:.5;z-index:0}
-    .pista:not(.barras) .calle .barra{display:none}
-    .pista.barras .calle .bola{display:none}
-    .pista.barras .calle .quien{left:10px}
+    /* Quien corre: el bicho va dentro de la ficha, que es la que avanza. */
+    .calle .bicho{display:block;font-size:19px;line-height:22px;text-align:center;
+      filter:drop-shadow(0 1px 2px rgba(2,6,23,.7))}
+    .pista.caballos .calle .bicho{animation:galope .28s steps(2,end) infinite}
+    .pista.patos .calle .bicho{animation:contoneo .5s ease-in-out infinite}
+    .pista.hormigas .calle .bicho{font-size:16px;animation:trote .12s linear infinite}
+    /* Cada uno se mueve a su manera, para distinguirlos corriendo. */
+    @keyframes galope{0%{transform:translateY(0) scaleX(-1)}100%{transform:translateY(-3px) scaleX(-1)}}
+    @keyframes contoneo{0%,100%{transform:rotate(-9deg) scaleX(-1)}50%{transform:rotate(9deg) scaleX(-1)}}
+    @keyframes trote{0%,100%{transform:translateY(0) scaleX(-1)}50%{transform:translateY(-1px) scaleX(-1)}}
+    /* Con la carrera parada no hay pataleo: se quedan quietos. */
+    .pista.parada .calle .bicho{animation:none;transform:scaleX(-1)}
     .draw-subpanel{display:none}
     .draw-subpanel.active{display:block}
     /* Editor de paquetes: una fila por premio, imagen + nombre + peso. */
@@ -980,11 +981,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             <div class="cfg-subpanel" id="mini-carrera-panel">
               <div class="config-grid">
                 <div class="config-field">
-                  <label for="cfgCarreraAnimacion">Animación de la carrera</label>
+                  <label for="cfgCarreraAnimacion">Quién corre la carrera</label>
                   <select id="cfgCarreraAnimacion">
-                    <option value="calles">🏁 Calles horizontales</option>
-                    <option value="caida">⬇️ Caída vertical</option>
-                    <option value="barras">📊 Barras que se llenan</option>
+                    <option value="caballos">🐎 Caballos</option>
+                    <option value="patos">🦆 Patos</option>
+                    <option value="hormigas">🐜 Hormigas</option>
                   </select>
                 </div>
                 <div class="config-field">
@@ -992,7 +993,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                   <button id="cfgCarreraGuardar" type="button">Guardar animación</button>
                 </div>
               </div>
-              <p class="meta" id="cfgCarreraGuardado">El resultado no cambia: las tres cuentan la misma carrera.</p>
+              <p class="meta" id="cfgCarreraGuardado">El resultado no cambia: corra quien corra, es la misma carrera.</p>
             </div>
 
             <div class="cfg-subpanel" id="mini-batalla-panel">
@@ -3335,6 +3336,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
 
     // --- Carrera de balineras ---------------------------------------------
+    // Quien corre la carrera, según lo elegido en Configuración > Minijuegos.
+    const BICHOS = { caballos: '🐎', patos: '🦆', hormigas: '🐜' };
     const COLORES_BOLA = ['#6ee7b7', '#7dd3fc', '#c084fc', '#fbbf24', '#fb7185',
       '#34d399', '#93c5fd', '#f0abfc', '#f97316', '#a3e635'];
     let carrera = { abierta: false, corredores: [], resultado: [], escuchando: '' };
@@ -3428,15 +3431,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const pista = document.getElementById('carreraPista');
       pista.hidden = false;
       pista.innerHTML = '';
-      // El resultado es el mismo en las tres; solo cambia cómo se cuenta.
-      pista.className = 'pista ' + (carrera.ajustes?.animacion || 'calles');
+      // El resultado es el mismo con todos; solo cambia quien corre. Parados
+      // mientras no hay carrera, que si no patalean sin moverse.
+      const bicho = BICHOS[carrera.ajustes?.animacion] ? carrera.ajustes.animacion : 'caballos';
+      pista.className = 'pista ' + bicho + (corriendo ? '' : ' parada');
       carrera.corredores.forEach((c, i) => {
         const calle = document.createElement('div');
         calle.className = 'calle';
         calle.dataset.clave = c.clave;
         calle.innerHTML = `
-          <span class="barra" style="background:${COLORES_BOLA[i % COLORES_BOLA.length]}"></span>
-          <span class="bola" style="background:${COLORES_BOLA[i % COLORES_BOLA.length]}"></span>
+          <span class="bola" style="background:${COLORES_BOLA[i % COLORES_BOLA.length]}"><span class="bicho">${BICHOS[bicho]}</span></span>
           <span class="quien">${escapeHtml(c.nombre)}</span>
           <span class="meta-linea"></span>`;
         pista.appendChild(calle);
@@ -3454,15 +3458,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const relato = document.getElementById('carreraRelato');
       // Si la pista aún no tiene ancho (panel recién abierto), se usa un
       // mínimo: si no, las balineras se quedarían clavadas en la salida.
-      const modo = carrera.ajustes?.animacion || 'calles';
       const ancho = Math.max(120, pista.clientWidth - 40);
-      const alto = Math.max(80, (pista.querySelector('.calle')?.clientHeight || 0) - 26);
       const total = (carrera.ajustes?.duracion || 8) * 1000;
       const marcas = carrera.marcas || [];
       const eventos = carrera.eventos || [];
 
       relato.hidden = false;
       relato.innerHTML = '';
+      pista.classList.remove('parada');
 
       // Se busca la calle comparando en JavaScript y no con un selector: los
       // nombres vienen del chat y pueden traer cualquier cosa.
@@ -3470,20 +3473,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const bolaDe = (i) => {
         const clave = (carrera.corredores[i] || {}).clave;
         const calle = calles.find((c) => c.dataset.clave === clave);
-        return calle ? { calle, bola: calle.querySelector('.bola'), barra: calle.querySelector('.barra') } : null;
+        return calle ? { calle, bola: calle.querySelector('.bola') } : null;
       };
 
-      // Lo que se mueve en cada instante, según la animación elegida.
+      // La ficha avanza; el bicho de dentro patalea por su cuenta.
       function avanzar(donde, p, ms) {
-        if (modo === 'barras') {
-          donde.barra.style.transition = `width ${ms}ms linear`;
-          donde.barra.style.width = `${(p * 100).toFixed(1)}%`;
-          return;
-        }
         donde.bola.style.transition = `transform ${ms}ms linear`;
-        donde.bola.style.transform = modo === 'caida'
-          ? `translateY(${(alto * p).toFixed(1)}px)`
-          : `translateX(${(ancho * p).toFixed(1)}px)`;
+        donde.bola.style.transform = `translateX(${(ancho * p).toFixed(1)}px)`;
       }
 
       // Sin simulación (una carrera vieja), se va directo al final.
@@ -3514,7 +3510,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       // Al cruzar el primero se acaba: el resto se queda donde iba.
       setTimeout(() => {
-        pista.querySelectorAll('.bola, .barra').forEach((el) => { el.style.transition = 'none'; });
+        pista.querySelectorAll('.bola').forEach((bola) => { bola.style.transition = 'none'; });
+        // Ya han llegado: se paran.
+        pista.classList.add('parada');
         const linea = document.createElement('div');
         linea.className = 'gana';
         linea.textContent = `¡${resultado[0].nombre} cruza la meta!`;
@@ -4191,7 +4189,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     async function cargarMinijuegos() {
       try {
         const c = await api('/api/carrera');
-        document.getElementById('cfgCarreraAnimacion').value = c.ajustes?.animacion || 'calles';
+        document.getElementById('cfgCarreraAnimacion').value = c.ajustes?.animacion || 'caballos';
       } catch (e) {
         console.warn('No se pudieron leer los ajustes de minijuegos:', e.message);
       }

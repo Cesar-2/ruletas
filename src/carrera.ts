@@ -44,9 +44,8 @@ export interface Carrera {
 const TICKS_MIN = 24;
 const TICKS_MAX = 160;
 
-// Como se ve la carrera. El resultado es el mismo en las tres: solo cambia
-// la forma de contarlo.
-export const ANIMACIONES = ['calles', 'caida', 'barras'] as const;
+// Quien corre. El resultado es el mismo con todos: solo cambia el bicho.
+export const ANIMACIONES = ['caballos', 'patos', 'hormigas'] as const;
 export type Animacion = typeof ANIMACIONES[number];
 
 // Los puntos se los lleva solo quien gana; el resto corre por el honor.
@@ -54,10 +53,10 @@ export interface Ajustes {
   puntos: number;       // lo que gana el primero
   duracion: number;     // lo que tarda la carrera, en segundos
   palabra: string;      // lo que se escribe en el chat para apuntarse
-  animacion: Animacion; // como se dibuja
+  animacion: Animacion; // quien corre por la pista
 }
 
-export const AJUSTES_POR_DEFECTO: Ajustes = { puntos: 10, duracion: 8, palabra: '!correr', animacion: 'calles' };
+export const AJUSTES_POR_DEFECTO: Ajustes = { puntos: 10, duracion: 8, palabra: '!correr', animacion: 'caballos' };
 const MAX_CORREDORES = 50;
 
 export interface Dependencias {
@@ -90,7 +89,10 @@ export function leerAjustes(uid: string): Ajustes {
     const f = archivoAjustes(uid);
     if (!fs.existsSync(f)) return { ...AJUSTES_POR_DEFECTO };
     const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
-    return { ...AJUSTES_POR_DEFECTO, ...(parsed?.carrera || {}) };
+    const ajustes = { ...AJUSTES_POR_DEFECTO, ...(parsed?.carrera || {}) };
+    // Guardado hace tiempo, con animaciones que ya no existen.
+    if (!ANIMACIONES.includes(ajustes.animacion)) ajustes.animacion = AJUSTES_POR_DEFECTO.animacion;
+    return ajustes;
   } catch (err) {
     console.error('Failed to read minigame settings:', err);
     return { ...AJUSTES_POR_DEFECTO };
