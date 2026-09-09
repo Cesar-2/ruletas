@@ -389,6 +389,7 @@
       border:1px solid rgba(255,255,255,0.12);box-shadow:0 12px 32px rgba(2,6,23,.55)}
     .acciones-flotantes button{font-size:15px;padding:.6rem 1.1rem}
     .acciones-flotantes button[hidden]{display:none}
+    .acciones-flotantes[hidden]{display:none}
     /* Hueco al final del panel para que la barra no tape lo ultimo. */
     .game-subpanel{padding-bottom:5rem}
     @media (max-width:640px){
@@ -3249,11 +3250,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             ? `Torneo en marcha, ronda ${batalla.rondas.length}.`
             : 'Sin batalla abierta.';
 
-      document.getElementById('batallaEmpezar').disabled = !batalla.abierta || cuantos < 2;
-      document.getElementById('batallaRonda').disabled = !pendiente;
+      // Empezar es de mientras se apuntan; la ronda, de mientras se pelea.
+      // Nunca hacen falta los dos a la vez.
+      const empezar = document.getElementById('batallaEmpezar');
+      empezar.hidden = !batalla.abierta;
+      empezar.disabled = cuantos < 2;
+      const ronda = document.getElementById('batallaRonda');
+      ronda.hidden = !empezada || Boolean(batalla.campeon);
+      ronda.disabled = !pendiente;
       document.getElementById('batallaCancelar').hidden = !batalla.abierta && !empezada;
       // Otra vez con los mismos: solo tiene sentido con el torneo terminado.
       document.getElementById('batallaRepetir').hidden = !batalla.campeon || cuantos < 2;
+      ajustarAcciones(empezar);
 
       const banner = document.getElementById('batallaCampeon');
       banner.hidden = !batalla.campeon || narrando;
@@ -3556,6 +3564,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
+    // En la esquina solo debe haber lo que se puede pulsar ahora mismo: un
+    // boton apagado que no viene a cuento estorba, y la barra vacia tambien.
+    function ajustarAcciones(alguno) {
+      const barra = alguno.closest('.acciones-flotantes');
+      if (!barra) return;
+      barra.hidden = !Array.from(barra.querySelectorAll('button')).some((b) => !b.hidden);
+    }
+
     function pintarCarrera() {
       const estado = document.getElementById('carreraEstado');
       const cuantos = carrera.corredores.length;
@@ -3565,11 +3581,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           ? `Carrera terminada con ${cuantos} corredor(es). Abre otra para volver a jugar.`
           : 'Sin carrera abierta.';
 
-      document.getElementById('carreraCorrer').disabled = corriendo || !carrera.abierta || cuantos < 2;
+      // Correr solo se ofrece con la inscripcion abierta; apagado mientras no
+      // haya con quien correr, para que se vea que falta gente.
+      const correr = document.getElementById('carreraCorrer');
+      correr.hidden = !carrera.abierta;
+      correr.disabled = corriendo || cuantos < 2;
       document.getElementById('carreraCancelar').hidden = !carrera.abierta;
       document.getElementById('carreraAbrir').disabled = corriendo;
       // Otra con los mismos: solo con la carrera ya corrida.
       document.getElementById('carreraRepetir').hidden = corriendo || !carrera.resultado.length || cuantos < 2;
+      ajustarAcciones(correr);
 
       // La pista se dibuja mientras se apuntan, para que se vea llenarse.
       if (!cuantos) {
