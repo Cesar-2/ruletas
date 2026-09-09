@@ -57,7 +57,6 @@ export interface Ajustes {
 }
 
 export const AJUSTES_POR_DEFECTO: Ajustes = { puntos: 10, duracion: 8, palabra: '!correr', animacion: 'caballos' };
-const MAX_CORREDORES = 50;
 
 export interface Dependencias {
   userDir(uid: string): string;
@@ -232,9 +231,8 @@ export function apuntar(uid: string, nombre: string): boolean {
   const limpio = String(nombre || '').trim().slice(0, 40);
   if (!limpio) return false;
   const clave = limpio.toLowerCase();
-  // Ni repetidos ni mas de la cuenta: con demasiados, la carrera no se ve.
+  // Repetidos no; de resto, cabe todo el mundo.
   if (carrera.corredores.some((c) => c.clave === clave)) return false;
-  if (carrera.corredores.length >= MAX_CORREDORES) return false;
   carrera.corredores.push({ nombre: limpio, clave });
   return true;
 }
@@ -252,7 +250,11 @@ function cerrarEscucha(uid: string): void {
 // los eventos que merece la pena contar, y devuelve el orden de llegada.
 function simular(carrera: Carrera, duracion: number): Corredor[] {
   const cuantos = carrera.corredores.length;
-  const ticks = Math.max(TICKS_MIN, Math.min(TICKS_MAX, Math.round(duracion * 4)));
+  // Cuanta mas gente, menos instantes se guardan: no limita a nadie, pero
+  // evita que la respuesta se vuelva enorme con una carrera multitudinaria.
+  const porDuracion = Math.max(TICKS_MIN, Math.min(TICKS_MAX, Math.round(duracion * 4)));
+  const cabe = cuantos > 0 ? Math.floor(20000 / cuantos) : TICKS_MAX;
+  const ticks = Math.max(TICKS_MIN, Math.min(porDuracion, cabe));
 
   // Se simula tick a tick porque lo que corre cada uno depende de por donde
   // va: el que se queda atras aprieta y al de delante le cuesta mas. Sin esto

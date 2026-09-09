@@ -340,6 +340,11 @@
       display:flex;align-items:center;justify-content:center}
     .calle .meta-linea{position:absolute;right:6px;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.18)}
     .calle.llega .quien{color:#e6eef8;font-weight:600}
+    /* Con mucha gente las calles adelgazan: caben todos sin una pagina eterna. */
+    .pista.llena .calle{height:16px;margin-bottom:3px}
+    .pista.llena .calle .bola{width:14px;height:14px;top:1px}
+    .pista.llena .calle .bicho{font-size:12px;line-height:14px}
+    .pista.llena .calle .quien{left:26px;line-height:16px;font-size:11px}
     /* Quien corre: el bicho va dentro de la ficha, que es la que avanza. */
     .calle .bicho{display:block;font-size:19px;line-height:22px;text-align:center;
       filter:drop-shadow(0 1px 2px rgba(2,6,23,.7))}
@@ -3521,7 +3526,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // El resultado es el mismo con todos; solo cambia quien corre. Parados
       // mientras no hay carrera, que si no patalean sin moverse.
       const bicho = BICHOS[carrera.ajustes?.animacion] ? carrera.ajustes.animacion : 'caballos';
-      pista.className = 'pista ' + bicho + (corriendo ? '' : ' parada');
+      pista.className = 'pista ' + bicho + (corriendo ? '' : ' parada') +
+        (carrera.corredores.length > 30 ? ' llena' : '');
       carrera.corredores.forEach((c, i) => {
         const calle = document.createElement('div');
         calle.className = 'calle';

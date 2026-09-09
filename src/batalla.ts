@@ -62,7 +62,6 @@ export interface Ajustes {
 }
 
 export const AJUSTES_POR_DEFECTO: Ajustes = { puntos: 25, palabra: '!pelea' };
-const MAX_LUCHADORES = 64;
 
 export interface Dependencias {
   userDir(uid: string): string;
@@ -162,7 +161,6 @@ export function entrar(uid: string, nombre: string): { ok: boolean; error?: stri
   if (!limpio) return { ok: false, error: 'hace falta un nombre' };
   const clave = limpio.toLowerCase();
   if (batalla.luchadores.some((l) => l.clave === clave)) return { ok: false, error: 'ya estabas apuntado' };
-  if (batalla.luchadores.length >= MAX_LUCHADORES) return { ok: false, error: 'la batalla esta llena' };
 
   batalla.luchadores.push({ nombre: limpio, clave });
   return { ok: true };
