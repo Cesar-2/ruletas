@@ -1,6 +1,10 @@
 ﻿import express, { Request, Response } from 'express';
 import axios from 'axios';
 import cors from 'cors';
+import * as twitch from './twitch';
+import * as carrera from './carrera';
+import * as batalla from './batalla';
+import * as ruletachat from './ruletachat';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -46,7 +50,7 @@ const ASSETS_REPO = path.join(process.cwd(), 'public', 'assets');
 // sortear no lo quieres en ningun servidor, asi que hay una sola lista por
 // usuario. Lo unico comun a todos es el catalogo de objetos, que es una copia
 // de la API de Dofus.
-const SERVER_FILES = ['tags', 'winners', 'ranking', 'stream'] as const;
+const SERVER_FILES = ['tags', 'winners', 'ranking', 'stream', 'ratios'] as const;
 type ServerFile = typeof SERVER_FILES[number];
 
 interface GameServer {
@@ -59,6 +63,7 @@ interface User {
   username: string;      // en minusculas, es con lo que se entra
   name: string;          // como se escribio, para saludar
   avatarUrl?: string;    // foto de la cuenta (vacio = iniciales)
+  twitchCanal?: string;  // su canal, para los minijuegos que leen el chat
   salt: string;
   hash: string;          // scrypt de la contrasena; nunca se guarda en claro
   createdAt: string;
@@ -474,7 +479,9 @@ function migrarExclusionesDeServidores(uid: string): void {
     }
     if (!viejos.length) return;
     writeJson(exclusionsFile(uid), Array.from(juntas));
-    viejos.forEach((f) => fs.rmSync(f, { force: true }));
+    // Los archivos viejos se quedan donde estan: ya no se leen (la migracion
+    // no vuelve a entrar en cuanto existe el del usuario), pero son la unica
+    // copia de una lista que puede costar horas de rehacer.
     console.log(`Migradas ${juntas.size} exclusion(es) de ${viejos.length} servidor(es) -> usuario ${uid}`);
   } catch (err) {
     console.error('Failed to migrate exclusions:', err);
@@ -504,10 +511,43 @@ function writeExclusions(ambito: string, ids: string[]): void {
   writeJson(exclusionsFile(uid), ids);
 }
 
-type Rarity = 'rare' | 'epic' | 'mythic';
-const RARITIES: Rarity[] = ['rare', 'epic', 'mythic'];
+// Las rarezas son colores, sin nombre: gris, azul, morado y rojo. Un objeto
+// sin marcar es comun (gris), que es el color por defecto.
+type Rarity = 'common' | 'rare' | 'epic' | 'mythic';
+const RARITIES: Rarity[] = ['common', 'rare', 'epic', 'mythic'];
 
 type Tags = Record<string, Rarity>;
+
+// Cuanto sale cada color en el sorteo. No hace falta que sumen 100: cuenta lo
+// que pesa cada uno frente a los demas, como en los paquetones.
+type Ratios = Record<Rarity, number>;
+const RATIOS_POR_DEFECTO: Ratios = { common: 70, rare: 20, epic: 8, mythic: 2 };
+
+function readRatios(ambito: string): Ratios {
+  ensureServerDir(ambito);
+  try {
+    const f = serverFile(ambito, 'ratios');
+    if (fs.existsSync(f)) {
+      const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (parsed && typeof parsed === 'object') {
+        const salida = { ...RATIOS_POR_DEFECTO };
+        for (const r of RARITIES) {
+          const n = Number(parsed[r]);
+          if (Number.isFinite(n) && n >= 0) salida[r] = Math.min(100, n);
+        }
+        return salida;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to read ratios:', err);
+  }
+  return { ...RATIOS_POR_DEFECTO };
+}
+
+function writeRatios(ambito: string, ratios: Ratios): void {
+  ensureServerDir(ambito);
+  writeJson(serverFile(ambito, 'ratios'), ratios);
+}
 
 function readTags(sid: string): Tags {
   ensureServerDir(sid);
@@ -808,6 +848,7 @@ function datosPublicos(u: User) {
   return {
     id: u.id, username: u.username, name: u.name,
     avatarUrl: u.avatarUrl || '', createdAt: u.createdAt,
+    twitchCanal: u.twitchCanal || '',
     admin: Boolean(u.admin)
   };
 }
@@ -939,6 +980,25 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
   if (token) borrarSesion(token);
   res.clearCookie(COOKIE_NAME, { path: '/' });
   res.json({ ok: true });
+});
+
+// GET /api/twitch/callback -> la vuelta de Twitch tras autorizar
+app.get('/api/twitch/callback', async (req: Request, res: Response) => {
+  const code = String(req.query.code || '');
+  const state = String(req.query.state || '');
+  const uid = state ? twitch.uidDelState(state) : null;
+  // Sin un "state" valido no se sigue: es lo unico que ata esta vuelta a
+  // quien empezo el alta.
+  if (!uid || !code) return res.status(400).send('Vuelta de Twitch no valida. Vuelve a intentarlo desde Configuracion.');
+
+  try {
+    await twitch.completarAlta(uid, code);
+    twitch.escuchar(uid);
+    res.redirect('/?twitch=ok');
+  } catch (err) {
+    console.error('Failed to connect Twitch:', err);
+    res.redirect('/?twitch=error');
+  }
 });
 
 // A partir de aqui, toda la API pide sesion. El catalogo tambien: es una app
@@ -1099,7 +1159,21 @@ app.put('/api/admin/invite', (req: Request, res: Response) => {
   }
 });
 
-// PATCH /api/auth/profile  Body: { name?, avatarDataUrl?, quitarAvatar? }
+// Del canal solo interesa el nombre, aunque peguen la direccion entera.
+function limpiarCanal(valor: unknown): string {
+  return String(valor || '').trim().toLowerCase()
+    .replace(/^https?:\/\/(www\.)?twitch\.tv\//, '')
+    .replace(/^#/, '')
+    .replace(/\/.*$/, '')
+    .slice(0, 30);
+}
+
+// El canal de un usuario, que es de donde leen el chat los minijuegos.
+function canalDe(uid: string): string {
+  return readUsers().find((u) => u.id === uid)?.twitchCanal || '';
+}
+
+// PATCH /api/auth/profile  Body: { name?, avatarDataUrl?, quitarAvatar?, twitchCanal? }
 app.patch('/api/auth/profile', (req: Request, res: Response) => {
   const body = req.body || {};
   try {
@@ -1111,6 +1185,9 @@ app.patch('/api/auth/profile', (req: Request, res: Response) => {
       const name = body.name.trim().slice(0, 40);
       if (!name) return res.status(400).json({ error: 'el nombre no puede quedar vacio' });
       yo.name = name;
+    }
+    if (typeof body.twitchCanal === 'string') {
+      yo.twitchCanal = limpiarCanal(body.twitchCanal);
     }
     if (body.quitarAvatar === true) {
       yo.avatarUrl = '';
@@ -1495,6 +1572,12 @@ app.get('/api/settings', (req: Request, res: Response) => {
   res.json({ settings: readSettings(requireUid(req)) });
 });
 
+// Corta por caracteres de verdad, no por unidades UTF-16: un emoji ocupa dos,
+// y cortar por la mitad deja un simbolo roto en el titulo.
+function recortar(texto: string, largo: number): string {
+  return Array.from(texto).slice(0, largo).join('');
+}
+
 // PUT /api/settings  Body: campos parciales de Settings
 app.put('/api/settings', (req: Request, res: Response) => {
   const body = req.body || {};
@@ -1503,11 +1586,12 @@ app.put('/api/settings', (req: Request, res: Response) => {
   const next: Settings = { ...current };
 
   // Un titulo vacio dejaria la cabecera en blanco: se ignora y se queda el actual.
-  if (typeof body.pageTitle === 'string' && body.pageTitle.trim()) next.pageTitle = body.pageTitle.trim().slice(0, 80);
+  if (typeof body.pageTitle === 'string' && body.pageTitle.trim()) next.pageTitle = recortar(body.pageTitle.trim(), 80);
   // Subtitulo y logo si admiten quedarse vacios: es como se ocultan.
-  if (typeof body.pageSubtitle === 'string') next.pageSubtitle = body.pageSubtitle.trim().slice(0, 140);
+  if (typeof body.pageSubtitle === 'string') next.pageSubtitle = recortar(body.pageSubtitle.trim(), 140);
   if (typeof body.logoUrl === 'string') next.logoUrl = body.logoUrl.trim().slice(0, 2000);
   if (typeof body.backgroundUrl === 'string') next.backgroundUrl = body.backgroundUrl.slice(0, 2000);
+
   if (typeof body.wheelUrl === 'string') next.wheelUrl = body.wheelUrl.slice(0, 2000);
   if (typeof body.showWheel === 'boolean') next.showWheel = body.showWheel;
   if (body.animation === 'slot' || body.animation === 'wheel' || body.animation === 'none') {
@@ -1563,6 +1647,29 @@ app.post('/api/background', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/ratios -> cuanto sale cada color en el sorteo
+app.get('/api/ratios', (req: Request, res: Response) => {
+  res.json({ ratios: readRatios(resolveServer(req)) });
+});
+
+// PUT /api/ratios  Body: { ratios: { common, rare, epic, mythic } }
+app.put('/api/ratios', (req: Request, res: Response) => {
+  const entra = req.body?.ratios;
+  if (!entra || typeof entra !== 'object') return res.status(400).json({ error: 'body must be { ratios: {} }' });
+  try {
+    const limpio = { ...RATIOS_POR_DEFECTO };
+    for (const r of RARITIES) {
+      const num = Number((entra as any)[r]);
+      limpio[r] = Number.isFinite(num) ? Math.max(0, Math.min(100, num)) : 0;
+    }
+    writeRatios(resolveServer(req), limpio);
+    res.json({ ratios: limpio });
+  } catch (err) {
+    console.error('Failed to write ratios:', err);
+    res.status(500).json({ error: 'failed to save ratios' });
+  }
+});
+
 // GET /api/tags -> { tags: { [itemId]: 'rare' | 'epic' | 'mythic' } }
 app.get('/api/tags', (req: Request, res: Response) => {
   res.json({ tags: readTags(resolveServer(req)) });
@@ -1593,13 +1700,50 @@ app.get('/api/random-items', async (req: Request, res: Response) => {
     const all = await fetchItemsCached();
     if (all.length === 0) return res.status(500).json({ error: 'no items available' });
 
-    // Participan todos menos los excluidos. La rareza (raro/épico/mítico) es
-    // solo una marca visual de "objeto caro" y no afecta al sorteo.
-    const excluded = new Set(readExclusions(resolveServer(req)));
+    // Participan todos menos los excluidos.
+    const ambito = resolveServer(req);
+    const excluded = new Set(readExclusions(ambito));
     const items = all.filter((it) => !excluded.has(getItemId(it)));
     if (items.length === 0) return res.status(409).json({ error: 'all items are excluded' });
-    const shuffled = shuffle(items);
-    const selected = shuffled.slice(0, Math.max(0, Math.min(n, shuffled.length)));
+
+    const cuantos = Math.max(0, Math.min(n, items.length));
+    const tags = readTags(ambito);
+    const ratios = readRatios(ambito);
+
+    // Un monton por color, ya barajado: sacar del final es sacar uno al azar.
+    const montones: Record<Rarity, any[]> = { common: [], rare: [], epic: [], mythic: [] };
+    for (const it of items) montones[(tags[getItemId(it)] as Rarity) || 'common'].push(it);
+    for (const r of RARITIES) montones[r] = shuffle(montones[r]);
+
+    // Con todos los ratios a cero no hay nada que respetar: se sortea plano,
+    // como se hacia antes de que los colores contaran.
+    const sumaRatios = RARITIES.reduce((s, r) => s + ratios[r], 0);
+    if (sumaRatios <= 0) {
+      const selected = shuffle(items).slice(0, cuantos);
+      return res.json({ count: selected.length, items: selected });
+    }
+
+    const selected: any[] = [];
+    for (let k = 0; k < cuantos; k++) {
+      // Solo compiten los colores que tengan ratio y que aun tengan objetos:
+      // un color al que no le queden se reparte entre los demas.
+      const posibles = RARITIES.filter((r) => ratios[r] > 0 && montones[r].length);
+      if (posibles.length) {
+        const total = posibles.reduce((s, r) => s + ratios[r], 0);
+        let punto = Math.random() * total;
+        let elegido = posibles[posibles.length - 1];
+        for (const r of posibles) {
+          punto -= ratios[r];
+          if (punto <= 0) { elegido = r; break; }
+        }
+        selected.push(montones[elegido].pop());
+      } else {
+        // Ningun color con ratio tiene ya objetos: se completa con lo que quede.
+        const resto = RARITIES.filter((r) => montones[r].length);
+        if (!resto.length) break;
+        selected.push(montones[resto[Math.floor(Math.random() * resto.length)]].pop());
+      }
+    }
     res.json({ count: selected.length, items: selected });
   } catch (err) {
     res.status(500).json({ error: 'failed to select random items' });
@@ -1632,9 +1776,339 @@ app.post('/api/draw', async (req: Request, res: Response) => {
   }
 });
 
+// --- Twitch: canjes de puntos de canal ----------------------------------
+// El modulo vive en twitch.ts; aqui solo se le presta lo que necesita del
+// Ruleton y se publican las rutas.
+
+// Sortea para un canje y deja al espectador como ganador, igual que si se
+// hubiera sorteado a mano desde la pagina.
+async function sortearParaTwitch(uid: string, sid: string, nombre: string, n: number): Promise<string[]> {
+  const ambito = `${uid}/${sid}`;
+  const todos = await fetchItemsCached();
+  const excluidos = new Set(readExclusions(ambito));
+  const disponibles = todos.filter((it) => !excluidos.has(getItemId(it)));
+  if (!disponibles.length) throw new Error('no quedan objetos que sortear');
+
+  const elegidos = shuffle(disponibles).slice(0, Math.max(1, Math.min(n, disponibles.length)));
+  const items = elegidos.map((it) => ({
+    id: getItemId(it),
+    name: String(it?.name?.es ?? it?.name ?? '').slice(0, 200),
+    value: 0
+  }));
+
+  const winners = readWinners(ambito);
+  const existente = winners.find((w) => normalizeName(w.name) === normalizeName(nombre));
+  if (existente) {
+    existente.items = existente.items.concat(items);
+    existente.draws = (existente.draws ?? 1) + 1;
+    existente.date = new Date().toISOString();
+    winners.splice(winners.indexOf(existente), 1);
+    winners.unshift(existente);
+  } else {
+    winners.unshift({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: nombre.slice(0, 120),
+      total: 0,
+      items,
+      date: new Date().toISOString(),
+      draws: 1
+    });
+  }
+  writeWinners(ambito, winners);
+  return items.map((it) => it.name);
+}
+
+// GET /api/twitch/status -> si hay credenciales, si esta conectado y sus ajustes
+app.get('/api/twitch/status', (req: Request, res: Response) => {
+  res.json(twitch.estado(requireUid(req)));
+});
+
+// GET /api/twitch/connect -> manda al usuario a autorizar en Twitch
+app.get('/api/twitch/connect', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  if (!twitch.hayCredenciales(uid)) {
+    return res.status(409).json({ error: 'pon antes el Client ID y el Client Secret de tu app de Twitch' });
+  }
+  res.redirect(twitch.urlDeAutorizacion(uid));
+});
+
+// POST /api/twitch/credentials  Body: { clientId, clientSecret }
+// El secreto se guarda pero no vuelve nunca: del estado solo sale si esta puesto.
+app.post('/api/twitch/credentials', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  try {
+    twitch.guardarCredenciales(uid, req.body?.clientId, req.body?.clientSecret);
+    res.json(twitch.estado(uid));
+  } catch (err) {
+    console.error('Failed to save twitch credentials:', err);
+    res.status(500).json({ error: 'failed to save credentials' });
+  }
+});
+
+// POST /api/twitch/config  Body: { canal?, servidor?, recompensa?, objetos? }
+// El canal se puede poner sin haber conectado nada: leer un chat publico no
+// necesita credenciales.
+app.post('/api/twitch/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  twitch.guardarAjustes(uid, req.body || {});
+  res.json(twitch.estado(uid));
+});
+
+// POST /api/twitch/disconnect -> corta y olvida las credenciales guardadas
+app.post('/api/twitch/disconnect', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  twitch.borrarCuenta(uid);
+  res.json(twitch.estado(uid));
+});
+
+// --- Carrera de balineras y puntos --------------------------------------
+// Los espectadores se apuntan por el chat (que se lee sin credenciales) y los
+// primeros se llevan puntos. Quien decide el orden es el servidor.
+
+// GET /api/carrera -> la carrera en curso y su resultado
+app.get('/api/carrera', (req: Request, res: Response) => {
+  res.json(carrera.estado(requireUid(req)));
+});
+
+// --- Ruleta de nombres: quien se apunta por el chat ---------------------
+
+// GET /api/ruleta-chat -> quien lleva apuntado
+app.get('/api/ruleta-chat', (req: Request, res: Response) => {
+  res.json(ruletachat.estado(requireUid(req)));
+});
+
+// POST /api/ruleta-chat/abrir  Body: { palabra? }
+app.post('/api/ruleta-chat/abrir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const canal = canalDe(uid);
+  if (!canal) {
+    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  }
+  try {
+    if (typeof req.body?.palabra === 'string') {
+      ruletachat.guardarAjustes(uid, { palabra: req.body.palabra });
+    }
+    res.json(ruletachat.abrir(uid, canal));
+  } catch (err) {
+    console.error('Failed to open wheel signup:', err);
+    res.status(500).json({ error: 'failed to open wheel signup' });
+  }
+});
+
+// POST /api/ruleta-chat/cerrar -> se deja de escuchar; la lista se queda
+app.post('/api/ruleta-chat/cerrar', (req: Request, res: Response) => {
+  res.json(ruletachat.cerrar(requireUid(req)));
+});
+
+// POST /api/ruleta-chat/vaciar -> la pagina ya se llevo los nombres
+app.post('/api/ruleta-chat/vaciar', (req: Request, res: Response) => {
+  res.json(ruletachat.vaciar(requireUid(req)));
+});
+
+// POST /api/ruleta-chat/config  Body: { palabra }
+app.post('/api/ruleta-chat/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  try {
+    ruletachat.guardarAjustes(uid, req.body || {});
+    res.json(ruletachat.estado(uid));
+  } catch (err) {
+    console.error('Failed to save wheel signup settings:', err);
+    res.status(500).json({ error: 'failed to save wheel signup settings' });
+  }
+});
+
+// POST /api/carrera/abrir  Body: { canal, palabra? }
+app.post('/api/carrera/abrir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  // El canal sale del perfil (Configuracion > Mi cuenta).
+  const canal = canalDe(uid);
+  if (!canal) {
+    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  }
+  try {
+    res.json(carrera.abrir(uid, canal));
+  } catch (err) {
+    console.error('Failed to open race:', err);
+    res.status(500).json({ error: 'failed to open race' });
+  }
+});
+
+// POST /api/carrera/apuntar  Body: { nombre }  (para añadir a mano)
+app.post('/api/carrera/apuntar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const ok = carrera.apuntar(uid, String(req.body?.nombre || ''));
+  if (!ok) return res.status(409).json({ error: 'no se pudo apuntar: repetido, vacio o carrera cerrada' });
+  res.json(carrera.estado(uid));
+});
+
+// POST /api/carrera/correr -> cierra la inscripcion, decide y reparte puntos
+app.post('/api/carrera/correr', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const antes = carrera.estado(uid);
+  const hecha = carrera.correr(uid);
+  if (!hecha) {
+    // Se dice el motivo de verdad: si no, "faltan corredores" confunde cuando
+    // lo que pasa es que esa carrera ya se corrio.
+    const porque = !antes.abierta && antes.resultado.length
+      ? 'esa carrera ya se corrio; abre otra'
+      : 'hacen falta al menos dos corredores';
+    return res.status(409).json({ error: porque });
+  }
+  res.json(hecha);
+});
+
+// POST /api/carrera/repetir -> otra carrera con los mismos corredores
+app.post('/api/carrera/repetir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const otra = carrera.repetir(uid, canalDe(uid));
+  if (!otra) return res.status(409).json({ error: 'no hay una carrera anterior con corredores' });
+  res.json(carrera.estado(uid));
+});
+
+// POST /api/carrera/cancelar
+app.post('/api/carrera/cancelar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  carrera.cancelar(uid);
+  res.json(carrera.estado(uid));
+});
+
+// POST /api/carrera/config  Body: { puntos?, duracion?, palabra?, animacion? }
+app.post('/api/carrera/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  try {
+    carrera.guardarAjustes(uid, req.body || {});
+    res.json(carrera.estado(uid));
+  } catch (err) {
+    console.error('Failed to save race settings:', err);
+    res.status(500).json({ error: 'failed to save race settings' });
+  }
+});
+
+// GET /api/batalla -> como va el torneo
+app.get('/api/batalla', (req: Request, res: Response) => {
+  res.json(batalla.estado(requireUid(req)));
+});
+
+// POST /api/batalla/abrir -> abre la inscripcion y escucha el chat
+app.post('/api/batalla/abrir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  // El canal sale del perfil, como en la carrera.
+  const canal = canalDe(uid);
+  if (!canal) {
+    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  }
+  batalla.abrir(uid, canal);
+  res.json(batalla.estado(uid));
+});
+
+// POST /api/batalla/entrar  Body: { nombre }  (para apuntar a mano)
+app.post('/api/batalla/entrar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const r = batalla.entrar(uid, String(req.body?.nombre || ''));
+  if (!r.ok) return res.status(409).json({ error: r.error });
+  res.json(batalla.estado(uid));
+});
+
+// POST /api/batalla/empezar -> cierra la inscripcion y monta la primera ronda
+app.post('/api/batalla/empezar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const b = batalla.empezar(uid);
+  if (!b) return res.status(409).json({ error: 'hacen falta al menos dos, y que no haya empezado' });
+  res.json(b);
+});
+
+// POST /api/batalla/ronda -> resuelve la ronda pendiente
+app.post('/api/batalla/ronda', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const b = batalla.resolverRonda(uid);
+  if (!b) return res.status(409).json({ error: 'no hay ninguna ronda pendiente' });
+  res.json(b);
+});
+
+// POST /api/batalla/repetir -> otro torneo con los mismos luchadores
+app.post('/api/batalla/repetir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const otra = batalla.repetir(uid);
+  if (!otra) return res.status(409).json({ error: 'no hay un torneo anterior con luchadores' });
+  res.json(otra);
+});
+
+// POST /api/batalla/cancelar
+app.post('/api/batalla/cancelar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  batalla.cancelar(uid);
+  res.json(batalla.estado(uid));
+});
+
+// POST /api/batalla/config  Body: { puntos }
+app.post('/api/batalla/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  batalla.guardarAjustes(uid, req.body || {});
+  res.json(batalla.estado(uid));
+});
+
+// GET /api/puntos?limite=N -> la tabla de puntos
+app.get('/api/puntos', (req: Request, res: Response) => {
+  const limite = Math.max(1, Math.min(1000, Number(req.query.limite) || 20));
+  res.json({ puntos: carrera.tabla(requireUid(req), limite) });
+});
+
+// PUT /api/puntos  Body: { nombre, puntos } -> pone esa cantidad exacta
+app.put('/api/puntos', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  if (!carrera.ponerPuntos(uid, String(req.body?.nombre || ''), req.body?.puntos)) {
+    return res.status(400).json({ error: 'hace falta un nombre' });
+  }
+  res.json({ puntos: carrera.tabla(uid, 1000) });
+});
+
+// POST /api/puntos/sumar  Body: { nombre, cuantos } -> suma o resta
+app.post('/api/puntos/sumar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const nombre = String(req.body?.nombre || '').trim();
+  if (!nombre) return res.status(400).json({ error: 'hace falta un nombre' });
+  carrera.sumarPuntos(uid, nombre, Math.floor(Number(req.body?.cuantos) || 0));
+  res.json({ puntos: carrera.tabla(uid, 1000) });
+});
+
+// DELETE /api/puntos/:nombre -> lo quita del marcador
+app.delete('/api/puntos/:nombre', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  if (!carrera.borrarPuntos(uid, String(req.params.nombre))) {
+    return res.status(404).json({ error: 'no esta en el marcador' });
+  }
+  res.json({ puntos: carrera.tabla(uid, 1000) });
+});
+
+// POST /api/puntos/vaciar -> deja el marcador a cero
+app.post('/api/puntos/vaciar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  carrera.vaciarPuntos(uid);
+  res.json({ puntos: carrera.tabla(uid, 1000) });
+});
+
 // Serve static UI
 app.use('/assets', express.static(ASSETS_DIR));
 app.use('/', express.static(path.join(process.cwd(), 'public')));
+
+carrera.iniciar({ userDir, ensureUserDir, writeJson });
+ruletachat.iniciar({ userDir, ensureUserDir, writeJson });
+// La batalla reparte en el mismo marcador que la carrera.
+batalla.iniciar({ userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos });
+
+twitch.iniciar(
+  {
+    userDir,
+    ensureUserDir,
+    writeJson,
+    sortearPara: sortearParaTwitch,
+    servidoresDe: (uid: string) => readServers(uid)
+  },
+  {
+    redirect: process.env.TWITCH_REDIRECT || `http://localhost:${PORT}/api/twitch/callback`,
+    usuarios: readUsers().map((u) => u.id)
+  }
+);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
