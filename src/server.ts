@@ -2009,23 +2009,35 @@ const CLASE_DE_ARCHIVO: Record<string, string> = {
   pandawa: 'Pandawa', uginak: 'Uginak', ouginak: 'Uginak'
 };
 
+// El arte sale de dos sitios, en este orden: el que viene con la aplicacion
+// (public/assets/dofus, versionado, llega al servidor con git pull) y el que
+// ponga el dueño en su carpeta de datos, que manda sobre el anterior. Las
+// rutas de public/assets/dofus las sirve el estatico de public: el de datos
+// no las tiene y pasa al siguiente.
+const ARTE_REPO_DIR = path.join(process.cwd(), 'public', 'assets', 'dofus');
+
 function arteBatalla(): { clases: Record<string, string>; escenario: string } {
   const arte = { clases: {} as Record<string, string>, escenario: '' };
-  try {
-    if (!fs.existsSync(ASSETS_DIR)) return arte;
-    const url = (f: string) =>
-      `/assets/${encodeURIComponent(f)}?v=${Math.round(fs.statSync(path.join(ASSETS_DIR, f)).mtimeMs)}`;
-    for (const f of fs.readdirSync(ASSETS_DIR)) {
-      const m = /^(.+)\.(png|webp|gif)$/i.exec(f);
-      const clase = m && CLASE_DE_ARCHIVO[m[1].toLowerCase()];
-      if (clase) arte.clases[clase] = url(f);
-      // Si hay varios escenarios, gana el JPG, que es el reducido.
-      if (/^dofus-?escenario\.(jpe?g|png|webp)$/i.test(f) && (!arte.escenario || /\.jpe?g$/i.test(f))) {
-        arte.escenario = url(f);
+  const fuentes: [string, string][] = [[ARTE_REPO_DIR, '/assets/dofus/'], [ASSETS_DIR, '/assets/']];
+  for (const [dir, base] of fuentes) {
+    try {
+      if (!fs.existsSync(dir)) continue;
+      const url = (f: string) =>
+        `${base}${encodeURIComponent(f)}?v=${Math.round(fs.statSync(path.join(dir, f)).mtimeMs)}`;
+      let escenario = '';
+      for (const f of fs.readdirSync(dir)) {
+        const m = /^(.+)\.(png|webp|gif)$/i.exec(f);
+        const clase = m && CLASE_DE_ARCHIVO[m[1].toLowerCase()];
+        if (clase) arte.clases[clase] = url(f);
+        // Si hay varios escenarios, gana el JPG, que es el reducido.
+        if (/^dofus-?escenario\.(jpe?g|png|webp)$/i.test(f) && (!escenario || /\.jpe?g$/i.test(f))) {
+          escenario = url(f);
+        }
       }
+      if (escenario) arte.escenario = escenario;
+    } catch (err) {
+      console.error('Failed to read Dofus art:', err);
     }
-  } catch (err) {
-    console.error('Failed to read Dofus art:', err);
   }
   return arte;
 }
