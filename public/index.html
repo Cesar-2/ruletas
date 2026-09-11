@@ -1041,9 +1041,13 @@
 
           <section>
             <h3>Ganadores pendientes de entrega</h3>
-            <p class="meta">Al entregar el premio, elimina al ganador de la lista.</p>
-            <div id="winnersList"></div>
+            <p class="meta">Al entregar el premio, elimina al ganador de la lista. Van de mayor a menor pendiente.</p>
+            <!-- Lo que se debe en total va lo primero: es lo que más se mira. -->
             <div id="winnersTotal" class="winners-total" hidden></div>
+            <div class="toolbar">
+              <input id="winnersBuscar" type="search" placeholder="Buscar a alguien" aria-label="Buscar ganador" />
+            </div>
+            <div id="winnersList"></div>
           </section>
         </div>
 
@@ -1055,6 +1059,11 @@
             <div class="rank-bar">
               <p class="meta" id="historyInfo">Solo los premios ya entregados. Los pendientes aparecen aquí al entregarlos.</p>
               <button id="historyReload" type="button">Actualizar</button>
+            </div>
+            <!-- El total entregado, lo primero; luego el buscador y la tabla. -->
+            <div id="historyTotal"></div>
+            <div class="toolbar">
+              <input id="historyBuscar" type="search" placeholder="Buscar a alguien" aria-label="Buscar en el historial" />
             </div>
             <div id="historyTable"></div>
           </section>
@@ -1247,12 +1256,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             <div class="cfg-subpanel active" id="cfg-wheel-panel">
               <p class="meta">Ajustes de la ruleta girando. «Probar» la muestra 5 s sin sortear.</p>
               <div class="config-grid">
-                <!-- La imagen de la animación la pone solo el administrador. -->
-                <div class="config-field solo-admin" hidden>
+                <div class="config-field">
                   <label for="cfgWheelFile">Imagen de la ruleta (subir archivo)</label>
                   <input id="cfgWheelFile" type="file" accept="image/*" />
                 </div>
-                <div class="config-field solo-admin" hidden>
+                <div class="config-field">
                   <label for="cfgWheelUrl">…o dirección (vacío = ruleta de colores)</label>
                   <input id="cfgWheelUrl" type="text" placeholder="/assets/mi-ruleta.png" />
                 </div>
@@ -1552,9 +1560,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (canal && usuario) canal.value = usuario.twitchCanal || '';
       const pestana = document.getElementById('cfgtabAcceso');
       if (pestana) pestana.hidden = !usuario?.admin;
-      // Las imágenes de las animaciones (la de la ruleta) también son cosa del
-      // administrador.
-      document.querySelectorAll('.solo-admin').forEach((el) => { el.hidden = !usuario?.admin; });
     }
 
     // --- Panel de acceso ----------------------------------------------------
@@ -2532,7 +2537,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const tab = document.querySelector('.tab[data-tab="winners"]');
       if (tab) tab.textContent = `Ganadores (${winners.length})`;
 
-      // Total de lo pendiente de entregar, al final de la lista.
+      // Total de lo pendiente de entregar, arriba del todo. Es el de todos,
+      // aunque se esté buscando a alguien.
       const box = document.getElementById('winnersTotal');
       const granTotal = winners.reduce((sum, w) => sum + (w.total ?? 0), 0);
       box.hidden = !winners.length;
@@ -2547,8 +2553,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         return;
       }
 
+      // De mayor a menor lo que se le debe a cada uno; el buscador filtra por nombre.
+      const busca = (document.getElementById('winnersBuscar').value || '').trim().toLowerCase();
+      const visibles = winners.slice()
+        .sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
+        .filter((w) => !busca || String(w.name || '').toLowerCase().includes(busca));
+      if (!visibles.length) {
+        list.innerHTML = '<div class="meta" style="padding:.7rem 0">Nadie con ese nombre.</div>';
+        return;
+      }
+
       const iconos = iconosDelCatalogo();
-      winners.forEach((w) => {
+      visibles.forEach((w) => {
         // Con muchos sorteos se acumulan decenas de objetos: se agrupan los
         // repetidos y solo se enseñan unos pocos, el resto tras '+N más'.
         const cuenta = new Map();
@@ -2650,6 +2666,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       });
     }
 
+    document.getElementById('winnersBuscar').addEventListener('input', renderWinners);
+
     function renderPodium(ranking) {
       const box = document.getElementById('podium');
       if (!box) return;
@@ -2745,12 +2763,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     }
 
+    // Lo último que llegó del servidor, para volver a pintarlo al buscar.
+    let historialActual = [];
+
     function renderHistory(ranking) {
+      historialActual = ranking;
+      const cajaTotal = document.getElementById('historyTotal');
       const box = document.getElementById('historyTable');
       const info = document.getElementById('historyInfo');
       if (!box) return;
 
       if (!ranking.length) {
+        cajaTotal.innerHTML = '';
         box.innerHTML = '<div class="meta">Todavía no has entregado ningún premio en este servidor.</div>';
         info.textContent = 'Solo los premios ya entregados. Los pendientes aparecen aquí al entregarlos.';
         return;
@@ -2760,24 +2784,32 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const totalSorteos = ranking.reduce((sum, r) => sum + r.draws, 0);
       info.textContent = `Solo los premios ya entregados: ${ranking.length} ganador(es) y ${totalSorteos} sorteo(s).`;
 
-      const filas = ranking.map((r, i) => {
-        return `
+      // De mayor a menor lo entregado. El puesto es el de la lista entera,
+      // aunque se esté buscando: así se ve en qué lugar va esa persona.
+      const busca = (document.getElementById('historyBuscar').value || '').trim().toLowerCase();
+      const visibles = ranking.slice()
+        .sort((a, b) => b.total - a.total)
+        .map((r, i) => ({ ...r, puesto: i + 1 }))
+        .filter((r) => !busca || String(r.name || '').toLowerCase().includes(busca));
+      const filas = visibles.length
+        ? visibles.map((r) => `
           <tr>
-            <td class="pos">${i + 1}</td>
+            <td class="pos">${r.puesto}</td>
             <td>${escapeHtml(r.name)}</td>
             <td class="num">${kamasHtml(r.total)}</td>
             <td class="num">${r.draws}</td>
-          </tr>`;
-      }).join('');
+          </tr>`).join('')
+        : '<tr><td colspan="4" class="meta">Nadie con ese nombre.</td></tr>';
 
-      box.innerHTML = `
+      cajaTotal.innerHTML = `
         <div class="winners-total history-total-box">
           <span class="wt-label">
             Total entregado en ${escapeHtml(servers.find((sv) => sv.id === (historyServer || currentServer))?.name ?? 'este servidor')}
             <span class="wt-sub">${totalSorteos} sorteo(s) entregado(s)</span>
           </span>
           <span class="wt-value">${totalKamas.toLocaleString('es-ES')}<img src="/assets/kama.png" alt="kamas" class="kama-icon" /></span>
-        </div>
+        </div>`;
+      box.innerHTML = `
         <div class="history-wrap">
           <table class="history-table">
             <thead>
@@ -2792,6 +2824,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           </table>
         </div>`;
     }
+
+    document.getElementById('historyBuscar').addEventListener('input', () => renderHistory(historialActual));
 
     // Qué servidor se está mirando en la pestaña de Ganadores. Es solo de esa
     // pestaña: no cambia el servidor con el que se sortea.

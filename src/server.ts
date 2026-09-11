@@ -1592,10 +1592,7 @@ app.put('/api/settings', (req: Request, res: Response) => {
   if (typeof body.logoUrl === 'string') next.logoUrl = body.logoUrl.trim().slice(0, 2000);
   if (typeof body.backgroundUrl === 'string') next.backgroundUrl = body.backgroundUrl.slice(0, 2000);
 
-  // La imagen de la ruleta solo la cambia el administrador. Al resto se le
-  // ignora sin error: la pagina manda todos los ajustes juntos y fallaria el
-  // guardado entero.
-  if (typeof body.wheelUrl === 'string' && usuarioDe(req)?.admin) next.wheelUrl = body.wheelUrl.slice(0, 2000);
+  if (typeof body.wheelUrl === 'string') next.wheelUrl = body.wheelUrl.slice(0, 2000);
   if (typeof body.showWheel === 'boolean') next.showWheel = body.showWheel;
   if (body.animation === 'slot' || body.animation === 'wheel' || body.animation === 'none') {
     next.animation = body.animation;
@@ -1632,11 +1629,6 @@ app.post('/api/background', (req: Request, res: Response) => {
   const pedido = req.body?.target;
   const target: 'wheel' | 'logo' | 'background' =
     pedido === 'wheel' ? 'wheel' : pedido === 'logo' ? 'logo' : 'background';
-  // Las imagenes de las animaciones (la ruleta) solo las pone el
-  // administrador; el fondo y el logo, cada cuenta los suyos.
-  if (target === 'wheel' && !usuarioDe(req)?.admin) {
-    return res.status(403).json({ error: 'solo el administrador puede cambiar la imagen de la ruleta' });
-  }
 
   const guardada = guardarImagen(req.body?.dataUrl, `fondo-${target}`);
   if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
