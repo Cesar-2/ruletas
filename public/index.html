@@ -2432,14 +2432,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     let lastDrawItems = [];   // lo que salió en el último sorteo
     let sorteoGuardado = true;   // false mientras el sorteo actual no tenga ganador guardado
+    let sorteando = false;       // true mientras gira la animación: no se puede lanzar otro
 
     // Sortear sin nombre dejaría un premio sin dueño, así que el botón solo se
-    // enciende cuando hay algo escrito.
+    // enciende cuando hay algo escrito. Y mientras gira un sorteo, apagado.
     function actualizarBotonSortear() {
       const nombre = document.getElementById('winnerName').value.trim();
       const boton = document.getElementById('rand');
-      boton.disabled = !nombre;
-      boton.title = nombre ? '' : 'Escribe el nombre del ganador para poder sortear';
+      boton.disabled = !nombre || sorteando;
+      boton.title = sorteando ? 'Sorteando…'
+        : nombre ? '' : 'Escribe el nombre del ganador para poder sortear';
     }
 
     // El nombre se escribe ANTES de girar. Una vez visto lo que salió ya no se
@@ -3460,10 +3462,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       empezar.disabled = cuantos < 2;
       const ronda = document.getElementById('batallaRonda');
       ronda.hidden = !empezada || Boolean(batalla.campeon);
-      ronda.disabled = !pendiente;
-      document.getElementById('batallaCancelar').hidden = !batalla.abierta && !empezada;
+      // Mientras se cuenta una ronda no se puede lanzar otra, ni cancelar ni
+      // repetir: el servidor ya ha resuelto la siguiente (y en la final ya
+      // sabe el campeón), pero hasta que acabe la animación no toca.
+      ronda.disabled = !pendiente || narrando;
+      document.getElementById('batallaCancelar').hidden = narrando || (!batalla.abierta && !empezada);
       // Otra vez con los mismos: solo tiene sentido con el torneo terminado.
-      document.getElementById('batallaRepetir').hidden = !batalla.campeon || cuantos < 2;
+      document.getElementById('batallaRepetir').hidden = narrando || !batalla.campeon || cuantos < 2;
       ajustarAcciones();
 
       const banner = document.getElementById('batallaCampeon');
@@ -5595,6 +5600,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     document.getElementById('rand').addEventListener('click', async ()=>{
+      // Con un sorteo girando no se lanza otro encima.
+      if (sorteando) return;
       const nombreGanador = document.getElementById('winnerName').value.trim();
       if (!nombreGanador) {
         showAlert('Falta el nombre', 'Escribe el nombre del ganador antes de sortear.');
@@ -5620,6 +5627,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // Se captura antes de girar: es el nombre que se anuncia al terminar.
       const winner = document.getElementById('winnerName').value.trim();
       document.getElementById('winnerBanner').hidden = true;
+      sorteando = true;
+      actualizarBotonSortear();
       bloquearNombreGanador(true);
       showSpinner(n);
 
@@ -5668,7 +5677,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         }
         bloquearNombreGanador(false);
       }
-      finally{ hideSpinner(); }
+      finally{
+        hideSpinner();
+        // Acabó (bien o con error): ya se puede volver a sortear.
+        sorteando = false;
+        actualizarBotonSortear();
+      }
     });
 
     // ---- Ruleta de nombres ----
