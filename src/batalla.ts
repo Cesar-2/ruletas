@@ -12,6 +12,7 @@ import * as chat from './chat';
 export interface Luchador {
   nombre: string;
   clave: string;        // en minusculas, para no duplicar a la misma persona
+  clase?: string;       // su clase de Dofus, sorteada al empezar el torneo
 }
 
 // Cada golpe del combate, para poder contarlo en la pagina uno a uno.
@@ -37,11 +38,9 @@ export interface Duelo {
 
 export const VIDA = 100;
 
-// Solo para que no todos los golpes se cuenten igual.
-const ATAQUES = [
-  'golpea a', 'arrea un mandoble a', 'lanza un hechizo contra', 'embiste a',
-  'da un cabezazo a', 'patea a', 'sacude a', 'aporrea a'
-];
+// Como pega, en generico. La pagina cuenta cada golpe con el hechizo de la
+// clase de Dofus del que ataca; esto queda por si algo lo lee sin clase.
+const ATAQUES = ['ataca a', 'golpea a', 'embiste a'];
 
 export interface Ronda {
   numero: number;
@@ -69,6 +68,8 @@ export interface Dependencias {
   writeJson(file: string, data: unknown): void;
   // El marcador es el mismo que el de la carrera.
   sumarPuntos(uid: string, nombre: string, cuantos: number): number;
+  // Las clases de Dofus que tienen imagen de prueba: solo se sortean esas.
+  clasesConArte?(): string[];
 }
 
 let deps: Dependencias;
@@ -175,6 +176,29 @@ function barajar<T>(lista: T[]): T[] {
   return a;
 }
 
+// Las clases de Dofus con las que se puede pelear. Se sortean aqui y no en la
+// pagina para que todo el que mire vea la misma clase en cada luchador.
+const CLASES_DOFUS = [
+  'Yopuka', 'Ocra', 'Xelor', 'Anutrof', 'Zurcarák', 'Feca',
+  'Sram', 'Sadida', 'Osamodas', 'Aniripsa', 'Sacrógrito', 'Pandawa', 'Uginak'
+];
+
+// Las que se sortean de verdad: las que tienen imagen puesta por el dueño en su
+// carpeta de datos (yopuka.png, ocra.png…). Si no hay ninguna, todas.
+function clasesEnJuego(): string[] {
+  const conArte = (deps.clasesConArte ? deps.clasesConArte() : []).filter((c) => CLASES_DOFUS.includes(c));
+  return conArte.length ? conArte : CLASES_DOFUS;
+}
+
+// A cada luchador le toca una clase al azar, para todo el torneo.
+function sortearClases(luchadores: Luchador[]): Luchador[] {
+  const enJuego = clasesEnJuego();
+  return luchadores.map((l) => ({
+    ...l,
+    clase: enJuego[Math.floor(Math.random() * enJuego.length)]
+  }));
+}
+
 // Empareja a los que quedan. Si son impares, uno pasa de ronda sin pelear.
 function emparejar(nombres: string[], numero: number): Ronda {
   const orden = barajar(nombres);
@@ -193,6 +217,7 @@ export function empezar(uid: string): Batalla | null {
   if (!batalla || !batalla.abierta || batalla.luchadores.length < 2) return null;
   batalla.abierta = false;
   cerrarEscucha(uid);
+  batalla.luchadores = sortearClases(batalla.luchadores);
   batalla.rondas = [emparejar(batalla.luchadores.map((l) => l.nombre), 1)];
   return batalla;
 }
@@ -204,7 +229,8 @@ export function repetir(uid: string): Batalla | null {
   if (!anterior || anterior.luchadores.length < 2) return null;
   const nueva: Batalla = {
     abierta: false,
-    luchadores: anterior.luchadores.slice(),
+    // Mismos luchadores, pero cada uno con otra clase al azar.
+    luchadores: sortearClases(anterior.luchadores),
     rondas: [],
     campeon: '',
     puntos: leerAjustes(uid).puntos

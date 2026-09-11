@@ -1592,7 +1592,10 @@ app.put('/api/settings', (req: Request, res: Response) => {
   if (typeof body.logoUrl === 'string') next.logoUrl = body.logoUrl.trim().slice(0, 2000);
   if (typeof body.backgroundUrl === 'string') next.backgroundUrl = body.backgroundUrl.slice(0, 2000);
 
-  if (typeof body.wheelUrl === 'string') next.wheelUrl = body.wheelUrl.slice(0, 2000);
+  // La imagen de la ruleta solo la cambia el administrador. Al resto se le
+  // ignora sin error: la pagina manda todos los ajustes juntos y fallaria el
+  // guardado entero.
+  if (typeof body.wheelUrl === 'string' && usuarioDe(req)?.admin) next.wheelUrl = body.wheelUrl.slice(0, 2000);
   if (typeof body.showWheel === 'boolean') next.showWheel = body.showWheel;
   if (body.animation === 'slot' || body.animation === 'wheel' || body.animation === 'none') {
     next.animation = body.animation;
@@ -1629,6 +1632,11 @@ app.post('/api/background', (req: Request, res: Response) => {
   const pedido = req.body?.target;
   const target: 'wheel' | 'logo' | 'background' =
     pedido === 'wheel' ? 'wheel' : pedido === 'logo' ? 'logo' : 'background';
+  // Las imagenes de las animaciones (la ruleta) solo las pone el
+  // administrador; el fondo y el logo, cada cuenta los suyos.
+  if (target === 'wheel' && !usuarioDe(req)?.admin) {
+    return res.status(403).json({ error: 'solo el administrador puede cambiar la imagen de la ruleta' });
+  }
 
   const guardada = guardarImagen(req.body?.dataUrl, `fondo-${target}`);
   if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
@@ -1988,9 +1996,43 @@ app.post('/api/carrera/config', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/batalla -> como va el torneo
+// Prueba con el arte de Ankama. En la carpeta de imagenes de datos (que no se
+// sube a GitHub) el dueño deja una imagen por clase con su nombre (yopuka.png,
+// ocra.png…) y el escenario (dofus-escenario.jpg). Las clases con imagen son
+// las unicas que se sortean. La version evita que el navegador se quede con
+// una imagen vieja si se cambia.
+const CLASE_DE_ARCHIVO: Record<string, string> = {
+  yopuka: 'Yopuka', iop: 'Yopuka', ocra: 'Ocra', cra: 'Ocra', xelor: 'Xelor',
+  anutrof: 'Anutrof', enutrof: 'Anutrof', zurcarak: 'Zurcarák', ecaflip: 'Zurcarák',
+  feca: 'Feca', sram: 'Sram', sadida: 'Sadida', osamodas: 'Osamodas',
+  aniripsa: 'Aniripsa', eniripsa: 'Aniripsa', sacrogrito: 'Sacrógrito', sacrieur: 'Sacrógrito',
+  pandawa: 'Pandawa', uginak: 'Uginak', ouginak: 'Uginak'
+};
+
+function arteBatalla(): { clases: Record<string, string>; escenario: string } {
+  const arte = { clases: {} as Record<string, string>, escenario: '' };
+  try {
+    if (!fs.existsSync(ASSETS_DIR)) return arte;
+    const url = (f: string) =>
+      `/assets/${encodeURIComponent(f)}?v=${Math.round(fs.statSync(path.join(ASSETS_DIR, f)).mtimeMs)}`;
+    for (const f of fs.readdirSync(ASSETS_DIR)) {
+      const m = /^(.+)\.(png|webp|gif)$/i.exec(f);
+      const clase = m && CLASE_DE_ARCHIVO[m[1].toLowerCase()];
+      if (clase) arte.clases[clase] = url(f);
+      // Si hay varios escenarios, gana el JPG, que es el reducido.
+      if (/^dofus-?escenario\.(jpe?g|png|webp)$/i.test(f) && (!arte.escenario || /\.jpe?g$/i.test(f))) {
+        arte.escenario = url(f);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to read Dofus art:', err);
+  }
+  return arte;
+}
+
+// GET /api/batalla -> como va el torneo, y el arte de prueba que haya
 app.get('/api/batalla', (req: Request, res: Response) => {
-  res.json(batalla.estado(requireUid(req)));
+  res.json({ ...batalla.estado(requireUid(req)), arte: arteBatalla() });
 });
 
 // POST /api/batalla/abrir -> abre la inscripcion y escucha el chat
@@ -2106,7 +2148,11 @@ app.use('/', express.static(path.join(process.cwd(), 'public')));
 carrera.iniciar({ userDir, ensureUserDir, writeJson });
 ruletachat.iniciar({ userDir, ensureUserDir, writeJson });
 // La batalla reparte en el mismo marcador que la carrera.
-batalla.iniciar({ userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos });
+batalla.iniciar({
+  userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos,
+  // Solo pelean las clases de Dofus que tienen imagen de prueba.
+  clasesConArte: () => Object.keys(arteBatalla().clases)
+});
 
 twitch.iniciar(
   {
