@@ -10,6 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import * as chat from './chat';
+import { Cronometro } from './cronometro';
 
 export interface Ajustes {
   palabra: string;      // lo que se escribe en el chat para apuntarse
@@ -32,12 +33,16 @@ export function iniciar(d: Dependencias): void { deps = d; }
 // Lo apuntado es de un rato: vive en memoria, como la carrera.
 const listas = new Map<string, string[]>();
 const escuchas = new Map<string, chat.Conexion>();
+// Al llegar la hora se suelta el chat, pero se recuerda cuando cerro.
+const crono = new Cronometro((uid) => soltarChat(uid));
 
 export interface Estado {
   abierta: boolean;
   nombres: string[];
   escuchando: string;
   palabra: string;
+  cierraEn: number;     // cuando se cierra sola (reloj del servidor); 0 = sin limite
+  ahora: number;        // la hora del servidor, para que la pagina cuadre la cuenta atras
 }
 
 export function estado(uid: string): Estado {
@@ -45,7 +50,9 @@ export function estado(uid: string): Estado {
     abierta: escuchas.has(uid),
     nombres: listas.get(uid) || [],
     escuchando: escuchas.get(uid)?.canal || '',
-    palabra: leerAjustes(uid).palabra
+    palabra: leerAjustes(uid).palabra,
+    cierraEn: crono.cierraEn(uid),
+    ahora: Date.now()
   };
 }
 
@@ -88,7 +95,8 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
 
 // Abre el chat. No se vacia la lista: puede que ya hubiera gente escrita a
 // mano en la pagina, y se apuntan encima.
-export function abrir(uid: string, canal: string, palabra?: string): Estado {
+// Con segundos, se cierra sola cuando se acaban.
+export function abrir(uid: string, canal: string, palabra?: string, segundos?: unknown): Estado {
   cerrar(uid);
   if (!listas.has(uid)) listas.set(uid, []);
   const buscada = (palabra || leerAjustes(uid).palabra).trim().toLowerCase();
@@ -96,12 +104,19 @@ export function abrir(uid: string, canal: string, palabra?: string): Estado {
     if (!chat.esLaPalabra(m.texto, buscada)) return;
     apuntar(uid, m.autor);
   }));
+  crono.poner(uid, segundos);
   return estado(uid);
 }
 
-export function cerrar(uid: string): Estado {
+function soltarChat(uid: string): void {
   escuchas.get(uid)?.cerrar();
   escuchas.delete(uid);
+}
+
+// Cerrar a mano: sin chat y sin cronometro.
+export function cerrar(uid: string): Estado {
+  crono.quitar(uid);
+  soltarChat(uid);
   return estado(uid);
 }
 

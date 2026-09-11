@@ -176,6 +176,14 @@
     .subtab{background:transparent;color:var(--muted);border:1px solid transparent;padding:0.4rem 0.9rem;border-radius:8px;font-size:14px;box-shadow:none}
     .subtab:hover{color:#e6eef8;background:rgba(255,255,255,0.05)}
     .subtab.active{background:rgba(255,255,255,0.09);color:#e6eef8;border-color:rgba(255,255,255,0.14)}
+    /* Las pestañas de los minijuegos van sueltas sobre el fondo de la página,
+       no dentro de una tarjeta: con un fondo claro no se verían. Llevan su
+       propia barra oscura, como las pestañas de arriba. */
+    #games-panel > .subtabs{margin-top:0;margin-bottom:1rem;padding:.4rem;border-radius:12px;flex-wrap:wrap;
+      background:rgba(9,15,28,0.80);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12);
+      box-shadow:0 6px 24px rgba(2,6,23,0.45)}
+    #games-panel > .subtabs .subtab{color:#cbd5e1}
+    #games-panel > .subtabs .subtab.active{color:#fff;background:rgba(255,255,255,0.14)}
     #nameWinnerBanner{margin:0 0 .6rem}
     #nameWinnerActions{margin-bottom:.9rem}
     .names-layout{display:flex;gap:1.2rem;flex-wrap:wrap;align-items:flex-start;margin-top:.8rem}
@@ -266,6 +274,16 @@
     .config-section .subtabs{margin-top:1.1rem}
     .game-subpanel{display:none}
     .game-subpanel.active{display:block}
+    /* La cuenta atrás para cerrar la inscripción: ámbar, roja y latiendo en
+       los últimos segundos, y gris cuando ya se cerró. */
+    .crono{display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .7rem;border-radius:999px;
+      font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;
+      background:rgba(251,191,36,.16);color:#fbbf24;border:1px solid rgba(251,191,36,.45)}
+    .crono.urgente{background:rgba(248,113,113,.18);color:#fca5a5;border-color:rgba(248,113,113,.55);
+      animation:latido 1s ease-in-out infinite}
+    .crono.cerrado{background:rgba(255,255,255,.08);color:var(--muted);border-color:rgba(255,255,255,.16);font-weight:600}
+    @keyframes latido{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+    @media (prefers-reduced-motion:reduce){.crono.urgente{animation:none}}
     /* El marcador: una fila por espectador, con su puesto y sus puntos. */
     .marcador{display:flex;flex-direction:column;gap:.35rem;margin-top:.6rem}
     .marcador .fila{display:flex;align-items:center;gap:.6rem;padding:.45rem .7rem;border-radius:10px;
@@ -807,6 +825,9 @@
 
             <div class="draw-controls">
               <button type="button" id="batallaAbrir">Abrir inscripción</button>
+              <label class="meta" for="batallaMinutos">Cerrar en (min)</label>
+              <input id="batallaMinutos" type="number" min="0" max="60" step="0.5" value="0" style="width:80px" title="0 = sin cronómetro" />
+              <span class="crono" id="batallaCrono" hidden></span>
             </div>
             <p class="meta" id="batallaEstado">Sin batalla abierta.</p>
 
@@ -840,6 +861,9 @@
 
             <div class="draw-controls">
               <button type="button" id="carreraAbrir">Abrir inscripción</button>
+              <label class="meta" for="carreraMinutos">Cerrar en (min)</label>
+              <input id="carreraMinutos" type="number" min="0" max="60" step="0.5" value="0" style="width:80px" title="0 = sin cronómetro" />
+              <span class="crono" id="carreraCrono" hidden></span>
             </div>
             <p class="meta" id="carreraEstado">Sin carrera abierta.</p>
 
@@ -892,7 +916,10 @@
               <label class="meta" for="nameChatPalabra">Se apuntan por el chat escribiendo</label>
               <input id="nameChatPalabra" type="text" value="!ruleta" style="width:110px" aria-label="Palabra para apuntarse" />
               <button type="button" id="nameChatAbrir">Abrir inscripción</button>
+              <label class="meta" for="nameChatMinutos">Cerrar en (min)</label>
+              <input id="nameChatMinutos" type="number" min="0" max="60" step="0.5" value="0" style="width:80px" title="0 = sin cronómetro" />
               <button type="button" id="nameChatCerrar" class="btn-cancel" hidden>Cerrar inscripción</button>
+              <span class="crono" id="nameChatCrono" hidden></span>
               <span class="meta" id="nameChatEstado"></span>
             </div>
             <div class="names-layout">
@@ -3450,7 +3477,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('batallaEstado').textContent = batalla.campeon
         ? `Terminada. Campeón: ${batalla.campeon}.`
         : batalla.abierta
-          ? `Inscripción abierta en ${batalla.escuchando || 'el chat'}: escriben «${document.getElementById('batallaPalabra').value.trim() || '!pelea'}» para apuntarse. ${cuantos} apuntado(s).`
+          ? (cerradaPorTiempo(batalla)
+            ? `Inscripción cerrada: ${cuantos} apuntado(s). Pulsa «Empezar torneo».`
+            : `Inscripción abierta en ${batalla.escuchando || 'el chat'}: escriben «${document.getElementById('batallaPalabra').value.trim() || '!pelea'}» para apuntarse. ${cuantos} apuntado(s).`)
           : empezada
             ? `Torneo en marcha, ronda ${batalla.rondas.length}.`
             : 'Sin batalla abierta.';
@@ -3470,6 +3499,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // Otra vez con los mismos: solo tiene sentido con el torneo terminado.
       document.getElementById('batallaRepetir').hidden = narrando || !batalla.campeon || cuantos < 2;
       ajustarAcciones();
+      // La cuenta atrás, solo mientras la inscripción sigue abierta.
+      mostrarCrono('batallaCrono', batalla.abierta ? batalla : null, cargarBatalla);
 
       const banner = document.getElementById('batallaCampeon');
       banner.hidden = !batalla.campeon || narrando;
@@ -4142,7 +4173,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     document.getElementById('batallaAbrir').addEventListener('click', async () => {
-      if (await accionBatalla('/api/batalla/abrir')) vigilarBatalla(true);
+      if (await accionBatalla('/api/batalla/abrir', { segundos: segundosDe('batallaMinutos') })) vigilarBatalla(true);
     });
     document.getElementById('batallaEmpezar').addEventListener('click', async () => {
       // Ya no se apunta nadie más: deja de preguntar.
@@ -4279,11 +4310,56 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       });
     }
 
+    // --- Cronómetro de cierre de inscripción --------------------------------
+    // La hora de cierre la manda el servidor (cierraEn, en su reloj). Se corrige
+    // con su «ahora» para que un reloj del PC adelantado o atrasado no descuadre
+    // la cuenta atrás. Lo usan la ruleta de nombres, la carrera y la batalla.
+    const cronos = {};     // el intervalo de cada insignia
+    const avisados = {};   // el cierre del que ya se avisó, para avisar una sola vez
+
+    function mostrarCrono(id, estado, alTerminar) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      clearInterval(cronos[id]);
+      const cierraEn = Number(estado && estado.cierraEn) || 0;
+      if (!cierraEn) { el.hidden = true; return; }
+      const desfase = (Number(estado.ahora) || Date.now()) - Date.now();
+      const pintar = () => {
+        const quedan = Math.max(0, cierraEn - (Date.now() + desfase));
+        el.hidden = false;
+        if (!quedan) {
+          el.textContent = '⏱ Inscripción cerrada';
+          el.className = 'crono cerrado';
+          clearInterval(cronos[id]);
+          // Al llegar a cero se pide el estado nuevo, una sola vez por cierre.
+          if (alTerminar && avisados[id] !== cierraEn) { avisados[id] = cierraEn; alTerminar(); }
+          return;
+        }
+        const s = Math.ceil(quedan / 1000);
+        el.textContent = `⏳ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+        el.className = 'crono' + (s <= 10 ? ' urgente' : '');
+      };
+      pintar();
+      cronos[id] = setInterval(pintar, 250);
+    }
+
+    // Los minutos de la casilla, en segundos para el servidor (0 = sin límite).
+    function segundosDe(id) {
+      return Math.round(Math.max(0, Math.min(60, Number(document.getElementById(id).value) || 0)) * 60);
+    }
+
+    // Si el cronómetro ya cerró la inscripción, según el último estado.
+    function cerradaPorTiempo(estado) {
+      return Boolean(estado && estado.cierraEn && estado.ahora >= estado.cierraEn);
+    }
+
     function pintarCarrera() {
       const estado = document.getElementById('carreraEstado');
       const cuantos = carrera.corredores.length;
       estado.textContent = carrera.abierta
-        ? `Inscripción abierta en ${carrera.escuchando || 'el chat'}: escriben «${document.getElementById('carreraPalabra').value.trim() || '!correr'}» para apuntarse. ${cuantos} apuntado(s).`
+        ? (cerradaPorTiempo(carrera)
+          ? `Inscripción cerrada: ${cuantos} apuntado(s). Pulsa «¡Correr!».`
+          : `Inscripción abierta en ${carrera.escuchando || 'el chat'}: escriben «${document.getElementById('carreraPalabra').value.trim() || '!correr'}» para apuntarse. ${cuantos} apuntado(s).`)
         : carrera.resultado.length
           ? `Carrera terminada con ${cuantos} corredor(es). Abre otra para volver a jugar.`
           : 'Sin carrera abierta.';
@@ -4298,6 +4374,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // Otra con los mismos: solo con la carrera ya corrida.
       document.getElementById('carreraRepetir').hidden = corriendo || !carrera.resultado.length || cuantos < 2;
       ajustarAcciones();
+      // La cuenta atrás, solo mientras la inscripción sigue abierta.
+      mostrarCrono('carreraCrono', carrera.abierta ? carrera : null, cargarCarrera);
 
       // La pista se dibuja mientras se apuntan, para que se vea llenarse.
       if (!cuantos) {
@@ -4693,7 +4771,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         carrera = await api('/api/carrera/abrir', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ palabra: document.getElementById('carreraPalabra').value.trim() })
+          body: JSON.stringify({
+            palabra: document.getElementById('carreraPalabra').value.trim(),
+            segundos: segundosDe('carreraMinutos')
+          })
         });
         document.getElementById('carreraPodio').hidden = true;
         document.getElementById('carreraRelato').hidden = true;
@@ -5710,6 +5791,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       aviso.textContent = estado.abierta
         ? `Escuchando ${estado.escuchando || 'el chat'}: escriben «${estado.palabra}» para entrar.`
         : '';
+      // La cuenta atrás; al llegar a cero se recoge a los últimos que entraron.
+      mostrarCrono('nameChatCrono', estado, recogerInscritos);
     }
 
     function meterEnLaLista(nombres) {
@@ -5739,6 +5822,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (meterEnLaLista(estado.nombres)) {
         try { await api('/api/ruleta-chat/vaciar', { method: 'POST' }); } catch (e) { /* al siguiente */ }
       }
+      // Si la cerró el cronómetro, esta era la última recogida.
+      if (!estado.abierta) vigilarNombres(false);
     }
 
     function vigilarNombres(encender) {
@@ -5752,7 +5837,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const estado = await api('/api/ruleta-chat/abrir', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ palabra: document.getElementById('nameChatPalabra').value })
+          body: JSON.stringify({
+            palabra: document.getElementById('nameChatPalabra').value,
+            segundos: segundosDe('nameChatMinutos')
+          })
         });
         olvidarTocados(['nameChatPalabra']);
         document.getElementById('nameChatPalabra').value = estado.palabra;

@@ -9,6 +9,7 @@
 import fs from 'fs';
 import path from 'path';
 import * as chat from './chat';
+import { Cronometro } from './cronometro';
 
 export interface Corredor {
   nombre: string;       // como se escribe, para enseñarlo
@@ -71,10 +72,16 @@ export function iniciar(d: Dependencias): void { deps = d; }
 const carreras = new Map<string, Carrera>();
 // La conexion al chat mientras hay inscripcion abierta.
 const escuchas = new Map<string, chat.Conexion>();
+// Al llegar la hora deja de escuchar el chat. La carrera no se corre sola:
+// sigue esperando a que el streamer pulse «¡Correr!».
+const crono = new Cronometro((uid) => cerrarEscucha(uid));
 
-export function estado(uid: string): Carrera & { escuchando: string; ajustes: Ajustes } {
+export function estado(uid: string): Carrera & { escuchando: string; ajustes: Ajustes; cierraEn: number; ahora: number } {
   const c = carreras.get(uid) || { abierta: false, corredores: [], resultado: [], corridaEn: '', marcas: [], eventos: [] };
-  return { ...c, escuchando: escuchas.get(uid)?.canal || '', ajustes: leerAjustes(uid) };
+  return {
+    ...c, escuchando: escuchas.get(uid)?.canal || '', ajustes: leerAjustes(uid),
+    cierraEn: crono.cierraEn(uid), ahora: Date.now()
+  };
 }
 
 // --- Ajustes del minijuego ---------------------------------------------
@@ -210,8 +217,10 @@ export function vaciarPuntos(uid: string): void {
 
 // Abre la inscripcion y se pone a escuchar el chat. Quien escriba la palabra
 // se apunta; el resto de mensajes se ignoran.
-export function abrir(uid: string, canal: string, palabra?: string): Carrera {
+// Con segundos, la inscripcion se cierra sola cuando se acaban.
+export function abrir(uid: string, canal: string, palabra?: string, segundos?: unknown): Carrera {
   cerrarEscucha(uid);
+  crono.poner(uid, segundos);
   const carrera: Carrera = { abierta: true, corredores: [], resultado: [], corridaEn: '', marcas: [], eventos: [] };
   carreras.set(uid, carrera);
 
@@ -228,6 +237,8 @@ export function abrir(uid: string, canal: string, palabra?: string): Carrera {
 export function apuntar(uid: string, nombre: string): boolean {
   const carrera = carreras.get(uid);
   if (!carrera || !carrera.abierta) return false;
+  // Con el cronometro vencido ya no entra nadie, ni por el chat ni a mano.
+  if (crono.vencido(uid)) return false;
   const limpio = String(nombre || '').trim().slice(0, 40);
   if (!limpio) return false;
   const clave = limpio.toLowerCase();
@@ -336,6 +347,7 @@ export function correr(uid: string): Carrera | null {
 
   carrera.abierta = false;
   cerrarEscucha(uid);
+  crono.quitar(uid);
 
   // La carrera se simula aqui: todos corren con las mismas reglas, asi que
   // gana cualquiera por igual, pero por el camino hay adelantamientos.
@@ -367,5 +379,6 @@ export function repetir(uid: string, canal: string): Carrera | null {
 // Tira la carrera actual y deja de escuchar.
 export function cancelar(uid: string): void {
   cerrarEscucha(uid);
+  crono.quitar(uid);
   carreras.delete(uid);
 }

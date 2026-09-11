@@ -1896,7 +1896,8 @@ app.post('/api/ruleta-chat/abrir', (req: Request, res: Response) => {
     if (typeof req.body?.palabra === 'string') {
       ruletachat.guardarAjustes(uid, { palabra: req.body.palabra });
     }
-    res.json(ruletachat.abrir(uid, canal));
+    // Con «segundos», la inscripcion se cierra sola cuando se acaban.
+    res.json(ruletachat.abrir(uid, canal, undefined, req.body?.segundos));
   } catch (err) {
     console.error('Failed to open wheel signup:', err);
     res.status(500).json({ error: (err as Error).message || 'failed to open wheel signup' });
@@ -1938,7 +1939,8 @@ app.post('/api/carrera/abrir', (req: Request, res: Response) => {
     if (typeof req.body?.palabra === 'string' && req.body.palabra.trim()) {
       carrera.guardarAjustes(uid, { palabra: req.body.palabra });
     }
-    res.json(carrera.abrir(uid, canal));
+    carrera.abrir(uid, canal, undefined, req.body?.segundos);
+    res.json(carrera.estado(uid));
   } catch (err) {
     console.error('Failed to open race:', err);
     res.status(500).json({ error: (err as Error).message || 'failed to open race' });
@@ -2059,7 +2061,7 @@ app.post('/api/batalla/abrir', (req: Request, res: Response) => {
     if (typeof req.body?.palabra === 'string' && req.body.palabra.trim()) {
       batalla.guardarAjustes(uid, { palabra: req.body.palabra });
     }
-    batalla.abrir(uid, canal);
+    batalla.abrir(uid, canal, req.body?.segundos);
     res.json(batalla.estado(uid));
   } catch (err) {
     console.error('Failed to open battle:', err);

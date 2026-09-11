@@ -8,6 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import * as chat from './chat';
+import { Cronometro } from './cronometro';
 
 export interface Luchador {
   nombre: string;
@@ -106,18 +107,24 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
   return actual;
 }
 
-export function estado(uid: string): Batalla & { escuchando: string; palabra: string } {
+export function estado(uid: string): Batalla & { escuchando: string; palabra: string; cierraEn: number; ahora: number } {
   const b = batallas.get(uid) || {
     abierta: false, luchadores: [], rondas: [], campeon: '', puntos: leerAjustes(uid).puntos
   };
   const ajustes = leerAjustes(uid);
   // Los puntos que se enseñan son los ajustados ahora mismo, no los que
   // hubiera al abrir: se pueden cambiar en cualquier momento.
-  return { ...b, puntos: ajustes.puntos, escuchando: escuchando(uid), palabra: ajustes.palabra };
+  return {
+    ...b, puntos: ajustes.puntos, escuchando: escuchando(uid), palabra: ajustes.palabra,
+    cierraEn: crono.cierraEn(uid), ahora: Date.now()
+  };
 }
 
 // La conexion al chat mientras hay inscripcion abierta.
 const escuchas = new Map<string, chat.Conexion>();
+// Al llegar la hora deja de escuchar el chat. El torneo no empieza solo:
+// sigue esperando a que el streamer pulse «Empezar torneo».
+const crono = new Cronometro((uid) => cerrarEscucha(uid));
 
 function cerrarEscucha(uid: string): void {
   const e = escuchas.get(uid);
@@ -126,8 +133,10 @@ function cerrarEscucha(uid: string): void {
 
 // Abre la inscripcion y se pone a escuchar el chat: quien escriba la palabra
 // se apunta, igual que en la carrera.
-export function abrir(uid: string, canal: string): Batalla {
+// Con segundos, la inscripcion se cierra sola cuando se acaban.
+export function abrir(uid: string, canal: string, segundos?: unknown): Batalla {
   cerrarEscucha(uid);
+  crono.poner(uid, segundos);
   const ajustes = leerAjustes(uid);
   const batalla: Batalla = {
     abierta: true, luchadores: [], rondas: [], campeon: '', puntos: ajustes.puntos
@@ -145,6 +154,7 @@ export function abrir(uid: string, canal: string): Batalla {
 
 export function cancelar(uid: string): void {
   cerrarEscucha(uid);
+  crono.quitar(uid);
   batallas.delete(uid);
 }
 
@@ -157,6 +167,8 @@ export function entrar(uid: string, nombre: string): { ok: boolean; error?: stri
   const batalla = batallas.get(uid);
   if (!batalla) return { ok: false, error: 'no hay ninguna batalla abierta' };
   if (!batalla.abierta) return { ok: false, error: 'la batalla ya ha empezado' };
+  // Con el cronometro vencido ya no entra nadie, ni por el chat ni a mano.
+  if (crono.vencido(uid)) return { ok: false, error: 'la inscripcion ya se cerro' };
 
   const limpio = String(nombre || '').trim().slice(0, 40);
   if (!limpio) return { ok: false, error: 'hace falta un nombre' };
@@ -217,6 +229,7 @@ export function empezar(uid: string): Batalla | null {
   if (!batalla || !batalla.abierta || batalla.luchadores.length < 2) return null;
   batalla.abierta = false;
   cerrarEscucha(uid);
+  crono.quitar(uid);
   batalla.luchadores = sortearClases(batalla.luchadores);
   batalla.rondas = [emparejar(batalla.luchadores.map((l) => l.nombre), 1)];
   return batalla;
