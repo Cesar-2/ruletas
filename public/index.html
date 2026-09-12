@@ -318,13 +318,51 @@
     .cuadro .vs{font-size:11px;color:var(--muted);text-align:center;padding:.1rem 0}
     .cuadro .pase{font-size:11px;color:var(--muted);font-style:italic}
     /* La barra de vida de cada luchador durante el combate. */
-    .cuadro .vida{position:relative;height:8px;border-radius:4px;background:rgba(255,255,255,0.10);overflow:hidden;margin-top:.15rem}
-    .cuadro .vida i{position:relative;z-index:1;display:block;height:100%;width:100%;background:var(--accent);transition:width .25s ease}
-    /* Lo que se acaba de perder se queda un momento en blanco, como en los
-       juegos de lucha, y luego se vacia. */
-    .cuadro .vida .rastro{position:absolute;left:0;top:0;bottom:0;background:#fef2f2;opacity:.75;transition:width .5s ease .35s}
-    .cuadro .vida i.poca{background:#fbbf24}
-    .cuadro .vida i.critica{background:#f87171}
+    /* La vida al estilo Mortal Kombat: las dos barras arriba, una frente a la
+       otra, con el nombre debajo y el VS en medio. */
+    .cuadro .mk{display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem}
+    .cuadro .mk-lado{flex:1;min-width:0}
+    /* El Dofus en medio, entre las dos barras. Es cuadrado por dentro (el
+       viewBox manda), asi que crece y encoge sin deformarse: el ancho sale
+       del sitio que haya y el alto va solo. */
+    .cuadro .mk-vs{flex:none;width:clamp(20px,6%,32px);display:flex;align-items:center;
+      justify-content:center;line-height:0}
+    /* Late despacio, como si guardara algo dentro. */
+    .cuadro .mk-vs svg{width:100%;height:auto;display:block;
+      filter:drop-shadow(0 0 5px rgba(198,240,0,.55));
+      animation:dofusLate 2.4s ease-in-out infinite}
+    @keyframes dofusLate{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+    @media (prefers-reduced-motion:reduce){.cuadro .mk-vs svg{animation:none}}
+    .cuadro .vida{position:relative;height:13px;border-radius:3px;overflow:hidden;
+      background:#3f0d0d;border:2px solid #241606;
+      box-shadow:0 0 0 1px rgba(253,224,71,.35),inset 0 2px 0 rgba(255,255,255,.12)}
+    .cuadro .vida i{position:relative;z-index:1;display:block;height:100%;width:100%;
+      background:linear-gradient(180deg,#fef08a,#fbbf24 45%,#f59e0b);transition:width .25s ease}
+    /* Lo que se acaba de perder se queda un momento en blanco y luego se vacia. */
+    .cuadro .vida .rastro{position:absolute;left:0;top:0;bottom:0;background:#fff;opacity:.8;transition:width .5s ease .35s}
+    .cuadro .vida i.poca{background:linear-gradient(180deg,#fdba74,#ea580c)}
+    .cuadro .vida i.critica{background:linear-gradient(180deg,#fca5a5,#b91c1c);
+      animation:vidaCritica .5s steps(2,end) infinite}
+    @keyframes vidaCritica{0%,100%{filter:brightness(1)}50%{filter:brightness(1.6)}}
+    /* Las muescas de los segmentos, como la barra del juego. */
+    .cuadro .vida::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;
+      background:repeating-linear-gradient(90deg,transparent 0 9.5%,rgba(0,0,0,.45) 9.5% 10%)}
+    /* La del lado B se vacía hacia el centro, como en el juego. */
+    .cuadro .mk-lado.b .vida{transform:scaleX(-1)}
+    /* El nombre en su línea, con todo el ancho, y la clase debajo más pequeña:
+       en una sola línea no cabían los dos y se pisaban. */
+    .cuadro .mk-lado .lado{display:block;margin-top:.2rem;font-size:12px;font-weight:800;
+      letter-spacing:.04em;text-transform:uppercase;overflow:hidden}
+    .cuadro .mk-lado .lado .quien{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cuadro .mk-lado .lado .clase{display:block;margin:0;font-size:10px;font-weight:600;
+      letter-spacing:.02em;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cuadro .mk-lado.b .lado{justify-content:flex-end;text-align:right}
+    /* Al encajar un golpe, la barra da un fogonazo. */
+    .cuadro .vida.golpeada{animation:vidaGolpe .22s ease-out}
+    @keyframes vidaGolpe{0%{box-shadow:0 0 0 2px #fff,inset 0 0 12px #fff}
+      100%{box-shadow:0 0 0 1px rgba(253,224,71,.35)}}
+    .cuadro .duelo.resuelto .mk-vs{display:none}
+    @media (prefers-reduced-motion:reduce){.cuadro .vida i.critica,.cuadro .vida.golpeada{animation:none}}
     .cuadro .duelo.peleando{border-color:rgba(255,255,255,0.35)}
     /* El ring: lona, cuerdas y los postes azul y rojo. Cada muñeco mira hacia
        el contrario, y --dir dice hacia donde es «adelante» para él. */
@@ -427,6 +465,33 @@
     .relato div.fallo{color:var(--muted);font-style:italic}
     .relato div.furia{color:#fb923c;font-weight:600}
     .relato div.aguanta{color:#7dd3fc;font-weight:700}
+    /* El relato de la batalla va por combates, no en una lista seguida: con
+       varios duelos a la vez las lineas se mezclaban y no habia quien
+       siguiera ninguno. Cada combate tiene su caja y su propio scroll. */
+    #batallaRelato{max-height:none;display:grid;gap:.6rem;
+      grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+    #batallaRelato .ronda-titulo{grid-column:1/-1;margin:0;font-size:12px;
+      text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    #batallaRelato .combate{border-radius:10px;padding:.45rem .6rem;
+      background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09)}
+    #batallaRelato .combate.gana-ya{border-color:rgba(253,224,71,.45)}
+    #batallaRelato .combate > h5{margin:0 0 .3rem;font-size:12px;font-weight:800;
+      color:#e6eef8;display:flex;align-items:center;gap:.35rem}
+    #batallaRelato .combate > h5 .nadie{color:var(--muted);font-weight:600}
+    #batallaRelato .lineas{max-height:150px;overflow-y:auto}
+    /* La lista de los que se han quedado fuera, por rondas. */
+    .eliminados{margin-top:.8rem;border-radius:12px;padding:.6rem .8rem;font-size:13px;
+      background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)}
+    .eliminados[hidden]{display:none}
+    .eliminados h4{margin:0 0 .45rem;font-size:12px;text-transform:uppercase;
+      letter-spacing:.08em;color:var(--muted)}
+    .eliminados .ronda-caidos{margin-bottom:.5rem}
+    .eliminados .ronda-caidos:last-child{margin-bottom:0}
+    .eliminados .ronda-caidos > span{font-size:11px;color:var(--muted);font-weight:700;
+      text-transform:uppercase;letter-spacing:.06em}
+    .eliminados .caido{display:flex;align-items:baseline;gap:.4rem;padding:.14rem 0}
+    .eliminados .caido .quien{font-weight:700;color:#fca5a5;text-decoration:line-through}
+    .eliminados .caido .contra{color:var(--muted);font-size:12px}
     /* La pista: una calle por corredor y la balinera que la recorre. */
     /* Un hipodromo: cesped alrededor, calles de tierra, salida y meta a cuadros. */
     .pista{position:relative;margin-top:1rem;padding:.8rem;border-radius:12px;overflow:hidden;
@@ -835,6 +900,7 @@
 
             <div id="batallaCuadro" class="cuadro" hidden></div>
             <div id="batallaRelato" class="relato" hidden></div>
+            <div id="batallaEliminados" class="eliminados" hidden></div>
 
             <div class="controls" style="margin-top:.8rem">
               <input id="batallaNombre" type="text" placeholder="Apuntar a alguien a mano" aria-label="Apuntar a mano" />
@@ -3501,8 +3567,35 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       pintarBatalla();
     }
 
+    // Los que se han quedado fuera, sacados del cuadro: de cada duelo ya
+    // peleado, el que no es el ganador. Se lee del estado, asi que aguanta un
+    // refresco de la pagina. Mientras se cuenta una ronda no se ensena: el
+    // servidor ya la ha resuelto y se veria quien cae antes que la animacion.
+    function pintarEliminados() {
+      const caja = document.getElementById('batallaEliminados');
+      if (!caja) return;
+      const rondas = (batalla.rondas || []).map((r) => ({
+        numero: r.numero,
+        caidos: (r.duelos || [])
+          .filter((d) => d.b && d.ganador)
+          .map((d) => ({ quien: d.ganador === d.a ? d.b : d.a, contra: d.ganador }))
+      })).filter((r) => r.caidos.length);
+
+      if (narrando || !rondas.length) { caja.hidden = true; return; }
+      const total = rondas.reduce((n, r) => n + r.caidos.length, 0);
+      caja.hidden = false;
+      caja.innerHTML = `<h4>Eliminados (${total})</h4>` + rondas.map((r) => {
+        const esFinal = r === rondas[rondas.length - 1] && r.caidos.length === 1 && batalla.campeon;
+        const titulo = esFinal ? 'Final' : `Ronda ${r.numero}`;
+        return `<div class="ronda-caidos"><span>${titulo}</span>` + r.caidos.map((c) =>
+          `<div class="caido"><span class="quien">${escapeHtml(c.quien)}</span>` +
+          `<span class="contra">cae contra ${escapeHtml(c.contra)}</span></div>`).join('') + '</div>';
+      }).join('');
+    }
+
     function pintarBatalla() {
       const cuantos = batalla.luchadores.length;
+      pintarEliminados();
       const empezada = batalla.rondas.length > 0;
       // Queda ronda por resolver si su último duelo aún no tiene ganador.
       const ultima = batalla.rondas[batalla.rondas.length - 1];
@@ -3582,17 +3675,43 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           // Ya peleado (se recarga la pagina, o es la final del campeon): sale
           // encogido de entrada, sin volver a contarlo.
           return `<div class="duelo${d.ganador ? ' resuelto' : ''}" data-ronda="${ri}" data-duelo="${di}">
-            ${abrirRing()}${muneco('a', caido(d.a), d.a)}${muneco('b', caido(d.b), d.b)}<div class="fx"></div></div>
-            <div class="${clase(d.a)}">${escapeHtml(d.a)}${etiquetaClase(d.a)}</div>
-            ${barra('a', ultimo ? ultimo.vidaA : 100)}
-            <div class="vs">vs</div>
-            <div class="${clase(d.b)}">${escapeHtml(d.b)}${etiquetaClase(d.b)}</div>
-            ${barra('b', ultimo ? ultimo.vidaB : 100)}
+            <div class="mk">
+              <div class="mk-lado a">
+                ${barra('a', ultimo ? ultimo.vidaA : 100)}
+                <div class="${clase(d.a)}"><span class="quien">${escapeHtml(d.a)}</span>${etiquetaClase(d.a)}</div>
+              </div>
+              <div class="mk-vs" title="Dofus">${dofusHuevoSvg()}</div>
+              <div class="mk-lado b">
+                ${barra('b', ultimo ? ultimo.vidaB : 100)}
+                <div class="${clase(d.b)}"><span class="quien">${escapeHtml(d.b)}</span>${etiquetaClase(d.b)}</div>
+              </div>
+            </div>
+            ${abrirRing(ri, di)}${muneco('a', caido(d.a), d.a)}${muneco('b', caido(d.b), d.b)}<div class="fx"></div></div>
             <div class="golpe"></div>
           </div>`;
         }).join('');
         return `<div class="ronda"><h4>${titulo}</h4><div class="duelos">${duelos}</div></div>`;
       }).join('');
+    }
+
+    // El Dofus esmeralda que preside el duelo. Dibujado a mano como el resto
+    // del arte propio: asi no depende de ningun archivo y escala limpio.
+    function dofusHuevoSvg() {
+      return `<svg viewBox="0 0 120 150" aria-hidden="true">
+        <path d="M60 6 C93 6 114 46 114 82 C114 116 90 144 60 144 C30 144 6 116 6 82 C6 46 27 6 60 6 Z"
+              fill="#4d8c0b" stroke="#c6f000" stroke-width="5"/>
+        <path d="M60 16 C86 16 104 50 104 82 C104 111 84 135 60 135 C36 135 16 111 16 82 C16 50 34 16 60 16 Z"
+              fill="#6aa80f"/>
+        <path d="M74 46 C74 31 46 31 44 46 C42 60 76 64 78 82 C80 102 48 106 44 90"
+              fill="none" stroke="#2f6b06" stroke-width="19" stroke-linecap="round"/>
+        <path d="M74 46 C74 31 46 31 44 46 C42 60 76 64 78 82 C80 102 48 106 44 90"
+              fill="none" stroke="#d9f524" stroke-width="12" stroke-linecap="round"/>
+        <ellipse cx="38" cy="44" rx="11" ry="20" fill="#fff" opacity=".38" transform="rotate(-24 38 44)"/>
+        <ellipse cx="84" cy="112" rx="7" ry="11" fill="#fff" opacity=".2" transform="rotate(-32 84 112)"/>
+        <circle cx="80" cy="36" r="4" fill="#eaff6b" opacity=".85"/>
+        <circle cx="34" cy="96" r="3" fill="#eaff6b" opacity=".7"/>
+        <circle cx="62" cy="124" r="2.5" fill="#eaff6b" opacity=".6"/>
+      </svg>`;
     }
 
     // Un luchador: su personaje de Dofus, dentro de la caja que se anima.
@@ -3663,10 +3782,27 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const [hechizo, elemento] = c.hechizos[(hashDe(nombre) + i) % c.hechizos.length];
       return { nombre: hechizo, elemento };
     }
+    // Los escenarios que haya puestos. Si hay varios, cada combate pelea en
+    // uno: se reparten por su sitio en el cuadro, no al azar, para que al
+    // repintar la pagina cada duelo siga en el mismo sitio donde peleaba.
+    function escenarioDe(indiceRonda, indiceDuelo) {
+      const arte = batalla.arte || {};
+      const lista = arte.escenarios && arte.escenarios.length
+        ? arte.escenarios
+        : (arte.escenario ? [arte.escenario] : []);
+      if (!lista.length) return '';
+      // El desfase por ronda evita que el mismo duelo repita escenario al
+      // avanzar el torneo: cambia de sitio como cambian los rivales. El paso
+      // es de uno a proposito: cualquier otro se queda clavado en cuanto el
+      // numero de escenarios lo divide (con 3 escenarios, saltar de 3 en 3 es
+      // no moverse).
+      return lista[(indiceRonda + indiceDuelo) % lista.length];
+    }
+
     // La caja de cada combate: el escenario que haya puesto el dueño (si no,
     // el mapa de casillas).
-    function abrirRing() {
-      const escenario = batalla.arte && batalla.arte.escenario;
+    function abrirRing(indiceRonda, indiceDuelo) {
+      const escenario = escenarioDe(indiceRonda || 0, indiceDuelo || 0);
       return escenario
         ? `<div class="ring dofus con-escenario" style="background-image:url('${escapeHtml(escenario)}')">`
         : '<div class="ring dofus">';
@@ -4045,6 +4181,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const conPelea = ronda.duelos.filter((d) => d.b && d.golpes && d.golpes.length);
       if (!conPelea.length) return Promise.resolve();
 
+      // Los duelos se cuentan a la vez, asi que cada uno escribe en su propia
+      // caja: en una lista seguida las lineas de todos se entrelazaban.
+      const cabecera = document.createElement('h4');
+      cabecera.className = 'ronda-titulo';
+      cabecera.textContent = conPelea.length === 1
+        ? 'Final' : `Ronda ${ronda.numero} · ${conPelea.length} combates`;
+      relato.appendChild(cabecera);
+
       // Todos los duelos a la vez, para que no se haga eterno con mucha gente.
       const RITMO = 700;
       const masLargo = Math.max(...conPelea.map((d) => d.golpes.length));
@@ -4081,11 +4225,21 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           setTimeout(() => s.remove(), dura);
         };
         efecto('letrero pelear', '¡COMBATE!', null, 700);
-        // Cada combate se anuncia en el relato, con la clase de cada uno.
+        // La caja de este combate, con su titulo y su propio scroll.
+        const bloque = document.createElement('section');
+        bloque.className = 'combate';
+        const titulo = document.createElement('h5');
+        titulo.innerHTML = `⚔️ ${escapeHtml(d.a)} <span class="nadie">vs</span> ${escapeHtml(d.b)}`;
+        bloque.appendChild(titulo);
+        const lineas = document.createElement('div');
+        lineas.className = 'lineas';
+        bloque.appendChild(lineas);
+        relato.appendChild(bloque);
+        // Cada combate se anuncia en el suyo, con la clase de cada uno.
         const inicio = document.createElement('div');
         inicio.className = 'lidera';
-        inicio.textContent = `⚔️ Empieza el combate: ${d.a} (${claseDe(d.a).clase}) contra ${d.b} (${claseDe(d.b).clase}).`;
-        relato.appendChild(inicio);
+        inicio.textContent = `${d.a} (${claseDe(d.a).clase}) contra ${d.b} (${claseDe(d.b).clase}).`;
+        lineas.appendChild(inicio);
         // Reiniciar la animación pide sacar la clase, forzar el repintado y
         // volver a ponerla: si no, el segundo golpe seguido no se ve.
         const mover = (quien, como) => {
@@ -4113,6 +4267,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             const h = hechizoDe(g.quien, i);
             mover(munecos[pega], 'pega');
             mover(munecos[encaja], g.fallo ? 'esquiva' : 'recibe');
+            // La barra del que encaja da un fogonazo, como en Mortal Kombat.
+            if (!g.fallo && barras[encaja]) {
+              const cajaVida = barras[encaja].parentElement;
+              cajaVida.classList.remove('golpeada');
+              void cajaVida.offsetWidth;
+              cajaVida.classList.add('golpeada');
+            }
             if (munecos[pega]) munecos[pega].classList.toggle('furioso', !!g.furia);
 
             // Lo que se ve encima del ring: la estrella y el daño en el que
@@ -4153,10 +4314,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 : `${g.quien} lanza ${h.nombre}. ${g.a}: −${g.dano} PdV (${h.elemento})` +
                   `${g.critico ? '. ¡Golpe crítico!' : ''}${g.furia ? `. ${g.quien} se crece con pocos PdV` : ''}.` +
                   `${g.aguanta ? ` ¡${g.a} resiste con 1 PdV!` : ''}`;
-            relato.appendChild(linea);
-            relato.scrollTop = relato.scrollHeight;
+            lineas.appendChild(linea);
+            // Cada caja sigue su propio combate, sin arrastrar a las demas.
+            lineas.scrollTop = lineas.scrollHeight;
 
             if (cae) {
+              bloque.classList.add('gana-ya');
+              titulo.innerHTML = `🏆 ${escapeHtml(d.ganador)} <span class="nadie">gana a</span> ` +
+                `${escapeHtml(d.ganador === d.a ? d.b : d.a)}`;
               caja.classList.remove('peleando');
               // El que se queda sin vida se va al suelo.
               if (munecos[encaja]) munecos[encaja].classList.add('cae');
@@ -4936,29 +5101,76 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         campo.addEventListener('input', (ev) => {
           ratios[r] = leerDecimal(ev.target.value);
           refrescar();
+          guardarRatiosPronto();
         });
         // Al salir se deja escrito lo que se ha guardado, ya con punto.
-        campo.addEventListener('blur', () => { campo.value = ratios[r]; });
+        campo.addEventListener('blur', () => {
+          campo.value = ratios[r];
+          if (ratiosPendientes) saveRatios(false);
+        });
         etiquetas.push({ span: fila.querySelector('.real'), r });
         cont.appendChild(fila);
       });
       refrescar();
     }
 
-    async function saveRatios() {
+    // Se guardan solos poco despues de tocarlos, para que no se pierdan al
+    // cerrar la pagina sin pulsar el boton. El boton sigue ahi para quien
+    // quiera guardar ya y ver el aviso.
+    let ratiosPendientes = false;
+    let ratiosTemporizador = null;
+
+    async function saveRatios(repintar) {
       const estado = document.getElementById('ratioStatus');
+      clearTimeout(ratiosTemporizador);
+      ratiosPendientes = false;
       try {
-        ratios = (await api('/api/ratios', {
+        const guardados = (await api('/api/ratios', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ratios })
         })).ratios;
-        renderRatios();
-        estado.textContent = 'Guardado.';
+        // Mientras se guardaba se puede haber seguido escribiendo: en ese caso
+        // manda lo que hay en pantalla, que ya tiene su propio guardado en cola.
+        if (!ratiosPendientes) {
+          ratios = guardados;
+          // Repintar mueve el foco, asi que solo se hace al guardar a mano.
+          if (repintar) renderRatios();
+          if (estado && !estado.textContent) estado.textContent = 'Guardado.';
+        }
       } catch (e) {
-        showAlert('No se pudieron guardar los ratios', e.message);
+        if (repintar) showAlert('No se pudieron guardar los ratios', e.message);
+        else if (estado) estado.textContent = 'No se han podido guardar.';
       }
     }
+
+    function guardarRatiosPronto() {
+      ratiosPendientes = true;
+      clearTimeout(ratiosTemporizador);
+      ratiosTemporizador = setTimeout(() => saveRatios(false), 600);
+    }
+
+    document.getElementById('saveRatios').addEventListener('click', () => saveRatios(true));
+
+    // Si la pagina se cierra o se va al fondo con algo sin guardar, se manda
+    // igualmente: keepalive deja terminar la peticion aunque ya no haya pagina.
+    function volcarRatios() {
+      if (!ratiosPendientes) return;
+      ratiosPendientes = false;
+      clearTimeout(ratiosTemporizador);
+      try {
+        api('/api/ratios', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ratios }),
+          keepalive: true
+        }).catch(() => {});
+      } catch (e) { /* de salida no hay a quien avisar */ }
+    }
+    window.addEventListener('pagehide', volcarRatios);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') volcarRatios();
+    });
 
     // --- Copiar exclusiones y rarezas entre equipos -------------------------
     // Quien ya las tenga personalizadas en local no tiene que rehacerlas: se
