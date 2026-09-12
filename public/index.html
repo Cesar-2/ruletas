@@ -301,7 +301,9 @@
     .cuadro .ronda{flex:1 1 100%;display:flex;flex-direction:column;gap:.5rem}
     /* Los duelos de la ronda, en rejilla: con mucha gente no se hace una
        columna infinita. */
-    .cuadro .duelos{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.5rem}
+    /* Ancho minimo mayor: cada duelo lleva ahora su propio log debajo. */
+    .cuadro .duelos{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.5rem;
+      align-items:start}
     /* Resuelto: fuera el ring, las barras y el relato. Solo queda quien pasa. */
     .cuadro .duelo.resuelto{padding:.3rem .55rem;transition:padding .3s ease}
     .cuadro .duelo.resuelto .ring,
@@ -309,6 +311,9 @@
     .cuadro .duelo.resuelto .vs,
     .cuadro .duelo.resuelto .golpe,
     .cuadro .duelo.resuelto .lado.pierde{display:none}
+    /* El log se queda aunque el duelo acabe: es lo que sirve para repasar
+       que paso. Solo se hace mas bajito, que ya no hay nada que seguir. */
+    .cuadro .duelo.resuelto .lineas{max-height:74px;opacity:.75}
     .cuadro .duelo.resuelto .lado.gana::before{content:'✔';margin-right:.35rem;opacity:.55}
     .cuadro .ronda h4{margin:0 0 .2rem;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
     .cuadro .duelo{padding:.45rem .6rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);font-size:13px}
@@ -465,20 +470,20 @@
     .relato div.fallo{color:var(--muted);font-style:italic}
     .relato div.furia{color:#fb923c;font-weight:600}
     .relato div.aguanta{color:#7dd3fc;font-weight:700}
-    /* El relato de la batalla va por combates, no en una lista seguida: con
-       varios duelos a la vez las lineas se mezclaban y no habia quien
-       siguiera ninguno. Cada combate tiene su caja y su propio scroll. */
-    #batallaRelato{max-height:none;display:grid;gap:.6rem;
-      grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
-    #batallaRelato .ronda-titulo{grid-column:1/-1;margin:0;font-size:12px;
-      text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-    #batallaRelato .combate{border-radius:10px;padding:.45rem .6rem;
-      background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09)}
-    #batallaRelato .combate.gana-ya{border-color:rgba(253,224,71,.45)}
-    #batallaRelato .combate > h5{margin:0 0 .3rem;font-size:12px;font-weight:800;
-      color:#e6eef8;display:flex;align-items:center;gap:.35rem}
-    #batallaRelato .combate > h5 .nadie{color:var(--muted);font-weight:600}
-    #batallaRelato .lineas{max-height:150px;overflow-y:auto}
+    /* El log de cada combate va dentro de su propio duelo, no en una lista
+       aparte: asi cada pelea y lo que se cuenta de ella estan siempre a la
+       misma altura, sin depender de que dos rejillas distintas cuadren. */
+    .cuadro .duelo .lineas{max-height:132px;overflow-y:auto;margin-top:.3rem;
+      padding-top:.3rem;border-top:1px solid rgba(255,255,255,0.09);
+      font-size:11.5px;line-height:1.35;transition:max-height .3s ease,opacity .3s ease}
+    .cuadro .duelo .lineas:empty{display:none}
+    .cuadro .duelo .lineas div{padding:.1rem 0;color:var(--muted)}
+    .cuadro .duelo .lineas div.critico{color:#fbbf24}
+    .cuadro .duelo .lineas div.cae{color:#e6eef8;font-weight:700}
+    .cuadro .duelo .lineas div.lidera{color:#7dd3fc}
+    .cuadro .duelo .lineas div.fallo{color:var(--muted);font-style:italic}
+    .cuadro .duelo .lineas div.furia{color:#fb923c;font-weight:600}
+    .cuadro .duelo .lineas div.aguanta{color:#7dd3fc;font-weight:700}
     /* La lista de los que se han quedado fuera, por rondas. */
     .eliminados{margin-top:.8rem;border-radius:12px;padding:.6rem .8rem;font-size:13px;
       background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)}
@@ -899,7 +904,6 @@
             <div id="batallaCampeon" class="winner-banner" hidden></div>
 
             <div id="batallaCuadro" class="cuadro" hidden></div>
-            <div id="batallaRelato" class="relato" hidden></div>
             <div id="batallaEliminados" class="eliminados" hidden></div>
 
             <div class="controls" style="margin-top:.8rem">
@@ -3688,6 +3692,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
             ${abrirRing(ri, di)}${muneco('a', caido(d.a), d.a)}${muneco('b', caido(d.b), d.b)}<div class="fx"></div></div>
             <div class="golpe"></div>
+            <div class="lineas"></div>
           </div>`;
         }).join('');
         return `<div class="ronda"><h4>${titulo}</h4><div class="duelos">${duelos}</div></div>`;
@@ -4174,20 +4179,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // enseña. Devuelve una promesa que acaba cuando termina el último duelo.
     function contarRonda(ronda, indiceRonda) {
       const cuadro = document.getElementById('batallaCuadro');
-      const relato = document.getElementById('batallaRelato');
-      relato.hidden = false;
-      relato.innerHTML = '';
+      // Ya no hay relato suelto: cada duelo cuenta el suyo dentro de su propia
+      // caja, pegado a la pelea que esta contando.
 
       const conPelea = ronda.duelos.filter((d) => d.b && d.golpes && d.golpes.length);
       if (!conPelea.length) return Promise.resolve();
-
-      // Los duelos se cuentan a la vez, asi que cada uno escribe en su propia
-      // caja: en una lista seguida las lineas de todos se entrelazaban.
-      const cabecera = document.createElement('h4');
-      cabecera.className = 'ronda-titulo';
-      cabecera.textContent = conPelea.length === 1
-        ? 'Final' : `Ronda ${ronda.numero} · ${conPelea.length} combates`;
-      relato.appendChild(cabecera);
 
       // Todos los duelos a la vez, para que no se haga eterno con mucha gente.
       const RITMO = 700;
@@ -4225,21 +4221,20 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           setTimeout(() => s.remove(), dura);
         };
         efecto('letrero pelear', '¡COMBATE!', null, 700);
-        // La caja de este combate, con su titulo y su propio scroll.
-        const bloque = document.createElement('section');
-        bloque.className = 'combate';
-        const titulo = document.createElement('h5');
-        titulo.innerHTML = `⚔️ ${escapeHtml(d.a)} <span class="nadie">vs</span> ${escapeHtml(d.b)}`;
-        bloque.appendChild(titulo);
-        const lineas = document.createElement('div');
-        lineas.className = 'lineas';
-        bloque.appendChild(lineas);
-        relato.appendChild(bloque);
+        // El log de este duelo, dentro de su misma caja.
+        const lineas = caja.querySelector('.lineas');
+        if (lineas) lineas.innerHTML = '';
+        const apunta = (texto, clase) => {
+          if (!lineas) return;
+          const linea = document.createElement('div');
+          if (clase) linea.className = clase;
+          linea.textContent = texto;
+          lineas.appendChild(linea);
+          // Cada duelo sigue lo suyo, sin arrastrar a los demas.
+          lineas.scrollTop = lineas.scrollHeight;
+        };
         // Cada combate se anuncia en el suyo, con la clase de cada uno.
-        const inicio = document.createElement('div');
-        inicio.className = 'lidera';
-        inicio.textContent = `${d.a} (${claseDe(d.a).clase}) contra ${d.b} (${claseDe(d.b).clase}).`;
-        lineas.appendChild(inicio);
+        apunta(`${d.a} (${claseDe(d.a).clase}) contra ${d.b} (${claseDe(d.b).clase}).`, 'lidera');
         // Reiniciar la animación pide sacar la clase, forzar el repintado y
         // volver a ponerla: si no, el segundo golpe seguido no se ve.
         const mover = (quien, como) => {
@@ -4298,30 +4293,23 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               : `${escapeHtml(g.quien)} lanza ${escapeHtml(h.nombre)}` +
                 ` <span class="pum">${escapeHtml(g.a)}: −${g.dano} PdV${g.critico ? ' ¡Golpe crítico!' : ''}</span>`;
 
-            const linea = document.createElement('div');
             const cae = i === d.golpes.length - 1;
-            linea.className = cae ? 'cae'
+            const claseLinea = cae ? 'cae'
               : g.fallo ? 'fallo'
               : g.aguanta ? 'aguanta'
               : g.critico ? 'critico'
               : g.furia ? 'furia' : '';
             // Como el chat de combate del juego: quién lanza qué, y cuántos
             // PdV pierde el otro.
-            linea.textContent = cae
+            apunta(cae
               ? `${g.quien} lanza ${h.nombre}. ${g.a}: −${g.dano} PdV. ${g.a} ha muerto. ¡Victoria de ${d.ganador}!`
               : g.fallo
                 ? `${g.quien} lanza ${h.nombre}, pero ${g.a} lo esquiva.`
                 : `${g.quien} lanza ${h.nombre}. ${g.a}: −${g.dano} PdV (${h.elemento})` +
                   `${g.critico ? '. ¡Golpe crítico!' : ''}${g.furia ? `. ${g.quien} se crece con pocos PdV` : ''}.` +
-                  `${g.aguanta ? ` ¡${g.a} resiste con 1 PdV!` : ''}`;
-            lineas.appendChild(linea);
-            // Cada caja sigue su propio combate, sin arrastrar a las demas.
-            lineas.scrollTop = lineas.scrollHeight;
+                  `${g.aguanta ? ` ¡${g.a} resiste con 1 PdV!` : ''}`, claseLinea);
 
             if (cae) {
-              bloque.classList.add('gana-ya');
-              titulo.innerHTML = `🏆 ${escapeHtml(d.ganador)} <span class="nadie">gana a</span> ` +
-                `${escapeHtml(d.ganador === d.a ? d.b : d.a)}`;
               caja.classList.remove('peleando');
               // El que se queda sin vida se va al suelo.
               if (munecos[encaja]) munecos[encaja].classList.add('cae');
