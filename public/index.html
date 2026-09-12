@@ -1388,6 +1388,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           <div class="config-section">
             <h4>Ratio de salida de cada color</h4>
             <p class="meta">Cuánto sale cada color, tanto en la ruleta de objetos como en los paquetones de invitados. No hace falta que sumen 100: cuenta lo que pesa cada uno frente a los demás. Con todo a cero se sortea sin mirar el color. Son los de este servidor.</p>
+            <p class="meta"><strong>El porcentaje es por objeto, no por sorteo.</strong> Con el rojo al 2%, cada objeto que sale tiene un 2% de ser rojo; si sorteas 10 de golpe, la probabilidad de que <em>alguno</em> sea rojo sube al 18%. Cuantos más objetos por sorteo, más a menudo se ve un color raro.</p>
+            <p class="meta"><strong>Un color sin objetos marcados no sale nunca, y su peso se reparte entre los demás.</strong> Si tienes todo el catálogo marcado de un mismo color, ese color sale siempre por mucho que le bajes el ratio. Marca las rarezas en el catálogo antes de afinar estos números.</p>
             <div id="ratioList" class="ratios-lista"></div>
             <div class="controls">
               <button type="button" id="saveRatios">Guardar ratios</button>
