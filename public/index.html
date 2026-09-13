@@ -569,10 +569,12 @@
     .pista.caballos .calle .bicho{animation:galope .28s steps(2,end) infinite}
     .pista.patos .calle .bicho{animation:contoneo .5s ease-in-out infinite}
     .pista.hormigas .calle .bicho{font-size:16px;animation:trote .12s linear infinite}
+    .pista.larvas .calle .bicho{animation:reptar .55s ease-in-out infinite}
     /* Cada uno se mueve a su manera, para distinguirlos corriendo. */
     @keyframes galope{0%{transform:translateY(0) scaleX(-1)}100%{transform:translateY(-3px) scaleX(-1)}}
     @keyframes contoneo{0%,100%{transform:rotate(-9deg) scaleX(-1)}50%{transform:rotate(9deg) scaleX(-1)}}
     @keyframes trote{0%,100%{transform:translateY(0) scaleX(-1)}50%{transform:translateY(-1px) scaleX(-1)}}
+    @keyframes reptar{0%,100%{transform:scaleX(-1) scale(1,1)}50%{transform:scaleX(-1) scale(.82,1.15)}}
     /* Con la carrera parada no hay pataleo: se quedan quietos. */
     .pista.parada .calle .bicho{animation:none;transform:scaleX(-1)}
     /* Los caballos van dibujados, no en emoji: asi cada uno lleva su color y
@@ -658,12 +660,81 @@
     @keyframes haz{from{opacity:.4}to{opacity:.65}}
     .pista.parada .hormiga,.pista.parada .hormiga .pata{animation:none}
 
+
+    /* Larvas: la manzana partida por la mitad. Cada calle es un tunel mordido
+       en la pulpa y la meta es el corazon con las pepas. Aqui nadie corre: se
+       arrastran encogiendose y estirandose. */
+    /* La pista es la manzana partida por la mitad: cascara roja arriba y
+       abajo, y en medio la pulpa, con sus vetas, sus magulladuras marrones y
+       alguna pepa suelta. */
+    .pista.larvas{padding:22px .8rem;border-color:rgba(159,18,57,.55);
+      background:
+        url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20120%20130%22%3E%3Cg%20fill%3D%22%239f1239%22%20fill-opacity%3D%22.22%22%3E%3Cpath%20d%3D%22M60%2026c8-10%2022-12%2030-6%209%207%2012%2022%208%2040-4%2019-14%2038-24%2048-6%206-10%208-14%208s-8-2-14-8c-10-10-20-29-24-48-4-18-1-33%208-40%208-6%2022-4%2030%206z%22%2F%3E%3Cpath%20d%3D%22M57%2028c-2-12%202-22%208-26%201%208-1%2018-4%2026z%22%2F%3E%3Cpath%20d%3D%22M64%2018c8-12%2022-16%2032-13-2%2011-13%2021-26%2022-3%200-5-3-6-9z%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%237f1d1d%22%20stroke-opacity%3D%22.3%22%20stroke-width%3D%222.5%22%3E%3Cpath%20d%3D%22M60%2026c8-10%2022-12%2030-6%209%207%2012%2022%208%2040-4%2019-14%2038-24%2048-6%206-10%208-14%208s-8-2-14-8c-10-10-20-29-24-48-4-18-1-33%208-40%208-6%2022-4%2030%206z%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22%2378350f%22%20fill-opacity%3D%22.3%22%3E%3Cellipse%20cx%3D%2255%22%20cy%3D%2266%22%20rx%3D%224%22%20ry%3D%226.5%22%2F%3E%3Cellipse%20cx%3D%2267%22%20cy%3D%2272%22%20rx%3D%224%22%20ry%3D%226.5%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") center/auto 84% no-repeat,
+        radial-gradient(ellipse 7px 4px at 18% 30%,rgba(120,53,15,.3) 60%,transparent 70%) 0 0/130px 90px,
+        radial-gradient(ellipse 5px 3px at 72% 78%,rgba(120,53,15,.22) 60%,transparent 70%) 0 0/170px 110px,
+        repeating-linear-gradient(102deg,rgba(180,83,9,.09) 0 1px,transparent 1px 13px),
+        repeating-linear-gradient(78deg,rgba(255,255,255,.5) 0 1px,transparent 1px 17px),
+        linear-gradient(180deg,#fffbeb,#fdecc8 55%,#f8dba4)}
+    /* La cascara de arriba, con el borde mordido. */
+    .pista.larvas::before{content:'';position:absolute;left:0;right:0;top:0;height:16px;z-index:1;
+      background:radial-gradient(circle at 9px 16px,transparent 0 7px,#be123c 7px) 0 0/18px 16px,
+        linear-gradient(180deg,#e11d48,#9f1239)}
+    /* Y la de abajo, la misma mordida del reves. */
+    .pista.larvas .calle:last-child::after{content:'';position:absolute;left:-999px;right:-999px;
+      top:100%;margin-top:6px;height:16px;z-index:1;pointer-events:none;
+      background:radial-gradient(circle at 9px 0,transparent 0 7px,#be123c 7px) 0 0/18px 16px,
+        linear-gradient(0deg,#e11d48,#9f1239)}
+    /* Los tuneles son mordiscos en la pulpa, no tablas: se dejan ver la
+       manzana del fondo, que si no la taparian entera. */
+    .pista.larvas .calle{margin-bottom:6px;border:none;border-radius:14px;
+      background:linear-gradient(180deg,rgba(120,53,15,.42),rgba(146,64,14,.3));
+      box-shadow:inset 0 4px 7px rgba(69,26,3,.45),inset 0 -2px 4px rgba(255,255,255,.35)}
+    .pista.larvas .calle:first-child,.pista.larvas .calle:last-child{border:none}
+    .pista.larvas .calle:last-child{margin-bottom:0}
+    .pista.larvas .calle .quien{color:#fff7ed}
+    /* El mordisco por donde han entrado: la cascara roja de la manzana. */
+    .pista.larvas .calle::before{left:0;width:26px;border-radius:14px 0 0 14px;
+      background:linear-gradient(90deg,#be123c,#9f1239 60%,rgba(69,26,3,.55))}
+    /* La meta es el corazon de la manzana, con sus pepas. */
+    .pista.larvas .calle .meta-linea{right:0;width:30px;border-radius:0 14px 14px 0;
+      background:radial-gradient(ellipse 5px 3px at 40% 35%,#44403c 60%,transparent 70%),
+        radial-gradient(ellipse 5px 3px at 60% 70%,#44403c 60%,transparent 70%),
+        linear-gradient(90deg,rgba(254,249,195,0),#fef9c3)}
+    .pista.larvas .calle.gana{background:linear-gradient(90deg,rgba(120,53,15,.42),rgba(132,204,22,.55))}
+    /* Lo que dejan al pasar: un rastro de pulpa mordida. */
+    .pista.larvas .calle .bola.dibujo::before{height:6px;margin-top:3px;border-radius:3px;
+      background:linear-gradient(90deg,rgba(180,83,9,0),rgba(180,83,9,.45))}
+    .larva{display:block;width:42px;height:30px;overflow:visible;transform-origin:0 50%;
+      animation:arrastre .55s ease-in-out infinite}
+    .larva .anillo{transform-box:fill-box;transform-origin:center;animation:onda-larva .55s ease-in-out infinite}
+    .larva .anillo.b{animation-delay:-.09s}
+    .larva .anillo.c{animation-delay:-.18s}
+    .larva .anillo.d{animation-delay:-.27s}
+    .larva .pelo{transform-box:fill-box;transform-origin:50% 100%;animation:pelos .55s ease-in-out infinite}
+    .larva .pelo.b{animation-delay:-.12s}
+    .larva .pelo.c{animation-delay:-.24s}
+    /* Se encoge por detras y estira por delante, como una oruga de verdad. */
+    @keyframes arrastre{0%,100%{transform:scale(1,1)}45%{transform:scale(.86,1.12)}70%{transform:scale(1.05,.95)}}
+    @keyframes onda-larva{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-1.5px) scale(1.12)}}
+    @keyframes pelos{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(12deg)}}
+    /* La que tropieza se enrosca como una bolita. */
+    .pista.larvas .calle .bola.tropieza svg{animation:enrosque .4s ease-in-out}
+    @keyframes enrosque{0%,100%{transform:rotate(0) scale(1)}50%{transform:rotate(-25deg) scale(.8)}}
+    /* Paradas siguen respirando, pero no avanzan. */
+    .pista.parada .larva{animation-duration:2s}
+    .pista.parada .larva .anillo,.pista.parada .larva .pelo{animation:none}
+
     .pista.llena .calle .bola.dibujo{width:25px;height:18px}
-    .pista.llena .caballo,.pista.llena .pato,.pista.llena .hormiga{width:25px;height:18px}
-    .pista.llena.hormigas .calle{margin-bottom:3px;border-radius:9px}
+    .pista.llena .caballo,.pista.llena .pato,.pista.llena .hormiga,.pista.llena .larva{width:25px;height:18px}
+    .pista.llena.hormigas .calle,.pista.llena.larvas .calle{margin-bottom:3px;border-radius:9px}
+    /* Con mucha gente la manzana se estrecha: cascara mas fina y menos hueco. */
+    .pista.llena.larvas{padding:13px .8rem}
+    .pista.llena.larvas::before{height:9px;background-size:12px 9px,auto}
+    .pista.llena.larvas .calle:last-child::after{margin-top:4px;height:9px;background-size:12px 9px,auto}
     @media (prefers-reduced-motion:reduce){
       .caballo,.caballo .pata,.caballo .cola,.pato,.pato .ala,.pato .onda,
-      .hormiga,.hormiga .pata,.hormiga .antena,.pista.patos .calle,.pista.hormigas .calle .meta-linea{animation:none !important}
+      .hormiga,.hormiga .pata,.hormiga .antena,.pista.patos .calle,.pista.hormigas .calle .meta-linea,
+      .larva,.larva .anillo,.larva .pelo{animation:none !important}
     }
     /* Jugar y cancelar no se buscan: estan siempre en la esquina, encima de
        todo. Cada juego tiene la suya, dentro de su panel. */
@@ -1368,6 +1439,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                     <option value="caballos">🐎 Caballos</option>
                     <option value="patos">🦆 Patos</option>
                     <option value="hormigas">🐜 Hormigas</option>
+                    <option value="larvas">🐛 Larvas</option>
                   </select>
                 </div>
                 <div class="config-field">
@@ -4416,7 +4488,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // --- Carrera de balineras ---------------------------------------------
     // Quien corre la carrera, según lo elegido en Configuración > Minijuegos.
-    const BICHOS = { caballos: '🐎', patos: '🦆', hormigas: '🐜' };
+    const BICHOS = { caballos: '🐎', patos: '🦆', hormigas: '🐜', larvas: '🐛' };
     const COLORES_BOLA = ['#6ee7b7', '#7dd3fc', '#c084fc', '#fbbf24', '#fb7185',
       '#34d399', '#93c5fd', '#f0abfc', '#f97316', '#a3e635'];
     let carrera = { abierta: false, corredores: [], resultado: [], escuchando: '' };
@@ -4675,6 +4747,35 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       </svg>`;
     }
 
+    // Una larva gordita arrastrandose por el tunel de la manzana: los anillos
+    // le recorren el cuerpo de atras a delante, como cuando reptan de verdad.
+    function larvaSvg(piel, gorro, dorsal) {
+      return `<svg class="larva" viewBox="0 0 48 30" style="color:${piel}" aria-hidden="true">
+        <ellipse cx="24" cy="27.5" rx="19" ry="1.8" fill="#78350f" opacity=".35"/>
+        <g stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none" opacity=".8">
+          <path class="pelo" d="M10 11 L9 6"/>
+          <path class="pelo b" d="M18 9 L18 4"/>
+          <path class="pelo c" d="M26 9 L27 4"/>
+        </g>
+        <g fill="currentColor">
+          <ellipse class="anillo d" cx="8" cy="18" rx="6" ry="5.4"/>
+          <ellipse class="anillo c" cx="15" cy="17.5" rx="6.4" ry="6"/>
+          <ellipse class="anillo b" cx="22" cy="17.5" rx="6.4" ry="6"/>
+          <ellipse class="anillo" cx="29" cy="17" rx="6.4" ry="6"/>
+          <circle cx="37" cy="16" r="6.6"/>
+        </g>
+        <ellipse cx="18" cy="13" rx="12" ry="2.6" fill="#fff" opacity=".32"/>
+        <ellipse cx="20" cy="22" rx="13" ry="2.6" fill="#000" opacity=".2"/>
+        <ellipse cx="35" cy="12" rx="3" ry="1.4" fill="#fff" opacity=".4"/>
+        <text x="19" y="20" font-size="6.5" font-weight="800" text-anchor="middle" fill="#021018">${dorsal}</text>
+        <path d="M30.4 15 A6.6 6.6 0 0 1 43.6 15 Z" fill="${gorro}"/>
+        <path d="M32 13.5 A5 5 0 0 1 38 11.5" stroke="#fff" stroke-width="1" fill="none" opacity=".4"/>
+        <circle cx="40" cy="16.5" r="1.2" fill="#0b0b0b"/>
+        <circle cx="40.4" cy="16.1" r=".35" fill="#fff"/>
+        <path d="M36 20.5 Q38.5 22.5 41 20.5" stroke="#0b0b0b" stroke-width=".9" fill="none" stroke-linecap="round"/>
+      </svg>`;
+    }
+
     function dibujarPista() {
       const pista = document.getElementById('carreraPista');
       pista.hidden = false;
@@ -4690,7 +4791,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         calle.dataset.clave = c.clave;
         const color = COLORES_BOLA[i % COLORES_BOLA.length];
         // Cada bicho va dibujado y de su color, con el dorsal de su calle.
-        const dibujo = { caballos: caballoSvg, patos: patoSvg, hormigas: hormigaSvg }[bicho];
+        const dibujo = { caballos: caballoSvg, patos: patoSvg, hormigas: hormigaSvg, larvas: larvaSvg }[bicho];
         const dentro = dibujo(color, COLORES_BOLA[(i + 3) % COLORES_BOLA.length], i + 1);
         calle.innerHTML = `
           <span class="bola dibujo">${dentro}</span>

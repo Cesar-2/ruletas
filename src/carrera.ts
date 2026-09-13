@@ -46,7 +46,7 @@ const TICKS_MIN = 24;
 const TICKS_MAX = 160;
 
 // Quien corre. El resultado es el mismo con todos: solo cambia el bicho.
-export const ANIMACIONES = ['caballos', 'patos', 'hormigas'] as const;
+export const ANIMACIONES = ['caballos', 'patos', 'hormigas', 'larvas'] as const;
 export type Animacion = typeof ANIMACIONES[number];
 
 // Los puntos se los lleva solo quien gana; el resto corre por el honor.
