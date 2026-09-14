@@ -114,6 +114,12 @@
     /* Sin nombre (un sorteo de varios objetos) el texto es largo: se encoge
        para que no reviente la caja, pero la caja es la misma. */
     .ganador-grande.sin-nombre .quien-gana{font-size:30px}
+    @media (max-width:640px){
+      .pista,.pista.llena{padding-left:2rem}
+      .pista.hormigas{padding-left:2rem}
+      .pista.larvas{padding-left:2rem}
+      .calle .bola .quien{max-width:4.5rem;font-size:10px}
+    }
     @media (max-width:640px){.ganador-grande .quien-gana{font-size:34px}.ganador-grande .corona{font-size:36px}
       .ganador-grande.sin-nombre .quien-gana{font-size:24px}}
     .value-total{margin-top:.8rem;padding:.6rem .9rem;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);font-size:17px;font-weight:600}
@@ -584,19 +590,32 @@
     .eliminados .caido .contra{color:var(--muted);font-size:12px}
     /* La pista: una calle por corredor y la balinera que la recorre. */
     /* Un hipodromo: cesped alrededor, calles de tierra, salida y meta a cuadros. */
-    .pista{position:relative;margin-top:1rem;padding:.8rem;border-radius:12px;overflow:hidden;
+    /* Hueco a la izquierda para las etiquetas: los nombres viven ahi mientras
+       los corredores estan en la salida, y no se recortan contra el borde. */
+    .pista{position:relative;margin-top:1rem;padding:.8rem .8rem .8rem 3.5rem;border-radius:12px;overflow:hidden;
       background:repeating-linear-gradient(90deg,#14532d 0 40px,#166534 40px 80px);
       border:2px solid rgba(255,255,255,0.14);box-shadow:inset 0 0 30px rgba(2,6,23,.55)}
     .pista[hidden]{display:none}
-    .calle{position:relative;height:30px;border-radius:4px;overflow:visible;
-      background:linear-gradient(180deg,#8b6b47,#7a5c3b);
-      border-bottom:2px dashed rgba(255,255,255,0.35);transition:background .4s ease}
-    .calle:first-child{border-top:2px solid rgba(255,255,255,0.5)}
-    .calle:last-child{border-bottom:2px solid rgba(255,255,255,0.5)}
+    /* Ya no hay carriles: el escenario lo pone la pista entera y cada fila es
+       solo el sitio por donde pasa uno. Se solapan a proposito, para que se
+       pisen y se lea como un peloton visto de lado en vez de como cuatro
+       barras de progreso. */
+    .calle{position:relative;height:46px;margin-bottom:-4px;background:none;border:none;
+      overflow:visible}
+    .calle:last-child{margin-bottom:0}
     /* La salida: una raya blanca justo detras de las fichas. */
-    .calle::before{content:'';position:absolute;left:28px;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.55)}
-    .calle .quien{position:absolute;left:38px;top:0;line-height:30px;font-size:13px;font-weight:600;
-      color:rgba(255,255,255,0.8);white-space:nowrap;z-index:1;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+    /* La etiqueta con el nombre va detras de la cola y le sigue a todas
+       partes, con un pico que apunta a su dueño. Detras y no encima: encima se
+       pisan unas a otras en cuanto dos van emparejados. */
+    .calle .bola .quien{position:absolute;right:100%;top:50%;transform:translateY(-50%);
+      margin-right:7px;padding:1px .4rem;border-radius:6px;font-size:11px;font-weight:700;line-height:14px;
+      color:#0b1220;background:rgba(248,250,252,.94);white-space:nowrap;pointer-events:none;
+      box-shadow:0 2px 6px rgba(2,6,23,.5);max-width:8.5rem;overflow:hidden;text-overflow:ellipsis}
+    /* El pico de la etiqueta, apuntando al bicho. */
+    .calle .bola .quien::after{content:'';position:absolute;left:100%;top:50%;margin-top:-4px;
+      border:4px solid transparent;border-left-color:rgba(248,250,252,.94)}
+    .pista.llena .calle .bola .quien{font-size:9px;line-height:12px;padding:0 .25rem;margin-right:5px;max-width:6rem}
+    .pista.llena .calle .bola .quien::after{border-width:3px;margin-top:-3px}
     .calle .bola{position:absolute;left:3px;top:4px;width:22px;height:22px;border-radius:50%;z-index:3;
       box-shadow:0 0 0 1px rgba(255,255,255,0.35) inset, 0 2px 6px rgba(2,6,23,.6);
       transform:translateX(0);transition:transform 0s linear;
@@ -616,35 +635,170 @@
     .calle .bola.lider{box-shadow:0 0 0 2px #fde047, 0 0 16px rgba(253,224,71,.85)}
     .calle .bola.lider::after{content:'👑';position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:12px;line-height:1}
     /* El puesto en vivo, pegado a la meta. */
-    .calle .pos{position:absolute;right:16px;top:50%;transform:translateY(-50%);z-index:2;min-width:26px;
+    .calle .bola .pos{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:1px;z-index:2;min-width:20px;
       padding:0 .3rem;border-radius:999px;font-size:11px;font-weight:800;line-height:18px;text-align:center;
       color:#021018;background:rgba(255,255,255,0.75);transition:background .2s}
     .calle .pos:empty{display:none}
     .calle .pos.p1{background:#fde047}
     .calle .pos.p2{background:#e2e8f0}
     .calle .pos.p3{background:#f59e0b}
-    .calle .meta-linea{position:absolute;right:4px;top:0;bottom:0;width:8px;
-      background:conic-gradient(#fff 25%,#111 0 50%,#fff 0 75%,#111 0) 0 0/8px 8px}
-    .calle.llega .quien{color:#fff}
-    .calle.gana{background:linear-gradient(90deg,#8b6b47,#ca8a04)}
-    /* La cuenta atras antes de salir. */
-    .pista .semaforo{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;
-      font-size:64px;font-weight:900;color:#fff;background:rgba(2,6,23,.45);text-shadow:0 4px 20px rgba(0,0,0,.9);pointer-events:none}
-    .pista .semaforo span{animation:cuenta .6s cubic-bezier(.2,1.5,.4,1)}
+    /* La meta cruza la pista entera, como en una carrera de verdad. */
+    /* Las calles viven aqui dentro: la salida y la meta se estiran justo por
+       donde se corre, sin invadir la orilla ni repetirse fila a fila. */
+    .carriles{position:relative;z-index:1}
+    /* La barrera de salida: dos hojas que se abren de par en par al arrancar y
+       se cierran solas al preparar otra carrera. Una sola para todos. */
+    .salida{position:absolute;left:0;top:-6px;bottom:-6px;width:50px;z-index:4;
+      pointer-events:none;overflow:hidden}
+    .pista.patos .salida{width:64px}
+    .pista.llena .salida{width:30px}
+    .salida i{position:absolute;left:0;right:0;height:50%;
+      background:repeating-linear-gradient(45deg,#ef4444 0 9px,#f8fafc 9px 18px);
+      border-right:3px solid #b91c1c;box-shadow:inset 0 0 0 1px rgba(2,6,23,.25);
+      transition:transform .6s cubic-bezier(.6,-0.2,.3,1.4)}
+    .salida i:first-child{top:0;border-bottom:2px solid #b91c1c}
+    .salida i:nth-child(2){bottom:0;border-top:2px solid #b91c1c}
+    /* La raya de salida, que se queda cuando la barrera ya se ha ido. */
+    .salida b{position:absolute;right:0;top:0;bottom:0;width:3px;
+      background:rgba(255,255,255,.75);box-shadow:0 0 8px rgba(255,255,255,.45)}
+    /* Abierta: cada hoja se va por su lado hasta perderse de vista. */
+    .pista:not(.parada) .salida i:first-child{transform:translateY(-102%)}
+    .pista:not(.parada) .salida i:nth-child(2){transform:translateY(102%)}
+    @media (prefers-reduced-motion:reduce){.salida i{transition:none}}
+    .decorado{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;border-radius:10px}
+    .decorado > *{position:absolute}
+
+    /* --- La orilla: cesped arriba y abajo, con sus juncos --------------- */
+    /* Se estiran de lado a lado desbordando la pista, que ya recorta ella.
+       Las cuatro carreras tienen su borde: el cesped del rio, la valla del
+       prado, la roca de la cueva y la cascara de la manzana. */
+    .orilla{position:absolute;left:-12rem;right:-2rem;height:16px;z-index:0;
+      background:linear-gradient(180deg,#4d7c0f,#3f6212)}
+    /* El prado: vallas blancas arriba y abajo. */
+    .pista.caballos .orilla{height:14px;
+      background:repeating-linear-gradient(90deg,#e2e8f0 0 5px,transparent 5px 30px),
+        linear-gradient(180deg,transparent 35%,#e2e8f0 35% 55%,transparent 55%),#166534}
+    .pista.caballos .orilla::after{display:none}
+    /* La cueva: roca con estalactitas hacia dentro. */
+    .pista.hormigas .orilla{height:15px;background:linear-gradient(180deg,#1c1917,#0c0a09)}
+    .pista.hormigas .orilla::after{height:11px;
+      background:linear-gradient(135deg,#0c0a09 50%,transparent 50%) 0 0/14px 11px,
+        linear-gradient(225deg,#0c0a09 50%,transparent 50%) 0 0/14px 11px}
+    /* La manzana: la cascara mordida, arriba y abajo. */
+    .pista.larvas .orilla{height:15px;background:linear-gradient(180deg,#e11d48,#9f1239)}
+    .pista.larvas .orilla::after{height:8px;
+      background:radial-gradient(circle at 8px 0,transparent 0 6px,#be123c 6px) 0 0/16px 8px}
+    .pista.larvas .orilla.abajo::after{background:radial-gradient(circle at 8px 8px,transparent 0 6px,#be123c 6px) 0 0/16px 8px}
+    .orilla.arriba{bottom:100%;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25),0 3px 8px rgba(2,6,23,.45)}
+    .orilla.abajo{top:100%;background:linear-gradient(0deg,#4d7c0f,#3f6212);
+      box-shadow:inset 0 3px 0 rgba(0,0,0,.25),0 -3px 8px rgba(2,6,23,.45)}
+    /* Los juncos asoman hacia el agua, alternando a lo largo de la orilla. */
+    .orilla::after{content:'';position:absolute;left:0;right:0;height:9px;
+      background:
+        radial-gradient(ellipse 3px 9px at 6px 100%,#65a30d 60%,transparent 65%) 0 0/34px 9px,
+        radial-gradient(ellipse 2px 7px at 20px 100%,#4d7c0f 60%,transparent 65%) 0 0/27px 9px}
+    .orilla.arriba::after{top:100%}
+    .orilla.abajo::after{bottom:100%;transform:scaleY(-1)}
+
+    /* --- Nubes que cruzan el cielo despacio ----------------------------- */
+    .nube{height:13px;border-radius:999px;background:rgba(255,255,255,.75);z-index:2;
+      box-shadow:10px -5px 0 -2px rgba(255,255,255,.7),22px 1px 0 -3px rgba(255,255,255,.68);
+      animation:pasaNube 44s linear infinite}
+    @keyframes pasaNube{from{transform:translateX(0)}to{transform:translateX(-140%)}}
+
+    /* --- Nenufares flotando --------------------------------------------- */
+    .nenufar{border-radius:50%;background:radial-gradient(circle at 35% 30%,#65a30d,#3f6212);
+      box-shadow:inset -2px -3px 4px rgba(0,0,0,.3);animation:mece 5s ease-in-out infinite}
+    /* La muesca que los hace hoja y no moneda. */
+    .nenufar::before{content:'';position:absolute;right:8%;top:44%;width:46%;height:12%;
+      background:inherit;filter:none;background:rgba(8,145,178,.85);transform:rotate(-12deg)}
+    /* Alguno lleva flor. */
+    .nenufar i{position:absolute;left:24%;top:16%;width:38%;height:38%;border-radius:50%;
+      background:radial-gradient(circle at 50% 50%,#fde047 0 28%,#f9a8d4 30%,#ec4899);
+      box-shadow:0 1px 3px rgba(2,6,23,.5)}
+    @keyframes mece{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-3px) rotate(3deg)}}
+
+    /* --- Algun pez que asoma y se vuelve a hundir ----------------------- */
+    .pez{left:30%;top:64%;width:13px;height:7px;border-radius:50% 30% 30% 50%;
+      background:#fbbf24;opacity:0;animation:asoma 13s ease-in-out infinite}
+    .pez::after{content:'';position:absolute;right:-5px;top:1px;border:3px solid transparent;
+      border-right-color:#f59e0b}
+    .pez.b{left:68%;top:31%;background:#fb7185;animation-delay:6.5s}
+    .pez.b::after{border-right-color:#f43f5e}
+    @keyframes asoma{0%,84%,100%{opacity:0;transform:translateY(6px)}
+      88%,95%{opacity:.9;transform:translateY(0)}}
+
+
+    /* --- Goteras de la cueva de las hormigas ----------------------------- */
+    .gota{top:14px;width:4px;height:7px;border-radius:0 0 50% 50%;background:rgba(165,243,252,.75);
+      animation:cae 5.5s ease-in infinite}
+    @keyframes cae{0%,55%{transform:translateY(0) scaleY(.6);opacity:0}
+      60%{opacity:.9;transform:translateY(0) scaleY(1)}
+      95%,100%{transform:translateY(180px) scaleY(1.5);opacity:0}}
+
+    /* --- Pepitas sueltas en la pulpa de la manzana ----------------------- */
+    .pepita{width:7px;height:10px;border-radius:50% 50% 45% 45%;background:#57534e;
+      box-shadow:inset -1px -1px 2px rgba(0,0,0,.4);opacity:.55;transform:rotate(18deg)}
+
+    @media (prefers-reduced-motion:reduce){
+      .nube,.nenufar,.pez,.gota{animation:none !important}
+      .pez{opacity:.9}
+    }
+    .meta-global{position:absolute;right:0;top:-6px;bottom:-6px;width:10px;z-index:2;pointer-events:none;
+      background:repeating-linear-gradient(180deg,#fff 0 8px,#0b1220 8px 16px);
+      box-shadow:0 0 10px rgba(255,255,255,.35)}
+    .pista.patos .meta-global{background:repeating-linear-gradient(180deg,#fff 0 8px,#be123c 8px 16px)}
+    .pista.hormigas .meta-global{background:linear-gradient(90deg,transparent,rgba(254,243,199,.9));
+      width:26px;box-shadow:none;animation:luzFinal 1.6s ease-in-out infinite alternate}
+    /* La luz del final del tunel, que es la meta de las hormigas. */
+    @keyframes luzFinal{from{opacity:.65}to{opacity:1}}
+    .pista.larvas .meta-global{background:radial-gradient(ellipse 5px 3px at 50% 30%,#44403c 60%,transparent 70%),
+      radial-gradient(ellipse 5px 3px at 50% 70%,#44403c 60%,transparent 70%),
+      linear-gradient(90deg,rgba(254,249,195,0),#fef9c3);width:24px;box-shadow:none}
+    /* La cuenta atras antes de salir. Va por encima de los corredores, que
+       ahora llevan su propio z-index para taparse entre ellos. */
+    .pista .semaforo{position:absolute;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;
+      font-size:64px;font-weight:900;color:#fff;background:rgba(2,6,23,.45);
+      text-shadow:0 4px 20px rgba(0,0,0,.9);pointer-events:none}
+    .pista .semaforo{flex-direction:column;gap:.5rem}
+    .pista .semaforo .num b{display:block;animation:cuenta .6s cubic-bezier(.2,1.5,.4,1)}
+    /* Las tres luces de la salida: roja, ambar y verde. */
+    .pista .semaforo .luces{display:flex;gap:.7rem}
+    .pista .semaforo .luces i{width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.14);
+      box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+    .pista .semaforo .luces i.on:nth-child(1){background:#ef4444;box-shadow:0 0 12px #ef4444}
+    .pista .semaforo .luces i.on:nth-child(2){background:#fbbf24;box-shadow:0 0 12px #fbbf24}
+    .pista .semaforo .luces i.on:nth-child(3){background:#4ade80;box-shadow:0 0 14px #4ade80}
+    /* Lo que levantan al salir todos de golpe: agua, polvo o tierra, segun
+       donde se corra. */
+    .chapuzon{position:absolute;left:-6px;right:-6px;top:50%;height:18px;margin-top:-9px;z-index:-1;
+      pointer-events:none;border-radius:50%;
+      background:radial-gradient(ellipse at center,rgba(255,255,255,.95),rgba(255,255,255,0) 70%);
+      animation:salpica .9s ease-out forwards}
+    .pista.caballos .chapuzon{background:radial-gradient(ellipse at center,rgba(222,196,160,.95),rgba(222,196,160,0) 70%)}
+    .pista.hormigas .chapuzon{background:radial-gradient(ellipse at center,rgba(161,98,7,.9),rgba(161,98,7,0) 70%)}
+    .pista.larvas .chapuzon{background:radial-gradient(ellipse at center,rgba(253,230,138,.9),rgba(253,230,138,0) 70%)}
+    @keyframes salpica{0%{transform:scale(.3);opacity:0}25%{opacity:.95}100%{transform:scale(2.4);opacity:0}}
+    @media (prefers-reduced-motion:reduce){.chapuzon{display:none}}
     .pista .semaforo.ya{color:#6ee7b7;background:transparent;animation:seVa .5s ease-out forwards}
     @keyframes cuenta{0%{transform:scale(2.2);opacity:0}100%{transform:scale(1);opacity:1}}
     @keyframes seVa{to{opacity:0;transform:scale(1.4)}}
     /* Foto finish: un fogonazo al cruzar el primero. */
-    .pista.foto::after{content:'';position:absolute;inset:0;z-index:6;background:#fff;pointer-events:none;animation:flash .5s ease-out forwards}
+    .pista.foto::after{content:'';position:absolute;inset:0;z-index:95;background:#fff;
+      pointer-events:none;animation:flash .5s ease-out forwards}
     @keyframes flash{0%{opacity:.85}100%{opacity:0}}
+    /* Al cruzar la meta, el nombre se enciende; y el ganador se queda con una
+       aureola dorada, que ya no hay carril que pintar de otro color. */
+    .calle.llega .bola .quien{color:#fff;background:rgba(2,6,23,.9)}
+    .calle.gana .bola .quien{color:#021018;background:#fde047}
+    .calle.gana .bola svg{filter:drop-shadow(0 0 4px #fde047) drop-shadow(0 0 12px rgba(253,224,71,.8))}
     /* Con mucha gente las calles adelgazan: caben todos sin una pagina eterna. */
+    .pista.llena{padding-left:2.5rem}
     .pista.llena .calle{height:18px;border-bottom-width:1px}
     .pista.llena .calle .bola{width:14px;height:14px;top:2px}
     .pista.llena .calle .bola::after{display:none}
     .pista.llena .calle .bicho{font-size:12px;line-height:14px}
-    .pista.llena .calle .quien{left:34px;line-height:18px;font-size:11px}
-    .pista.llena .calle::before{left:20px}
-    .pista.llena .calle .pos{font-size:9px;line-height:13px;min-width:20px}
+    .pista.llena .calle .bola .pos{font-size:9px;line-height:13px;min-width:18px}
     @media (prefers-reduced-motion:reduce){
       .pista .semaforo span,.pista.foto::after,.calle .bola.tropieza .bicho{animation:none !important}
     }
@@ -664,11 +818,11 @@
     .pista.parada .calle .bicho{animation:none;transform:scaleX(-1)}
     /* Los caballos van dibujados, no en emoji: asi cada uno lleva su color y
        se le da volumen con luces y sombras. La ficha deja de ser una bola. */
-    .pista .calle .bola.dibujo{width:42px;height:30px;top:0;left:0;border-radius:0;
+    .pista .calle .bola.dibujo{width:56px;height:40px;top:0;left:0;border-radius:0;
       background:transparent !important;box-shadow:none !important}
     .pista .calle .bola.dibujo::before{right:75%}
     .pista .calle .bola.dibujo::after{top:-8px;left:62%}
-    .caballo{display:block;width:42px;height:30px;overflow:visible;animation:galopa .3s ease-in-out infinite}
+    .caballo{display:block;width:56px;height:40px;overflow:visible;animation:galopa .3s ease-in-out infinite}
     .caballo .pata{transform-box:fill-box;transform-origin:50% 0;animation:zancada .3s ease-in-out infinite}
     .caballo .pata.b{animation-delay:-.15s}
     .caballo .cola{transform-box:fill-box;transform-origin:100% 0;animation:coletazo .3s ease-in-out infinite}
@@ -681,24 +835,67 @@
     .calle .bola.turbo svg{filter:drop-shadow(0 0 3px #6ee7b7) drop-shadow(0 0 6px rgba(110,231,183,.8))}
     .calle .bola.tropieza svg{filter:drop-shadow(0 0 3px #f87171);animation:tambalea .3s ease-in-out}
     @keyframes tambalea{0%,100%{transform:rotate(0)}30%{transform:rotate(18deg) translateY(2px)}70%{transform:rotate(-10deg)}}
-    /* Patos: una piscina. El agua se mueve siempre, haya carrera o no. */
-    .pista.patos{background:linear-gradient(180deg,#0369a1,#075985);border-color:rgba(125,211,252,.35)}
-    .pista.patos .calle{border-radius:0;border-bottom:3px dotted #f87171;
-      background:radial-gradient(ellipse 9px 2px at 50% 50%,rgba(255,255,255,.35) 60%,transparent 70%) 0 0/36px 12px,
-        linear-gradient(180deg,rgba(56,189,248,.45),rgba(14,116,144,.55));
-      animation:olas 3s linear infinite}
-    .pista.patos .calle:first-child{border-top:3px dotted #f87171}
-    .pista.patos .calle:last-child{border-bottom:3px dotted #f87171}
-    @keyframes olas{to{background-position:-72px 0,0 0}}
-    /* La salida es un muelle de madera. */
-    .pista.patos .calle::before{left:0;width:24px;background:repeating-linear-gradient(90deg,#92400e 0 5px,#78350f 5px 6px)}
+    /* Patos: una piscina de aguas turquesa. El agua se mueve siempre, haya
+       carrera o no, y lo hace en tres capas a distinta velocidad: las de abajo
+       casi no corren y las de arriba vuelan, que es lo que da sensacion de
+       profundidad en vez de un dibujo que se desliza. */
+    .pista.patos{border-color:rgba(103,232,249,.5);
+      padding-top:18px;padding-bottom:18px;
+      background:linear-gradient(180deg,#0891b2 0%,#0e7490 45%,#155e75 100%)}
+    .pista.llena.patos{padding-top:17px;padding-bottom:17px}
+    /* El sol encima del agua: una mancha clara que respira. */
+    .pista.patos .decorado::after{content:'';position:absolute;inset:0;
+      background:radial-gradient(ellipse 60% 40% at 30% 0%,rgba(165,243,252,.28),transparent 70%);
+      animation:solAgua 9s ease-in-out infinite alternate}
+    @keyframes solAgua{from{opacity:.55}to{opacity:1}}
+    /* El oleaje va sobre el agua de toda la piscina, no por calle: los patos
+       nadan todos en la misma lamina. */
+    /* El oleaje son tres capas que se deslizan, cada una a su ritmo y con su
+       dibujo. Se mueven con transform y no con la posicion del fondo: asi lo
+       lleva la tarjeta grafica y va suave. Cada una se desplaza justo lo que
+       mide su dibujo, que es lo que hace que el bucle no de el tiron. */
+    .ola{position:absolute;left:-10%;right:-10%;top:0;bottom:0;
+      will-change:transform;backface-visibility:hidden}
+    .ola.o1{background:radial-gradient(ellipse 16px 3px at 50% 40%,rgba(255,255,255,.42) 55%,transparent 70%) 0 0/54px 17px;
+      animation:fluye1 7s linear infinite}
+    /* El mismo truco de capas en los otros tres: hierba que corre, vetas de
+       tierra en la cueva y de pulpa en la manzana. Cada una avanza justo lo
+       que mide su dibujo, que es lo que hace que no de el tiron. */
+    .pista.caballos .ola.o1{background:radial-gradient(ellipse 10px 3px at 50% 50%,rgba(134,239,172,.35) 55%,transparent 72%) 0 0/54px 17px}
+    .pista.caballos .ola.o2{background:radial-gradient(ellipse 6px 2px at 30% 60%,rgba(22,101,52,.5) 55%,transparent 72%) 0 0/38px 13px}
+    .pista.caballos .ola.o3{background:radial-gradient(ellipse 22px 5px at 60% 50%,rgba(20,83,45,.45) 55%,transparent 72%) 0 0/90px 26px}
+    .pista.hormigas .ola.o1{background:radial-gradient(ellipse 12px 2px at 50% 50%,rgba(120,53,15,.5) 55%,transparent 72%) 0 0/54px 17px}
+    .pista.hormigas .ola.o2{background:radial-gradient(ellipse 7px 2px at 30% 60%,rgba(0,0,0,.45) 55%,transparent 72%) 0 0/38px 13px}
+    .pista.hormigas .ola.o3{background:radial-gradient(ellipse 24px 5px at 60% 50%,rgba(41,37,36,.6) 55%,transparent 72%) 0 0/90px 26px}
+    .pista.larvas .ola.o1{background:radial-gradient(ellipse 12px 2px at 50% 50%,rgba(255,255,255,.45) 55%,transparent 72%) 0 0/54px 17px}
+    .pista.larvas .ola.o2{background:radial-gradient(ellipse 7px 2px at 30% 60%,rgba(180,83,9,.35) 55%,transparent 72%) 0 0/38px 13px}
+    .pista.larvas .ola.o3{background:radial-gradient(ellipse 24px 5px at 60% 50%,rgba(120,53,15,.28) 55%,transparent 72%) 0 0/90px 26px}
+    .ola.o2{background:radial-gradient(ellipse 10px 2px at 20% 70%,rgba(255,255,255,.22) 55%,transparent 70%) 0 0/38px 13px;
+      animation:fluye2 4.5s linear infinite}
+    .ola.o3{background:radial-gradient(ellipse 26px 4px at 70% 55%,rgba(8,145,178,.3) 55%,transparent 72%) 0 0/90px 26px;
+      animation:fluye3 13s linear infinite}
+    @keyframes fluye1{from{transform:translate3d(0,0,0)}to{transform:translate3d(-54px,0,0)}}
+    @keyframes fluye2{from{transform:translate3d(0,0,0)}to{transform:translate3d(38px,0,0)}}
+    @keyframes fluye3{from{transform:translate3d(0,0,0)}to{transform:translate3d(-90px,0,0)}}
+    /* Con la carrera en marcha el suelo corre, pero sin cortar el bucle. */
+    .pista:not(.parada) .ola.o1{animation-duration:2.6s}
+    .pista:not(.parada) .ola.o2{animation-duration:1.7s}
+    .pista:not(.parada) .ola.o3{animation-duration:5s}
     /* La estela de espuma, a ras de agua. */
     .pista.patos .calle .bola.dibujo::before{height:7px;margin-top:3px;border-radius:50%;
       background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.8))}
     .pista.patos:not(.parada) .calle .bola.turbo::before{width:60px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff)}
-    .pato{display:block;width:42px;height:30px;overflow:visible;transform-origin:50% 80%;animation:flota .6s ease-in-out infinite}
+    /* Los patos van mas grandes que el resto de bichos: lo que llevan puesto
+       (el gorro, las gafas, el flotador) no se distingue en miniatura. La
+       calle crece con ellos para que quepan enteros. */
+    .pista.patos .calle{height:62px;margin-bottom:-4px}
+    .pista.patos .calle .bola.dibujo{width:56px;height:50px}
+    .pato{display:block;width:56px;height:50px;overflow:visible;transform-origin:50% 80%;animation:flota .6s ease-in-out infinite}
     .pato .ala{transform-box:fill-box;transform-origin:30% 30%;animation:aleteo .3s ease-in-out infinite}
     .pato .onda{transform-box:fill-box;transform-origin:center;animation:onda 1.2s ease-out infinite}
+    /* La capa ondea al nadar, prendida por el cuello. */
+    .pato .capa{transform-box:fill-box;transform-origin:100% 20%;animation:ondea .7s ease-in-out infinite}
+    @keyframes ondea{0%,100%{transform:rotate(-4deg) skewY(2deg)}50%{transform:rotate(5deg) skewY(-3deg)}}
     .pato .onda.b{animation-delay:-.6s}
     @keyframes flota{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(1.5px) rotate(4deg)}}
     @keyframes aleteo{0%,100%{transform:rotate(0)}50%{transform:rotate(-22deg)}}
@@ -709,32 +906,28 @@
     /* Parados no nadan, pero flotan: el agua los mece despacio. */
     .pista.parada .pato{animation-duration:1.8s}
     .pista.parada .pato .ala{animation:none}
+    .pista.parada .pato .capa{animation-duration:2.4s}
 
     /* Hormigas: una cueva. Estalactitas arriba, tuneles de tierra y la luz
        del final del tunel como meta. Cada una lleva su linterna de minera. */
-    .pista.hormigas{padding-top:18px;border-color:rgba(120,113,108,.5);
+    .pista.hormigas{padding:18px .8rem 22px 3.5rem;border-color:rgba(120,113,108,.5);
       background:radial-gradient(circle at 20% 30%,rgba(120,113,108,.25) 0 8px,transparent 9px) 0 0/60px 50px,
         radial-gradient(circle at 70% 70%,rgba(68,64,60,.6) 0 6px,transparent 7px) 0 0/44px 38px,
         linear-gradient(180deg,#1c1917,#292524)}
     .pista.hormigas::before{content:'';position:absolute;left:0;right:0;top:0;height:14px;
       background:linear-gradient(135deg,#0c0a09 50%,transparent 50%) 0 0/16px 14px,
         linear-gradient(225deg,#0c0a09 50%,transparent 50%) 0 0/16px 14px}
-    .pista.hormigas .calle{margin-bottom:8px;border:none;border-radius:15px;
-      background:linear-gradient(180deg,#3b2a1c,#24180f);box-shadow:inset 0 4px 8px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.06)}
-    .pista.hormigas .calle:first-child,.pista.hormigas .calle:last-child{border:none}
+    /* La cueva es una galeria unica: el suelo lo pone la pista y las hormigas
+       trepan por el a distintas alturas. */
+    .pista.hormigas .decorado{background:linear-gradient(180deg,transparent calc(100% - 26px),#3b2a1c calc(100% - 26px),#24180f);
+      box-shadow:inset 0 -22px 14px -14px rgba(0,0,0,.8)}
+    .pista.hormigas .calle{height:42px;margin-bottom:-4px;border:none;background:none;box-shadow:none}
     .pista.hormigas .calle:last-child{margin-bottom:0}
     /* La boca de la cueva, de donde salen. */
-    .pista.hormigas .calle::before{left:0;width:34px;border-radius:15px 0 0 15px;
-      background:radial-gradient(ellipse at 0 50%,#000 45%,transparent 72%)}
-    .pista.hormigas .calle .meta-linea{right:0;width:28px;border-radius:0 15px 15px 0;
-      background:radial-gradient(ellipse at 100% 50%,#fef3c7 0,rgba(253,230,138,.55) 35%,transparent 72%);
-      animation:luzFinal 1.6s ease-in-out infinite alternate}
-    @keyframes luzFinal{from{opacity:.65}to{opacity:1}}
     .pista.hormigas .calle.gana{background:linear-gradient(90deg,#3b2a1c,#a16207)}
-    .pista.hormigas .calle .quien{color:rgba(254,243,199,.75)}
     /* Tierra que sueltan al correr, en vez de polvo. */
     .pista.hormigas .calle .bola.dibujo::before{height:5px;margin-top:4px;background:linear-gradient(90deg,rgba(120,83,50,0),rgba(161,98,7,.7))}
-    .hormiga{display:block;width:42px;height:30px;overflow:visible;animation:trotecito .16s linear infinite}
+    .hormiga{display:block;width:56px;height:35px;overflow:visible;animation:trotecito .16s linear infinite}
     .hormiga .pata{transform-box:fill-box;transform-origin:50% 0;animation:patitas .16s linear infinite}
     .hormiga .pata.b{animation-delay:-.08s}
     .hormiga .antena{transform-box:fill-box;transform-origin:0 100%;animation:antenas .5s ease-in-out infinite alternate}
@@ -752,7 +945,7 @@
     /* La pista es la manzana partida por la mitad: cascara roja arriba y
        abajo, y en medio la pulpa, con sus vetas, sus magulladuras marrones y
        alguna pepa suelta. */
-    .pista.larvas{padding:22px .8rem;border-color:rgba(159,18,57,.55);
+    .pista.larvas{padding:22px .8rem 22px 3.5rem;border-color:rgba(159,18,57,.55);
       background:
         url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20120%20130%22%3E%3Cg%20fill%3D%22%239f1239%22%20fill-opacity%3D%22.22%22%3E%3Cpath%20d%3D%22M60%2026c8-10%2022-12%2030-6%209%207%2012%2022%208%2040-4%2019-14%2038-24%2048-6%206-10%208-14%208s-8-2-14-8c-10-10-20-29-24-48-4-18-1-33%208-40%208-6%2022-4%2030%206z%22%2F%3E%3Cpath%20d%3D%22M57%2028c-2-12%202-22%208-26%201%208-1%2018-4%2026z%22%2F%3E%3Cpath%20d%3D%22M64%2018c8-12%2022-16%2032-13-2%2011-13%2021-26%2022-3%200-5-3-6-9z%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%237f1d1d%22%20stroke-opacity%3D%22.3%22%20stroke-width%3D%222.5%22%3E%3Cpath%20d%3D%22M60%2026c8-10%2022-12%2030-6%209%207%2012%2022%208%2040-4%2019-14%2038-24%2048-6%206-10%208-14%208s-8-2-14-8c-10-10-20-29-24-48-4-18-1-33%208-40%208-6%2022-4%2030%206z%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22%2378350f%22%20fill-opacity%3D%22.3%22%3E%3Cellipse%20cx%3D%2255%22%20cy%3D%2266%22%20rx%3D%224%22%20ry%3D%226.5%22%2F%3E%3Cellipse%20cx%3D%2267%22%20cy%3D%2272%22%20rx%3D%224%22%20ry%3D%226.5%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") center/auto 84% no-repeat,
         radial-gradient(ellipse 7px 4px at 18% 30%,rgba(120,53,15,.3) 60%,transparent 70%) 0 0/130px 90px,
@@ -769,27 +962,18 @@
       top:100%;margin-top:6px;height:16px;z-index:1;pointer-events:none;
       background:radial-gradient(circle at 9px 0,transparent 0 7px,#be123c 7px) 0 0/18px 16px,
         linear-gradient(0deg,#e11d48,#9f1239)}
-    /* Los tuneles son mordiscos en la pulpa, no tablas: se dejan ver la
-       manzana del fondo, que si no la taparian entera. */
-    .pista.larvas .calle{margin-bottom:6px;border:none;border-radius:14px;
-      background:linear-gradient(180deg,rgba(120,53,15,.42),rgba(146,64,14,.3));
-      box-shadow:inset 0 4px 7px rgba(69,26,3,.45),inset 0 -2px 4px rgba(255,255,255,.35)}
-    .pista.larvas .calle:first-child,.pista.larvas .calle:last-child{border:none}
+    /* Ya no hay un tunel por larva: se arrastran todas por la misma galeria
+       mordida, que ocupa el centro de la manzana. */
+    .pista.larvas .decorado::after{content:'';position:absolute;left:0;right:0;top:16px;bottom:16px;
+      background:linear-gradient(180deg,rgba(120,53,15,.34),rgba(146,64,14,.22));
+      box-shadow:inset 0 6px 10px rgba(69,26,3,.4),inset 0 -6px 10px rgba(69,26,3,.3)}
+    .pista.larvas .calle{height:42px;margin-bottom:-4px;border:none;background:none;box-shadow:none}
     .pista.larvas .calle:last-child{margin-bottom:0}
-    .pista.larvas .calle .quien{color:#fff7ed}
-    /* El mordisco por donde han entrado: la cascara roja de la manzana. */
-    .pista.larvas .calle::before{left:0;width:26px;border-radius:14px 0 0 14px;
-      background:linear-gradient(90deg,#be123c,#9f1239 60%,rgba(69,26,3,.55))}
-    /* La meta es el corazon de la manzana, con sus pepas. */
-    .pista.larvas .calle .meta-linea{right:0;width:30px;border-radius:0 14px 14px 0;
-      background:radial-gradient(ellipse 5px 3px at 40% 35%,#44403c 60%,transparent 70%),
-        radial-gradient(ellipse 5px 3px at 60% 70%,#44403c 60%,transparent 70%),
-        linear-gradient(90deg,rgba(254,249,195,0),#fef9c3)}
     .pista.larvas .calle.gana{background:linear-gradient(90deg,rgba(120,53,15,.42),rgba(132,204,22,.55))}
     /* Lo que dejan al pasar: un rastro de pulpa mordida. */
     .pista.larvas .calle .bola.dibujo::before{height:6px;margin-top:3px;border-radius:3px;
       background:linear-gradient(90deg,rgba(180,83,9,0),rgba(180,83,9,.45))}
-    .larva{display:block;width:42px;height:30px;overflow:visible;transform-origin:0 50%;
+    .larva{display:block;width:56px;height:35px;overflow:visible;transform-origin:0 50%;
       animation:arrastre .55s ease-in-out infinite}
     .larva .anillo{transform-box:fill-box;transform-origin:center;animation:onda-larva .55s ease-in-out infinite}
     .larva .anillo.b{animation-delay:-.09s}
@@ -811,15 +995,20 @@
 
     .pista.llena .calle .bola.dibujo{width:25px;height:18px}
     .pista.llena .caballo,.pista.llena .pato,.pista.llena .hormiga,.pista.llena .larva{width:25px;height:18px}
+    .pista.llena.patos .calle{height:18px}
+    .pista.llena.patos .calle .quien{line-height:18px;left:36px;font-size:11px}
+    .pista.llena.patos .calle .bola.dibujo{width:25px;height:18px}
+    .pista.llena.patos .calle .pos{line-height:13px}
     .pista.llena.hormigas .calle,.pista.llena.larvas .calle{margin-bottom:3px;border-radius:9px}
     /* Con mucha gente la manzana se estrecha: cascara mas fina y menos hueco. */
-    .pista.llena.larvas{padding:13px .8rem}
+    .pista.llena.larvas{padding:13px .8rem 13px 2.5rem}
     .pista.llena.larvas::before{height:9px;background-size:12px 9px,auto}
     .pista.llena.larvas .calle:last-child::after{margin-top:4px;height:9px;background-size:12px 9px,auto}
     @media (prefers-reduced-motion:reduce){
       .caballo,.caballo .pata,.caballo .cola,.pato,.pato .ala,.pato .onda,
-      .hormiga,.hormiga .pata,.hormiga .antena,.pista.patos .calle,.pista.hormigas .calle .meta-linea,
-      .larva,.larva .anillo,.larva .pelo{animation:none !important}
+      .hormiga,.hormiga .pata,.hormiga .antena,.pista.hormigas .meta-global,
+      .larva,.larva .anillo,.larva .pelo,.pato .capa,
+      .ola,.pista.patos .decorado::after{animation:none !important}
     }
     /* Jugar y cancelar no se buscan: estan siempre en la esquina, encima de
        todo. Cada juego tiene la suya, dentro de su panel. */
@@ -4730,8 +4919,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // --- Carrera de balineras ---------------------------------------------
     // Quien corre la carrera, según lo elegido en Configuración > Minijuegos.
     const BICHOS = { caballos: '🐎', patos: '🦆', hormigas: '🐜', larvas: '🐛' };
-    const COLORES_BOLA = ['#6ee7b7', '#7dd3fc', '#c084fc', '#fbbf24', '#fb7185',
-      '#34d399', '#93c5fd', '#f0abfc', '#f97316', '#a3e635'];
+    const COLORES_BOLA = ['#fbbf24', '#f43f5e', '#a3e635', '#e879f9', '#22d3ee',
+      '#fb923c', '#4ade80', '#f472b6', '#facc15', '#38bdf8'];
     let carrera = { abierta: false, corredores: [], resultado: [], escuchando: '' };
     let vigilante = null;      // el temporizador que refresca los apuntados
     let corriendo = false;
@@ -4926,16 +5115,99 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // Un pato nadando hacia la meta, con su pañuelo. La franja de agua de
     // abajo lo tapa un poco, para que se vea metido en el agua y no encima.
-    function patoSvg(pluma, panuelo, dorsal) {
-      return `<svg class="pato" viewBox="0 0 48 34" style="color:${pluma}" aria-hidden="true">
+    // A cada pato se le viste por piezas en vez de sacarlo de una lista de
+    // trajes hechos: un sombrero (siempre, que ninguno salga pelado), algo al
+    // cuello (siempre), y a ratos algo en la cara y algo en el cuerpo. Salen
+    // cientos de combinaciones, asi que es raro ver dos iguales.
+    const SOMBREROS_PATO = [
+      { nombre: 'gorro', gorro: true },
+      { nombre: 'capitán', gorra: '#1e3a8a' },
+      { nombre: 'chullo', chullo: '#7c3aed', franja: '#fbbf24' },
+      { nombre: 'sartén', sarten: true },
+      { nombre: 'calabaza', calabaza: true },
+      { nombre: 'chistera', chistera: true, lazo: '#ef4444' },
+      { nombre: 'corona', corona: true },
+      { nombre: 'vikingo', vikingo: true },
+      { nombre: 'cocinero', chef: true },
+      { nombre: 'obrero', obra: true },
+      { nombre: 'escafandra', escafandra: true },
+      { nombre: 'diablillo', diablo: true },
+      { nombre: 'flor', flor: true },
+      { nombre: 'pirata', gorro: true, pirata: true, parche: true },
+      { nombre: 'chullo rojo', chullo: '#dc2626', franja: '#f8fafc' },
+      { nombre: 'gorra verde', gorra: '#15803d' }
+    ];
+    const CUELLOS_PATO = [
+      { cuello: 'pañuelo' },
+      { cuello: 'pajarita roja', pajarita: '#ef4444' },
+      { cuello: 'pajarita azul', pajarita: '#22d3ee' },
+      { cuello: 'bufanda roja', bufanda: '#dc2626' },
+      { cuello: 'bufanda verde', bufanda: '#4ade80' },
+      { cuello: 'collar', collar: true }
+    ];
+    const CARAS_PATO = [
+      {}, {}, { cara: 'gafas', gafas: true }, {}, { cara: 'buzo', buzo: true }
+    ];
+    const CUERPOS_PATO = [
+      {}, {}, { ropa: 'poncho', poncho: '#dc2626', franja: '#fbbf24' },
+      { ropa: 'capa', capa: '#dc2626' }, {}, { ropa: 'flotador', flotador: '#f87171' },
+      { ropa: 'capa azul', capa: '#2563eb' }
+    ];
+    const PLUMAS_PATO = [
+      {}, {}, {}, { pluma: 'real', cabeza: '#15803d' }, {},
+      { pluma: 'blanco', cuerpo: '#f8fafc', cabeza: '#f1f5f9' }, {}
+    ];
+
+    // La pinta del corredor numero i. Siempre la misma para el mismo numero,
+    // y con pasos distintos en cada pieza para que no vayan todas a la vez.
+    function pintaDePato(i) {
+      const n = Math.max(0, Math.floor(i || 0));
+      const de = (lista, salto) => lista[(n * salto) % lista.length];
+      const sombrero = de(SOMBREROS_PATO, 1);
+      const cuello = de(CUELLOS_PATO, 3);
+      let cara = de(CARAS_PATO, 2);
+      const cuerpo = de(CUERPOS_PATO, 5);
+      const pluma = de(PLUMAS_PATO, 4);
+      // Dentro de una escafandra no caben gafas, y el pirata ya lleva parche.
+      if (sombrero.escafandra || sombrero.parche) cara = {};
+      const k = { ...pluma, ...cuerpo, ...cara, ...cuello, ...sombrero };
+      // Todos van de dos colores: el del cuerpo es el de su calle y la
+      // cabeza se lleva otro de la paleta. Si al repartir tocara el mismo se
+      // coge el siguiente, que un pato de un solo color no es bicolor.
+      if (!k.cabeza) {
+        const total = COLORES_BOLA.length;
+        let otro = (n * 7 + 4) % total;
+        if (otro === n % total) otro = (otro + 3) % total;
+        k.cabeza = COLORES_BOLA[otro];
+        k.bicolor = true;
+      }
+      k.nombre = [sombrero.nombre, cuello.cuello, cara.cara, cuerpo.ropa, pluma.pluma].filter(Boolean).join(' + ');
+      return k;
+    }
+
+    function patoSvg(pluma, panuelo, dorsal, skin) {
+      const k = pintaDePato(skin);
+      const cuerpo = k.cuerpo || pluma;
+      const cabeza = k.cabeza || cuerpo;
+      return `<svg class="pato" viewBox="0 -9 48 43" style="color:${cuerpo}" aria-hidden="true">
         <ellipse class="onda" cx="22" cy="28" rx="18" ry="3" fill="none" stroke="#fff" stroke-width="1" opacity=".6"/>
         <ellipse class="onda b" cx="22" cy="28" rx="18" ry="3" fill="none" stroke="#fff" stroke-width="1" opacity=".6"/>
+        ${k.capa ? '<g class="capa"><path d="M11 13 C3 14 0 20 1.5 26 C5 24 8 24.5 12 25.5 Z" fill="' + k.capa + '"/>' +
+          '<path d="M11 13 C6 14.5 3.5 17 2.6 20.5 C6 19.5 9 20 11.5 21 Z" fill="#000" opacity=".18"/></g>' : ''}
         <g fill="currentColor">
           <path d="M4 17 L0 11 L9 14 Z"/>
           <path d="M5 19 C5 12 15 11 25 14 L33 15 C35 22 31 28 21 28 C11 28 5 25 5 19 Z"/>
+        </g>
+        <g fill="${cabeza}">
           <path d="M29 17 C29 12 30 8 32 5 L36 7 C35 11 34 14 34 17 Z"/>
           <circle cx="35" cy="7" r="6"/>
         </g>
+        ${k.bicolor ? '<path d="M26.5 14.6 C30.4 15.6 33.2 19.2 33.4 23.6 C30.2 26.6 25.4 28 21 28 C23.2 22.4 24.4 17.8 26.5 14.6 Z" fill="' + cabeza + '" opacity=".92"/>' : ''}
+        ${k.collar ? '<path d="M29.5 13.5 C31.5 15 34 15.2 36 14.4 L35.6 16.6 C33.4 17.2 31 17 29.2 15.8 Z" fill="#fff" opacity=".9"/>' : ''}
+        ${k.flotador ? '<g><ellipse cx="21" cy="24" rx="17" ry="6.5" fill="' + k.flotador + '"/>' +
+          '<path d="M4 24 A17 6.5 0 0 1 38 24 Z" fill="#fff" opacity=".3"/>' +
+          '<ellipse cx="21" cy="24" rx="9" ry="2.8" fill="#0e7490" opacity=".5"/>' +
+          '<path d="M9 22 Q13 20.4 17 22" stroke="#fff" stroke-width="1.6" fill="none" opacity=".7"/></g>' : ''}
         <path d="M40 6.5 L47 8.5 L40 10.5 Z" fill="#f59e0b"/>
         <path d="M40 8.5 L46 8.8 L40 10.5 Z" fill="#d97706"/>
         <ellipse cx="18" cy="16" rx="11" ry="2.8" fill="#fff" opacity=".38"/>
@@ -4946,9 +5218,78 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           <ellipse cx="19" cy="19" rx="9" ry="4.6" fill="#000" opacity=".18" transform="rotate(-10 19 19)"/>
         </g>
         <text x="19" y="21.3" font-size="6.5" font-weight="800" text-anchor="middle" fill="#021018">${dorsal}</text>
-        <path d="M30 12 L37 13 L36 15.5 L29.5 14.5 Z" fill="${panuelo}"/>
-        <circle cx="37" cy="6" r="1.1" fill="#0b0b0b"/>
-        <circle cx="37.4" cy="5.6" r=".35" fill="#fff"/>
+        ${k.pajarita || k.bufanda ? '' :
+          '<path d="M30 12 L37 13 L36 15.5 L29.5 14.5 Z" fill="' + panuelo + '"/>'}
+        ${k.pajarita ? '<path d="M32.6 14 L28.8 11.9 L28.8 16.1 Z" fill="' + k.pajarita + '"/>' +
+          '<path d="M32.6 14 L36.4 11.9 L36.4 16.1 Z" fill="' + k.pajarita + '"/>' +
+          '<circle cx="32.6" cy="14" r="1.3" fill="' + k.pajarita + '"/>' +
+          '<circle cx="32.6" cy="14" r="1.3" fill="#000" opacity=".18"/>' : ''}
+        ${k.bufanda ? '<path d="M28.6 12.6 Q32.6 15.8 36.8 13.6 L37.2 16.4 Q32.6 18.6 28.2 15.6 Z" fill="' + k.bufanda + '"/>' +
+          '<path class="colabufanda" d="M29.4 15.4 q-4.4 1.6 -6.6 5.6 l3 1.6 q2.2 -3.8 5 -4.6 Z" fill="' + k.bufanda + '"/>' +
+          '<path d="M29.4 15.4 q-4.4 1.6 -6.6 5.6 l1.2 0.6 q2.4 -3.6 5.6 -4.6 Z" fill="#000" opacity=".15"/>' : ''}
+        ${k.gorro ? '<path d="M31 2.5 L36 -6 L41 2 Z" fill="' + (k.pirata ? '#111827' : panuelo) + '"/>' +
+          '<circle cx="36" cy="-6.2" r="1.5" fill="#fde047"/>' : ''}
+        ${k.gorra ? '<path d="M29.5 2.6 A6 6 0 0 1 41.4 2.6 Z" fill="' + k.gorra + '"/>' +
+          '<path d="M40 2.6 L47.5 3.8 L47.5 1.4 Z" fill="' + k.gorra + '"/>' +
+          '<path d="M33.2 -0.6 L38 -0.6 M35.6 -2.6 L35.6 1.4" stroke="#fde047" stroke-width="1.2"/>' : ''}
+        ${k.gafas ? '<path d="M31.3 4.9 L41 5.7" stroke="#0b0b0b" stroke-width="1.2"/>' +
+          '<ellipse cx="34" cy="5.7" rx="2.7" ry="2.1" fill="#0b0b0b"/>' +
+          '<ellipse cx="39.2" cy="6.1" rx="2.3" ry="1.9" fill="#0b0b0b"/>' : ''}
+        ${k.parche ? '<path d="M33.2 4.4 L40.6 5.3" stroke="#0b0b0b" stroke-width="1"/>' +
+          '<ellipse cx="36.6" cy="5.5" rx="2.3" ry="2.1" fill="#0b0b0b"/>' : ''}
+        ${k.gafas || k.parche ? '' :
+          '<circle cx="37" cy="6" r="1.1" fill="#0b0b0b"/><circle cx="37.4" cy="5.6" r=".35" fill="#fff"/>'}
+        ${k.poncho ? '<path d="M5.5 14.5 L17 16.5 L15.5 26.5 L6 24.5 Z" fill="' + k.poncho + '"/>' +
+          '<path d="M5.8 18 L16.7 19.9 M5.6 21.4 L16.2 23.2" stroke="' + k.franja + '" stroke-width="1.5"/>' +
+          '<path d="M6 24.8 L6 27 M9 25.4 L9 27.6 M12 25.9 L12 28.1 M15 26.4 L15 28.6" stroke="' + k.poncho + '" stroke-width="1"/>' : ''}
+        ${k.sarten ? '<path d="M28.6 0.8 L28.6 -2.2 A6.4 3.6 0 0 1 41.4 -2.2 L41.4 0.8 Z" fill="#374151"/>' +
+          '<ellipse cx="35" cy="0.8" rx="6.6" ry="1.7" fill="#111827"/>' +
+          '<path d="M31 -2.6 A4.4 2.4 0 0 1 38 -3" stroke="#9ca3af" stroke-width="1" fill="none" opacity=".7"/>' +
+          '<rect x="41" y="-1.6" width="6.6" height="2" rx="1" fill="#7c2d12"/>' : ''}
+        ${k.calabaza ? '<path d="M28.4 5 A6.8 6.8 0 0 1 41.6 5 Z" fill="#f97316"/>' +
+          '<path d="M31.6 4.6 A5.5 6.5 0 0 1 33.4 -0.6 M38.4 4.6 A5.5 6.5 0 0 0 36.6 -0.6" stroke="#c2410c" stroke-width="1" fill="none"/>' +
+          '<path d="M35 -0.9 L35 -3.4" stroke="#15803d" stroke-width="1.8" stroke-linecap="round"/>' +
+          '<path d="M35 -3 q2.2 -0.6 2.6 -2.4" stroke="#15803d" stroke-width="1.2" fill="none" stroke-linecap="round"/>' : ''}
+        ${k.chullo ? '<path d="M28.5 4.8 A6.7 6.7 0 0 1 41.5 4.8 Z" fill="' + k.chullo + '"/>' +
+          '<path d="M29.5 1.6 L40.6 1.6" stroke="' + k.franja + '" stroke-width="1.6"/>' +
+          '<path d="M29.4 4.6 q-1.4 3.4 0.4 6.2" stroke="' + k.chullo + '" stroke-width="2.4" fill="none" stroke-linecap="round"/>' +
+          '<path d="M40.8 4.6 q1.4 3 -0.2 5.6" stroke="' + k.chullo + '" stroke-width="2.4" fill="none" stroke-linecap="round"/>' +
+          '<circle cx="35" cy="-2.4" r="1.9" fill="' + k.franja + '"/>' : ''}
+        ${k.vikingo ? '<path d="M28.6 5 A6.7 6.7 0 0 1 41.4 5 Z" fill="#9ca3af"/>' +
+          '<path d="M28.8 4.6 L41.2 4.6" stroke="#6b7280" stroke-width="1.4"/>' +
+          '<path d="M35 4.6 L35 0.4" stroke="#6b7280" stroke-width="1.2"/>' +
+          '<path d="M29.6 2.6 q-3.8 -2.6 -5.4 0.6 q2.8 0.8 5.2 1.4 Z" fill="#f5f5f4"/>' +
+          '<path d="M40.6 2.6 q3.8 -2.6 5.4 0.6 q-2.8 0.8 -5.2 1.4 Z" fill="#f5f5f4"/>' : ''}
+        ${k.chef ? '<rect x="30.2" y="-0.4" width="9.6" height="3.2" rx="0.6" fill="#f1f5f9"/>' +
+          '<circle cx="31.8" cy="-2.6" r="3" fill="#f8fafc"/>' +
+          '<circle cx="35.2" cy="-4" r="3.4" fill="#f8fafc"/>' +
+          '<circle cx="38.4" cy="-2.6" r="3" fill="#f8fafc"/>' +
+          '<path d="M30.4 0.4 L39.6 0.4" stroke="#cbd5e1" stroke-width="0.8"/>' : ''}
+        ${k.chistera ? '<rect x="27.8" y="-0.6" width="14.6" height="2.2" rx="1.1" fill="#111827"/>' +
+          '<rect x="31" y="-7" width="8.4" height="6.6" fill="#111827"/>' +
+          '<rect x="31" y="-2.8" width="8.4" height="2" fill="' + k.lazo + '"/>' : ''}
+        ${k.corona ? '<path d="M29.8 1.4 L29.8 -3.8 L32.4 -1.2 L35 -5.2 L37.6 -1.2 L40.2 -3.8 L40.2 1.4 Z" fill="#fbbf24"/>' +
+          '<path d="M29.8 0.2 L40.2 0.2" stroke="#d97706" stroke-width="1"/>' +
+          '<circle cx="35" cy="-5.6" r="1.1" fill="#f43f5e"/>' : ''}
+        ${k.buzo ? '<path d="M30.6 4.4 q-3.4 -4.6 0.4 -7.8" stroke="#f97316" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
+          '<rect x="31" y="3.2" width="9.4" height="5.2" rx="2.2" fill="#67e8f9" opacity=".8"/>' +
+          '<rect x="31" y="3.2" width="9.4" height="5.2" rx="2.2" fill="none" stroke="#0e7490" stroke-width="1.1"/>' +
+          '<path d="M32.4 4.4 L34.4 4.4" stroke="#fff" stroke-width="1" opacity=".8"/>' : ''}
+        ${k.obra ? '<path d="M28.8 4.8 A6.6 6.6 0 0 1 41.2 4.8 Z" fill="#facc15"/>' +
+          '<path d="M40.6 4.8 L46.4 5.8 L46.4 3.2 Z" fill="#facc15"/>' +
+          '<path d="M35 -1.2 L35 4.4" stroke="#ca8a04" stroke-width="1.5"/>' +
+          '<path d="M28.8 4.4 L41.2 4.4" stroke="#ca8a04" stroke-width="1"/>' : ''}
+        ${k.escafandra ? '<circle cx="35" cy="6" r="9.4" fill="#a5f3fc" opacity=".28"/>' +
+          '<circle cx="35" cy="6" r="9.4" fill="none" stroke="#67e8f9" stroke-width="1.3"/>' +
+          '<path d="M29.4 -0.6 A9.4 9.4 0 0 0 27 4.6" stroke="#fff" stroke-width="1.6" fill="none" opacity=".75"/>' : ''}
+        ${k.diablo ? '<path d="M30.8 1.8 q-1.6 -3.8 0.8 -5 q0.6 2.6 1.6 4.2 Z" fill="#dc2626"/>' +
+          '<path d="M39.4 1.4 q1.6 -3.8 -0.8 -5 q-0.6 2.6 -1.6 4.2 Z" fill="#dc2626"/>' : ''}
+        ${k.flor ? '<g fill="#f8fafc">' +
+          '<ellipse cx="31.4" cy="-1.6" rx="1.5" ry="2.2"/>' +
+          '<ellipse cx="31.4" cy="2.8" rx="1.5" ry="2.2"/>' +
+          '<ellipse cx="29.2" cy="0.6" rx="2.2" ry="1.5"/>' +
+          '<ellipse cx="33.6" cy="0.6" rx="2.2" ry="1.5"/></g>' +
+          '<circle cx="31.4" cy="0.6" r="1.5" fill="#fbbf24"/>' : ''}
         <path d="M0 27 Q6 25.5 12 27 T24 27 T36 27 T48 27 V34 H0 Z" fill="#0e7490" opacity=".5"/>
       </svg>`;
     }
@@ -5017,6 +5358,42 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       </svg>`;
     }
 
+    // Lo que hay alrededor de la carrera y no corre: la orilla, las nubes,
+    // los nenufares. No cambia el resultado, pero es lo que hace que la
+    // pantalla parezca un sitio y no una barra de progreso.
+    function adornosDe(bicho) {
+      // Las tres capas que se deslizan las lleva todo el mundo: cambia el
+      // dibujo de cada una, no el mecanismo.
+      const capas = '<span class="ola o3"></span><span class="ola o1"></span><span class="ola o2"></span>';
+      if (bicho === 'patos') {
+        const nenufares = [[18, 9], [46, 74], [72, 26], [88, 61], [33, 47]]
+          .map(([x, y], i) => nenufar(x, y, i)).join('');
+        const nubes = [[8, 6, 34], [42, 3, 46], [76, 11, 39]]
+          .map(([x, y, w], i) => '<span class="nube" style="left:' + x + '%;top:' + y + 'px;width:' + w + 'px;animation-duration:' + (38 + i * 11) + 's"></span>').join('');
+        return capas + nubes + nenufares + '<span class="pez"></span><span class="pez b"></span>';
+      }
+      if (bicho === 'caballos') {
+        const nubes = [[12, 4, 40], [58, 9, 32]]
+          .map(([x, y, w], i) => '<span class="nube" style="left:' + x + '%;top:' + y + 'px;width:' + w + 'px;animation-duration:' + (46 + i * 13) + 's"></span>').join('');
+        return capas + nubes;
+      }
+      if (bicho === 'hormigas') {
+        return capas + [14, 39, 63, 86]
+          .map((x, i) => '<span class="gota" style="left:' + x + '%;animation-delay:' + (i * 1.7) + 's"></span>').join('');
+      }
+      // Larvas: pepitas de la manzana flotando en la pulpa.
+      return capas + [[22, 24], [55, 68], [79, 38]]
+        .map(([x, y]) => '<span class="pepita" style="left:' + x + '%;top:' + y + '%"></span>').join('');
+    }
+
+    // Un nenufar con su flor, del tamaño y el vaiven que le toque.
+    function nenufar(x, y, i) {
+      const tam = 16 + (i % 3) * 7;
+      return '<span class="nenufar" style="left:' + x + '%;top:' + y + '%;width:' + tam + 'px;height:' +
+        Math.round(tam * 0.82) + 'px;animation-delay:' + (i * 0.9) + 's">' +
+        (i % 2 ? '<i></i>' : '') + '</span>';
+    }
+
     function dibujarPista() {
       const pista = document.getElementById('carreraPista');
       pista.hidden = false;
@@ -5026,21 +5403,53 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const bicho = BICHOS[carrera.ajustes?.animacion] ? carrera.ajustes.animacion : 'caballos';
       pista.className = 'pista ' + bicho + (corriendo ? '' : ' parada') +
         (carrera.corredores.length > 30 ? ' llena' : '');
+      // Las filas se reparten el hueco de arriba abajo. La de mas abajo va
+      // por delante, que es como se ve una carrera de lado: los de delante
+      // tapan a los de detras.
+      const cuantos = carrera.corredores.length;
+      const carriles = document.createElement('div');
+      carriles.className = 'carriles';
+      // Las orillas van pegadas a la primera y la ultima fila, no a los
+      // bordes de la pista: asi el rio mide justo lo que se nada y no queda
+      // agua de sobra por arriba ni por abajo.
+      carriles.innerHTML = '<span class="orilla arriba"></span><span class="orilla abajo"></span>';
       carrera.corredores.forEach((c, i) => {
         const calle = document.createElement('div');
         calle.className = 'calle';
         calle.dataset.clave = c.clave;
+        calle.style.setProperty('--fila', i);
+        calle.style.setProperty('--filas', cuantos);
+        calle.style.zIndex = i + 1;
         const color = COLORES_BOLA[i % COLORES_BOLA.length];
         // Cada bicho va dibujado y de su color, con el dorsal de su calle.
         const dibujo = { caballos: caballoSvg, patos: patoSvg, hormigas: hormigaSvg, larvas: larvaSvg }[bicho];
-        const dentro = dibujo(color, COLORES_BOLA[(i + 3) % COLORES_BOLA.length], i + 1);
+        const dentro = dibujo(color, COLORES_BOLA[(i + 3) % COLORES_BOLA.length], i + 1, i);
+        // El nombre y el puesto van dentro de la ficha: se mueven con el
+        // bicho, que es lo que hace que se lea como una carrera y no como
+        // cuatro barras de progreso.
         calle.innerHTML = `
-          <span class="bola dibujo">${dentro}</span>
-          <span class="quien">${escapeHtml(c.nombre)}</span>
-          <span class="pos"></span>
-          <span class="meta-linea"></span>`;
-        pista.appendChild(calle);
+          <span class="bola dibujo">${dentro}
+            <span class="quien">${escapeHtml(c.nombre)}</span>
+            <span class="pos"></span>
+          </span>`;
+        carriles.appendChild(calle);
       });
+      // El escenario, en su propia capa y por debajo de todo.
+      const decorado = document.createElement('div');
+      decorado.className = 'decorado';
+      decorado.innerHTML = adornosDe(bicho);
+      pista.prepend(decorado);
+      // La salida y la meta, una de cada y de lado a lado: antes cada fila
+      // pintaba la suya y, al solaparse las filas, se montaban unas encima
+      // de otras.
+      const salida = document.createElement('div');
+      salida.className = 'salida';
+      salida.innerHTML = '<i></i><i></i><b></b>';
+      carriles.appendChild(salida);
+      const meta = document.createElement('div');
+      meta.className = 'meta-global';
+      carriles.appendChild(meta);
+      pista.appendChild(carriles);
     }
 
     // El servidor ya ha decidido el orden; esto solo lo cuenta. Cada balinera
@@ -5090,13 +5499,30 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const semaforo = document.createElement('div');
       semaforo.className = 'semaforo';
       pista.appendChild(semaforo);
+      // Tres luces que se encienden de una en una, como en la salida de
+      // verdad, y el numero grande encima.
+      const luces = '<span class="luces"><i></i><i></i><i></i></span>';
+      semaforo.innerHTML = luces + '<span class="num"></span>';
+      const pintarCuenta = (n, encendidas) => {
+        semaforo.querySelector('.num').innerHTML = '<b>' + n + '</b>';
+        semaforo.querySelectorAll('.luces i').forEach((luz, j) => {
+          luz.classList.toggle('on', j < encendidas);
+        });
+      };
       ['3', '2', '1'].forEach((n, k) => {
-        setTimeout(() => { semaforo.innerHTML = `<span>${n}</span>`; }, k * 600);
+        setTimeout(() => pintarCuenta(n, k + 1), k * 600);
       });
       setTimeout(() => {
-        semaforo.innerHTML = '<span>¡YA!</span>';
+        pintarCuenta('¡YA!', 3);
         semaforo.classList.add('ya');
         pista.classList.remove('parada');
+        // El chapuzon de salir todos a la vez.
+        pista.querySelectorAll('.calle .bola').forEach((b) => {
+          const agua = document.createElement('span');
+          agua.className = 'chapuzon';
+          b.appendChild(agua);
+          setTimeout(() => agua.remove(), 900);
+        });
         setTimeout(() => semaforo.remove(), 500);
       }, 1800);
 
