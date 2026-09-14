@@ -648,7 +648,7 @@
     .carriles{position:relative;z-index:1}
     /* La barrera de salida: dos hojas que se abren de par en par al arrancar y
        se cierran solas al preparar otra carrera. Una sola para todos. */
-    .salida{position:absolute;left:0;top:-6px;bottom:-6px;width:50px;z-index:4;
+    .salida{position:absolute;left:0;top:-6px;bottom:-6px;width:50px;z-index:80;
       pointer-events:none;overflow:hidden}
     .pista.patos .salida{width:64px}
     .pista.llena .salida{width:30px}
@@ -744,7 +744,7 @@
       .nube,.nenufar,.pez,.gota{animation:none !important}
       .pez{opacity:.9}
     }
-    .meta-global{position:absolute;right:0;top:-6px;bottom:-6px;width:10px;z-index:2;pointer-events:none;
+    .meta-global{position:absolute;right:0;top:-6px;bottom:-6px;width:10px;z-index:0;pointer-events:none;
       background:repeating-linear-gradient(180deg,#fff 0 8px,#0b1220 8px 16px);
       box-shadow:0 0 10px rgba(255,255,255,.35)}
     .pista.patos .meta-global{background:repeating-linear-gradient(180deg,#fff 0 8px,#be123c 8px 16px)}
