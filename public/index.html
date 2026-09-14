@@ -3762,6 +3762,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     let batalla = { abierta: false, luchadores: [], rondas: [], campeon: '', puntos: 25 };
     let vigilanteBatalla = null;
     let narrando = false;   // mientras se cuenta una ronda golpe a golpe
+    let rondaNarrando = -1; // cual se esta contando, para no destriparla
 
     async function cargarBatalla() {
       try {
@@ -3809,7 +3810,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const ultima = batalla.rondas[batalla.rondas.length - 1];
       const pendiente = Boolean(ultima && ultima.duelos.some((d) => !d.ganador));
 
-      document.getElementById('batallaEstado').textContent = batalla.campeon
+      // El campeon no se dice hasta que el ultimo combate acaba de contarse:
+      // el cartel y el cuadro ya se callan, y esta linea no.
+      document.getElementById('batallaEstado').textContent = narrando
+        ? `Contando la ronda ${batalla.rondas.length}…`
+        : batalla.campeon
         ? `Terminada. Campeón: ${batalla.campeon}.`
         : batalla.abierta
           ? (cerradaPorTiempo(batalla)
@@ -4593,6 +4598,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       narrando = true;   // que no se repinte el cuadro y se destripe el final
       if (!await accionBatalla('/api/batalla/ronda')) {
         narrando = false;
+        rondaNarrando = -1;
         pintarBatalla();
         return;
       }
@@ -4600,9 +4606,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // La ronda que se acaba de resolver: la última si ya hay campeón, y la
       // penúltima si se ha creado otra detrás.
       const indice = batalla.rondas.length - (batalla.campeon ? 1 : 2);
+      // Ya viene resuelta del servidor: se aparta de Combates hasta que acabe
+      // de contarse, o desde ahi se leeria quien gana antes de verlo.
+      rondaNarrando = indice;
       if (batalla.rondas[indice]) await contarRonda(batalla.rondas[indice], indice);
 
       narrando = false;
+      rondaNarrando = -1;
       pintarBatalla();
       if (batalla.campeon && !eraCampeon) {
         cargarPuntos();
@@ -4666,20 +4676,30 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const caja = document.getElementById('batallaHistorial');
       const vacio = document.getElementById('batallaHistorialVacio');
       const rondas = (batalla.rondas || []);
-      // Solo lo peleado: la ronda en curso se sigue en Torneo.
+      // Solo lo ya visto: la ronda en curso se sigue en Torneo, y la que se
+      // esta contando ahora mismo se queda fuera hasta que termine, que si no
+      // se sabe el ganador desde aqui antes de que caiga el ultimo golpe.
       const hechas = rondas
         .map((r, ri) => ({
           r, ri,
-          duelos: r.duelos.map((d, di) => ({ d, di })).filter((x) => x.d.ganador)
+          duelos: ri === rondaNarrando ? [] : r.duelos.map((d, di) => ({ d, di })).filter((x) => x.d.ganador)
         }))
         .filter((x) => x.duelos.length);
 
-      const firma = hechas.map((x) => x.ri + ':' +
+      const firma = rondaNarrando + '#' + hechas.map((x) => x.ri + ':' +
         x.duelos.map(({ d }) => d.ganador + (d.golpes || []).length).join(',')).join('|');
       if (!forzar && firma === firmaCombates) return;
       firmaCombates = firma;
 
-      vacio.hidden = hechas.length > 0;
+      vacio.hidden = hechas.length > 0 && rondaNarrando < 0;
+      if (rondaNarrando >= 0) {
+        vacio.hidden = false;
+        vacio.textContent = hechas.length
+          ? 'La ronda que se está contando aparece aquí en cuanto termine.'
+          : 'El primer combate aparece aquí en cuanto termine de contarse.';
+      } else {
+        vacio.textContent = 'Aquí se queda lo que pasó en cada combate, ronda por ronda, en cuanto se pelee el primero.';
+      }
       caja.innerHTML = hechas.map(({ r, ri, duelos }) => {
         const titulo = r.duelos.length === 1 ? 'Final' : `Ronda ${r.numero}`;
         const combates = duelos.map(({ d, di }) => {
