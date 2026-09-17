@@ -1083,6 +1083,20 @@
     .font-dock[hidden]{display:none}
     .font-dock label{font-size:13px;color:var(--muted)}
     .font-dock input[type="range"]{width:200px;max-width:50vw}
+    /* Lo que se mira de cada minijuego puede irse a pantalla completa: el
+       resto de la página (mandos, pestañas, chat) se queda fuera. */
+    .escena-barra{display:flex;justify-content:flex-end;margin-top:.8rem}
+    .btn-full{padding:.35rem .7rem;font-size:13px}
+    /* La rueda de nombres va dentro de su escena: el hueco es el mismo. */
+    .names-layout > .escena{flex:none;width:320px;max-width:100%;margin:0 auto}
+    .escena:fullscreen{background:#04121c;padding:1.4rem;overflow:auto;
+      display:flex;flex-direction:column;justify-content:center;width:100%;margin:0}
+    .escena:fullscreen > *:first-child{margin-top:0}
+    .escena:fullscreen .relato{display:none}
+    .escena:fullscreen .names-wheel-box{width:min(78vh,92vw)}
+    #nombresEscena:fullscreen{align-items:center}
+    .escena:fullscreen .pista{font-size:1.15em}
+
     .cfg-subpanel{display:none}
     .cfg-subpanel.active{display:block}
     .config-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem 1.2rem;margin-top:.8rem;align-items:end}
@@ -1166,6 +1180,7 @@
       .navbar{padding:.6rem .8rem}
       .brand{flex-direction:column;align-items:flex-start;text-align:left}
       .names-layout{flex-direction:column}
+      .names-layout > .escena{width:min(320px,100%)}
       .names-wheel-box{width:min(320px,100%)}
       .draw-controls{flex-wrap:wrap}
       .draw-controls .push-right{margin-left:0}
@@ -1279,6 +1294,10 @@
             </div>
             <p class="meta" id="batallaEstado">Sin batalla abierta.</p>
 
+            <div class="escena-barra">
+              <button type="button" class="btn-full" data-escena="batallaEscena">⛶ Pantalla completa</button>
+            </div>
+            <div class="escena" id="batallaEscena">
             <div id="batallaCampeon" class="ganador-grande" hidden></div>
 
             <!-- El torneo se ve de una ronda en una; las ya peleadas se
@@ -1291,6 +1310,7 @@
             <div id="batallaVistaTorneo">
               <div id="batallaCuadro" class="cuadro" hidden></div>
               <div id="batallaEliminados" class="eliminados" hidden></div>
+            </div>
             </div>
 
             <div id="batallaVistaCombates" hidden>
@@ -1329,11 +1349,16 @@
             </div>
             <p class="meta" id="carreraEstado">Sin carrera abierta.</p>
 
-            <!-- Arriba del todo: es lo que se mira cuando acaba. -->
-            <div id="carreraPodio" class="podium" hidden></div>
+            <div class="escena-barra">
+              <button type="button" class="btn-full" data-escena="carreraEscena">⛶ Pantalla completa</button>
+            </div>
+            <div class="escena" id="carreraEscena">
+              <!-- Arriba del todo: es lo que se mira cuando acaba. -->
+              <div id="carreraPodio" class="podium" hidden></div>
 
-            <div class="pista" id="carreraPista" hidden></div>
-            <div id="carreraRelato" class="relato" hidden></div>
+              <div class="pista" id="carreraPista" hidden></div>
+              <div id="carreraRelato" class="relato" hidden></div>
+            </div>
 
             <div class="controls" style="margin-top:.8rem">
               <input id="carreraNombre" type="text" placeholder="Apuntar a alguien a mano" aria-label="Apuntar a mano" />
@@ -1357,9 +1382,14 @@
               <button id="rand">Sortear</button>
               <button id="toggleEditor" type="button" class="push-right">Editar</button>
             </div>
-            <div id="winnerBanner" class="ganador-grande" hidden></div>
-            <div id="randomResult" style="margin-top:.75rem"></div>
-            <div id="valueTotal" class="value-total" hidden></div>
+            <div class="escena-barra">
+              <button type="button" class="btn-full" data-escena="sorteoEscena">⛶ Pantalla completa</button>
+            </div>
+            <div class="escena" id="sorteoEscena">
+              <div id="winnerBanner" class="ganador-grande" hidden></div>
+              <div id="randomResult" style="margin-top:.75rem"></div>
+              <div id="valueTotal" class="value-total" hidden></div>
+            </div>
             <div class="config-actions" id="saveWinnerRow" hidden>
               <button id="saveWinner" type="button">Guardar ganador</button>
               <button id="discardDraw" type="button" class="btn-cancel">Descartar sorteo</button>
@@ -1392,11 +1422,14 @@
                 <div class="controls">
                   <button type="button" id="spinNames">Girar</button>
                   <button type="button" class="btn-cancel" id="clearNames">Vaciar lista</button>
+                  <button type="button" class="btn-full push-right" data-escena="nombresEscena">⛶ Pantalla completa</button>
                 </div>
               </div>
-              <div class="names-wheel-box">
-                <div class="names-pointer">▼</div>
-                <svg id="nameWheel" class="names-wheel" viewBox="0 0 200 200" role="img" aria-label="Ruleta de nombres"></svg>
+              <div class="escena" id="nombresEscena" data-presta="nameWinnerBanner">
+                <div class="names-wheel-box">
+                  <div class="names-pointer">▼</div>
+                  <svg id="nameWheel" class="names-wheel" viewBox="0 0 200 200" role="img" aria-label="Ruleta de nombres"></svg>
+                </div>
               </div>
             </div>
             </div>
@@ -5465,6 +5498,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // Retransmite la carrera que ha simulado el servidor: en cada instante se
     // mueve cada balinera a donde iba, así que se adelantan entre ellas de
     // verdad. La página no decide nada; solo lo cuenta.
+    let recolocarCarrera = null;
     function animarCarrera(resultado) {
       const pista = document.getElementById('carreraPista');
       const relato = document.getElementById('carreraRelato');
@@ -5472,9 +5506,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // mínimo: si no, las balineras se quedarían clavadas en la salida.
       // Hasta donde llega la ficha: el ancho de la calle menos lo que mide ella
       // y la meta, para que el morro toque la meta y no se salga.
-      const calle0 = pista.querySelector('.calle');
-      const ficha0 = pista.querySelector('.bola');
-      const ancho = Math.max(120, (calle0?.clientWidth || pista.clientWidth) - (ficha0?.offsetWidth || 22) - 10);
+      function medirAncho() {
+        const calle0 = pista.querySelector('.calle');
+        const ficha0 = pista.querySelector('.bola');
+        return Math.max(120, (calle0?.clientWidth || pista.clientWidth) - (ficha0?.offsetWidth || 22) - 10);
+      }
+      let ancho = medirAncho();
       const total = (carrera.ajustes?.duracion || 8) * 1000;
       const marcas = carrera.marcas || [];
       const eventos = carrera.eventos || [];
@@ -5491,11 +5528,28 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         return calle ? { calle, bola: calle.querySelector('.bola'), pos: calle.querySelector('.pos') } : null;
       });
 
-      // La ficha avanza; el bicho de dentro patalea por su cuenta.
+      // La ficha avanza; el bicho de dentro patalea por su cuenta. Se guarda
+      // por donde va cada uno para poder recolocarlo si la pista cambia de
+      // tamaño (pantalla completa, o la ventana).
       function avanzar(donde, p, ms) {
+        donde.p = p;
         donde.bola.style.transition = `transform ${ms}ms linear`;
         donde.bola.style.transform = `translateX(${(ancho * p).toFixed(1)}px)`;
       }
+
+      // Al cambiar el ancho, cada uno salta a la parte de pista que llevaba:
+      // el siguiente instante sigue desde ahí.
+      function recolocar() {
+        ancho = medirAncho();
+        fichas.forEach((donde) => {
+          if (!donde) return;
+          donde.bola.style.transition = 'none';
+          donde.bola.style.transform = `translateX(${(ancho * (donde.p || 0)).toFixed(1)}px)`;
+        });
+      }
+      if (recolocarCarrera) window.removeEventListener('resize', recolocarCarrera);
+      recolocarCarrera = recolocar;
+      window.addEventListener('resize', recolocarCarrera);
 
       // Sin simulación (una carrera vieja), se va directo al final.
       if (!marcas.length) return 0;
@@ -7219,6 +7273,63 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
 
     cargarNombres();
+
+    /* Pantalla completa de los minijuegos: sale solo la escena. Si la escena
+       presta algo de fuera (el cartel del ganador de la ruleta de nombres), se
+       lo lleva mientras dure y lo devuelve a su sitio al salir. */
+    (function () {
+      const prestado = new Map();
+
+      function pedir(el) {
+        const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (fn) fn.call(el);
+      }
+      function salir() {
+        const fn = document.exitFullscreen || document.webkitExitFullscreen;
+        if (fn) fn.call(document);
+      }
+      function actual() {
+        return document.fullscreenElement || document.webkitFullscreenElement || null;
+      }
+
+      function prestar(escena) {
+        const id = escena.dataset.presta;
+        if (!id) return;
+        const el = document.getElementById(id);
+        if (!el) return;
+        prestado.set(escena, { el, ancla: el.nextSibling, padre: el.parentNode });
+        escena.insertBefore(el, escena.firstChild);
+      }
+      function devolver(escena) {
+        const guardado = prestado.get(escena);
+        if (!guardado) return;
+        prestado.delete(escena);
+        guardado.padre.insertBefore(guardado.el, guardado.ancla);
+      }
+
+      document.querySelectorAll('.btn-full').forEach((boton) => {
+        boton.addEventListener('click', () => {
+          const escena = document.getElementById(boton.dataset.escena);
+          if (!escena) return;
+          if (actual() === escena) salir();
+          else pedir(escena);
+        });
+      });
+
+      function alCambiar() {
+        const dentro = actual();
+        prestado.forEach((_, escena) => { if (escena !== dentro) devolver(escena); });
+        if (dentro && dentro.classList.contains('escena')) prestar(dentro);
+        document.querySelectorAll('.btn-full').forEach((boton) => {
+          const suya = document.getElementById(boton.dataset.escena);
+          boton.textContent = suya && suya === dentro ? '⛶ Salir de pantalla completa' : '⛶ Pantalla completa';
+        });
+        // Lo que se mide en pixeles (la pista de la carrera) se vuelve a medir.
+        window.dispatchEvent(new Event('resize'));
+      }
+      document.addEventListener('fullscreenchange', alCambiar);
+      document.addEventListener('webkitfullscreenchange', alCambiar);
+    })();
 
     ajustarHuecoBarra();
   </script>
