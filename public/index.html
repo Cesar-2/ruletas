@@ -194,6 +194,7 @@
     .bulk-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.8rem;padding:.6rem .8rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
     .bulk-bar button{padding:.4rem .8rem;font-size:14px;box-shadow:none}
     .bulk-bar select{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.35rem .5rem;font-size:14px;cursor:pointer}
+    .bulk-bar input[type=text]{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.35rem .6rem;font-size:14px;min-width:200px}
     .bulk-sep{flex:1}
     .select-box{position:absolute;top:8px;right:8px;width:20px;height:20px;margin:0;cursor:pointer;accent-color:var(--accent);z-index:2}
     .item.selected{outline:2px solid var(--accent);outline-offset:2px}
@@ -230,12 +231,13 @@
     .names-wheel text{font-size:8px;font-weight:600;fill:#021018}
     .tab-panel{display:none}
     .tab-panel.active{display:block}
-    #items,#randomResult{display:flex;flex-wrap:wrap;gap:12px;padding-top:8px}
+    #items,#equipItems,#randomResult{display:flex;flex-wrap:wrap;gap:12px;padding-top:8px}
     /* Ocupan el ancho de su sección: así el catálogo, el resultado y el editor
        quedan alineados con la cabecera y la barra de pestañas. */
-    #items,#randomResult{max-width:none}
+    #items,#equipItems,#randomResult{max-width:none}
     /* 916px de tarjetas (4x220 + 3x12 de gap) + 32px de padding + 2px de borde. */
     .tab-panel section{max-width:none}
+    .item .meta{margin:.15rem 0 0;font-size:13px}
     .pagination{display:flex;align-items:center;justify-content:center;gap:0.75rem;margin-top:1rem}
     #pageInfo{color:var(--muted);font-size:15px}
     .item{position:relative;width:220px;padding:14px;display:flex;flex-direction:column;border-radius:12px;background:rgba(13,21,38,0.86);backdrop-filter: blur(10px);border:1px solid rgba(255,255,255,0.14);transition:transform 2s cubic-bezier(.2,.9,.2,1), box-shadow .5s ease, opacity 2s ease;opacity:0;transform:translateY(24px) scale(.98)}
@@ -460,6 +462,13 @@
     .cuadro .duelo.resuelto .mk-vs{display:none}
     @media (prefers-reduced-motion:reduce){.cuadro .vida i.critica,.cuadro .vida.golpeada{animation:none}}
     .cuadro .duelo.peleando{border-color:rgba(255,255,255,0.35)}
+    /* Un combate se mira de cerca pulsándolo: se queda con la fila entera y
+       crece con zoom, que es lo único que agranda también el ring y los
+       muñecos, medidos en píxeles. En pantalla completa cabe más. */
+    .cuadro .duelo[data-ronda]{cursor:zoom-in}
+    .cuadro .duelo.ampliado{grid-column:1/-1;zoom:1.7;cursor:zoom-out;
+      border-color:rgba(255,255,255,0.35)}
+    .escena:fullscreen .cuadro .duelo.ampliado{zoom:2.4}
     /* El ring: lona, cuerdas y los postes azul y rojo. Cada muñeco mira hacia
        el contrario, y --dir dice hacia donde es «adelante» para él. */
     .cuadro .ring{position:relative;height:84px;margin:.1rem 0 .45rem;border-radius:8px;overflow:hidden;
@@ -1297,7 +1306,7 @@
             <div class="escena-barra">
               <button type="button" class="btn-full" data-escena="batallaEscena">⛶ Pantalla completa</button>
             </div>
-            <div class="escena" id="batallaEscena">
+            <div class="escena" id="batallaEscena" data-presta="accionesBatalla">
             <div id="batallaCampeon" class="ganador-grande" hidden></div>
 
             <!-- El torneo se ve de una ronda en una; las ya peleadas se
@@ -1352,7 +1361,7 @@
             <div class="escena-barra">
               <button type="button" class="btn-full" data-escena="carreraEscena">⛶ Pantalla completa</button>
             </div>
-            <div class="escena" id="carreraEscena">
+            <div class="escena" id="carreraEscena" data-presta="accionesCarrera">
               <!-- Arriba del todo: es lo que se mira cuando acaba. -->
               <div id="carreraPodio" class="podium" hidden></div>
 
@@ -1436,6 +1445,15 @@
 
             <!-- El catálogo es de lo que sale en la ruleta: vive con ella. -->
             <div class="draw-subpanel" id="draw-catalog-panel">
+
+            <!-- Dos familias de la API de Dofus. Los recursos son los que se
+                 sortean; los objetos están solo para consultarlos, así que su
+                 pestaña no trae ni colores ni exclusiones. -->
+            <div class="subtabs">
+              <button type="button" class="subtab active" data-family="recursos">🧪 Recursos</button>
+              <button type="button" class="subtab" data-family="objetos">⚔️ Objetos</button>
+            </div>
+
             <div id="catalog-panel">
             <div class="controls">
               <button id="load">Recargar items</button>
@@ -1486,6 +1504,41 @@
               <button id="nextPage" type="button">Siguiente</button>
             </div>
             </div>
+
+            <div id="equipment-panel" hidden>
+            <div class="controls">
+              <button id="loadEquip" type="button">Recargar objetos</button>
+              <div id="equipCount">Cargando objetos…</div>
+            </div>
+            <p class="meta">Los equipables de Dofus. <strong>No entran en la ruleta:</strong> el sorteo sigue siendo solo de recursos, así que aquí no hay colores ni exclusiones. Sirven para regalarlos a mano: marca los que des, ponles precio y regístralos como premio de alguien.</p>
+            <div class="toolbar">
+              <input id="searchEquip" type="search" placeholder="Buscar objeto por nombre" aria-label="Buscar objeto por nombre" />
+              <div class="level-filter">
+                <span class="meta">Nivel</span>
+                <input id="equipLevelMin" type="number" min="1" max="200" placeholder="1" aria-label="Nivel mínimo" />
+                <span class="meta">a</span>
+                <input id="equipLevelMax" type="number" min="1" max="200" placeholder="200" aria-label="Nivel máximo" />
+                <button id="equipLevelClear" type="button">Quitar filtros</button>
+              </div>
+            </div>
+            <!-- Regalo a mano: mismos Ganadores y mismo ranking que un sorteo,
+                 solo que los objetos los eliges tú en vez de la ruleta. -->
+            <div class="bulk-bar" id="equipBulkBar">
+              <span class="meta" id="equipBulkCount">Ningún objeto seleccionado</span>
+              <input id="equipWinnerName" type="text" placeholder="Nombre del ganador" aria-label="Nombre del ganador" />
+              <button id="equipGivePrize" type="button" disabled>Registrar como premio</button>
+              <button id="equipSelectPage" type="button">Seleccionar página</button>
+              <button id="equipClearSel" type="button" disabled>Limpiar selección</button>
+              <span class="meta" id="equipGiveStatus" aria-live="polite"></span>
+            </div>
+            <div id="equipItems" aria-live="polite"></div>
+            <div class="pagination">
+              <button id="equipPrevPage" type="button">Anterior</button>
+              <span id="equipPageInfo">Página 1/1</span>
+              <button id="equipNextPage" type="button">Siguiente</button>
+            </div>
+            </div>
+
             </div>
 
           </section>
@@ -1866,12 +1919,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
   <!-- Jugar y cancelar, en la esquina. Aqui fuera porque .app lleva zoom y
        dentro de el una posicion fija se descuadra al cambiar el tamano de
        letra: se aplica el zoom aparte, como hace la barra de arriba. -->
-  <div class="acciones-flotantes" data-juego="carrera" hidden>
+  <div class="acciones-flotantes" id="accionesCarrera" data-juego="carrera" hidden>
     <button type="button" id="carreraCorrer" disabled>¡Correr!</button>
     <button type="button" id="carreraRepetir" hidden>Volver a correr</button>
     <button type="button" id="carreraCancelar" class="btn-cancel" hidden>Cancelar</button>
   </div>
-  <div class="acciones-flotantes" data-juego="batalla" hidden>
+  <div class="acciones-flotantes" id="accionesBatalla" data-juego="batalla" hidden>
     <button type="button" id="batallaEmpezar" disabled>Empezar torneo</button>
     <button type="button" id="batallaRonda" disabled>Siguiente ronda</button>
     <button type="button" id="batallaRepetir" hidden>Volver a jugar</button>
@@ -2343,6 +2396,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     const selectedIds = new Set();   // selección múltiple del catálogo, solo en memoria
     let itemTags = {};   // { [itemId]: 'rare' | 'epic' | 'mythic' }
     let catalogView = 'all';
+    // Pestaña de objetos: catálogo aparte, que no toca al sorteo. Se baja la
+    // primera vez que se abre, no al cargar la página: son miles y no todos
+    // los días se miran.
+    let equipItems = [];
+    let equipPage = 1;
+    let equipCargando = false;
+    // Selección y precios propios: los ankama_id se repiten entre familias, y
+    // compartirlos con el catálogo de recursos mezclaría unos objetos con otros.
+    const equipSelected = new Set();
+    const equipValues = {};
 
     const DEFAULT_SETTINGS = {
       pageTitle: 'Sorteos - Demo',
@@ -3075,14 +3138,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           if (!it.name) return;
           const previo = cuenta.get(it.name);
           if (previo) previo.veces += 1;
-          else cuenta.set(it.name, { id: it.id, name: it.name, veces: 1 });
+          else cuenta.set(it.name, { id: it.id, name: it.name, icon: it.icon || '', veces: 1 });
         });
         const objetos = [...cuenta.values()];
         const nombres = objetos.map((o) => (o.veces > 1 ? `${o.name} ×${o.veces}` : o.name)).join(', ');
         const VISIBLES = 4;
         const ocultos = Math.max(0, objetos.length - VISIBLES);
         const listaHtml = objetos.map((o, i) => {
-          const icono = iconos.get(String(o.id)) || '';
+          // El que se guardó con el premio manda; el catálogo solo cubre a los
+          // ganadores de antes, que se registraron sin icono.
+          const icono = o.icon || iconos.get(String(o.id)) || '';
           return `
           <li class="wr-item${i >= VISIBLES ? ' oculto' : ''}">
             ${icono
@@ -3482,6 +3547,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     function createItemCard(it, opts = {}){
       const allowTags = opts.tags === true;
       const allowExclude = opts.exclude === true;
+      // Cada catálogo trae sus propios almacenes: los ankama_id se repiten
+      // entre familias, así que un objeto no puede pisar la selección ni el
+      // precio de un recurso que lleve su mismo número.
+      const selStore = opts.selectStore ?? selectedIds;
+      const valStore = opts.valueStore ?? itemValues;
+      const onSelect = opts.onSelect ?? updateBulkBar;
+      const onValue = opts.onValue ?? updateValueTotal;
       const el = document.createElement('div'); el.className = 'item';
       const title = it.name?.es ?? it.name ?? it.ankama_id ?? 'Sin nombre';
       const imgUrl = it.image_urls?.icon ?? it.image_urls?.sd ?? '';
@@ -3493,6 +3565,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           <img src="${escapeHtml(imgUrl)}" loading="lazy" alt="${escapeHtml(title)}" onerror="this.style.display='none'"/>
         </div>
         <div class="title">${escapeHtml(title)}</div>
+        ${opts.subtitle ? `<div class="meta">${escapeHtml(opts.subtitle(it))}</div>` : ''}
         ${allowTags ? `
         <div class="tag-row tag-colores">
             <button type="button" class="tag-color" data-rarity="common" style="background:#a8b8cc" title="Gris" aria-label="Gris"></button>
@@ -3510,27 +3583,31 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       const cardId = el.dataset.itemId;
 
+      // Lo rellena el bloque de selección; queda fuera para que el del precio
+      // pueda marcar la tarjeta al escribir un valor.
+      let sincronizarSeleccion = null;
+
       if (opts.select === true) {
         const box = el.querySelector('.select-box');
         const sincronizar = () => {
-          box.checked = selectedIds.has(cardId);
+          box.checked = selStore.has(cardId);
           el.classList.toggle('selected', box.checked);
         };
         sincronizar();
 
         const alternar = () => {
-          if (selectedIds.has(cardId)) selectedIds.delete(cardId);
-          else selectedIds.add(cardId);
+          if (selStore.has(cardId)) selStore.delete(cardId);
+          else selStore.add(cardId);
           sincronizar();
-          updateBulkBar();
+          onSelect();
         };
 
         box.addEventListener('change', () => {
           // La casilla ya cambio sola: se alinea el estado con lo que muestra.
-          if (box.checked) selectedIds.add(cardId);
-          else selectedIds.delete(cardId);
+          if (box.checked) selStore.add(cardId);
+          else selStore.delete(cardId);
           sincronizar();
-          updateBulkBar();
+          onSelect();
         });
 
         // Un clic en cualquier parte de la tarjeta tambien selecciona, salvo
@@ -3540,19 +3617,27 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           alternar();
         });
         el.style.cursor = 'pointer';
+        sincronizarSeleccion = sincronizar;
       }
 
       if (opts.value === true) {
         const valueInput = el.querySelector('.value-input');
         // Los valores no se persisten: viven solo mientras dure la página.
-        if (itemValues[cardId] != null) valueInput.value = itemValues[cardId];
+        if (valStore[cardId] != null) valueInput.value = valStore[cardId];
         valueInput.addEventListener('input', () => {
           const num = parseFloat(valueInput.value);
-          if (Number.isFinite(num)) itemValues[cardId] = num;
-          else delete itemValues[cardId];
+          if (Number.isFinite(num)) valStore[cardId] = num;
+          else delete valStore[cardId];
           // En cuanto tiene precio deja de estar señalada como pendiente.
-          if (itemValues[cardId] != null) el.classList.remove('sin-precio');
-          updateValueTotal();
+          if (valStore[cardId] != null) el.classList.remove('sin-precio');
+          // Poner precio es querer dar ese objeto: se marca solo. Borrarlo no
+          // lo desmarca, que muchas veces es solo para corregir la cifra.
+          if (sincronizarSeleccion && valStore[cardId] != null && !selStore.has(cardId)) {
+            selStore.add(cardId);
+            sincronizarSeleccion();
+            onSelect();
+          }
+          onValue();
         });
       }
 
@@ -3756,6 +3841,187 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     }
 
+    // --- Catálogo de objetos (equipables) --------------------------------
+    // Vive aparte del de recursos a propósito: no se sortea, no se excluye y
+    // no se le ponen colores. Ni siquiera comparte los ankama_id, que en la
+    // API de Dofus se repiten entre una familia y otra.
+
+    const equipSearch = document.getElementById('searchEquip');
+
+    function getFilteredEquipment() {
+      let base = equipItems;
+      const min = parseInt(document.getElementById('equipLevelMin').value, 10);
+      const max = parseInt(document.getElementById('equipLevelMax').value, 10);
+      if (Number.isFinite(min) || Number.isFinite(max)) {
+        base = base.filter((item) => {
+          const lv = item.level;
+          if (lv == null) return false;
+          if (Number.isFinite(min) && lv < min) return false;
+          if (Number.isFinite(max) && lv > max) return false;
+          return true;
+        });
+      }
+      const query = normalizeText(equipSearch.value).trim();
+      if (!query) return base;
+      return base.filter((item) => {
+        const name = normalizeText(item.name?.es ?? item.name ?? '');
+        const tipo = normalizeText(item.type?.name?.es ?? item.type?.name ?? '');
+        const id = normalizeText(item.ankama_id ?? item.id ?? item._id ?? '');
+        return name.includes(query) || tipo.includes(query) || id.includes(query);
+      });
+    }
+
+    function renderEquipmentPage() {
+      const filtered = getFilteredEquipment();
+      const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+      if (equipPage > totalPages) equipPage = totalPages;
+
+      const start = (equipPage - 1) * PAGE_SIZE;
+      const pageItems = filtered.slice(start, start + PAGE_SIZE);
+      const container = document.getElementById('equipItems');
+      container.innerHTML = '';
+
+      if (!pageItems.length) {
+        container.innerHTML = equipCargando
+          ? '<div class="meta">Cargando objetos…</div>'
+          : '<div class="meta">No se encontraron resultados.</div>';
+      } else {
+        pageItems.forEach((it, i) => {
+          // Sin colores ni exclusiones: eso es cosa del sorteo. Lo que sí hay
+          // es marcar y poner precio, para regalarlos a mano.
+          const card = createItemCard(it, {
+            subtitle: (item) => item.type?.name?.es ?? item.type?.name ?? '',
+            select: true,
+            value: true,
+            selectStore: equipSelected,
+            valueStore: equipValues,
+            onSelect: updateEquipBulkBar,
+            onValue: updateEquipBulkBar
+          });
+          container.appendChild(card);
+          setTimeout(() => card.classList.add('show'), i * 50);
+        });
+      }
+
+      const filtros = [];
+      if (equipSearch.value.trim()) filtros.push(`«${equipSearch.value.trim()}»`);
+      const nivelMin = document.getElementById('equipLevelMin').value.trim();
+      const nivelMax = document.getElementById('equipLevelMax').value.trim();
+      if (nivelMin || nivelMax) filtros.push(`nivel ${nivelMin || '1'}-${nivelMax || '200'}`);
+
+      document.getElementById('equipCount').textContent = equipCargando
+        ? 'Cargando objetos…'
+        : `Mostrando ${filtered.length ? start + 1 : 0}-${Math.min(start + pageItems.length, filtered.length)} / ${filtered.length} objetos`
+          + (filtros.length ? ` · filtrando por ${filtros.join(' y ')}` : '');
+      document.getElementById('equipLevelClear').disabled = filtros.length === 0;
+      document.getElementById('equipPageInfo').textContent = `Página ${equipPage}/${totalPages}`;
+      document.getElementById('equipPrevPage').disabled = equipPage <= 1;
+      document.getElementById('equipNextPage').disabled = equipPage >= totalPages;
+      updateEquipBulkBar();
+    }
+
+    // Los marcados, en el orden del catálogo, con el precio que se les haya
+    // puesto (los que sigan sin precio valen 0 hasta que se escriba).
+    function getEquipPrizeItems() {
+      return equipItems
+        .filter((it) => equipSelected.has(String(it.ankama_id ?? it.id ?? it._id ?? '')))
+        .map((it) => {
+          const id = String(it.ankama_id ?? it.id ?? it._id ?? '');
+          return {
+            id,
+            name: it.name?.es ?? it.name ?? id,
+            value: equipValues[id] ?? null,
+            // Se manda con el premio: el catálogo de recursos no tiene estos
+            // objetos, así que luego no habría de dónde sacar el dibujo.
+            icon: it.image_urls?.icon ?? it.image_urls?.sd ?? ''
+          };
+        });
+    }
+
+    function updateEquipBulkBar() {
+      const elegidos = getEquipPrizeItems();
+      const sinPrecio = elegidos.filter((it) => it.value == null).length;
+      const total = elegidos.reduce((sum, it) => sum + (it.value ?? 0), 0);
+      document.getElementById('equipBulkCount').textContent = elegidos.length
+        ? `${elegidos.length} objeto(s) · ${total.toLocaleString('es-ES')} kamas`
+          + (sinPrecio ? ` · faltan ${sinPrecio} por valorar` : '')
+        : 'Ningún objeto seleccionado';
+      document.getElementById('equipClearSel').disabled = elegidos.length === 0;
+      // Se exige precio en todos: uno a cero falsearía el total y el ranking,
+      // igual que en el sorteo.
+      document.getElementById('equipGivePrize').disabled = elegidos.length === 0 || sinPrecio > 0;
+    }
+
+    // Regalo a mano: va a Ganadores y al ranking igual que un premio de ruleta,
+    // solo que los objetos los ha elegido una persona y no la ruleta.
+    async function darPremioEquipo() {
+      const status = document.getElementById('equipGiveStatus');
+      const nameInput = document.getElementById('equipWinnerName');
+      const name = nameInput.value.trim();
+      if (!name) {
+        status.textContent = 'Escribe el nombre del ganador.';
+        nameInput.focus();
+        return;
+      }
+      const items = getEquipPrizeItems();
+      if (!items.length) return;
+      const total = items.reduce((sum, it) => sum + it.value, 0);
+
+      // Mismo criterio de fusión que el servidor: sin tildes ni mayúsculas.
+      const clave = normalizeText(name).trim();
+      const yaExiste = winners.some((w) => normalizeText(w.name).trim() === clave);
+      const resumen = `${items.length} objeto(s) por un total de ${kamasHtml(total)}.`;
+      const ok = await showModal({
+        title: `Dar premio a: ${name}`,
+        messageHtml: yaExiste
+          ? `${escapeHtml(name)} ya está en la lista: se le sumarán ${resumen}`
+          : `Se guardará en Ganadores con ${resumen}`,
+        okText: 'Guardar'
+      });
+      if (!ok) return;
+
+      status.textContent = 'Guardando…';
+      try {
+        const data = await api('/api/winners', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, total, items })
+        });
+        winners = data.winners || [];
+        renderWinners();
+        loadRanking();
+        loadHistory();
+        // Se limpia para poder encadenar el siguiente regalo sin arrastrar nada.
+        equipSelected.clear();
+        Object.keys(equipValues).forEach((k) => delete equipValues[k]);
+        nameInput.value = '';
+        renderEquipmentPage();
+        status.textContent = data.merged
+          ? `Sumado a ${data.winner.name}: total ${data.winner.total.toLocaleString('es-ES')}`
+          : `Guardado en Ganadores (${total.toLocaleString('es-ES')})`;
+        setTimeout(() => { status.textContent = ''; }, 2500);
+      } catch (e) {
+        status.textContent = 'Error al guardar: ' + e.message;
+      }
+    }
+
+    async function loadEquipment() {
+      if (equipCargando) return;
+      equipCargando = true;
+      renderEquipmentPage();
+      try {
+        const data = await api('/api/equipment');
+        equipItems = Array.isArray(data.items) ? data.items : [];
+        equipPage = 1;
+      } catch (e) {
+        equipItems = [];
+        showAlert('Error al cargar', e.message);
+      } finally {
+        equipCargando = false;
+        renderEquipmentPage();
+      }
+    }
+
     // Con sesión abierta se carga todo sin esperar a que se pulse nada. El
     // servidor activo se resuelve primero: de él dependen el resto de datos.
     async function arrancarRuleton() {
@@ -3894,7 +4160,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const items = lastDrawItems.map((it) => ({
         id: itemId(it),
         name: it.name?.es ?? it.name ?? itemId(it),
-        value: itemValues[itemId(it)]
+        value: itemValues[itemId(it)],
+        icon: it.image_urls?.icon ?? it.image_urls?.sd ?? ''
       }));
 
       // Se confirma antes de tocar el ranking: si el nombre ya existe, el
@@ -3990,6 +4257,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // --- Batalla de viewers -----------------------------------------------
     let batalla = { abierta: false, luchadores: [], rondas: [], campeon: '', puntos: 25 };
     let vigilanteBatalla = null;
+    // El combate que se está mirando de cerca, como "ronda:duelo". Se guarda
+    // aparte del cuadro porque este se repinta entero y se perdería la clase.
+    let dueloAmpliado = '';
     let narrando = false;   // mientras se cuenta una ronda golpe a golpe
     let rondaNarrando = -1; // cual se esta contando, para no destriparla
 
@@ -4068,6 +4338,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // Otra vez con los mismos: solo tiene sentido con el torneo terminado.
       document.getElementById('batallaRepetir').hidden = narrando || !batalla.campeon || cuantos < 2;
       ajustarAcciones();
+      // A pantalla completa solo hay algo que mirar con el torneo empezado:
+      // mientras se apuntan, la escena es una lista de nombres.
+      document.querySelector('.btn-full[data-escena="batallaEscena"]').hidden = !empezada;
+      // Si el torneo se cancela estando dentro, se sale solo: si no, quedaría
+      // una escena vacía y sin el botón con el que se volvía.
+      if (!empezada && (document.fullscreenElement || document.webkitFullscreenElement)
+          === document.getElementById('batallaEscena')) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
       // La cuenta atrás, solo mientras la inscripción sigue abierta.
       mostrarCrono('batallaCrono', batalla.abierta ? batalla : null, cargarBatalla);
 
@@ -4139,6 +4418,23 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         }).join('');
         return `<div class="ronda"><h4>${titulo}</h4><div class="duelos">${duelos}</div></div>`;
       }).join('');
+      aplicarDueloAmpliado();
+    }
+
+    // Un clic sobre un combate lo pone a lo grande, ocupando la fila entera del
+    // cuadro. Va con zoom y no con ancho: el ring y los muñecos se miden en
+    // píxeles, así que crecen con todo lo demás. Sirve igual dentro y fuera de
+    // pantalla completa, porque no mueve nada de sitio.
+    function aplicarDueloAmpliado() {
+      const cuadro = document.getElementById('batallaCuadro');
+      if (!cuadro) return;
+      cuadro.querySelectorAll('.duelo.ampliado').forEach((d) => d.classList.remove('ampliado'));
+      if (!dueloAmpliado) return;
+      const [ri, di] = dueloAmpliado.split(':');
+      const caja = cuadro.querySelector(`.duelo[data-ronda="${ri}"][data-duelo="${di}"]`);
+      // Si ese combate ya no está (se pasó de ronda), se deja de mirar de cerca.
+      if (caja) caja.classList.add('ampliado');
+      else dueloAmpliado = '';
     }
 
     // El Dofus esmeralda que preside el duelo. Dibujado a mano como el resto
@@ -4857,6 +5153,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       await accionBatalla('/api/batalla/cancelar');
       vigilarBatalla(false);
     });
+    // Pulsar un combate lo agranda; pulsarlo otra vez lo devuelve a su tamaño.
+    // Delegado en el cuadro, que se repinta entero en cada ronda.
+    document.getElementById('batallaCuadro').addEventListener('click', (ev) => {
+      const caja = ev.target.closest('.duelo[data-ronda]');
+      if (!caja) return;
+      const clave = `${caja.dataset.ronda}:${caja.dataset.duelo}`;
+      dueloAmpliado = dueloAmpliado === clave ? '' : clave;
+      aplicarDueloAmpliado();
+    });
+
     document.getElementById('batallaApuntar').addEventListener('click', async () => {
       const campo = document.getElementById('batallaNombre');
       if (!campo.value.trim()) return;
@@ -6771,15 +7077,84 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       saveExclusions();
     });
 
-    document.querySelectorAll('#catalog-panel .subtab').forEach((subtab) => {
+    document.querySelectorAll('#catalog-panel .subtab[data-view]').forEach((subtab) => {
       subtab.addEventListener('click', () => {
         catalogView = subtab.dataset.view;
-        document.querySelectorAll('#catalog-panel .subtab').forEach((b) => b.classList.toggle('active', b === subtab));
+        document.querySelectorAll('#catalog-panel .subtab[data-view]').forEach((b) => b.classList.toggle('active', b === subtab));
         currentPage = 1;
         renderItemsPage();
         updateExcludedInfo();
       });
     });
+    // Recursos / Objetos. Son familias distintas de la API: cada panel trae
+    // su propia lista, su buscador y sus páginas.
+    document.querySelectorAll('#draw-catalog-panel .subtab[data-family]').forEach((subtab) => {
+      subtab.addEventListener('click', () => {
+        const cual = subtab.dataset.family;
+        document.querySelectorAll('#draw-catalog-panel .subtab[data-family]')
+          .forEach((b) => b.classList.toggle('active', b === subtab));
+        document.getElementById('catalog-panel').hidden = cual !== 'recursos';
+        document.getElementById('equipment-panel').hidden = cual !== 'objetos';
+        // Los objetos se bajan la primera vez que se abre su pestaña.
+        if (cual === 'objetos' && !equipItems.length) loadEquipment();
+      });
+    });
+
+    document.getElementById('loadEquip').addEventListener('click', () => {
+      equipItems = [];
+      loadEquipment();
+    });
+
+    document.getElementById('equipGivePrize').addEventListener('click', darPremioEquipo);
+
+    document.getElementById('equipSelectPage').addEventListener('click', () => {
+      const start = (equipPage - 1) * PAGE_SIZE;
+      getFilteredEquipment().slice(start, start + PAGE_SIZE)
+        .forEach((it) => equipSelected.add(String(it.ankama_id ?? it.id ?? it._id ?? '')));
+      renderEquipmentPage();
+    });
+
+    document.getElementById('equipClearSel').addEventListener('click', () => {
+      // Se van también los precios: escribir uno marca la tarjeta, así que
+      // dejarlos puestos volvería a seleccionarlo todo al primer retoque.
+      equipSelected.clear();
+      Object.keys(equipValues).forEach((k) => delete equipValues[k]);
+      renderEquipmentPage();
+    });
+
+    document.getElementById('equipWinnerName').addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' && !document.getElementById('equipGivePrize').disabled) darPremioEquipo();
+    });
+
+    equipSearch.addEventListener('input', () => {
+      equipPage = 1;
+      renderEquipmentPage();
+    });
+
+    ['equipLevelMin', 'equipLevelMax'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', () => {
+        equipPage = 1;
+        renderEquipmentPage();
+      });
+    });
+
+    document.getElementById('equipLevelClear').addEventListener('click', () => {
+      equipSearch.value = '';
+      document.getElementById('equipLevelMin').value = '';
+      document.getElementById('equipLevelMax').value = '';
+      equipPage = 1;
+      renderEquipmentPage();
+    });
+
+    document.getElementById('equipPrevPage').addEventListener('click', () => {
+      if (equipPage > 1) { equipPage--; renderEquipmentPage(); }
+    });
+
+    document.getElementById('equipNextPage').addEventListener('click', () => {
+      const totalPages = Math.max(1, Math.ceil(getFilteredEquipment().length / PAGE_SIZE));
+      if (equipPage < totalPages) { equipPage++; renderEquipmentPage(); }
+    });
+
     searchInput.addEventListener('input', () => {
       currentPage = 1;
       renderItemsPage();
@@ -7275,8 +7650,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     cargarNombres();
 
     /* Pantalla completa de los minijuegos: sale solo la escena. Si la escena
-       presta algo de fuera (el cartel del ganador de la ruleta de nombres), se
-       lo lleva mientras dure y lo devuelve a su sitio al salir. */
+       presta algo de fuera (el cartel del ganador de la ruleta de nombres, o
+       los botones de la esquina para mandar la carrera y el torneo sin tener
+       que salirse), se lo lleva mientras dure y lo devuelve al salir. */
     (function () {
       const prestado = new Map();
 
@@ -7293,18 +7669,24 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
 
       function prestar(escena) {
-        const id = escena.dataset.presta;
-        if (!id) return;
-        const el = document.getElementById(id);
-        if (!el) return;
-        prestado.set(escena, { el, ancla: el.nextSibling, padre: el.parentNode });
-        escena.insertBefore(el, escena.firstChild);
+        const ids = (escena.dataset.presta || '').split(/\s+/).filter(Boolean);
+        if (!ids.length) return;
+        const guardados = [];
+        ids.forEach((id) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          guardados.push({ el, ancla: el.nextSibling, padre: el.parentNode });
+          escena.insertBefore(el, escena.firstChild);
+        });
+        if (guardados.length) prestado.set(escena, guardados);
       }
       function devolver(escena) {
-        const guardado = prestado.get(escena);
-        if (!guardado) return;
+        const guardados = prestado.get(escena);
+        if (!guardados) return;
         prestado.delete(escena);
-        guardado.padre.insertBefore(guardado.el, guardado.ancla);
+        // Al reves, que se metieron todos por delante: asi vuelve cada uno a su
+        // sitio aunque fueran hermanos.
+        guardados.slice().reverse().forEach((g) => g.padre.insertBefore(g.el, g.ancla));
       }
 
       document.querySelectorAll('.btn-full').forEach((boton) => {

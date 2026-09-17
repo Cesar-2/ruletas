@@ -19,6 +19,11 @@ app.use(express.json({ limit: '16mb' }));
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const ITEMS_URL = 'https://api.dofusdu.de/dofus3/v1/es/items/resources/all';
+// Los equipables son otra familia de la misma API. Viven en su propio catalogo
+// y NO entran en la ruleta: son solo para mirarlos desde la pestana de objetos,
+// asi que no comparten rarezas ni exclusiones con los recursos. Menos mal, que
+// los ankama_id se repiten entre una familia y otra.
+const EQUIPMENT_URL = 'https://api.dofusdu.de/dofus3/v1/es/items/equipment/all';
 // Donde viven los datos. En un hosting, cada despliegue reemplaza la carpeta
 // de la aplicacion, asi que si los datos estan dentro se pierden en cada
 // deploy: con RULETON_DATA se apuntan a una ruta de fuera, que sobrevive.
@@ -26,6 +31,7 @@ const DATA_DIR = process.env.RULETON_DATA
   ? path.resolve(process.env.RULETON_DATA)
   : path.join(process.cwd(), 'data');
 const ITEMS_FILE = path.join(DATA_DIR, 'items.json');   // catalogo, comun a todo
+const EQUIPMENT_FILE = path.join(DATA_DIR, 'equipment.json');   // idem, equipables
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const USERS_DIR = path.join(DATA_DIR, 'users');
@@ -416,49 +422,55 @@ function resolveServer(req: Request): string {
   return `${uid}/${encontrado ? encontrado.id : servers[0].id}`;
 }
 
-async function fetchItemsCached(): Promise<any[]> {
+// Un catalogo de la API de Dofus: se baja una vez y se deja en disco, que son
+// varios miles de objetos y no cambian de un dia para otro. Sirve tanto para
+// los recursos (lo que se sortea) como para los equipables (solo de consulta).
+async function fetchCatalogCached(url: string, file: string, que: string): Promise<any[]> {
   ensureDataDir();
-  // Try to read cache
-  try {
-    if (fs.existsSync(ITEMS_FILE)) {
-      const raw = fs.readFileSync(ITEMS_FILE, 'utf8');
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+  const leerCache = (): any[] | null => {
+    try {
+      if (fs.existsSync(file)) {
+        const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {
+      console.error(`Failed to read cached ${que}:`, err);
     }
-  } catch (err) {
-    console.error('Failed to read cached items:', err);
-  }
+    return null;
+  };
 
-  // Fetch from remote
+  const cache = leerCache();
+  if (cache) return cache;
+
   try {
-    const res = await axios.get(ITEMS_URL, { timeout: 20000 });
-    // API returns an object { items: [...] } so handle both cases
+    const res = await axios.get(url, { timeout: 20000 });
+    // La API responde { items: [...] }; se admite tambien un array pelado.
     const data = res.data;
     const items = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
     if (!Array.isArray(items) || items.length === 0) {
-      console.warn('Remote items response did not contain items; returning empty array');
+      console.warn(`Remote ${que} response did not contain items; returning empty array`);
       return [];
     }
     try {
-      writeJson(ITEMS_FILE, items);
+      writeJson(file, items);
     } catch (err) {
-      console.warn('Failed to write items cache:', err);
+      console.warn(`Failed to write ${que} cache:`, err);
     }
     return items;
   } catch (err) {
-    console.error('Failed to fetch items from remote API:', err);
-    // If fetch fails but cache exists, return cache
-    try {
-      if (fs.existsSync(ITEMS_FILE)) {
-        const raw = fs.readFileSync(ITEMS_FILE, 'utf8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.error('Failed to read fallback cache:', e);
-    }
-    return [];
+    console.error(`Failed to fetch ${que} from remote API:`, err);
+    // Si falla la descarga pero hay copia en disco, se devuelve esa.
+    return leerCache() ?? [];
   }
+}
+
+async function fetchItemsCached(): Promise<any[]> {
+  return fetchCatalogCached(ITEMS_URL, ITEMS_FILE, 'items');
+}
+
+// Los equipables: catalogo aparte, que no toca al sorteo.
+async function fetchEquipmentCached(): Promise<any[]> {
+  return fetchCatalogCached(EQUIPMENT_URL, EQUIPMENT_FILE, 'equipment');
 }
 
 // Antes cada servidor guardaba sus exclusiones. Al pasar a una sola lista por
@@ -636,9 +648,21 @@ interface Winner {
   name: string;
   total: number;      // lo que queda por entregar
   entregado?: number; // lo ya entregado a cuenta, solo informativo
-  items: { id: string; name: string; value: number }[];
+  // El icono viaja con el premio: el catalogo de recursos no lo tiene todo
+  // (los equipables que se regalan a mano son de otra familia) y los ankama_id
+  // se repiten entre familias, asi que buscarlo por id pintaria otro dibujo.
+  items: { id: string; name: string; value: number; icon?: string }[];
   date: string;
   draws?: number;   // cuantos sorteos se han acumulado en esta entrada
+}
+
+// Del icono solo se guarda la direccion, y solo si es http(s) o una ruta
+// propia: asi un import de fuera no puede colar un javascript: en el src.
+function iconoValido(url: unknown): string | undefined {
+  const s = typeof url === 'string' ? url.trim().slice(0, 400) : '';
+  if (!s) return undefined;
+  if (s.startsWith('https://') || s.startsWith('http://') || s.startsWith('/')) return s;
+  return undefined;
 }
 
 // Para detectar al mismo ganador aunque cambie mayusculas o tildes.
@@ -1251,6 +1275,17 @@ app.get('/api/items', async (_req: Request, res: Response) => {
   }
 });
 
+// El catalogo de equipables. Solo se mira desde la pestana de objetos: no hay
+// rarezas, ni exclusiones, ni sorteo, asi que aqui no hace falta el ambito.
+app.get('/api/equipment', async (_req: Request, res: Response) => {
+  try {
+    const items = await fetchEquipmentCached();
+    res.json({ count: items.length, items });
+  } catch (err) {
+    res.status(500).json({ error: 'failed to get equipment' });
+  }
+});
+
 // GET /api/servers -> { servers: GameServer[] }  (los del usuario que ha entrado)
 app.get('/api/servers', (req: Request, res: Response) => {
   res.json({ servers: readServers(requireUid(req)) });
@@ -1415,7 +1450,8 @@ app.post('/api/winners/import', (req: Request, res: Response) => {
         ? w.items.slice(0, 100).map((it: any) => ({
             id: String(it?.id ?? ''),
             name: String(it?.name ?? '').slice(0, 200),
-            value: typeof it?.value === 'number' && Number.isFinite(it.value) ? it.value : 0
+            value: typeof it?.value === 'number' && Number.isFinite(it.value) ? it.value : 0,
+            icon: iconoValido(it?.icon)
           }))
         : [],
       date: typeof w?.date === 'string' && w.date ? w.date : new Date().toISOString(),
@@ -1467,7 +1503,8 @@ app.post('/api/winners', (req: Request, res: Response) => {
     ? body.items.slice(0, 100).map((it: any) => ({
         id: String(it?.id ?? ''),
         name: String(it?.name ?? '').slice(0, 200),
-        value: typeof it?.value === 'number' && Number.isFinite(it.value) ? it.value : 0
+        value: typeof it?.value === 'number' && Number.isFinite(it.value) ? it.value : 0,
+        icon: iconoValido(it?.icon)
       }))
     : [];
 
