@@ -3,6 +3,8 @@ import axios from 'axios';
 import cors from 'cors';
 import * as twitch from './twitch';
 import * as carrera from './carrera';
+import * as plinko from './plinko';
+import * as estadisticas from './estadisticas';
 import * as batalla from './batalla';
 import * as ruletachat from './ruletachat';
 import fs from 'fs';
@@ -1066,6 +1068,30 @@ app.get('/api/admin/users', (req: Request, res: Response) => {
   res.json({ users, invite: inviteActual() });
 });
 
+// GET /api/admin/estadisticas -> a que se juega mas
+// Solo lo ve el admin: el resto ni sabe que existe (lo corta el guardia de
+// /api/admin de mas arriba).
+app.get('/api/admin/estadisticas', (_req: Request, res: Response) => {
+  const registro = estadisticas.leer();
+  const porNombre = new Map(readUsers().map((u) => [u.id, u.username]));
+  const juegos = estadisticas.JUEGOS.map((j) => ({
+    id: j,
+    nombre: estadisticas.NOMBRES[j],
+    ...registro.juegos[j]
+  }));
+  // Quien juega a que, de mas a menos. Las cuentas borradas se quedan fuera.
+  const usuarios = Object.entries(registro.porUsuario)
+    .filter(([uid]) => porNombre.has(uid))
+    .map(([uid, suyos]) => ({
+      id: uid,
+      username: porNombre.get(uid),
+      juegos: suyos,
+      total: Object.values(suyos).reduce((a, b) => a + (Number(b) || 0), 0)
+    }))
+    .sort((a, b) => b.total - a.total);
+  res.json({ desde: registro.desde, juegos, usuarios });
+});
+
 // PATCH /api/admin/users/:id  Body: { bloqueado?, admin? }
 app.patch('/api/admin/users/:id', (req: Request, res: Response) => {
   const yo = requireUid(req);
@@ -1757,6 +1783,7 @@ app.get('/api/random-items', async (req: Request, res: Response) => {
     const sumaRatios = RARITIES.reduce((s, r) => s + ratios[r], 0);
     if (sumaRatios <= 0) {
       const selected = shuffle(items).slice(0, cuantos);
+      estadisticas.apuntar('sorteo', requireUid(req));
       return res.json({ count: selected.length, items: selected });
     }
 
@@ -1781,6 +1808,7 @@ app.get('/api/random-items', async (req: Request, res: Response) => {
         selected.push(montones[resto[Math.floor(Math.random() * resto.length)]].pop());
       }
     }
+    estadisticas.apuntar('sorteo', requireUid(req));
     res.json({ count: selected.length, items: selected });
   } catch (err) {
     res.status(500).json({ error: 'failed to select random items' });
@@ -1943,6 +1971,16 @@ app.post('/api/ruleta-chat/vaciar', (req: Request, res: Response) => {
   res.json(ruletachat.vaciar(requireUid(req)));
 });
 
+// POST /api/ruleta-chat/girada -> avisa de que la rueda ha girado
+// A diferencia del resto, a esta ruleta la gira la pagina, asi que no hay nada
+// aqui que sea «se ha jugado». Esto no decide ni reparte nada: solo suma una
+// partida a la estadistica del panel de admin.
+app.post('/api/ruleta-chat/girada', (req: Request, res: Response) => {
+  const cuantos = Number(req.body?.cuantos) || 0;
+  estadisticas.apuntar('nombres', requireUid(req), cuantos);
+  res.json({ ok: true });
+});
+
 // POST /api/ruleta-chat/config  Body: { palabra }
 app.post('/api/ruleta-chat/config', (req: Request, res: Response) => {
   const uid = requireUid(req);
@@ -1997,6 +2035,7 @@ app.post('/api/carrera/correr', (req: Request, res: Response) => {
       : 'hacen falta al menos dos corredores';
     return res.status(409).json({ error: porque });
   }
+  estadisticas.apuntar('carrera', uid, hecha.corredores.length);
   res.json(hecha);
 });
 
@@ -2013,6 +2052,87 @@ app.post('/api/carrera/cancelar', (req: Request, res: Response) => {
   const uid = requireUid(req);
   carrera.cancelar(uid);
   res.json(carrera.estado(uid));
+});
+
+// --- Tablero de clavijas ------------------------------------------------
+// La bola la tira el servidor, como la carrera: aqui se simula la caida entera
+// (gravedad, choques y rebotes) y la pagina solo la reproduce. La casilla no se
+// elige: es donde acaba cayendo.
+
+// GET /api/plinko -> la partida en curso, el tablero y los premios
+app.get('/api/plinko', (req: Request, res: Response) => {
+  res.json(plinko.estado(requireUid(req)));
+});
+
+// POST /api/plinko/abrir  Body: { palabra?, segundos? }
+app.post('/api/plinko/abrir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const canal = canalDe(uid);
+  if (!canal) {
+    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  }
+  try {
+    if (typeof req.body?.palabra === 'string' && req.body.palabra.trim()) {
+      plinko.guardarAjustes(uid, { palabra: req.body.palabra });
+    }
+    plinko.abrir(uid, canal, undefined, req.body?.segundos);
+    res.json(plinko.estado(uid));
+  } catch (err) {
+    console.error('Failed to open plinko:', err);
+    res.status(500).json({ error: (err as Error).message || 'failed to open plinko' });
+  }
+});
+
+// POST /api/plinko/apuntar  Body: { nombre }  (para añadir a mano)
+app.post('/api/plinko/apuntar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  if (!plinko.apuntar(uid, String(req.body?.nombre || ''))) {
+    return res.status(409).json({ error: 'no se pudo apuntar: repetido, vacio o inscripcion cerrada' });
+  }
+  res.json(plinko.estado(uid));
+});
+
+// POST /api/plinko/tirar -> cierra la inscripcion, tira las bolas y reparte
+app.post('/api/plinko/tirar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const antes = plinko.estado(uid);
+  const hecha = plinko.tirar(uid);
+  if (!hecha) {
+    const porque = !antes.abierta && antes.tiradas.length
+      ? 'esas bolas ya se tiraron; abre otra ronda'
+      : 'no hay nadie apuntado';
+    return res.status(409).json({ error: porque });
+  }
+  estadisticas.apuntar('plinko', uid, hecha.tiradas.length);
+  res.json(plinko.estado(uid));
+});
+
+// POST /api/plinko/repetir -> otra ronda con los mismos
+app.post('/api/plinko/repetir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  if (!plinko.repetir(uid, canalDe(uid))) {
+    return res.status(409).json({ error: 'no hay una ronda anterior con jugadores' });
+  }
+  res.json(plinko.estado(uid));
+});
+
+// POST /api/plinko/cancelar
+app.post('/api/plinko/cancelar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  plinko.cancelar(uid);
+  res.json(plinko.estado(uid));
+});
+
+// POST /api/plinko/config  Body: { puntos?, palabra?, filas?, multiplicadores? }
+app.post('/api/plinko/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  try {
+    plinko.guardarAjustes(uid, req.body || {});
+    res.json(plinko.estado(uid));
+  } catch (err) {
+    console.error('Failed to save plinko settings:', err);
+    res.status(500).json({ error: 'failed to save plinko settings' });
+  }
 });
 
 // POST /api/carrera/config  Body: { puntos?, duracion?, palabra?, animacion? }
@@ -2124,6 +2244,7 @@ app.post('/api/batalla/empezar', (req: Request, res: Response) => {
   const uid = requireUid(req);
   const b = batalla.empezar(uid);
   if (!b) return res.status(409).json({ error: 'hacen falta al menos dos, y que no haya empezado' });
+  estadisticas.apuntar('batalla', uid, b.luchadores.length);
   res.json(b);
 });
 
@@ -2132,6 +2253,20 @@ app.post('/api/batalla/ronda', (req: Request, res: Response) => {
   const uid = requireUid(req);
   const b = batalla.resolverRonda(uid);
   if (!b) return res.status(409).json({ error: 'no hay ninguna ronda pendiente' });
+  res.json(b);
+});
+
+// POST /api/batalla/duelo  Body: { duelo }  -> pelea solo ese combate
+// Para soltarlos de uno en uno en directo. La ronda no avanza hasta que estan
+// todos peleados.
+app.post('/api/batalla/duelo', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const cual = Number(req.body?.duelo);
+  if (!Number.isInteger(cual) || cual < 0) {
+    return res.status(400).json({ error: 'hace falta decir que combate' });
+  }
+  const b = batalla.resolverDuelo(uid, cual);
+  if (!b) return res.status(409).json({ error: 'ese combate no se puede pelear ahora' });
   res.json(b);
 });
 
@@ -2203,6 +2338,11 @@ app.use('/', express.static(path.join(process.cwd(), 'public')));
 
 carrera.iniciar({ userDir, ensureUserDir, writeJson });
 ruletachat.iniciar({ userDir, ensureUserDir, writeJson });
+// El tablero de clavijas reparte en el mismo marcador que la carrera.
+plinko.iniciar({ userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos });
+// La cuenta de partidas es de toda la instalacion, asi que vive con los datos
+// comunes y no en la carpeta de cada usuario.
+estadisticas.iniciar({ archivo: () => path.join(DATA_DIR, 'estadisticas.json'), writeJson });
 // La batalla reparte en el mismo marcador que la carrera.
 batalla.iniciar({
   userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos,

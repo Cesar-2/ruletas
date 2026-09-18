@@ -324,6 +324,22 @@
     .config-panel{margin-bottom:1rem}
     .cfg-nav{margin:.9rem 0 .2rem;flex-wrap:wrap}
     .acceso-lista{display:flex;flex-direction:column;gap:.5rem;margin-top:.8rem}
+    /* A qué se juega más, solo para el admin. Una barra por minijuego, que de
+       un vistazo dice más que la cifra. */
+    .uso-lista{display:flex;flex-direction:column;gap:.55rem;margin:.8rem 0 1.2rem}
+    .uso-fila{display:grid;grid-template-columns:minmax(120px,1fr) 2fr auto;gap:.7rem;align-items:center}
+    .uso-fila .uso-nombre{font-weight:600;font-size:14px}
+    .uso-fila .uso-barra{height:12px;border-radius:999px;background:rgba(255,255,255,0.07);overflow:hidden}
+    .uso-fila .uso-barra i{display:block;height:100%;border-radius:999px;
+      background:linear-gradient(90deg,var(--accent,#6ea8fe),var(--accent2,#3ee9c0));
+      transition:width .4s ease}
+    .uso-fila.mas .uso-nombre::after{content:' 👑';font-size:13px}
+    .uso-fila .uso-cifra{font-size:13px;color:var(--muted);white-space:nowrap}
+    .uso-usuarios{display:flex;flex-direction:column;gap:.35rem;margin-top:.6rem}
+    .uso-usuario{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;padding:.45rem .7rem;
+      border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)}
+    .uso-usuario .quien{font-weight:700;font-size:14px}
+    .uso-usuario .detalle{color:var(--muted);font-size:13px}
     .acceso-fila{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;padding:.6rem .8rem;border:1px solid rgba(255,255,255,0.12);border-radius:12px;background:rgba(255,255,255,0.04)}
     .acceso-fila.sin-acceso{opacity:.62;border-style:dashed}
     .acceso-quien{display:flex;flex-direction:column;min-width:0;flex:1 1 12rem}
@@ -461,13 +477,54 @@
       100%{box-shadow:0 0 0 1px rgba(253,224,71,.35)}}
     .cuadro .duelo.resuelto .mk-vs{display:none}
     @media (prefers-reduced-motion:reduce){.cuadro .vida i.critica,.cuadro .vida.golpeada{animation:none}}
+    /* El tablero de clavijas. El dibujo entero es del lienzo: asi la bola, las
+       clavijas y las casillas crecen juntas y a pantalla completa se ve igual,
+       solo que mas grande. */
+    .tablero-caja{position:relative;margin:0 auto;width:100%;max-width:760px;aspect-ratio:4/5}
+    .escena:fullscreen .tablero-caja{max-width:none;height:100%;max-height:82vh;aspect-ratio:4/5}
+    #plinkoLienzo{display:block;width:100%;height:100%;border-radius:12px;
+      background:linear-gradient(180deg,#071a2a,#04121c);border:1px solid rgba(255,255,255,0.12)}
+    /* Los premios, uno por casilla. En fila y con su numero de casilla debajo,
+       para saber cual se esta tocando. */
+    /* Lo que le ha tocado a cada uno. Una ficha por bola, del color de su bola
+       y con el multiplicador del color de su casilla: así se ata lo que se ha
+       visto caer con lo que pone aquí. */
+    .plinko-marcador{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;margin-top:.9rem}
+    .plinko-marcador[hidden]{display:none}
+    .plinko-ficha{display:flex;align-items:center;gap:.6rem;padding:.45rem .5rem .45rem .7rem;
+      border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.13);
+      animation:fichaEntra .35s cubic-bezier(.2,.9,.3,1.3)}
+    .plinko-ficha .bolita{width:13px;height:13px;border-radius:50%;flex:none;
+      background:currentColor;box-shadow:0 0 9px currentColor}
+    .plinko-ficha .quien{font-weight:700;font-size:14px;max-width:16ch;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .plinko-ficha .gano{color:var(--muted);font-size:13px}
+    .plinko-ficha .multi{font-weight:800;font-size:13px;padding:.15rem .55rem;border-radius:999px;
+      color:#06141f;letter-spacing:.02em}
+    /* La que se lleva más de lo que valía la tirada se nota. */
+    .plinko-ficha.premiada{border-color:rgba(253,224,71,.55);
+      background:linear-gradient(135deg,rgba(253,224,71,.16),rgba(255,255,255,0.05))}
+    @keyframes fichaEntra{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:none}}
+    @media (prefers-reduced-motion:reduce){.plinko-ficha{animation:none}}
+    .premios{margin-top:1rem}
+    .premios summary{cursor:pointer;font-weight:700}
+    .premios-lista{display:flex;flex-wrap:wrap;gap:.45rem;margin:.7rem 0}
+    .premios-lista label{display:flex;flex-direction:column;align-items:center;gap:.2rem;
+      font-size:11px;color:var(--muted)}
+    .premios-lista input{width:62px;text-align:center;background:var(--card);color:inherit;
+      border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.3rem}
     .cuadro .duelo.peleando{border-color:rgba(255,255,255,0.35)}
-    /* Un combate se mira de cerca pulsándolo: se queda con la fila entera y
-       crece con zoom, que es lo único que agranda también el ring y los
-       muñecos, medidos en píxeles. En pantalla completa cabe más. */
-    .cuadro .duelo[data-ronda]{cursor:zoom-in}
-    .cuadro .duelo.ampliado{grid-column:1/-1;zoom:1.7;cursor:zoom-out;
-      border-color:rgba(255,255,255,0.35)}
+    /* Los mandos de cada combate: fijarlo arriba y soltarlo suelto. */
+    .cuadro .duelo-mandos{display:flex;gap:.35rem;align-items:center;margin-top:.4rem}
+    .cuadro .duelo-mandos button{padding:.2rem .5rem;font-size:12px;box-shadow:none}
+    /* Un combate se mira de cerca pulsándolo: sube arriba del todo, ocupa la
+       fila entera y crece con zoom, que es lo único que agranda también el ring
+       y los muñecos, medidos en píxeles. En pantalla completa cabe más. */
+    /* Solo los que están por pelear: uno ya terminado no es lo que se quiere
+       enseñar en grande, y además ya se ve encogido. */
+    .cuadro .duelo[data-ronda]:not(.resuelto){cursor:zoom-in}
+    .cuadro .duelo.ampliado{order:-1;grid-column:1/-1;zoom:1.7;cursor:zoom-out;
+      border-color:rgba(253,224,71,0.45);box-shadow:0 0 0 1px rgba(253,224,71,0.2)}
     .escena:fullscreen .cuadro .duelo.ampliado{zoom:2.4}
     /* El ring: lona, cuerdas y los postes azul y rojo. Cada muñeco mira hacia
        el contrario, y --dir dice hacia donde es «adelante» para él. */
@@ -1279,6 +1336,7 @@
             <button type="button" class="subtab active" data-game="ruleta">🎰 Ruleta</button>
             <button type="button" class="subtab" data-game="carrera">🏁 Carrera de balineras</button>
             <button type="button" class="subtab" data-game="batalla">⚔️ Batalla Dofus</button>
+            <button type="button" class="subtab" data-game="plinko">🎯 Tablero de clavijas</button>
           </div>
 
           <div class="game-subpanel" id="game-batalla-panel">
@@ -1331,6 +1389,48 @@
               <input id="batallaNombre" type="text" placeholder="Apuntar a alguien a mano" aria-label="Apuntar a mano" />
               <button type="button" id="batallaApuntar">Apuntar</button>
             </div>
+          </section>
+          </div>
+
+          <div class="game-subpanel" id="game-plinko-panel">
+          <section>
+            <h3>🎯 Tablero de clavijas</h3>
+            <p class="meta">Los espectadores se apuntan escribiendo en tu chat de Twitch y cada uno tira una bola, que cae rebotando por las clavijas. <strong>Manda la casilla en la que acaba:</strong> lo que vale la tirada por el multiplicador de esa casilla, a puntos. Las filas y los premios de cada casilla se ajustan en <strong>Configuración › Minijuegos › Tablero de clavijas</strong>; el canal, en Configuración › Mi cuenta.</p>
+
+            <!-- La palabra y lo que vale la tirada se cambian sobre la marcha,
+                 entre ronda y ronda, así que se quedan aquí y no en ajustes. -->
+            <div class="draw-controls">
+              <label class="meta" for="plinkoPalabra">Se apuntan escribiendo</label>
+              <input id="plinkoPalabra" type="text" value="!bola" style="width:110px" aria-label="Palabra para apuntarse" />
+              <label class="meta" for="plinkoPuntos">Vale la tirada</label>
+              <input id="plinkoPuntos" type="number" min="0" max="1000000" value="10" style="width:100px" title="Puntos que vale una tirada: el premio es esto por el multiplicador de la casilla" />
+              <button type="button" id="plinkoGuardar">Guardar</button>
+              <span class="meta" id="plinkoGuardado"></span>
+            </div>
+
+            <div class="draw-controls">
+              <button type="button" id="plinkoAbrir">Abrir inscripción</button>
+              <label class="meta" for="plinkoMinutos">Cerrar en (min)</label>
+              <input id="plinkoMinutos" type="number" min="0" max="60" step="0.5" value="0" style="width:80px" title="0 = sin cronómetro" />
+              <span class="crono" id="plinkoCrono" hidden></span>
+            </div>
+            <p class="meta" id="plinkoEstado">Sin ronda abierta.</p>
+
+            <div class="escena-barra">
+              <button type="button" class="btn-full" data-escena="plinkoEscena">⛶ Pantalla completa</button>
+            </div>
+            <div class="escena" id="plinkoEscena" data-presta="accionesPlinko">
+              <div class="tablero-caja">
+                <canvas id="plinkoLienzo"></canvas>
+              </div>
+              <div id="plinkoResultado" class="plinko-marcador" hidden></div>
+            </div>
+
+            <div class="controls" style="margin-top:.8rem">
+              <input id="plinkoNombre" type="text" placeholder="Apuntar a alguien a mano" aria-label="Apuntar a mano" />
+              <button type="button" id="plinkoApuntar">Apuntar</button>
+            </div>
+
           </section>
           </div>
 
@@ -1659,6 +1759,19 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               <span class="meta" id="accesoStatus" style="margin-left:auto"></span>
             </div>
           </div>
+
+          <!-- A qué se juega más. Solo aquí: no sale en ninguna otra pantalla. -->
+          <div class="config-section">
+            <h4>Uso de los minijuegos</h4>
+            <p class="meta">Partidas jugadas de verdad, de todas las cuentas: un sorteo hecho, una carrera corrida, un torneo empezado, una ronda de bolas soltada, una vuelta de la ruleta de nombres. Abrir la inscripción y no jugar no cuenta.</p>
+            <div id="usoJuegos" class="uso-lista"></div>
+            <h4>Quién juega a qué</h4>
+            <div id="usoUsuarios" class="uso-usuarios"></div>
+            <div class="config-actions">
+              <button type="button" class="btn-cancel" id="usoRefrescar">Actualizar</button>
+              <span class="meta" id="usoStatus" style="margin-left:auto"></span>
+            </div>
+          </div>
           </div>
 
           <div class="cfg-tabpanel active" id="cfgtab-cuenta">
@@ -1777,6 +1890,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               <button type="button" class="subtab active" data-mini="ruleta">🎡 Ruletas</button>
               <button type="button" class="subtab" data-mini="carrera">🏁 Carrera de balineras</button>
               <button type="button" class="subtab" data-mini="batalla">⚔️ Batalla Dofus</button>
+              <button type="button" class="subtab" data-mini="plinko">🎯 Tablero de clavijas</button>
             </div>
 
             <div class="cfg-subpanel active" id="mini-ruleta-panel">
@@ -1852,6 +1966,33 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             <div class="cfg-subpanel" id="mini-batalla-panel">
               <p class="meta">A cada espectador le toca una clase de Dofus al azar entre las que tienen imagen, y lanza sus hechizos. Todavía no hay nada que elegir aquí.</p>
             </div>
+
+            <!-- El tablero se ajusta aquí entero: cómo es (las filas), qué vale
+                 una tirada y qué paga cada casilla. En Minijuegos solo queda
+                 abrir la inscripción y soltar las bolas. -->
+            <div class="cfg-subpanel" id="mini-plinko-panel">
+              <p class="meta">Cómo es el tablero. La palabra del chat y lo que vale una tirada se cambian en la pestaña Minijuegos de arriba, que son de ir tocándolos en directo.</p>
+              <div class="config-grid">
+                <div class="config-field">
+                  <label for="plinkoFilas">Filas de clavijas (6 a 16)</label>
+                  <input id="plinkoFilas" type="number" min="6" max="16" value="10" />
+                </div>
+              </div>
+              <p class="meta">Más filas es más difícil llegar a las puntas, así que las puntas pagan más. Cambiar las filas cambia cuántas casillas hay, y los premios se rehacen.</p>
+              <div class="config-actions">
+                <button type="button" id="plinkoFilasGuardar">Guardar tablero</button>
+                <span class="meta" id="plinkoFilasGuardado"></span>
+              </div>
+
+              <h4>Premios de cada casilla</h4>
+              <p class="meta">Lo que se lleva quien caiga ahí: el multiplicador de la casilla por lo que vale la tirada. Los de siempre están puestos para que el tablero devuelva de media una vez la tirada, caiga donde caiga.</p>
+              <div id="plinkoPremios" class="premios-lista"></div>
+              <div class="config-actions">
+                <button type="button" id="plinkoPremiosGuardar">Guardar premios</button>
+                <button type="button" id="plinkoPremiosDefecto" class="btn-cancel">Volver a los de siempre</button>
+                <span class="meta" id="plinkoPremiosEstado"></span>
+              </div>
+            </div>
           </div>
           </div>
 
@@ -1923,6 +2064,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     <button type="button" id="carreraCorrer" disabled>¡Correr!</button>
     <button type="button" id="carreraRepetir" hidden>Volver a correr</button>
     <button type="button" id="carreraCancelar" class="btn-cancel" hidden>Cancelar</button>
+  </div>
+  <div class="acciones-flotantes" id="accionesPlinko" data-juego="plinko" hidden>
+    <button type="button" id="plinkoTirar" disabled>¡Soltar bolas!</button>
+    <button type="button" id="plinkoRepetir" hidden>Otra ronda</button>
+    <button type="button" id="plinkoCancelar" class="btn-cancel" hidden>Cancelar</button>
   </div>
   <div class="acciones-flotantes" id="accionesBatalla" data-juego="batalla" hidden>
     <button type="button" id="batallaEmpezar" disabled>Empezar torneo</button>
@@ -2153,7 +2299,75 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         lista.innerHTML = '';
         estado.textContent = e.message;
       }
+      cargarUso();
     }
+
+    // A qué se juega más. Solo el admin llega aquí: el servidor no contesta a
+    // nadie más, y esta parte de la página tampoco se le enseña.
+    async function cargarUso() {
+      const lista = document.getElementById('usoJuegos');
+      const quienes = document.getElementById('usoUsuarios');
+      const estado = document.getElementById('usoStatus');
+      if (!lista) return;
+      lista.innerHTML = '<span class="meta">Cargando…</span>';
+      let data;
+      try {
+        data = await api('/api/admin/estadisticas');
+      } catch (e) {
+        lista.innerHTML = '';
+        quienes.innerHTML = '';
+        estado.textContent = e.message;
+        return;
+      }
+
+      const juegos = data.juegos || [];
+      const total = juegos.reduce((s, j) => s + j.partidas, 0);
+      const mayor = Math.max(1, ...juegos.map((j) => j.partidas));
+      if (!total) {
+        lista.innerHTML = '<span class="meta">Todavía no se ha jugado a ninguno.</span>';
+        quienes.innerHTML = '';
+        estado.textContent = '';
+        return;
+      }
+
+      // De más jugado a menos, que es lo que se viene a mirar.
+      lista.innerHTML = juegos.slice().sort((a, b) => b.partidas - a.partidas).map((j, i) => {
+        const parte = total ? Math.round(j.partidas / total * 100) : 0;
+        const cuando = j.ultima
+          ? new Date(j.ultima).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
+          : '—';
+        // La corona solo si de verdad va primero: con empate a cero no.
+        const manda = i === 0 && j.partidas > 0;
+        return `
+          <div class="uso-fila${manda ? ' mas' : ''}">
+            <span class="uso-nombre">${escapeHtml(j.nombre)}</span>
+            <span class="uso-barra"><i style="width:${Math.round(j.partidas / mayor * 100)}%"></i></span>
+            <span class="uso-cifra">${j.partidas} partida${j.partidas === 1 ? '' : 's'} · ${parte}%`
+              + `${j.jugadores ? ` · ${j.jugadores} jugador(es)` : ''} · última ${cuando}</span>
+          </div>`;
+      }).join('');
+
+      const usuarios = data.usuarios || [];
+      quienes.innerHTML = usuarios.length
+        ? usuarios.map((u) => {
+          const suyos = Object.entries(u.juegos || {})
+            .sort((a, b) => b[1] - a[1])
+            .map(([id, veces]) => {
+              const juego = juegos.find((j) => j.id === id);
+              return `${escapeHtml(juego ? juego.nombre : id)} ${veces}`;
+            }).join(' · ');
+          return `<div class="uso-usuario"><span class="quien">${escapeHtml(u.username || u.id)}</span>`
+            + `<span class="detalle">${u.total} partida(s)${suyos ? ' — ' + suyos : ''}</span></div>`;
+        }).join('')
+        : '<span class="meta">Nadie ha jugado todavía.</span>';
+
+      const desde = data.desde
+        ? new Date(data.desde).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : '';
+      estado.textContent = `${total} partida${total === 1 ? '' : 's'}` + (desde ? ` desde el ${desde}.` : '.');
+    }
+
+    document.getElementById('usoRefrescar').addEventListener('click', cargarUso);
 
     async function accionAcceso(accion, id) {
       const estado = document.getElementById('accesoStatus');
@@ -4242,7 +4456,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // En cuanto tocas uno, deja de refrescarse hasta que lo guardas.
     ['carreraPalabra', 'carreraPuntos', 'carreraDuracion', 'batallaPalabra', 'batallaPuntos',
-      'nameChatPalabra'].forEach((id) => {
+      'nameChatPalabra', 'plinkoPalabra', 'plinkoPuntos', 'plinkoFilas'].forEach((id) => {
       const campo = document.getElementById(id);
       if (campo) campo.addEventListener('input', () => { campo.dataset.tocado = '1'; });
     });
@@ -4414,6 +4628,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             ${abrirRing(ri, di)}${muneco('a', caido(d.a), d.a)}${muneco('b', caido(d.b), d.b)}<div class="fx"></div></div>
             <div class="golpe"></div>
             <div class="lineas"></div>
+            <div class="duelo-mandos">
+              ${d.ganador ? '' : `<button type="button" class="duelo-pelear" data-duelo="${di}">▶ Pelear este</button>`}
+            </div>
           </div>`;
         }).join('');
         return `<div class="ronda"><h4>${titulo}</h4><div class="duelos">${duelos}</div></div>`;
@@ -4428,12 +4645,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     function aplicarDueloAmpliado() {
       const cuadro = document.getElementById('batallaCuadro');
       if (!cuadro) return;
+      const buscar = (clave) => {
+        if (!clave) return null;
+        const [ri, di] = clave.split(':');
+        return cuadro.querySelector(`.duelo[data-ronda="${ri}"][data-duelo="${di}"]`);
+      };
+
       cuadro.querySelectorAll('.duelo.ampliado').forEach((d) => d.classList.remove('ampliado'));
-      if (!dueloAmpliado) return;
-      const [ri, di] = dueloAmpliado.split(':');
-      const caja = cuadro.querySelector(`.duelo[data-ronda="${ri}"][data-duelo="${di}"]`);
-      // Si ese combate ya no está (se pasó de ronda), se deja de mirar de cerca.
-      if (caja) caja.classList.add('ampliado');
+      const grande = buscar(dueloAmpliado);
+      // Se suelta cuando ese combate ya no está (se pasó de ronda) y también
+      // cuando termina: en cuanto hay ganador deja de ser lo que se mira, y el
+      // sitio de arriba queda libre para el siguiente.
+      if (grande && !grande.classList.contains('resuelto')) grande.classList.add('ampliado');
       else dueloAmpliado = '';
     }
 
@@ -4935,12 +5158,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // Cuenta la ronda golpe a golpe: los muñecos se pegan, las barras de vida bajan y el relato va
     // saliendo debajo. Quien ha ganado ya lo decidió el servidor; esto solo lo
     // enseña. Devuelve una promesa que acaba cuando termina el último duelo.
-    function contarRonda(ronda, indiceRonda) {
+    // Con «cuales» se cuentan solo esos combates (los que se acaban de pelear);
+    // sin ello, los de toda la ronda. Es lo que evita que al soltar uno suelto
+    // se vuelvan a contar los que ya se habían visto.
+    function contarRonda(ronda, indiceRonda, cuales) {
       const cuadro = document.getElementById('batallaCuadro');
       // Ya no hay relato suelto: cada duelo cuenta el suyo dentro de su propia
       // caja, pegado a la pelea que esta contando.
+      const cuenta = (di) => !cuales || cuales.includes(di);
 
-      const conPelea = ronda.duelos.filter((d) => d.b && d.golpes && d.golpes.length);
+      const conPelea = ronda.duelos.filter((d, di) => cuenta(di) && d.b && d.golpes && d.golpes.length);
       if (!conPelea.length) return Promise.resolve();
 
       // Todos los duelos a la vez, para que no se haga eterno con mucha gente.
@@ -4948,7 +5175,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const masLargo = Math.max(...conPelea.map((d) => d.golpes.length));
 
       ronda.duelos.forEach((d, di) => {
-        if (!d.b || !d.golpes || !d.golpes.length) return;
+        if (!cuenta(di) || !d.b || !d.golpes || !d.golpes.length) return;
         const caja = cuadro.querySelector(`.duelo[data-ronda="${indiceRonda}"][data-duelo="${di}"]`);
         if (!caja) return;
         caja.classList.add('peleando');
@@ -5120,6 +5347,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // El servidor devuelve la ronda ya resuelta, con todos los golpes; aquí
       // se cuenta poco a poco y hasta el final no se dice quién ha ganado.
       const eraCampeon = batalla.campeon;
+      // Los que estaban sin pelear: puede que alguno ya se soltara suelto, y
+      // esos no hay que volver a contarlos.
+      const antes = batalla.rondas[batalla.rondas.length - 1];
+      const pendientes = (antes ? antes.duelos : [])
+        .map((d, i) => (d.ganador ? -1 : i)).filter((i) => i >= 0);
       narrando = true;   // que no se repinte el cuadro y se destripe el final
       if (!await accionBatalla('/api/batalla/ronda')) {
         narrando = false;
@@ -5134,7 +5366,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // Ya viene resuelta del servidor: se aparta de Combates hasta que acabe
       // de contarse, o desde ahi se leeria quien gana antes de verlo.
       rondaNarrando = indice;
-      if (batalla.rondas[indice]) await contarRonda(batalla.rondas[indice], indice);
+      if (batalla.rondas[indice]) await contarRonda(batalla.rondas[indice], indice, pendientes);
 
       narrando = false;
       rondaNarrando = -1;
@@ -5144,6 +5376,33 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         makeConfetti(30);
       }
     });
+    // Soltar un combate concreto, el que se quiera ver ahora. La ronda no
+    // avanza hasta que están todos peleados, se suelten en el orden que sea.
+    async function pelearDuelo(di) {
+      if (narrando) return;
+      const indice = batalla.rondas.length - 1;
+      const eraCampeon = batalla.campeon;
+      narrando = true;
+      rondaNarrando = indice;
+      pintarBatalla();
+      if (!await accionBatalla('/api/batalla/duelo', { duelo: di })) {
+        narrando = false;
+        rondaNarrando = -1;
+        pintarBatalla();
+        return;
+      }
+      // La ronda peleada es la que estaba antes de llamar: si con este combate
+      // se acabó, el servidor habrá montado otra detrás, pero esta no se mueve.
+      if (batalla.rondas[indice]) await contarRonda(batalla.rondas[indice], indice, [di]);
+      narrando = false;
+      rondaNarrando = -1;
+      pintarBatalla();
+      if (batalla.campeon && !eraCampeon) {
+        cargarPuntos();
+        makeConfetti(30);
+      }
+    }
+
     document.getElementById('batallaRepetir').addEventListener('click', async () => {
       // El cuadro se sortea de nuevo, así que no salen los mismos duelos.
       await accionBatalla('/api/batalla/repetir');
@@ -5159,6 +5418,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const caja = ev.target.closest('.duelo[data-ronda]');
       if (!caja) return;
       const clave = `${caja.dataset.ronda}:${caja.dataset.duelo}`;
+
+      // El mando del combate va primero: si no, pulsarlo lo agrandaría.
+      const pelear = ev.target.closest('.duelo-pelear');
+      if (pelear) {
+        pelearDuelo(Number(pelear.dataset.duelo));
+        return;
+      }
+
+      // Un combate terminado no se pone en grande.
+      if (caja.classList.contains('resuelto')) return;
       dueloAmpliado = dueloAmpliado === clave ? '' : clave;
       aplicarDueloAmpliado();
     });
@@ -5289,6 +5558,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // Minijuegos ya sale abierto al entrar, asi que la carrera se pide
         // aqui y no solo al pulsar la pestaña de arriba.
         if (cual === 'carrera') cargarCarrera();
+        if (cual === 'plinko') cargarPlinko();
         ajustarAcciones();
       });
     });
@@ -6175,6 +6445,709 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
+    // --- Tablero de clavijas ----------------------------------------------
+    // Aquí no se decide nada: el servidor simula la caída de cada bola con su
+    // física (gravedad, choques y rebotes) y manda el recorrido punto por
+    // punto. Esto solo lo dibuja. La casilla en la que acaba es la que salió
+    // de la simulación, no una elegida antes de tirar.
+
+    let plinko = { abierta: false, jugadores: [], tiradas: [], tablero: null, multiplicadores: [] };
+    let plinkoVigilante = null;   // refresca los apuntados mientras hay inscripción
+    let plinkoCayendo = false;    // mientras se está viendo caer las bolas
+    let plinkoAnimacion = null;   // el requestAnimationFrame en curso
+    // Lo que se está dibujando ahora mismo: bolas a medio caer y casillas que
+    // acaban de recibir una.
+    let plinkoBolas = [];
+    let plinkoCasillasVivas = new Map();
+    // Las clavijas encendidas: cuál se ha golpeado y cuándo, para apagarlas
+    // solas. La clavija es su sitio en la lista, el mismo que usa el servidor.
+    let plinkoClavijasVivas = new Map();
+    // Cuántas posiciones de atrás se pintan como estela de la bola.
+    const ESTELA_BOLA = 8;
+
+    // Una por jugador, para poder seguir la tuya entre muchas.
+    const COLORES_PLINKO = ['#fbbf24', '#38bdf8', '#f472b6', '#a3e635', '#c084fc',
+      '#fb923c', '#2dd4bf', '#f87171', '#e879f9', '#facc15'];
+
+    // Cuánto se espera entre una bola y la siguiente, para que no caigan todas
+    // amontonadas y se pueda seguir cada una.
+    const RETRASO_BOLA = 0.28;
+
+    // La palabra guardada, que es la que escucha el servidor. Se ajusta en
+    // Configuración, así que lo que haya en el campo sin guardar no cuenta.
+    function palabraPlinko() {
+      return (plinko.ajustes && plinko.ajustes.palabra) || '!bola';
+    }
+
+    async function cargarPlinko() {
+      try {
+        plinko = await api('/api/plinko');
+      } catch (e) {
+        console.warn('No se pudo leer el tablero:', e.message);
+        return;
+      }
+      if (plinko.ajustes) {
+        ponerSiNoLoTocas('plinkoPalabra', plinko.ajustes.palabra);
+        ponerSiNoLoTocas('plinkoPuntos', plinko.ajustes.puntos);
+        ponerSiNoLoTocas('plinkoFilas', plinko.ajustes.filas);
+      }
+      pintarPlinko();
+    }
+
+    function plinkoVigilar(encender) {
+      if (plinkoVigilante) { clearInterval(plinkoVigilante); plinkoVigilante = null; }
+      // Solo se pregunta mientras la inscripción está abierta.
+      if (encender) plinkoVigilante = setInterval(cargarPlinko, 2000);
+    }
+
+    function pintarPlinko() {
+      const cuantos = plinko.jugadores.length;
+      const estado = document.getElementById('plinkoEstado');
+      estado.textContent = plinkoCayendo
+        ? 'Cayendo…'
+        : plinko.abierta
+          ? (cerradaPorTiempo(plinko)
+            ? `Inscripción cerrada: ${cuantos} apuntado(s). Pulsa «¡Soltar bolas!».`
+            : `Inscripción abierta en ${plinko.escuchando || 'el chat'}: escriben «${palabraPlinko()}» para tirar. ${cuantos} apuntado(s).`)
+          : plinko.tiradas.length
+            ? `Ronda terminada: ${plinko.tiradas.length} bola(s). Abre otra para volver a tirar.`
+            : 'Sin ronda abierta.';
+
+      const tirar = document.getElementById('plinkoTirar');
+      tirar.hidden = !plinko.abierta;
+      tirar.disabled = plinkoCayendo || cuantos < 1;
+      document.getElementById('plinkoCancelar').hidden = plinkoCayendo || !plinko.abierta;
+      document.getElementById('plinkoRepetir').hidden = plinkoCayendo || !plinko.tiradas.length || cuantos < 1;
+      ajustarAcciones();
+      mostrarCrono('plinkoCrono', plinko.abierta ? plinko : null, cargarPlinko);
+
+      // A pantalla completa solo hay algo que mirar con el tablero puesto, que
+      // es siempre: pero sin nadie apuntado no hay nada que pase.
+      pintarPremiosEditor();
+      dibujarTablero();
+    }
+
+    // --- El dibujo ----------------------------------------------------------
+    // Todo va en el lienzo (marco, clavijas, casillas y bolas) para que a
+    // pantalla completa crezca junto y no haya que cuadrar dos cosas.
+
+    // Las mismas cuentas que hace el servidor para colocar las clavijas. Están
+    // repetidas a propósito: el servidor no manda dónde va cada una, solo las
+    // medidas del tablero, y así la respuesta no lleva cientos de posiciones.
+    // El orden es el mismo, que es lo que permite encender la que se golpea.
+    function clavijasDe(t) {
+      const sitios = [];
+      for (let r = 0; r < t.filas; r++) {
+        const cuantas = r + 3;
+        for (let c = 0; c < cuantas; c++) {
+          sitios.push({ x: (c - (cuantas - 1) / 2) * t.separacion, y: r * t.altoFila });
+        }
+      }
+      return sitios;
+    }
+
+    function bordesDe(t) {
+      const cuantas = (t.filas - 1) + 3;
+      const bordes = [];
+      for (let c = 0; c < cuantas; c++) bordes.push((c - (cuantas - 1) / 2) * t.separacion);
+      return bordes;
+    }
+
+    // El color de una casilla según lo que paga: cuanto más gorda, más caliente.
+    // Se devuelven dos tonos para poder darle degradado y que no sea un plano.
+    function colorCasilla(multiplicador, mayor) {
+      const cuanto = mayor > 0 ? Math.min(1, multiplicador / mayor) : 0;
+      // De verde apagado (paga poco) a rojo (paga mucho), pasando por naranja.
+      const tono = 145 - 145 * Math.pow(cuanto, 0.65);
+      return {
+        claro: `hsl(${tono} 85% ${52 + 8 * cuanto}%)`,
+        oscuro: `hsl(${tono} 80% ${30 + 6 * cuanto}%)`
+      };
+    }
+
+    // Cuánto dura encendida una clavija tras el golpe, en milisegundos.
+    const BRILLO_CLAVIJA = 260;
+
+    function dibujarTablero() {
+      const lienzo = document.getElementById('plinkoLienzo');
+      const t = plinko.tablero;
+      if (!lienzo || !t) return;
+      const ctx = lienzo.getContext('2d');
+
+      // El lienzo se ajusta al hueco que tenga, contando la densidad de la
+      // pantalla: si no, en un móvil o a pantalla completa sale borroso.
+      const caja = lienzo.getBoundingClientRect();
+      const densidad = Math.min(2, window.devicePixelRatio || 1);
+      const ancho = Math.max(1, Math.round(caja.width * densidad));
+      const alto = Math.max(1, Math.round(caja.height * densidad));
+      if (lienzo.width !== ancho || lienzo.height !== alto) {
+        lienzo.width = ancho;
+        lienzo.height = alto;
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, ancho, alto);
+
+      // Del mundo del tablero a píxeles: cabe entero y centrado. El margen deja
+      // sitio para el marco, que va por fuera de las paredes.
+      const pared = ((t.filas - 1) + 3 - 1) / 2 * t.separacion;
+      const arriba = -t.alturaSalida;
+      const abajo = (t.filas - 1) * t.altoFila + t.fondo;
+      const margen = 0.85;
+      const escala = Math.min(
+        ancho / (pared * 2 + margen * 2),
+        alto / ((abajo - arriba) + margen * 2)
+      );
+      const cx = ancho / 2;
+      const cy = (alto - (abajo - arriba) * escala) / 2 - arriba * escala;
+      const aX = (x) => cx + x * escala;
+      const aY = (y) => cy + y * escala;
+      const ahora = performance.now();
+
+      const ultimaFilaY = (t.filas - 1) * t.altoFila;
+      const bordes = bordesDe(t);
+      const multis = plinko.multiplicadores || [];
+      const mayor = Math.max(1, ...multis);
+      // Los límites de la pista. La pared se dibuja por fuera de las clavijas
+      // del borde, sin llegar a tocarlas: por dentro iría montada encima de
+      // ellas y se vería como si las aplastara. Lo que para la bola de verdad
+      // son esas clavijas, y ahí es donde se la ve rebotar.
+      const holgura = t.radioClavija + t.separacion * 0.16;
+      const izq = aX(-pared - holgura);
+      const der = aX(pared + holgura);
+      const cima = aY(arriba) - escala * 0.3;
+      const suelo = aY(abajo);
+      const grosorPared = Math.max(3, escala * 0.14);
+
+      // El fondo de la pista, para que se vea dónde empieza y dónde acaba.
+      const fondo = ctx.createLinearGradient(0, cima, 0, suelo);
+      fondo.addColorStop(0, 'rgba(10,32,50,0.95)');
+      fondo.addColorStop(1, 'rgba(4,16,26,0.95)');
+      ctx.fillStyle = fondo;
+      caminoRedondo(ctx, izq, cima, der - izq, suelo - cima, escala * 0.22);
+      ctx.fill();
+
+      // La boca por la que entra la bola, arriba del todo y en el centro.
+      const bocaAncho = t.separacion * 1.5 * escala;
+      ctx.fillStyle = 'rgba(148,180,210,0.20)';
+      caminoRedondo(ctx, cx - bocaAncho / 2, cima - escala * 0.1, bocaAncho, escala * 0.55, escala * 0.14);
+      ctx.fill();
+
+      // Las casillas de abajo, cada una con su color y su multiplicador.
+      const arribaCasillas = aY(ultimaFilaY + t.altoFila * 0.42);
+      for (let i = 0; i < bordes.length - 1; i++) {
+        // Las de las puntas llegan hasta la pared: si se quedaran en la clavija
+        // del borde, entre la casilla y la pared quedaría una rendija.
+        const x1 = i === 0 ? izq : aX(bordes[i]);
+        const x2 = i === bordes.length - 2 ? der : aX(bordes[i + 1]);
+        const viva = plinkoCasillasVivas.get(i);
+        const vida = viva ? Math.max(0, 1 - (ahora - viva) / 600) : 0;
+        const color = colorCasilla(multis[i] ?? 0, mayor);
+        const hueco = Math.max(1, escala * 0.06);
+        const anchoCaja = Math.max(1, x2 - x1 - hueco * 2);
+        const altoCaja = suelo - arribaCasillas - hueco;
+
+        // La cajita, con degradado: así tiene cuerpo y no es un plano de color.
+        const tinta = ctx.createLinearGradient(0, arribaCasillas, 0, suelo);
+        tinta.addColorStop(0, color.claro);
+        tinta.addColorStop(1, color.oscuro);
+        ctx.fillStyle = tinta;
+        ctx.globalAlpha = 0.9 + 0.1 * vida;
+        caminoRedondo(ctx, x1 + hueco, arribaCasillas, anchoCaja, altoCaja, escala * 0.14);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // La que acaba de recibir una bola se enciende y se va apagando.
+        if (vida > 0) {
+          ctx.save();
+          ctx.shadowColor = color.claro;
+          ctx.shadowBlur = escala * 0.9 * vida;
+          ctx.strokeStyle = `rgba(255,255,255,${0.35 + 0.55 * vida})`;
+          ctx.lineWidth = Math.max(1.5, escala * 0.07);
+          caminoRedondo(ctx, x1 + hueco, arribaCasillas, anchoCaja, altoCaja, escala * 0.14);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // El multiplicador. Oscuro sobre el color, que se lee mejor que blanco.
+        ctx.fillStyle = 'rgba(6,20,32,0.92)';
+        ctx.font = `800 ${Math.max(9, Math.min(escala * 0.36, anchoCaja * 0.42))}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`x${multis[i] ?? 0}`, (x1 + x2) / 2, arribaCasillas + altoCaja / 2, anchoCaja);
+      }
+
+      // Las paredes: dos barras con volumen, no dos rayas. Son el límite de
+      // verdad de la pista, así que tienen que verse como tal.
+      [izq, der].forEach((x, i) => {
+        const barra = ctx.createLinearGradient(x - grosorPared / 2, 0, x + grosorPared / 2, 0);
+        const fuera = i === 0 ? 0 : 1;
+        barra.addColorStop(fuera, '#24435e');
+        barra.addColorStop(1 - fuera, '#7fa8c9');
+        ctx.fillStyle = barra;
+        caminoRedondo(ctx, x - grosorPared / 2, cima, grosorPared, suelo - cima, grosorPared / 2);
+        ctx.fill();
+      });
+
+      // El suelo, cerrando la pista por abajo.
+      ctx.fillStyle = '#24435e';
+      caminoRedondo(ctx, izq - grosorPared / 2, suelo, (der - izq) + grosorPared,
+        grosorPared * 0.8, grosorPared / 2);
+      ctx.fill();
+
+      // Y el marco de toda la pista.
+      ctx.strokeStyle = 'rgba(180,215,240,0.30)';
+      ctx.lineWidth = Math.max(1, escala * 0.05);
+      caminoRedondo(ctx, izq, cima, der - izq, suelo - cima, escala * 0.22);
+      ctx.stroke();
+
+      // Las clavijas. La que acaba de recibir un golpe se enciende: es lo que
+      // deja ver por dónde va rebotando la bola.
+      const rClavija = t.radioClavija * escala;
+      clavijasDe(t).forEach((p, i) => {
+        const px = aX(p.x);
+        const py = aY(p.y);
+        const golpeada = plinkoClavijasVivas.get(i);
+        const vida = golpeada ? Math.max(0, 1 - (ahora - golpeada) / BRILLO_CLAVIJA) : 0;
+
+        if (vida > 0) {
+          // El fogonazo del golpe, que se apaga solo.
+          const radio = rClavija * (2.6 + vida);
+          const halo = ctx.createRadialGradient(px, py, rClavija * 0.5, px, py, radio);
+          halo.addColorStop(0, `rgba(255,240,180,${0.6 * vida})`);
+          halo.addColorStop(1, 'rgba(255,240,180,0)');
+          ctx.fillStyle = halo;
+          ctx.beginPath();
+          ctx.arc(px, py, radio, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Su sombra, para que no parezca pegada al fondo.
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath();
+        ctx.arc(px, py + rClavija * 0.22, rClavija, 0, Math.PI * 2);
+        ctx.fill();
+
+        const brillo = ctx.createRadialGradient(
+          px - rClavija * 0.4, py - rClavija * 0.45, rClavija * 0.1, px, py, rClavija);
+        brillo.addColorStop(0, '#ffffff');
+        brillo.addColorStop(0.55, vida > 0 ? mezclarHaciaBlanco('#ffd977', vida * 0.6) : '#cfe3f5');
+        brillo.addColorStop(1, vida > 0 ? '#c9952c' : '#6f8aa6');
+        ctx.fillStyle = brillo;
+        ctx.beginPath();
+        ctx.arc(px, py, rClavija * (1 + 0.14 * vida), 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Y las bolas, con su estela y su brillo. Van las últimas: pasan por
+      // delante de todo lo demás.
+      const rBola = t.radioBola * escala;
+      plinkoBolas.forEach((b) => {
+        if (!b.visible) return;
+        // La estela: por dónde acaba de pasar, apagándose hacia atrás.
+        for (let i = 0; i < b.estela.length; i++) {
+          const punto = b.estela[i];
+          const cuanto = (i + 1) / (b.estela.length + 1);
+          ctx.fillStyle = b.color;
+          ctx.globalAlpha = 0.18 * cuanto;
+          ctx.beginPath();
+          ctx.arc(aX(punto[0]), aY(punto[1]), rBola * (0.45 + 0.5 * cuanto), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        const px = aX(b.x);
+        const py = aY(b.y);
+        // Sombra pegada debajo.
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.beginPath();
+        ctx.arc(px + rBola * 0.12, py + rBola * 0.18, rBola * 0.95, 0, Math.PI * 2);
+        ctx.fill();
+
+        // La bola: clara por arriba y oscura por abajo, como una canica.
+        const cuerpo = ctx.createRadialGradient(
+          px - rBola * 0.35, py - rBola * 0.4, rBola * 0.08, px, py, rBola);
+        cuerpo.addColorStop(0, mezclarHaciaBlanco(b.color, 0.85));
+        cuerpo.addColorStop(0.45, b.color);
+        cuerpo.addColorStop(1, mezclarHaciaNegro(b.color, 0.55));
+        ctx.fillStyle = cuerpo;
+        ctx.beginPath();
+        ctx.arc(px, py, rBola, 0, Math.PI * 2);
+        ctx.fill();
+
+        // El reflejo de arriba a la izquierda: es lo que la hace redonda.
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.beginPath();
+        ctx.ellipse(px - rBola * 0.33, py - rBola * 0.38, rBola * 0.26, rBola * 0.18,
+          -Math.PI / 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Y un filo claro abajo, el rebote de la luz del tablero.
+        ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+        ctx.lineWidth = Math.max(1, rBola * 0.12);
+        ctx.beginPath();
+        ctx.arc(px, py, rBola * 0.88, Math.PI * 0.15, Math.PI * 0.85);
+        ctx.stroke();
+
+        // De quién es la bola, en una etiqueta encima. Con varias cayendo a la
+        // vez es la única forma de saber cuál es la tuya.
+        etiquetaDeBola(ctx, b, px, py - rBola * 1.5, escala, izq, der);
+      });
+    }
+
+    // El nombre del jugador, encima de su bola. Va en una etiqueta del color de
+    // la bola para poder seguirla de un vistazo cuando caen varias juntas, y se
+    // mantiene dentro de la pista: pegada a la pared se saldría del tablero.
+    function etiquetaDeBola(ctx, b, px, py, escala, izq, der) {
+      const tamano = Math.max(9, escala * 0.28);
+      ctx.font = `700 ${tamano}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Un nombre largo se corta: la etiqueta no puede ser más ancha que el
+      // tablero, y tampoco hace falta para reconocerlo.
+      if (b.etiqueta == null || b.etiquetaTamano !== tamano) {
+        let texto = b.nombre;
+        const tope = (der - izq) * 0.28;
+        if (ctx.measureText(texto).width > tope) {
+          while (texto.length > 2 && ctx.measureText(texto + '…').width > tope) {
+            texto = texto.slice(0, -1);
+          }
+          texto += '…';
+        }
+        b.etiqueta = texto;
+        b.etiquetaTamano = tamano;
+      }
+
+      const anchoTexto = ctx.measureText(b.etiqueta).width;
+      const alto = tamano * 1.5;
+      const ancho = anchoTexto + tamano * 0.9;
+      // Ni se sale por los lados ni se sube por encima del tablero.
+      const x = Math.min(Math.max(px, izq + ancho / 2 + 2), der - ancho / 2 - 2);
+      const y = Math.max(py, alto / 2 + 2);
+
+      ctx.fillStyle = 'rgba(4,16,26,0.82)';
+      caminoRedondo(ctx, x - ancho / 2, y - alto / 2, ancho, alto, alto / 2);
+      ctx.fill();
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = Math.max(1, tamano * 0.09);
+      caminoRedondo(ctx, x - ancho / 2, y - alto / 2, ancho, alto, alto / 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#eef6ff';
+      ctx.fillText(b.etiqueta, x, y + tamano * 0.05);
+    }
+
+    // Un rectángulo de esquinas redondeadas. roundRect no está en todas partes
+    // y aquí se usa a cada rato.
+    function caminoRedondo(ctx, x, y, ancho, alto, radio) {
+      const r = Math.max(0, Math.min(radio, ancho / 2, alto / 2));
+      ctx.beginPath();
+      if (ctx.roundRect) { ctx.roundRect(x, y, ancho, alto, r); return; }
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + ancho, y, x + ancho, y + alto, r);
+      ctx.arcTo(x + ancho, y + alto, x, y + alto, r);
+      ctx.arcTo(x, y + alto, x, y, r);
+      ctx.arcTo(x, y, x + ancho, y, r);
+      ctx.closePath();
+    }
+
+    // Aclarar y oscurecer un color de los de la lista (#rrggbb).
+    function mezclarHaciaBlanco(color, cuanto) {
+      return mezclarColor(color, 255, cuanto);
+    }
+    function mezclarHaciaNegro(color, cuanto) {
+      return mezclarColor(color, 0, cuanto);
+    }
+    function mezclarColor(color, hacia, cuanto) {
+      const n = parseInt(color.slice(1), 16);
+      const r = Math.round((n >> 16 & 255) + (hacia - (n >> 16 & 255)) * cuanto);
+      const g = Math.round((n >> 8 & 255) + (hacia - (n >> 8 & 255)) * cuanto);
+      const b = Math.round((n & 255) + (hacia - (n & 255)) * cuanto);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // --- La caída -----------------------------------------------------------
+
+    // Reproduce los recorridos que mandó el servidor. Cada bola sale un poco
+    // después que la anterior y va pasando por sus puntos, sin inventarse nada.
+    function verCaer(tiradas) {
+      if (plinkoAnimacion) cancelAnimationFrame(plinkoAnimacion);
+      plinkoCayendo = true;
+      plinkoCasillasVivas = new Map();
+      plinkoClavijasVivas = new Map();
+      const caja = document.getElementById('plinkoResultado');
+      caja.hidden = false;
+      caja.innerHTML = '';
+
+      plinkoBolas = tiradas.map((t, i) => {
+        // Los golpes vienen como [fotograma, clavija]. Se agrupan por fotograma
+        // para saber de un vistazo que clavija encender en cada uno.
+        const golpes = new Map();
+        (t.choques || []).forEach(([cuando, cual]) => {
+          if (!golpes.has(cuando)) golpes.set(cuando, []);
+          golpes.get(cuando).push(cual);
+        });
+        return {
+          nombre: t.nombre,
+          color: COLORES_PLINKO[i % COLORES_PLINKO.length],
+          recorrido: t.recorrido,
+          golpes,
+          casilla: t.casilla,
+          multiplicador: t.multiplicador,
+          puntos: t.puntos,
+          empiezaEn: i * RETRASO_BOLA,
+          x: 0, y: 0, visible: false, acabada: false,
+          ultimoFotograma: -1,
+          estela: []   // las ultimas posiciones, de mas vieja a mas nueva
+        };
+      });
+      pintarPlinko();
+
+      const arranque = performance.now();
+      const paso = (ahora) => {
+        const t = (ahora - arranque) / 1000;
+        let quedan = false;
+        plinkoBolas.forEach((b) => {
+          const suyo = t - b.empiezaEn;
+          if (suyo < 0) { b.visible = false; quedan = true; return; }
+          const cual = Math.floor(suyo * 60);
+          if (cual >= b.recorrido.length) {
+            // Ya ha llegado: se queda quieta en su casilla mientras dure la
+            // marca, y se apunta en la lista una sola vez.
+            const fin = b.recorrido[b.recorrido.length - 1];
+            b.x = fin[0];
+            b.y = fin[1];
+            b.estela = [];
+            if (!b.acabada) {
+              b.acabada = true;
+              plinkoCasillasVivas.set(b.casilla, ahora);
+              apuntarTirada(b);
+            }
+            b.visible = plinkoCasillasVivas.has(b.casilla);
+            return;
+          }
+          quedan = true;
+          b.visible = true;
+          const punto = b.recorrido[cual];
+          // La estela se lleva por donde venia, sin repetir el sitio si el
+          // fotograma no ha cambiado (pantallas de 120 Hz y demas).
+          if (b.x !== punto[0] || b.y !== punto[1]) {
+            b.estela.push([b.x, b.y]);
+            if (b.estela.length > ESTELA_BOLA) b.estela.shift();
+          }
+          b.x = punto[0];
+          b.y = punto[1];
+          // Lo que se enciende es la clavija, no la bola: se ve donde ha dado.
+          // Se miran tambien los fotogramas que se hayan saltado, que si no un
+          // golpe rapido puede pasar sin encender nada.
+          for (let f = b.ultimoFotograma + 1; f <= cual; f++) {
+            (b.golpes.get(f) || []).forEach((clavija) => {
+              if (clavija >= 0) plinkoClavijasVivas.set(clavija, ahora);
+            });
+          }
+          b.ultimoFotograma = cual;
+        });
+        // La casilla se queda marcada medio segundo, y la clavija un momento.
+        plinkoCasillasVivas.forEach((cuando, casilla) => {
+          if (ahora - cuando > 600) plinkoCasillasVivas.delete(casilla);
+        });
+        plinkoClavijasVivas.forEach((cuando, clavija) => {
+          if (ahora - cuando > BRILLO_CLAVIJA) plinkoClavijasVivas.delete(clavija);
+        });
+        dibujarTablero();
+        if (quedan || plinkoCasillasVivas.size || plinkoClavijasVivas.size) {
+          plinkoAnimacion = requestAnimationFrame(paso);
+        } else {
+          plinkoAnimacion = null;
+          plinkoCayendo = false;
+          plinkoBolas = [];
+          dibujarTablero();
+          pintarPlinko();
+          cargarPuntos();
+        }
+      };
+      plinkoAnimacion = requestAnimationFrame(paso);
+    }
+
+    // Cada bola que llega se apunta en la lista, con su casilla y sus puntos.
+    function apuntarTirada(b) {
+      const caja = document.getElementById('plinkoResultado');
+      // El multiplicador va del color de su casilla, el mismo que se acaba de
+      // ver encenderse en el tablero.
+      const mayor = Math.max(1, ...(plinko.multiplicadores || []));
+      const color = colorCasilla(b.multiplicador, mayor);
+      const ficha = document.createElement('div');
+      ficha.className = 'plinko-ficha' + (b.multiplicador > 1 ? ' premiada' : '');
+      ficha.innerHTML = `
+        <span class="bolita" style="color:${b.color}"></span>
+        <span class="quien" title="${escapeHtml(b.nombre)}">${escapeHtml(b.nombre)}</span>
+        <span class="gano">${b.puntos > 0 ? `+${b.puntos.toLocaleString('es-ES')} pts` : 'sin puntos'}</span>
+        <span class="multi" style="background:linear-gradient(180deg,${color.claro},${color.oscuro})">x${b.multiplicador}</span>`;
+      caja.appendChild(ficha);
+    }
+
+    // --- Los premios --------------------------------------------------------
+
+    // Una casilla por multiplicador. No se repinta mientras se está escribiendo
+    // en uno: se borraría lo tecleado en cada refresco de los apuntados.
+    function pintarPremiosEditor() {
+      const caja = document.getElementById('plinkoPremios');
+      if (!caja) return;
+      const multis = plinko.multiplicadores || [];
+      const editando = caja.contains(document.activeElement);
+      if (editando) return;
+      if (caja.childElementCount === multis.length
+          && [...caja.querySelectorAll('input')].every((el, i) => Number(el.value) === multis[i])) {
+        return;
+      }
+      caja.innerHTML = '';
+      multis.forEach((m, i) => {
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="number" min="0" max="1000" step="0.1" value="${m}" aria-label="Multiplicador de la casilla ${i + 1}" /><span>${i + 1}</span>`;
+        caja.appendChild(label);
+      });
+    }
+
+    function multiplicadoresDelEditor() {
+      return [...document.querySelectorAll('#plinkoPremios input')]
+        .map((el) => leerDecimalLibre(el.value));
+    }
+
+    // Como leerDecimal pero sin tope de 100: un premio puede ser x250.
+    function leerDecimalLibre(texto) {
+      const num = Number(String(texto).trim().replace(',', '.'));
+      return Number.isFinite(num) ? Math.max(0, Math.min(1000, num)) : 0;
+    }
+
+    async function guardarAjustesPlinko(cuerpo, dondeAvisar) {
+      const aviso = document.getElementById(dondeAvisar);
+      try {
+        plinko = await api('/api/plinko/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cuerpo)
+        });
+        ['plinkoPalabra', 'plinkoPuntos', 'plinkoFilas'].forEach((id) => {
+          const campo = document.getElementById(id);
+          if (campo) delete campo.dataset.tocado;
+        });
+        if (plinko.ajustes) {
+          ponerSiNoLoTocas('plinkoPalabra', plinko.ajustes.palabra);
+          ponerSiNoLoTocas('plinkoPuntos', plinko.ajustes.puntos);
+          ponerSiNoLoTocas('plinkoFilas', plinko.ajustes.filas);
+        }
+        // Los premios se repintan sí o sí: cambiar las filas los rehace.
+        document.getElementById('plinkoPremios').innerHTML = '';
+        pintarPlinko();
+        if (aviso) {
+          aviso.textContent = 'Guardado';
+          setTimeout(() => { aviso.textContent = ''; }, 2000);
+        }
+      } catch (e) {
+        if (aviso) aviso.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    // Lo de la mano: la palabra y lo que vale la tirada, desde el minijuego.
+    document.getElementById('plinkoGuardar').addEventListener('click', () => {
+      guardarAjustesPlinko({
+        palabra: document.getElementById('plinkoPalabra').value.trim(),
+        puntos: Number(document.getElementById('plinkoPuntos').value) || 0
+      }, 'plinkoGuardado');
+    });
+
+    // Y el tablero, desde Configuración: cambiar las filas rehace los premios.
+    document.getElementById('plinkoFilasGuardar').addEventListener('click', () => {
+      guardarAjustesPlinko({
+        filas: Number(document.getElementById('plinkoFilas').value) || 10
+      }, 'plinkoFilasGuardado');
+    });
+
+    document.getElementById('plinkoPremiosGuardar').addEventListener('click', () => {
+      guardarAjustesPlinko({ multiplicadores: multiplicadoresDelEditor() }, 'plinkoPremiosEstado');
+    });
+
+    document.getElementById('plinkoPremiosDefecto').addEventListener('click', () => {
+      // Una lista vacía: el servidor la completa con los de siempre para las
+      // filas que haya puestas.
+      guardarAjustesPlinko({ multiplicadores: [] }, 'plinkoPremiosEstado');
+    });
+
+    document.getElementById('plinkoAbrir').addEventListener('click', async () => {
+      try {
+        plinko = await api('/api/plinko/abrir', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // La palabra sale de Configuración; aquí solo se abre.
+          body: JSON.stringify({ segundos: segundosDe('plinkoMinutos') })
+        });
+        document.getElementById('plinkoResultado').hidden = true;
+        pintarPlinko();
+        plinkoVigilar(true);
+      } catch (e) {
+        showAlert('No se pudo abrir el tablero', e.message);
+      }
+    });
+
+    document.getElementById('plinkoTirar').addEventListener('click', async () => {
+      if (plinkoCayendo) return;
+      plinkoVigilar(false);
+      let hecha;
+      try {
+        hecha = await api('/api/plinko/tirar', { method: 'POST' });
+      } catch (e) {
+        showAlert('No se pudo tirar', e.message);
+        pintarPlinko();
+        return;
+      }
+      plinko = hecha;
+      verCaer(plinko.tiradas);
+    });
+
+    document.getElementById('plinkoRepetir').addEventListener('click', async () => {
+      try {
+        plinko = await api('/api/plinko/repetir', { method: 'POST' });
+        document.getElementById('plinkoResultado').hidden = true;
+        pintarPlinko();
+        plinkoVigilar(true);
+      } catch (e) {
+        showAlert('No se pudo repetir', e.message);
+      }
+    });
+
+    document.getElementById('plinkoCancelar').addEventListener('click', async () => {
+      try {
+        plinko = await api('/api/plinko/cancelar', { method: 'POST' });
+      } catch (e) {
+        showAlert('No se pudo cancelar', e.message);
+      }
+      plinkoVigilar(false);
+      pintarPlinko();
+    });
+
+    document.getElementById('plinkoApuntar').addEventListener('click', async () => {
+      const campo = document.getElementById('plinkoNombre');
+      const nombre = campo.value.trim();
+      if (!nombre) return;
+      try {
+        plinko = await api('/api/plinko/apuntar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre })
+        });
+        campo.value = '';
+        pintarPlinko();
+      } catch (e) {
+        showAlert('No se pudo apuntar', e.message);
+      }
+    });
+
+    // El lienzo se dibuja al tamaño que tenga: al cambiarlo hay que repintar.
+    // El pantalla completa avisa por aquí, que lanza un resize al entrar y salir.
+    window.addEventListener('resize', () => {
+      if (plinko.tablero) dibujarTablero();
+    });
+
     // --- Ratio de salida de cada color ------------------------------------
     let ratios = { common: 70, rare: 20, epic: 8, mythic: 2 };
 
@@ -6834,7 +7807,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         document.querySelectorAll('#config-panel .cfg-mini-subtabs .subtab').forEach((b) => {
           b.classList.toggle('active', b === subtab);
         });
-        ['ruleta', 'carrera', 'batalla'].forEach((nombre) => {
+        ['ruleta', 'carrera', 'batalla', 'plinko'].forEach((nombre) => {
           document.getElementById(`mini-${nombre}-panel`).classList.toggle('active', nombre === cual);
         });
       });
@@ -6849,6 +7822,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       } catch (e) {
         console.warn('No se pudieron leer los ajustes de minijuegos:', e.message);
       }
+      // Los del tablero viven aquí: hay que traerlos aunque no se haya abierto
+      // su minijuego en toda la sesión.
+      cargarPlinko();
     }
 
     async function guardarAnimacionCarrera() {
@@ -7207,7 +8183,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // La ruleta ahora vive dentro de Minijuegos.
         if (tab.dataset.tab === 'history') loadHistory();
         // La ruleta es el minijuego que sale abierto, asi que se repinta.
-        if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarBatalla(); }
+        if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarBatalla(); cargarPlinko(); }
       ajustarAcciones();
         if (tab.dataset.tab === 'puntos') cargarPuntos();
         document.getElementById('fontDock').hidden = tab.dataset.tab !== 'config';
@@ -7582,6 +8558,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('spinNames').disabled = true;
       document.getElementById('nameWinnerBanner').hidden = true;
       document.getElementById('nameWinnerActions').hidden = true;
+
+      // Se avisa al servidor de que se ha jugado, solo para la estadística del
+      // panel de admin. No decide nada, así que si falla da igual.
+      api('/api/ruleta-chat/girada', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cuantos: nombres.length })
+      }).catch(() => {});
 
       const elegido = Math.floor(Math.random() * nombres.length);
       const seg = 360 / nombres.length;

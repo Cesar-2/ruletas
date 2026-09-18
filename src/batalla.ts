@@ -313,20 +313,18 @@ function pelear(duelo: Duelo): void {
   duelo.ganador = vidas[duelo.a] >= vidas[duelo.b] ? duelo.a : duelo.b;
 }
 
-// Resuelve la ronda pendiente y, si queda mas de uno, monta la siguiente.
-// Devuelve null si no habia nada que resolver.
-export function resolverRonda(uid: string): Batalla | null {
+// La ronda que esta por pelear, si la hay.
+function rondaPendiente(uid: string): { batalla: Batalla; ronda: Ronda } | null {
   const batalla = batallas.get(uid);
   if (!batalla || batalla.abierta || batalla.campeon) return null;
   const ronda = batalla.rondas[batalla.rondas.length - 1];
   if (!ronda || ronda.duelos.every((d) => d.ganador)) return null;
+  return { batalla, ronda };
+}
 
-  for (const duelo of ronda.duelos) {
-    // Los pases de ronda ya venian resueltos.
-    if (duelo.ganador) continue;
-    pelear(duelo);
-  }
-
+// Con la ronda entera peleada: o hay campeon, o se monta la siguiente. Se
+// llama tanto al resolverla de golpe como al resolver el ultimo duelo suelto.
+function cerrarRonda(uid: string, batalla: Batalla, ronda: Ronda): void {
   const siguen = ronda.duelos.map((d) => d.ganador);
   if (siguen.length === 1) {
     batalla.campeon = siguen[0];
@@ -338,5 +336,38 @@ export function resolverRonda(uid: string): Batalla | null {
   } else {
     batalla.rondas.push(emparejar(siguen, batalla.rondas.length + 1));
   }
+}
+
+// Resuelve la ronda pendiente y, si queda mas de uno, monta la siguiente.
+// Devuelve null si no habia nada que resolver.
+export function resolverRonda(uid: string): Batalla | null {
+  const pendiente = rondaPendiente(uid);
+  if (!pendiente) return null;
+  const { batalla, ronda } = pendiente;
+
+  for (const duelo of ronda.duelos) {
+    // Los pases de ronda, y los que ya se hayan peleado sueltos.
+    if (duelo.ganador) continue;
+    pelear(duelo);
+  }
+
+  cerrarRonda(uid, batalla, ronda);
+  return batalla;
+}
+
+// Pelea un solo combate de la ronda, el que se diga. Sirve para ir soltandolos
+// de uno en uno en directo en vez de todos a la vez; la ronda no avanza hasta
+// que estan todos peleados, se hayan soltado como se hayan soltado.
+export function resolverDuelo(uid: string, cual: number): Batalla | null {
+  const pendiente = rondaPendiente(uid);
+  if (!pendiente) return null;
+  const { batalla, ronda } = pendiente;
+
+  const duelo = ronda.duelos[cual];
+  // Ni uno que no existe, ni uno ya peleado, ni un pase de ronda.
+  if (!duelo || duelo.ganador || !duelo.b) return null;
+  pelear(duelo);
+
+  if (ronda.duelos.every((d) => d.ganador)) cerrarRonda(uid, batalla, ronda);
   return batalla;
 }
