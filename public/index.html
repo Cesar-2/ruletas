@@ -547,6 +547,7 @@
     .plinko-ficha .quien{font-weight:700;font-size:14px;max-width:16ch;
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .plinko-ficha .gano{color:var(--muted);font-size:13px}
+    .plinko-ficha .premio-img{width:26px;height:26px;object-fit:contain;flex:none}
     .plinko-ficha .multi{font-weight:800;font-size:13px;padding:.15rem .55rem;border-radius:999px;
       color:#06141f;letter-spacing:.02em}
     /* La que se lleva más de lo que valía la tirada se nota. */
@@ -554,6 +555,39 @@
       background:linear-gradient(135deg,rgba(253,224,71,.16),rgba(255,255,255,0.05))}
     @keyframes fichaEntra{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:none}}
     @media (prefers-reduced-motion:reduce){.plinko-ficha{animation:none}}
+    /* Quien va entrando mientras la inscripcion esta abierta. Son las mismas
+       fichas del marcador, pero peladas: aqui todavia no hay nada que ganar. */
+    .plinko-apuntados{margin-top:.9rem}
+    .plinko-apuntados[hidden]{display:none}
+    .plinko-apuntados h4{margin:0 0 .5rem;font-size:14px}
+    .plinko-apuntados .fichas{display:flex;flex-wrap:wrap;gap:.45rem}
+    .plinko-apuntados .plinko-ficha{padding:.35rem .7rem}
+    .plinko-apuntados .vacio{color:var(--muted);font-size:13px}
+    /* El editor de premios: una tarjeta por casilla, con su imagen y su nombre. */
+    .premios-cosas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.6rem;margin:.8rem 0}
+    .premios-cosas[hidden]{display:none}
+    .premio-casilla{display:flex;flex-direction:column;gap:.4rem;padding:.55rem;border-radius:12px;
+      border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
+    .premio-casilla .cual{font-size:12px;color:var(--muted);font-weight:700}
+    .premio-casilla .lienzo{display:flex;align-items:center;justify-content:center;height:64px;
+      border-radius:10px;background:rgba(0,0,0,0.25);overflow:hidden}
+    .premio-casilla .lienzo img{max-width:100%;max-height:100%;object-fit:contain}
+    .premio-casilla .lienzo .sin{font-size:11px;color:var(--muted);text-align:center;padding:0 .3rem}
+    .premio-casilla input[type=text]{width:100%;box-sizing:border-box;font-size:13px;padding:.35rem .45rem}
+    .premio-casilla .botones{display:flex;gap:.3rem}
+    .premio-casilla .botones button{flex:1;padding:.3rem;font-size:12px;box-shadow:none}
+    .premio-casilla .botones .quitar{background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
+    .premio-casilla input[type=file]{display:none}
+    /* El buscador de objetos del catálogo. */
+    .buscador-premio{display:flex;flex-direction:column;gap:.6rem}
+    .buscador-premio .resultados{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
+      gap:.5rem;max-height:46vh;overflow-y:auto;padding-right:.2rem}
+    .buscador-premio .opcion{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.45rem;
+      border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);
+      cursor:pointer;color:inherit;box-shadow:none}
+    .buscador-premio .opcion:hover{border-color:var(--accent)}
+    .buscador-premio .opcion img{width:44px;height:44px;object-fit:contain}
+    .buscador-premio .opcion span{font-size:12px;text-align:center;line-height:1.2}
     .premios{margin-top:1rem}
     .premios summary{cursor:pointer;font-weight:700}
     .premios-lista{display:flex;flex-wrap:wrap;gap:.45rem;margin:.7rem 0}
@@ -1454,7 +1488,7 @@
             <div class="draw-controls">
               <label class="meta" for="plinkoPalabra">Se apuntan escribiendo</label>
               <input id="plinkoPalabra" type="text" value="!bola" style="width:110px" aria-label="Palabra para apuntarse" />
-              <label class="meta" for="plinkoPuntos">Vale la tirada</label>
+              <label class="meta" for="plinkoPuntos" id="plinkoPuntosEtiqueta">Vale la tirada</label>
               <input id="plinkoPuntos" type="number" min="0" max="1000000" value="10" style="width:100px" title="Puntos que vale una tirada: el premio es esto por el multiplicador de la casilla" />
               <button type="button" id="plinkoGuardar">Guardar</button>
               <span class="meta" id="plinkoGuardado"></span>
@@ -1476,6 +1510,11 @@
                 <canvas id="plinkoLienzo"></canvas>
               </div>
               <div id="plinkoResultado" class="plinko-marcador" hidden></div>
+            </div>
+
+            <div class="plinko-apuntados" id="plinkoApuntados" hidden>
+              <h4 id="plinkoApuntadosTitulo">Apuntados</h4>
+              <div class="fichas" id="plinkoApuntadosLista"></div>
             </div>
 
             <div class="controls" style="margin-top:.8rem">
@@ -2069,9 +2108,22 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 <span class="meta" id="plinkoFilasGuardado"></span>
               </div>
 
-              <h4>Premios de cada casilla</h4>
-              <p class="meta">Lo que se lleva quien caiga ahí: el multiplicador de la casilla por lo que vale la tirada. Los de siempre están puestos para que el tablero devuelva de media una vez la tirada, caiga donde caiga.</p>
+              <h4>Qué reparte el tablero</h4>
+              <p class="meta">O puntos al marcador, como siempre, o premios de verdad: cada casilla con su nombre y su imagen. Con premios el tablero <strong>no toca el marcador</strong>: solo dice a quién le ha tocado qué, y ya lo entregas tú.</p>
+              <div class="config-grid">
+                <div class="config-field">
+                  <label for="plinkoModo">Reparte</label>
+                  <select id="plinkoModo">
+                    <option value="puntos">Puntos (multiplicadores)</option>
+                    <option value="premios">Premios (nombre e imagen)</option>
+                  </select>
+                </div>
+              </div>
+
+              <h4 id="plinkoPremiosTitulo">Premios de cada casilla</h4>
+              <p class="meta" id="plinkoPremiosAyuda">Lo que se lleva quien caiga ahí: el multiplicador de la casilla por lo que vale la tirada. Los de siempre están puestos para que el tablero devuelva de media una vez la tirada, caiga donde caiga.</p>
               <div id="plinkoPremios" class="premios-lista"></div>
+              <div id="plinkoPremiosCosas" class="premios-cosas" hidden></div>
               <div class="config-actions">
                 <button type="button" id="plinkoPremiosGuardar">Guardar premios</button>
                 <button type="button" id="plinkoPremiosDefecto" class="btn-cancel">Volver a los de siempre</button>
@@ -2182,6 +2234,31 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       <div class="modal-actions">
         <button type="button" id="serverAdd">＋ Añadir servidor</button>
         <button type="button" class="btn-cancel" id="serverModalClose">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="premioPickerBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="premioPickerTitulo">
+      <h4 id="premioPickerTitulo">Elegir objeto</h4>
+      <p class="meta">Del catálogo del juego que tengas puesto. Se queda con su nombre y su imagen; el nombre lo puedes cambiar después.</p>
+      <div class="buscador-premio">
+        <input type="search" id="premioBuscar" placeholder="Buscar por nombre" aria-label="Buscar objeto por nombre" />
+        <div class="resultados" id="premioResultados"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="premioPickerCerrar">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="juegoModalBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="juegoModalTitle">
+      <h4 id="juegoModalTitle">Elegir juego</h4>
+      <p class="meta">Cada juego tiene su propio catálogo de objetos, y guarda aparte sus servidores, rarezas, exclusiones, ganadores e historial. Cambiar de juego no toca nada de lo del otro.</p>
+      <div class="juego-list" id="juegoList"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="juegoModalClose">Cerrar</button>
       </div>
     </div>
   </div>
@@ -6792,6 +6869,28 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             ? `Ronda terminada: ${plinko.tiradas.length} bola(s). Abre otra para volver a tirar.`
             : 'Sin ronda abierta.';
 
+      // Quien va entrando. Solo mientras hay ronda abierta: en cuanto se
+      // sueltan las bolas manda el marcador, que ya dice quien es cada una.
+      const apuntados = document.getElementById('plinkoApuntados');
+      apuntados.hidden = !plinko.abierta || plinkoCayendo;
+      if (!apuntados.hidden) {
+        document.getElementById('plinkoApuntadosTitulo').textContent = 'Apuntados (' + cuantos + ')';
+        document.getElementById('plinkoApuntadosLista').innerHTML = cuantos
+          ? plinko.jugadores.map((j) =>
+            '<span class="plinko-ficha"><span class="quien">' + escapeHtml(j.nombre) + '</span></span>').join('')
+          : '<span class="vacio">Nadie todavía: en cuanto escriban «'
+            + escapeHtml(palabraPlinko()) + '» en el chat van saliendo aquí.</span>';
+      }
+
+      // Con premios no hay puntos que valgan: el campo se esconde en lugar de
+      // quedarse ahí sin hacer nada. Manda lo que dicen los ajustes, que es lo
+      // que hará la próxima ronda, y no el modo de la que ya se tiró.
+      const vanPremiosAhora = plinko?.ajustes?.modo === 'premios';
+      ['plinkoPuntos', 'plinkoPuntosEtiqueta'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.hidden = vanPremiosAhora;
+      });
+
       const tirar = document.getElementById('plinkoTirar');
       tirar.hidden = !plinko.abierta;
       tirar.disabled = plinkoCayendo || cuantos < 1;
@@ -6802,7 +6901,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       // A pantalla completa solo hay algo que mirar con el tablero puesto, que
       // es siempre: pero sin nadie apuntado no hay nada que pase.
+      pintarModoPlinko();
       pintarPremiosEditor();
+      pintarPremiosCosas();
       dibujarTablero();
     }
 
@@ -6834,6 +6935,59 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // El color de una casilla según lo que paga: cuanto más gorda, más caliente.
     // Se devuelven dos tonos para poder darle degradado y que no sea un plano.
+    // Las imágenes de los premios, ya cargadas. El lienzo no puede pintar una
+    // url: necesita una Image lista. Si todavía no lo está se deja el hueco y
+    // se repinta cuando cargue; una imagen rota no puede tumbar el tablero.
+    const imagenesPremio = new Map();
+
+    function imagenPremio(url) {
+      if (!url) return null;
+      const guardada = imagenesPremio.get(url);
+      if (guardada !== undefined) return guardada;
+      const img = new Image();
+      imagenesPremio.set(url, null);
+      img.onload = () => { imagenesPremio.set(url, img); dibujarTablero(); };
+      img.onerror = () => { imagenesPremio.set(url, false); };
+      img.src = url;
+      return null;
+    }
+
+    // Los premios que toca pintar ahora: los de la ronda tirada si la hay, y si
+    // no los que estén puestos en los ajustes.
+    function premiosDelTablero() {
+      return plinko.premios || plinko?.ajustes?.premios || [];
+    }
+
+    function tableroVaPremios() {
+      return (plinko.modo || plinko?.ajustes?.modo) === 'premios';
+    }
+
+    // Un nombre largo no cabe de una tirada: se parte en dos líneas como mucho
+    // y lo que sobre se corta con puntos suspensivos.
+    function partirNombre(ctx, texto, ancho) {
+      const palabras = String(texto || '').split(/\s+/).filter(Boolean);
+      if (!palabras.length) return [];
+      const lineas = [];
+      let actual = '';
+      for (const palabra of palabras) {
+        const prueba = actual ? actual + ' ' + palabra : palabra;
+        if (ctx.measureText(prueba).width <= ancho || !actual) {
+          actual = prueba;
+        } else {
+          lineas.push(actual);
+          actual = palabra;
+          if (lineas.length === 2) break;
+        }
+      }
+      if (lineas.length < 2 && actual) lineas.push(actual);
+      return lineas.slice(0, 2).map((linea, i, todas) => {
+        if (ctx.measureText(linea).width <= ancho) return linea;
+        let corto = linea;
+        while (corto.length > 1 && ctx.measureText(corto + '…').width > ancho) corto = corto.slice(0, -1);
+        return corto + '…';
+      });
+    }
+
     function colorCasilla(multiplicador, mayor) {
       const cuanto = mayor > 0 ? Math.min(1, multiplicador / mayor) : 0;
       // De verde apagado (paga poco) a rojo (paga mucho), pasando por naranja.
@@ -6911,7 +7065,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       caminoRedondo(ctx, cx - bocaAncho / 2, cima - escala * 0.1, bocaAncho, escala * 0.55, escala * 0.14);
       ctx.fill();
 
-      // Las casillas de abajo, cada una con su color y su multiplicador.
+      // Las casillas de abajo: con su multiplicador, o con el premio que toque.
+      const vanPremios = tableroVaPremios();
+      const premios = premiosDelTablero();
       const arribaCasillas = aY(ultimaFilaY + t.altoFila * 0.42);
       for (let i = 0; i < bordes.length - 1; i++) {
         // Las de las puntas llegan hasta la pared: si se quedaran en la clavija
@@ -6947,12 +7103,45 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           ctx.restore();
         }
 
-        // El multiplicador. Oscuro sobre el color, que se lee mejor que blanco.
-        ctx.fillStyle = 'rgba(6,20,32,0.92)';
-        ctx.font = `800 ${Math.max(9, Math.min(escala * 0.36, anchoCaja * 0.42))}px system-ui, sans-serif`;
+        const centroX = (x1 + x2) / 2;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`x${multis[i] ?? 0}`, (x1 + x2) / 2, arribaCasillas + altoCaja / 2, anchoCaja);
+
+        if (vanPremios) {
+          // El premio: su imagen arriba y su nombre debajo, dentro de la caja.
+          const premio = premios[i] || {};
+          const img = imagenPremio(premio.imagen);
+          const margen = Math.max(2, escala * 0.08);
+          const altoTexto = premio.nombre ? Math.min(altoCaja * 0.42, escala * 0.62) : 0;
+          const altoImagen = altoCaja - altoTexto - margen;
+
+          if (img && altoImagen > 4) {
+            // Se encaja sin deformarla: manda el lado que primero se queda sin
+            // sitio, que si no los objetos anchos salen aplastados.
+            const cabe = Math.min(anchoCaja - margen * 2, altoImagen);
+            const proporcion = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1;
+            let ancho = cabe, alto = cabe;
+            if (proporcion > 1) alto = cabe / proporcion; else ancho = cabe * proporcion;
+            ctx.drawImage(img, centroX - ancho / 2, arribaCasillas + margen + (altoImagen - alto) / 2, ancho, alto);
+          }
+
+          if (premio.nombre) {
+            ctx.fillStyle = 'rgba(6,20,32,0.92)';
+            const cuerpo = Math.max(7, Math.min(escala * 0.2, anchoCaja * 0.22));
+            ctx.font = `700 ${cuerpo}px system-ui, sans-serif`;
+            ctx.textBaseline = 'bottom';
+            const lineas = partirNombre(ctx, premio.nombre, anchoCaja - margen * 2);
+            lineas.forEach((linea, n) => {
+              const y = suelo - margen - (lineas.length - 1 - n) * cuerpo * 1.05;
+              ctx.fillText(linea, centroX, y, anchoCaja - margen);
+            });
+          }
+        } else {
+          // El multiplicador. Oscuro sobre el color, que se lee mejor que blanco.
+          ctx.fillStyle = 'rgba(6,20,32,0.92)';
+          ctx.font = `800 ${Math.max(9, Math.min(escala * 0.36, anchoCaja * 0.42))}px system-ui, sans-serif`;
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`x${multis[i] ?? 0}`, centroX, arribaCasillas + altoCaja / 2, anchoCaja);
+        }
       }
 
       // Las paredes: dos barras con volumen, no dos rayas. Son el límite de
@@ -7173,6 +7362,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           golpes,
           casilla: t.casilla,
           multiplicador: t.multiplicador,
+          premio: t.premio || null,
           puntos: t.puntos,
           empiezaEn: i * RETRASO_BOLA,
           x: 0, y: 0, visible: false, acabada: false,
@@ -7256,8 +7446,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const mayor = Math.max(1, ...(plinko.multiplicadores || []));
       const color = colorCasilla(b.multiplicador, mayor);
       const ficha = document.createElement('div');
-      ficha.className = 'plinko-ficha' + (b.multiplicador > 1 ? ' premiada' : '');
-      ficha.innerHTML = `
+      // Con premios lo que importa es qué le ha tocado: el multiplicador no
+      // pinta nada ahí, así que no se enseña.
+      const premio = b.premio;
+      const conPremio = !!(premio && (premio.nombre || premio.imagen));
+      ficha.className = 'plinko-ficha' + ((conPremio || (!premio && b.multiplicador > 1)) ? ' premiada' : '');
+      ficha.innerHTML = premio
+        ? `
+        <span class="bolita" style="color:${b.color}"></span>
+        <span class="quien" title="${escapeHtml(b.nombre)}">${escapeHtml(b.nombre)}</span>
+        ${premio.imagen ? `<img class="premio-img" src="${escapeHtml(premio.imagen)}" alt="" />` : ''}
+        <span class="gano">${conPremio ? escapeHtml(premio.nombre || 'premio') : 'sin premio'}</span>`
+        : `
         <span class="bolita" style="color:${b.color}"></span>
         <span class="quien" title="${escapeHtml(b.nombre)}">${escapeHtml(b.nombre)}</span>
         <span class="gano">${b.puntos > 0 ? `+${b.puntos.toLocaleString('es-ES')} pts` : 'sin puntos'}</span>
@@ -7266,6 +7466,200 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     // --- Los premios --------------------------------------------------------
+
+
+    // --- Premios del tablero -----------------------------------------------
+    // El tablero reparte puntos (multiplicadores) o premios (nombre e imagen).
+    // Lo que sigue es el editor de Configuración: qué modo, y qué hay en cada
+    // casilla cuando van premios.
+
+    function modoPlinko() {
+      return plinko?.ajustes?.modo === 'premios' ? 'premios' : 'puntos';
+    }
+
+    // Los premios que se están editando. Se guardan aquí y no se releen del
+    // servidor en cada repintado: si no, al elegir una imagen se perdería lo
+    // que estuvieras escribiendo en otra casilla.
+    let premiosEditor = null;
+    let premioEditando = -1;   // la casilla para la que se abrió el buscador
+
+    function premiosDeAjustes() {
+      const casillas = (plinko.multiplicadores || []).length;
+      const guardados = plinko?.ajustes?.premios || [];
+      return Array.from({ length: casillas }, (_, i) => ({
+        nombre: guardados[i]?.nombre || '',
+        imagen: guardados[i]?.imagen || ''
+      }));
+    }
+
+    function pintarModoPlinko() {
+      const sel = document.getElementById('plinkoModo');
+      if (!sel) return;
+      const modo = modoPlinko();
+      if (document.activeElement !== sel) sel.value = modo;
+
+      const vanPremios = modo === 'premios';
+      document.getElementById('plinkoPremios').hidden = vanPremios;
+      document.getElementById('plinkoPremiosCosas').hidden = !vanPremios;
+      document.getElementById('plinkoPremiosTitulo').textContent = vanPremios
+        ? 'Premio de cada casilla'
+        : 'Premios de cada casilla';
+      document.getElementById('plinkoPremiosDefecto').textContent = vanPremios
+        ? 'Vaciar todas las casillas'
+        : 'Volver a los de siempre';
+      document.getElementById('plinkoPremiosAyuda').innerHTML = vanPremios
+        ? 'Lo que se lleva quien caiga ahí. Elige un objeto del catálogo o sube tu propia imagen; el nombre se puede cambiar. Una casilla en blanco es una casilla que no da nada.'
+        : 'Lo que se lleva quien caiga ahí: el multiplicador de la casilla por lo que vale la tirada. Los de siempre están puestos para que el tablero devuelva de media una vez la tirada, caiga donde caiga.';
+    }
+
+    function pintarPremiosCosas() {
+      const caja = document.getElementById('plinkoPremiosCosas');
+      if (!caja || caja.hidden) return;
+      // Como con los multiplicadores: no se repinta mientras se escribe, que
+      // se borraría lo tecleado en cada refresco.
+      if (caja.contains(document.activeElement)) return;
+      if (!premiosEditor) premiosEditor = premiosDeAjustes();
+      const casillas = (plinko.multiplicadores || []).length;
+      if (premiosEditor.length !== casillas) premiosEditor = premiosDeAjustes();
+
+      caja.innerHTML = '';
+      premiosEditor.forEach((premio, i) => {
+        const tarjeta = document.createElement('div');
+        tarjeta.className = 'premio-casilla';
+        tarjeta.innerHTML =
+          '<span class="cual">Casilla ' + (i + 1) + '</span>'
+          + '<span class="lienzo">'
+          + (premio.imagen
+            ? '<img src="' + escapeHtml(premio.imagen) + '" alt="" />'
+            : '<span class="sin">Sin imagen</span>')
+          + '</span>'
+          + '<input type="text" maxlength="60" placeholder="Nombre del premio" value="'
+          + escapeHtml(premio.nombre) + '" aria-label="Nombre del premio de la casilla ' + (i + 1) + '" />'
+          + '<span class="botones">'
+          + '<button type="button" class="elegir">Objeto</button>'
+          + '<button type="button" class="subir">Imagen</button>'
+          + (premio.nombre || premio.imagen ? '<button type="button" class="quitar" title="Vaciar la casilla">✕</button>' : '')
+          + '</span>'
+          + '<input type="file" accept="image/*" />';
+
+        tarjeta.querySelector('input[type=text]').addEventListener('input', (ev) => {
+          premiosEditor[i].nombre = ev.target.value;
+        });
+        tarjeta.querySelector('.elegir').addEventListener('click', () => abrirBuscadorPremio(i));
+        const archivo = tarjeta.querySelector('input[type=file]');
+        tarjeta.querySelector('.subir').addEventListener('click', () => archivo.click());
+        archivo.addEventListener('change', (ev) => subirImagenPremio(ev, i));
+        const quitar = tarjeta.querySelector('.quitar');
+        if (quitar) quitar.addEventListener('click', () => {
+          premiosEditor[i] = { nombre: '', imagen: '' };
+          pintarPremiosCosas();
+        });
+        caja.appendChild(tarjeta);
+      });
+    }
+
+    // La imagen no viaja dentro de los ajustes: se sube aparte y lo que se
+    // guarda es la ruta que devuelve el servidor.
+    async function subirImagenPremio(ev, casilla) {
+      const archivo = ev.target.files && ev.target.files[0];
+      ev.target.value = '';
+      if (!archivo) return;
+      const aviso = document.getElementById('plinkoPremiosEstado');
+      try {
+        const dataUrl = await new Promise((resolver, fallar) => {
+          const lector = new FileReader();
+          lector.onload = () => resolver(lector.result);
+          lector.onerror = () => fallar(new Error('no se pudo leer el archivo'));
+          lector.readAsDataURL(archivo);
+        });
+        const data = await api('/api/plinko/imagen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl })
+        });
+        premiosEditor[casilla].imagen = data.url;
+        // Sin nombre puesto, el del archivo sirve de punto de partida.
+        if (!premiosEditor[casilla].nombre) {
+          premiosEditor[casilla].nombre = archivo.name.replace(/\.[^.]+$/, '').slice(0, 60);
+        }
+        pintarPremiosCosas();
+        aviso.textContent = 'Imagen puesta. Acuérdate de guardar.';
+      } catch (e) {
+        aviso.textContent = e.message;
+      }
+    }
+
+    // --- Buscador de objetos del catálogo ---
+    // Busca sobre el catálogo del juego activo. Se pide una sola vez y se
+    // queda en memoria: son miles de objetos y no cambian mientras miras.
+    let catalogoPremios = null;
+
+    async function abrirBuscadorPremio(casilla) {
+      premioEditando = casilla;
+      document.getElementById('premioPickerBackdrop').hidden = false;
+      const buscar = document.getElementById('premioBuscar');
+      buscar.value = '';
+      const salida = document.getElementById('premioResultados');
+      salida.innerHTML = '<span class="meta">Cargando el catálogo…</span>';
+      try {
+        if (!catalogoPremios) {
+          const data = await api('/api/items');
+          catalogoPremios = Array.isArray(data.items) ? data.items : [];
+        }
+        pintarResultadosPremio('');
+        buscar.focus();
+      } catch (e) {
+        salida.innerHTML = '<span class="meta">' + escapeHtml(e.message) + '</span>';
+      }
+    }
+
+    function pintarResultadosPremio(texto) {
+      const salida = document.getElementById('premioResultados');
+      const busca = String(texto || '').trim().toLowerCase();
+      const nombreDe = (it) => String(it?.name?.es ?? it?.name ?? '');
+      // Sin escribir nada se enseñan los primeros, que algo hay que ver; con
+      // texto, los que coincidan. El tope es para no pintar miles de fichas.
+      const encontrados = (busca
+        ? catalogoPremios.filter((it) => nombreDe(it).toLowerCase().includes(busca))
+        : catalogoPremios).slice(0, 60);
+
+      salida.innerHTML = encontrados.length
+        ? encontrados.map((it) => {
+          const nombre = nombreDe(it);
+          const img = it.image_urls?.icon ?? it.image_urls?.sd ?? '';
+          return '<button type="button" class="opcion" data-nombre="' + escapeHtml(nombre)
+            + '" data-img="' + escapeHtml(img) + '">'
+            + (img ? '<img src="' + escapeHtml(img) + '" alt="" loading="lazy" />' : '')
+            + '<span>' + escapeHtml(nombre) + '</span></button>';
+        }).join('')
+        : '<span class="meta">Ningún objeto con ese nombre.</span>';
+    }
+
+    document.getElementById('premioBuscar').addEventListener('input', (ev) => {
+      if (catalogoPremios) pintarResultadosPremio(ev.target.value);
+    });
+
+    document.getElementById('premioResultados').addEventListener('click', (ev) => {
+      const opcion = ev.target.closest('.opcion');
+      if (!opcion || premioEditando < 0 || !premiosEditor) return;
+      premiosEditor[premioEditando] = {
+        nombre: opcion.dataset.nombre || '',
+        imagen: opcion.dataset.img || ''
+      };
+      document.getElementById('premioPickerBackdrop').hidden = true;
+      premioEditando = -1;
+      pintarPremiosCosas();
+      document.getElementById('plinkoPremiosEstado').textContent = 'Premio puesto. Acuérdate de guardar.';
+    });
+
+    document.getElementById('premioPickerCerrar').addEventListener('click', () => {
+      document.getElementById('premioPickerBackdrop').hidden = true;
+      premioEditando = -1;
+    });
+
+    document.getElementById('plinkoModo').addEventListener('change', (ev) => {
+      guardarAjustesPlinko({ modo: ev.target.value }, 'plinkoPremiosEstado');
+    });
 
     // Una casilla por multiplicador. No se repinta mientras se está escribiendo
     // en uno: se borraría lo tecleado en cada refresco de los apuntados.
@@ -7317,6 +7711,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         }
         // Los premios se repintan sí o sí: cambiar las filas los rehace.
         document.getElementById('plinkoPremios').innerHTML = '';
+        // Y el editor vuelve a leer del servidor, que es quien manda una vez
+        // guardado: así se ve lo que de verdad quedó, recortes incluidos.
+        premiosEditor = null;
         pintarPlinko();
         if (aviso) {
           aviso.textContent = 'Guardado';
@@ -7343,10 +7740,22 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
 
     document.getElementById('plinkoPremiosGuardar').addEventListener('click', () => {
-      guardarAjustesPlinko({ multiplicadores: multiplicadoresDelEditor() }, 'plinkoPremiosEstado');
+      if (modoPlinko() === 'premios') {
+        // Se manda lo que hay en el editor, que es lo que se ve.
+        guardarAjustesPlinko({ premios: premiosEditor || premiosDeAjustes() }, 'plinkoPremiosEstado');
+      } else {
+        guardarAjustesPlinko({ multiplicadores: multiplicadoresDelEditor() }, 'plinkoPremiosEstado');
+      }
     });
 
     document.getElementById('plinkoPremiosDefecto').addEventListener('click', () => {
+      if (modoPlinko() === 'premios') {
+        // Vaciar las casillas, no rehacer multiplicadores: aqui «los de
+        // siempre» no significa nada, porque los premios los pones tu.
+        premiosEditor = (plinko.multiplicadores || []).map(() => ({ nombre: '', imagen: '' }));
+        guardarAjustesPlinko({ premios: premiosEditor }, 'plinkoPremiosEstado');
+        return;
+      }
       // Una lista vacía: el servidor la completa con los de siempre para las
       // filas que haya puestas.
       guardarAjustesPlinko({ multiplicadores: [] }, 'plinkoPremiosEstado');
@@ -7989,6 +8398,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     function marcarCfgTocado(ev) {
       const campo = ev.target.closest('input, select, textarea');
       if (!campo || CFG_NO_CUENTAN.has(campo.id)) return;
+      // Qué reparte el tablero se guarda solo al elegirlo, y los premios tienen
+      // su propio botón: el Guardar de abajo no los toca, así que marcar la
+      // pestaña como pendiente por ellos sería mentir.
+      if (campo.id === 'plinkoModo' || campo.closest('#plinkoPremiosCosas')) return;
       const panel = campo.closest('.cfg-tabpanel');
       const cual = panel && panel.id.replace('cfgtab-', '');
       if (!cual || !CFG_GUARDAR[cual]) return;

@@ -182,11 +182,27 @@ export function multiplicadoresPorDefecto(casillas: number): number[] {
   return forma.map((m) => Math.round(m / media * 10) / 10);
 }
 
+// Lo que se lleva quien cae en una casilla cuando el tablero va a premios: una
+// cosa con nombre e imagen, en vez de un multiplicador de puntos. La imagen
+// puede venir del catalogo de Dofus (su url) o ser una que se haya subido.
+export interface Premio {
+  nombre: string;
+  imagen: string;
+}
+
+export const PREMIO_VACIO: Premio = { nombre: '', imagen: '' };
+
 export interface Ajustes {
   puntos: number;        // lo que vale una tirada; el premio es esto por el multiplicador
   palabra: string;       // lo que se escribe en el chat para apuntarse
   filas: number;         // filas de clavijas del tablero
   multiplicadores: number[];
+  // Que reparte el tablero. En 'puntos' cada casilla paga su multiplicador por
+  // lo que vale la tirada, como siempre. En 'premios' no se toca el marcador:
+  // cada casilla tiene una cosa con nombre e imagen, y lo que hace el tablero
+  // es decir a quien le ha tocado que.
+  modo: 'puntos' | 'premios';
+  premios: Premio[];
 }
 
 export const FILAS_MIN = 6;
@@ -196,8 +212,28 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   puntos: 10,
   palabra: '!bola',
   filas: TABLERO_POR_DEFECTO.filas,
-  multiplicadores: multiplicadoresPorDefecto(casillasDe(TABLERO_POR_DEFECTO.filas))
+  multiplicadores: multiplicadoresPorDefecto(casillasDe(TABLERO_POR_DEFECTO.filas)),
+  // Se arranca como siempre: quien no toque nada sigue repartiendo puntos.
+  modo: 'puntos',
+  premios: premiosVacios(casillasDe(TABLERO_POR_DEFECTO.filas))
 };
+
+// Tantos premios como casillas, todos en blanco. Un premio sin nombre ni
+// imagen es una casilla que no da nada, que es un resultado legitimo.
+export function premiosVacios(casillas: number): Premio[] {
+  return Array.from({ length: casillas }, () => ({ ...PREMIO_VACIO }));
+}
+
+function limpiarPremio(x: unknown): Premio {
+  const p = (x || {}) as any;
+  return {
+    nombre: String(p.nombre ?? '').trim().slice(0, 60),
+    // Se admite una url del catalogo o una ya guardada por el servidor. Lo que
+    // no se admite es un data: aqui: las imagenes subidas pasan por su endpoint,
+    // que las guarda en disco, y en los ajustes solo queda su ruta.
+    imagen: String(p.imagen ?? '').trim().slice(0, 500)
+  };
+}
 
 // --- Estado -------------------------------------------------------------
 
@@ -210,7 +246,11 @@ export interface Tirada {
   nombre: string;
   casilla: number;          // en cual acabo, de izquierda a derecha
   multiplicador: number;
-  puntos: number;           // lo que se le sumo al marcador
+  puntos: number;           // lo que se le sumo al marcador (0 si van premios)
+  // Lo que le ha tocado, si el tablero reparte premios. Va en la tirada y no
+  // se mira en los ajustes al pintar: si luego se cambia un premio, lo que se
+  // sorteo aquel dia sigue diciendo lo que de verdad toco.
+  premio?: Premio;
   // El recorrido de la bola, en unidades de tablero: [x, y] por fotograma.
   // La pagina lo reproduce tal cual; no decide nada.
   recorrido: [number, number][];
@@ -229,6 +269,10 @@ export interface Plinko {
   // esto y no tiene que adivinarlo.
   tablero: Tablero;
   multiplicadores: number[];
+  // Lo que repartia el tablero cuando se tiro, congelado con la ronda: si
+  // despues se cambia en Configuracion, lo ya tirado no cambia.
+  modo?: 'puntos' | 'premios';
+  premios?: Premio[];
 }
 
 // Cuantos fotogramas se guardan por segundo de caida. Con esto la pagina lo
@@ -275,6 +319,8 @@ export function estado(uid: string): Plinko & {
     // ahora: asi cambiar las filas se nota al momento.
     tablero: p.tiradas.length ? p.tablero : tableroDe(ajustes),
     multiplicadores: p.tiradas.length ? p.multiplicadores : ajustes.multiplicadores,
+    modo: p.tiradas.length ? (p.modo || ajustes.modo) : ajustes.modo,
+    premios: p.tiradas.length ? (p.premios || ajustes.premios) : ajustes.premios,
     fisica: FISICA_POR_DEFECTO,
     escuchando: escuchas.get(uid)?.canal || '',
     ajustes,
@@ -304,10 +350,18 @@ export function leerAjustes(uid: string): Ajustes {
     } else {
       ajustes.multiplicadores = ajustes.multiplicadores.map((m) => limpiarMultiplicador(m));
     }
+    // Los premios, igual: tantos como casillas. Los que falten salen en blanco.
+    const premios = Array.isArray(ajustes.premios) ? ajustes.premios : [];
+    ajustes.premios = premiosVacios(casillas).map((p, i) => (i < premios.length ? limpiarPremio(premios[i]) : p));
+    ajustes.modo = ajustes.modo === 'premios' ? 'premios' : 'puntos';
     return ajustes;
   } catch (err) {
     console.error('Failed to read minigame settings:', err);
-    return { ...AJUSTES_POR_DEFECTO, multiplicadores: AJUSTES_POR_DEFECTO.multiplicadores.slice() };
+    return {
+      ...AJUSTES_POR_DEFECTO,
+      multiplicadores: AJUSTES_POR_DEFECTO.multiplicadores.slice(),
+      premios: premiosVacios(casillasDe(AJUSTES_POR_DEFECTO.filas))
+    };
   }
 }
 
@@ -335,6 +389,13 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
     if (actual.filas !== antes && !Array.isArray(ajustes.multiplicadores)) {
       actual.multiplicadores = multiplicadoresPorDefecto(casillasDe(actual.filas));
     }
+    // Los premios tambien son por casilla: al cambiar las filas hay que
+    // reajustarlos, pero conservando los que ya estuvieran puestos.
+    if (actual.filas !== antes && !Array.isArray(ajustes.premios)) {
+      const antesPremios = actual.premios;
+      actual.premios = premiosVacios(casillasDe(actual.filas))
+        .map((p, i) => (i < antesPremios.length ? antesPremios[i] : p));
+    }
   }
   if (Array.isArray(ajustes.multiplicadores)) {
     const casillas = casillasDe(actual.filas);
@@ -343,6 +404,14 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
     // dejar casillas sin premio.
     const relleno = multiplicadoresPorDefecto(casillas);
     actual.multiplicadores = relleno.map((m, i) => (i < dados.length ? dados[i] : m));
+  }
+  if (ajustes.modo === 'puntos' || ajustes.modo === 'premios') {
+    actual.modo = ajustes.modo;
+  }
+  if (Array.isArray(ajustes.premios)) {
+    const casillas = casillasDe(actual.filas);
+    const dados = ajustes.premios.slice(0, casillas).map(limpiarPremio);
+    actual.premios = premiosVacios(casillas).map((p, i) => (i < dados.length ? dados[i] : p));
   }
 
   deps.ensureUserDir(uid);
@@ -558,17 +627,27 @@ export function tirar(uid: string): Plinko | null {
   const tablero = tableroDe(ajustes);
   partida.tablero = tablero;
   partida.multiplicadores = ajustes.multiplicadores.slice();
+  // El modo y los premios se congelan con la ronda: si despues se cambian en
+  // Configuracion, lo ya tirado sigue contando lo que toco de verdad.
+  partida.modo = ajustes.modo;
+  const premios = ajustes.premios.map((p) => ({ ...p }));
+  partida.premios = premios;
+
+  const vanPremios = partida.modo === 'premios';
 
   partida.tiradas = partida.jugadores.map((j) => {
     const caida = tirarBola(tablero, FISICA_POR_DEFECTO);
     const multiplicador = partida.multiplicadores[caida.casilla] ?? 0;
-    const puntos = Math.floor(ajustes.puntos * multiplicador);
+    // Con premios el marcador no se toca: lo que reparte el tablero es la cosa
+    // de la casilla, y quien la entrega eres tu.
+    const puntos = vanPremios ? 0 : Math.floor(ajustes.puntos * multiplicador);
     if (puntos > 0) deps.sumarPuntos(uid, j.nombre, puntos);
     return {
       nombre: j.nombre,
       casilla: caida.casilla,
       multiplicador,
       puntos,
+      ...(vanPremios ? { premio: { ...(premios[caida.casilla] || PREMIO_VACIO) } } : {}),
       recorrido: caida.recorrido,
       choques: caida.choques
     };

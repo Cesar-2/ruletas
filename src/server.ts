@@ -2238,7 +2238,17 @@ app.post('/api/plinko/cancelar', (req: Request, res: Response) => {
   res.json(plinko.estado(uid));
 });
 
-// POST /api/plinko/config  Body: { puntos?, palabra?, filas?, multiplicadores? }
+// POST /api/plinko/imagen  Body: { dataUrl }  -> guarda la imagen de un premio
+// Devuelve solo la ruta: en los ajustes del tablero se guarda eso, no la
+// imagen entera, que si no el archivo de ajustes acabaria pesando megas.
+app.post('/api/plinko/imagen', (req: Request, res: Response) => {
+  requireUid(req);
+  const guardada = guardarImagen(req.body?.dataUrl, 'premio');
+  if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
+  res.json({ url: guardada.url });
+});
+
+// POST /api/plinko/config  Body: { puntos?, palabra?, filas?, multiplicadores?, modo?, premios? }
 app.post('/api/plinko/config', (req: Request, res: Response) => {
   const uid = requireUid(req);
   try {
