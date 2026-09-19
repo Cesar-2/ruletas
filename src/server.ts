@@ -5,6 +5,7 @@ import * as twitch from './twitch';
 import * as carrera from './carrera';
 import * as juegos from './juegos';
 import * as plinko from './plinko';
+import * as cajas from './cajas';
 import * as estadisticas from './estadisticas';
 import * as batalla from './batalla';
 import * as ruletachat from './ruletachat';
@@ -2364,6 +2365,160 @@ app.post('/api/batalla/entrar', (req: Request, res: Response) => {
   res.json(batalla.estado(uid));
 });
 
+// --- Cajas misteriosas --------------------------------------------------
+// Se crea una caja con objetos del catalogo dentro, se subasta sin ensenar lo
+// que lleva y quien la gana decide si abrirla. El contenido NO sale de aqui
+// mientras la caja siga cerrada: el panel se ve en directo y lo leeria el chat.
+
+// Lo que va dentro de las cajas son los EQUIPABLES, no los recursos: los
+// recursos son lo que se sortea en la ruleta, y las cajas son otra cosa.
+//
+// Dos consecuencias de usar la otra familia del catalogo, que no son obvias:
+//
+//  - No se les aplican ni las rarezas ni las exclusiones del servidor. Esas son
+//    de los recursos, y los ankama_id se repiten entre una familia y otra: un
+//    id excluido como recurso taparia un equipable que no tiene nada que ver.
+//  - Por eso la rareza sale del nivel (ver BANDAS en cajas.ts), que para equipo
+//    de Dofus es justo lo que dice cuanto vale. De paso, no hay que marcar nada
+//    a mano para que esto funcione.
+async function catalogoParaCajas(req: Request): Promise<cajas.ObjetoCatalogo[]> {
+  const todos = await fetchEquipmentCached(juegoDe(req));
+  return todos
+    .map((it: any) => {
+      const nivel = Number(it?.level) || 0;
+      return {
+        id: getItemId(it),
+        nombre: String(it?.name?.es ?? it?.name ?? '').slice(0, 120),
+        imagen: String(it?.image_urls?.icon ?? it?.image_urls?.sd ?? ''),
+        nivel,
+        rareza: cajas.rarezaPorNivel(nivel)
+      };
+    })
+    .filter((o) => o.id && o.nombre);
+}
+
+// GET /api/cajas/rarezas -> cuantos objetos hay de cada rareza en este servidor
+// Las cajas se llenan segun la rareza, asi que un catalogo sin marcar no da
+// para ninguna. Esto lo dice antes de intentarlo, que si no el unico aviso
+// llega al pulsar y no se entiende de donde sale.
+app.get('/api/cajas/rarezas', async (req: Request, res: Response) => {
+  try {
+    const catalogo = await catalogoParaCajas(req);
+    const cuenta: Record<string, number> = { common: 0, rare: 0, epic: 0, mythic: 0 };
+    for (const o of catalogo) cuenta[o.rareza] = (cuenta[o.rareza] || 0) + 1;
+    // Que categorias se pueden montar con lo que hay en el catalogo.
+    const tipos = cajas.leerAjustes(requireUid(req)).tipos.map((t) => ({
+      id: t.id,
+      hay: t.rarezas.reduce((s2: number, r) => s2 + (cuenta[r] || 0), 0)
+    }));
+    res.json({ cuenta, total: catalogo.length, tipos });
+  } catch (err) {
+    console.error('Failed to count rarities:', err);
+    res.status(500).json({ error: 'failed to count rarities' });
+  }
+});
+
+// GET /api/cajas -> la subasta en curso y las cajas ya adjudicadas
+app.get('/api/cajas', (req: Request, res: Response) => {
+  res.json(cajas.estado(requireUid(req)));
+});
+
+// POST /api/cajas/abrir  Body: { tipo }  -> crea una caja y abre su subasta
+app.post('/api/cajas/abrir', async (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const canal = canalDe(uid);
+  if (!canal) {
+    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  }
+  try {
+    const catalogo = await catalogoParaCajas(req);
+    if (!catalogo.length) return res.status(409).json({ error: 'no hay objetos en el catalogo' });
+    const hecha = cajas.abrir(uid, canal, String(req.body?.tipo || ''), catalogo);
+    if (!hecha) {
+      const tipo = cajas.tipoDe(cajas.leerAjustes(uid).tipos, String(req.body?.tipo || ''));
+      const nombres: Record<string, string> = {
+        common: 'gris', rare: 'azul', epic: 'morado', mythic: 'rojo'
+      };
+      const pide = tipo.rarezas.map((r) => nombres[r]).join(', ');
+      return res.status(409).json({
+        error: `«${tipo.nombre}» necesita objetos ${pide}, y en este servidor no hay ninguno marcado asi.`
+          + ' Marca rarezas en el catalogo (pestaña Minijuegos › Ruleta › Catalogo) y vuelve a intentarlo.'
+      });
+    }
+    estadisticas.apuntar('cajas', uid);
+    res.json(cajas.estado(uid));
+  } catch (err) {
+    console.error('Failed to open auction:', err);
+    res.status(500).json({ error: (err as Error).message || 'failed to open auction' });
+  }
+});
+
+// POST /api/cajas/cerrar -> se adjudica ya, sin esperar al reloj
+app.post('/api/cajas/cerrar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  if (!cajas.cerrar(uid)) return res.status(409).json({ error: 'no hay subasta abierta' });
+  res.json(cajas.estado(uid));
+});
+
+// POST /api/cajas/cancelar -> se anula y se devuelve lo retenido
+app.post('/api/cajas/cancelar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  cajas.cancelar(uid);
+  res.json(cajas.estado(uid));
+});
+
+// POST /api/cajas/abrir-caja  Body: { caja }  -> se ensena lo que llevaba
+app.post('/api/cajas/abrir-caja', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const hecha = cajas.abrirCaja(uid, String(req.body?.caja || ''));
+  if (!hecha.ok) return res.status(409).json({ error: hecha.porque || 'no se pudo abrir' });
+  res.json(cajas.estado(uid));
+});
+
+// POST /api/cajas/imagen  Body: { dataUrl }  -> guarda la cara de una caja
+// Devuelve solo la ruta: en los ajustes se guarda eso y no la imagen entera.
+app.post('/api/cajas/imagen', (req: Request, res: Response) => {
+  requireUid(req);
+  const guardada = guardarImagen(req.body?.dataUrl, 'caja');
+  if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
+  res.json({ url: guardada.url });
+});
+
+// POST /api/cajas/armar  Body: { nombre, tipo, objetos: [{id,nombre,imagen,nivel}] }
+// Prepara una caja a mano, eligiendo uno a uno lo que lleva.
+app.post('/api/cajas/armar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const objetos = Array.isArray(req.body?.objetos) ? req.body.objetos : [];
+  const hecha = cajas.guardarArmada(
+    uid, String(req.body?.nombre || ''), String(req.body?.tipo || ''), objetos, String(req.body?.imagen || '')
+  );
+  if (!hecha) return res.status(400).json({ error: 'hace falta al menos un objeto' });
+  res.json(cajas.estado(uid));
+});
+
+// DELETE /api/cajas/armadas/:id -> tira una caja preparada
+app.delete('/api/cajas/armadas/:id', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  if (!cajas.borrarArmada(uid, String(req.params.id))) {
+    return res.status(404).json({ error: 'esa caja preparada no existe' });
+  }
+  res.json(cajas.estado(uid));
+});
+
+// POST /api/cajas/config  Body: { palabra?, palabraPista?, segundos?, segundosTrasPuja?,
+//                                  salidaPct?, subidaPct?, costeAbrir?, tipos? }
+// Las categorias de caja tambien se guardan por aqui: las pone el dueno.
+app.post('/api/cajas/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  try {
+    cajas.guardarAjustes(uid, req.body || {});
+    res.json(cajas.estado(uid));
+  } catch (err) {
+    console.error('Failed to save auction settings:', err);
+    res.status(500).json({ error: 'failed to save auction settings' });
+  }
+});
+
 // POST /api/batalla/empezar -> cierra la inscripcion y monta la primera ronda
 app.post('/api/batalla/empezar', (req: Request, res: Response) => {
   const uid = requireUid(req);
@@ -2465,6 +2620,11 @@ carrera.iniciar({ userDir, ensureUserDir, writeJson });
 ruletachat.iniciar({ userDir, ensureUserDir, writeJson });
 // El tablero de clavijas reparte en el mismo marcador que la carrera.
 plinko.iniciar({ userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos });
+// Las subastas cobran y devuelven del mismo marcador que el resto.
+cajas.iniciar({
+  userDir, ensureUserDir, writeJson,
+  sumarPuntos: carrera.sumarPuntos, gastarPuntos: carrera.gastarPuntos
+});
 // La cuenta de partidas es de toda la instalacion, asi que vive con los datos
 // comunes y no en la carpeta de cada usuario.
 estadisticas.iniciar({ archivo: () => path.join(DATA_DIR, 'estadisticas.json'), writeJson });
