@@ -41,6 +41,13 @@
     .avatar-grande{width:64px;height:64px;font-size:24px}
     .cuenta-cabecera{display:flex;align-items:center;gap:.9rem;margin-top:.6rem}
     .cuenta-cabecera .cuenta-usuario{font-size:13px;color:var(--muted)}
+    /* Los mandos de la foto van pegados a la foto: antes el archivo estaba en
+       una columna de la rejilla, lejos de lo que cambiaba. */
+    .cuenta-cabecera .mandos{display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap}
+    .cuenta-cabecera .mandos button{padding:.3rem .7rem;font-size:12px;box-shadow:none}
+    .cuenta-cabecera .mandos .quitar{background:rgba(255,255,255,0.08);color:#e6eef8;
+      border:1px solid rgba(255,255,255,0.14)}
+    .cuenta-cabecera input[type=file]{display:none}
     .aviso-roto{position:fixed;left:1rem;right:1rem;bottom:1rem;z-index:5000;display:flex;gap:.6rem;
       align-items:flex-start;max-width:560px;margin:0 auto;padding:.7rem .9rem;border-radius:12px;
       background:rgba(69,10,10,0.96);border:1px solid rgba(248,113,113,0.5);
@@ -1900,42 +1907,52 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
           <div class="cfg-tabpanel active" id="cfgtab-cuenta">
           <div class="config-section">
-            <h4>Mi cuenta</h4>
+            <h4>Quién eres</h4>
             <div class="cuenta-cabecera">
               <span class="avatar iniciales avatar-grande" id="cuentaAvatar" aria-hidden="true"></span>
               <div>
                 <div class="cuenta-usuario" id="cuentaUsuario"></div>
-                <span class="meta">La foto y el nombre solo cambian cómo te ves tú; con lo que entras es el usuario.</span>
+                <span class="meta">La foto y el nombre solo cambian cómo te ven; entras con tu usuario.</span>
+                <span class="mandos">
+                  <button type="button" id="cfgAvatarPoner">Cambiar la foto</button>
+                  <button type="button" class="quitar" id="cfgAvatarClear">Quitar</button>
+                </span>
               </div>
+              <input id="cfgAvatarFile" type="file" accept="image/*" />
             </div>
             <div class="config-grid">
               <div class="config-field">
                 <label for="cfgUserName">Nombre visible</label>
                 <input id="cfgUserName" type="text" maxlength="40" />
               </div>
-              <div class="config-field">
-                <label for="cfgTwitchCanal">Canal de Twitch</label>
-                <input id="cfgTwitchCanal" type="text" maxlength="60" placeholder="tu_canal" />
-                <span class="meta">De donde leen el chat los minijuegos. Puedes pegar la dirección entera; se queda con el nombre. No hace falta conectar nada.</span>
-              </div>
-              <div class="config-field">
-                <label for="cfgAvatarFile">Foto de la cuenta</label>
-                <input id="cfgAvatarFile" type="file" accept="image/*" />
-                <button type="button" id="cfgAvatarClear">Quitar la foto</button>
-              </div>
             </div>
             <div class="config-actions">
               <span class="meta" id="cfgUserStatus"></span>
             </div>
+          </div>
 
-            <p class="meta" style="margin-top:1rem">Cambiar la contraseña cierra la sesión en los demás dispositivos.</p>
+          <div class="config-section">
+            <h4>Tu canal de Twitch</h4>
+            <p class="meta">De donde leen el chat todos los minijuegos. No hace falta conectar nada.</p>
             <div class="config-grid">
               <div class="config-field">
-                <label for="cfgPassActual">Contraseña actual</label>
+                <label for="cfgTwitchCanal">Canal</label>
+                <input id="cfgTwitchCanal" type="text" maxlength="60" placeholder="tu_canal" />
+                <span class="meta">Puedes pegar la dirección entera; se queda con el nombre.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h4>Contraseña</h4>
+            <p class="meta">Cambiarla cierra la sesión en los demás dispositivos.</p>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgPassActual">La de ahora</label>
                 <input id="cfgPassActual" type="password" autocomplete="current-password" />
               </div>
               <div class="config-field">
-                <label for="cfgPassNueva">Contraseña nueva</label>
+                <label for="cfgPassNueva">La nueva</label>
                 <input id="cfgPassNueva" type="password" autocomplete="new-password" />
               </div>
             </div>
@@ -2779,8 +2796,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
-    // La foto elegida se manda ya en el "Guardar cuenta", no antes.
+    // La foto elegida se manda al guardar la cuenta, no antes.
     let avatarPendiente = null;
+
+    // El campo de archivo va escondido: lo abre el botón, que es lo que se ve.
+    document.getElementById('cfgAvatarPoner').addEventListener('click', () => {
+      document.getElementById('cfgAvatarFile').click();
+    });
 
     document.getElementById('cfgAvatarFile').addEventListener('change', async (ev) => {
       const file = ev.target.files?.[0];
@@ -2798,7 +2820,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           reader.onerror = () => reject(new Error('no se pudo leer el archivo'));
           reader.readAsDataURL(file);
         });
-        estado.textContent = 'Foto lista; pulsa «Guardar cuenta».';
+        estado.textContent = 'Foto lista: pulsa «Guardar» abajo.';
       } catch (e) {
         estado.textContent = 'Error al leer la imagen: ' + e.message;
       }
