@@ -6,8 +6,10 @@ import * as carrera from './carrera';
 import * as juegos from './juegos';
 import * as plinko from './plinko';
 import * as cajas from './cajas';
+import * as excel from './excel';
 import * as estadisticas from './estadisticas';
 import * as batalla from './batalla';
+import * as colina from './colina';
 import * as ruletachat from './ruletachat';
 import fs from 'fs';
 import path from 'path';
@@ -23,10 +25,9 @@ app.use(express.json({ limit: '16mb' }));
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 // Los catalogos de objetos (que juego, de donde se bajan y como se traducen al
-// formato comun) viven en juegos.ts. Hay dos juegos, Dofus y Dofus Touch, y
-// cada uno tiene su catalogo de recursos (lo que se sortea) y el de equipables
-// (solo de consulta): los ankama_id se repiten entre familias y entre juegos,
-// asi que no se mezclan nunca.
+// formato comun) viven en juegos.ts. Cada juego tiene sus catalogos: recursos
+// (lo que se sortea), equipables y cosmeticos (de consulta y de regalar). Los
+// ankama_id se repiten entre familias y entre juegos, asi que no se mezclan.
 // Donde viven los datos. En un hosting, cada despliegue reemplaza la carpeta
 // de la aplicacion, asi que si los datos estan dentro se pierden en cada
 // deploy: con RULETON_DATA se apuntan a una ruta de fuera, que sobrevive.
@@ -124,8 +125,8 @@ function serversFile(uid: string, juego: juegos.Juego): string {
 
 // Cada juego tiene sus cosas aparte: sus servidores, sus rarezas, sus ganadores
 // y sus exclusiones. Tiene que ser asi porque los catalogos son distintos: un
-// ankama_id de Touch no es el mismo objeto que ese ankama_id en Dofus, asi que
-// una lista compartida excluiria cualquier cosa.
+// mismo ankama_id no es el mismo objeto en un juego y en otro, asi que una
+// lista compartida excluiria cualquier cosa.
 function juegoDir(uid: string, juego: juegos.Juego): string {
   return path.join(userDir(uid), 'juegos', juego);
 }
@@ -505,6 +506,9 @@ async function fetchCatalogCached(juego: juegos.Juego, familia: juegos.Familia):
   if (cache) return cache;
 
   const fuente = juegos.fuente(juego, familia);
+  // Hay familias que un juego puede no tener: eso no es un fallo, es un
+  // catalogo vacio.
+  if (!fuente.url) return [];
   try {
     const res = await axios.get(fuente.url, { timeout: 20000 });
     // Cada fuente sabe sacar su lista y traducir sus objetos al formato comun.
@@ -1351,6 +1355,18 @@ app.get('/api/items', async (req: Request, res: Response) => {
   }
 });
 
+// Los cosmeticos: lo que solo cambia la pinta. Como los equipables, son de
+// mirar y de regalar a mano; no entran en la ruleta.
+app.get('/api/cosmeticos', async (req: Request, res: Response) => {
+  try {
+    const juego = juegoDe(req);
+    const items = await fetchCatalogCached(juego, 'cosmetics');
+    res.json({ count: items.length, items, juego, aviso: juegos.AVISOS[juego] });
+  } catch (err) {
+    res.status(500).json({ error: 'failed to get cosmetics' });
+  }
+});
+
 // El catalogo de equipables. Solo se mira desde la pestana de objetos: no hay
 // rarezas, ni exclusiones, ni sorteo, asi que aqui no hace falta el ambito,
 // pero si el juego: son catalogos distintos.
@@ -1368,50 +1384,6 @@ app.get('/api/equipment', async (req: Request, res: Response) => {
 app.get('/api/servers', (req: Request, res: Response) => {
   const juego = juegoDe(req);
   res.json({ servers: readServers(requireUid(req), juego), juego });
-});
-
-// GET /api/img/touch/<tamano>/<id>.png -> la imagen de un objeto de Touch
-//
-// No se enlaza al CDN de Ankama desde la pagina porque CloudFront contesta 403
-// en cuanto la peticion lleva pinta de navegador, y entonces Chrome la bloquea.
-// Desde aqui si se puede: se pide como servidor, se guarda en disco y se sirve
-// del propio Ruleton. La primera vez que se ve un objeto cuesta una descarga;
-// a partir de ahi sale del disco.
-const IMG_TOUCH_DIR = path.join(DATA_DIR, 'img-touch');
-
-app.get('/api/img/touch/:tamano/:archivo', async (req: Request, res: Response) => {
-  // Solo numeros, y nada mas: asi este endpoint no se puede usar para pedirle
-  // al servidor que baje cualquier otra cosa ni para salirse de la carpeta.
-  const tamano = String(req.params.tamano || '');
-  const id = String(req.params.archivo || '').replace(/\.png$/, '');
-  if (!/^\d+$/.test(tamano) || !/^\d+$/.test(id)) {
-    return res.status(400).json({ error: 'imagen no valida' });
-  }
-
-  const dir = path.join(IMG_TOUCH_DIR, tamano);
-  const file = path.join(dir, `${id}.png`);
-  // Un mes: son imagenes de un catalogo congelado en 2019, no cambian.
-  res.setHeader('Cache-Control', 'public, max-age=2592000');
-  res.setHeader('Content-Type', 'image/png');
-  if (fs.existsSync(file)) return res.sendFile(file);
-
-  try {
-    const r = await axios.get(`${juegos.CDN_TOUCH}/${tamano}/${id}.png`, {
-      responseType: 'arraybuffer',
-      timeout: 20000
-    });
-    const datos = Buffer.from(r.data);
-    try {
-      fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(file, datos);
-    } catch (err) {
-      console.warn('Failed to cache Touch image:', err);
-    }
-    res.end(datos);
-  } catch (err) {
-    // Que falte una imagen no es motivo para romper la ficha del objeto.
-    res.status(404).end();
-  }
 });
 
 // GET /api/juegos -> los juegos que hay, para el selector de la pagina
@@ -1963,7 +1935,7 @@ app.post('/api/draw', async (req: Request, res: Response) => {
 // hubiera sorteado a mano desde la pagina.
 async function sortearParaTwitch(uid: string, sid: string, nombre: string, n: number): Promise<string[]> {
   // Los canjes se configuran por servidor, no por juego, asi que sortean del de
-  // siempre. Para sortear de Touch desde Twitch harian falta canjes por juego.
+  // siempre. Para sortear de otro juego harian falta canjes por juego.
   const ambito = `${uid}/${juegos.JUEGO_POR_DEFECTO}/${sid}`;
   const todos = await fetchItemsCached(juegos.JUEGO_POR_DEFECTO);
   const excluidos = new Set(readExclusions(ambito));
@@ -2365,6 +2337,88 @@ app.post('/api/batalla/entrar', (req: Request, res: Response) => {
   res.json(batalla.estado(uid));
 });
 
+// --- Rey de la colina ---------------------------------------------------
+// Una cola de retadores contra el que manda. Aqui no se reparten puntos: solo
+// se pelea, y lo que se persigue es la racha de victorias.
+
+// GET /api/colina -> la cola, el rey y el ultimo combate, con el arte
+app.get('/api/colina', (req: Request, res: Response) => {
+  res.json({ ...colina.estado(requireUid(req)), arte: arteBatalla() });
+});
+
+// POST /api/colina/abrir -> abre la cola y escucha el chat
+app.post('/api/colina/abrir', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const canal = canalDe(uid);
+  if (!canal) {
+    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  }
+  try {
+    if (typeof req.body?.palabra === 'string' && req.body.palabra.trim()) {
+      colina.guardarAjustes(uid, { palabra: req.body.palabra });
+    }
+    colina.abrir(uid, canal);
+    estadisticas.apuntar('colina', uid, 0);
+    res.json({ ...colina.estado(uid), arte: arteBatalla() });
+  } catch (err) {
+    console.error('Failed to open hill:', err);
+    res.status(500).json({ error: (err as Error).message || 'failed to open hill' });
+  }
+});
+
+// POST /api/colina/entrar  Body: { nombre }  (para meter a alguien a mano)
+app.post('/api/colina/entrar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const r = colina.entrar(uid, String(req.body?.nombre || ''));
+  if (!r.ok) return res.status(409).json({ error: r.error });
+  res.json(colina.estado(uid));
+});
+
+// POST /api/colina/sacar  Body: { nombre }  -> lo quita de la cola
+app.post('/api/colina/sacar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  colina.sacar(uid, String(req.body?.nombre || ''));
+  res.json(colina.estado(uid));
+});
+
+// POST /api/colina/siguiente -> pelea el rey contra el primero de la cola
+app.post('/api/colina/siguiente', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const c = colina.siguiente(uid);
+  if (!c) return res.status(409).json({ error: 'no hay con quien pelear todavia' });
+  res.json(colina.estado(uid));
+});
+
+// POST /api/colina/fincombate -> la pagina ya ha acabado de contar el combate
+// Hasta que avisa, los dos que peleaban no pueden volver a la cola: se les
+// esta viendo pelear todavia.
+app.post('/api/colina/fincombate', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  colina.finCombate(uid);
+  res.json(colina.estado(uid));
+});
+
+// POST /api/colina/destronar -> baja al rey sin pelear
+app.post('/api/colina/destronar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  colina.destronar(uid);
+  res.json(colina.estado(uid));
+});
+
+// POST /api/colina/cerrar -> se acabo: deja de escuchar y se olvida la partida
+app.post('/api/colina/cerrar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  colina.cerrar(uid);
+  res.json(colina.estado(uid));
+});
+
+// POST /api/colina/config  Body: { palabra }
+app.post('/api/colina/config', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  colina.guardarAjustes(uid, req.body || {});
+  res.json(colina.estado(uid));
+});
+
 // --- Cajas misteriosas --------------------------------------------------
 // Se crea una caja con objetos del catalogo dentro, se subasta sin ensenar lo
 // que lleva y quien la gana decide si abrirla. El contenido NO sale de aqui
@@ -2596,6 +2650,75 @@ app.post('/api/puntos/sumar', (req: Request, res: Response) => {
   res.json({ puntos: carrera.tabla(uid, 1000) });
 });
 
+// POST /api/puntos/importar  Body: { dataUrl, aplicar? }
+// Mete en el marcador los puntos de una hoja de calculo (la que exporta
+// Botrix, por ejemplo). Las columnas se buscan por su nombre y no por su
+// posicion, asi que da igual el orden y da igual que la hoja venga en ingles.
+//
+// A quien no este en el marcador se le crea con esos puntos; a quien ya este,
+// se le suman a los que tenga. Nunca se pisa lo que alguien llevara ganado.
+//
+// Sin "aplicar" no toca nada: contesta lo que haria, para poder mirarlo antes.
+app.post('/api/puntos/importar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const aplicar = req.body?.aplicar === true;
+
+  const dataUrl = String(req.body?.dataUrl || '');
+  const match = /^data:[^;]*;base64,(.+)$/.exec(dataUrl);
+  if (!match) return res.status(400).json({ error: 'hace falta el archivo' });
+
+  let tabla;
+  try {
+    tabla = excel.leerTabla(Buffer.from(match[1], 'base64'));
+  } catch (err) {
+    console.error('Failed to read spreadsheet:', err);
+    return res.status(400).json({ error: 'no se pudo leer el archivo: ¿es un .xlsx?' });
+  }
+
+  const colNombre = excel.columna(tabla.cabeceras, ['username', 'usuario', 'nombre', 'user', 'name']);
+  const colPuntos = excel.columna(tabla.cabeceras, ['points', 'puntos', 'point', 'punto']);
+  if (!colNombre || !colPuntos) {
+    return res.status(400).json({
+      error: 'la hoja necesita una columna de nombre y otra de puntos.'
+        + ` Tiene: ${tabla.cabeceras.join(', ') || '(ninguna)'}`
+    });
+  }
+
+  // Lo que de verdad se puede usar: con nombre y con un numero por puntos.
+  const ahora = carrera.leerPuntos(uid);
+  const buenas: { nombre: string; puntos: number; tenia: number | null }[] = [];
+  let sinNombre = 0;
+  let sinNumero = 0;
+  for (const fila of tabla.filas) {
+    const nombre = String(fila[colNombre] || '').trim().slice(0, 40);
+    if (!nombre) { sinNombre++; continue; }
+    const crudo = String(fila[colPuntos] || '').replace(/[.\s]/g, '').replace(',', '.');
+    const puntos = Number(crudo);
+    if (!Number.isFinite(puntos)) { sinNumero++; continue; }
+    const tenia = ahora[nombre.toLowerCase()]?.puntos;
+    buenas.push({ nombre, puntos: Math.max(0, Math.floor(puntos)), tenia: tenia ?? null });
+  }
+
+  const resumen = {
+    columnas: { nombre: colNombre, puntos: colPuntos },
+    cabeceras: tabla.cabeceras,
+    filas: tabla.filas.length,
+    validas: buenas.length,
+    sinNombre,
+    sinNumero,
+    yaEstaban: buenas.filter((b) => b.tenia !== null).length,
+    nuevos: buenas.filter((b) => b.tenia === null).length,
+    suma: buenas.reduce((t, b) => t + b.puntos, 0),
+    muestra: buenas.slice(0, 8)
+  };
+
+  if (!aplicar) return res.json({ ...resumen, aplicado: false });
+
+  // Suma siempre: a quien no estaba, sumarle sobre cero es crearlo.
+  for (const b of buenas) carrera.sumarPuntos(uid, b.nombre, b.puntos);
+  res.json({ ...resumen, aplicado: true, puntos: carrera.tabla(uid, 1000) });
+});
+
 // DELETE /api/puntos/:nombre -> lo quita del marcador
 app.delete('/api/puntos/:nombre', (req: Request, res: Response) => {
   const uid = requireUid(req);
@@ -2628,6 +2751,8 @@ cajas.iniciar({
 // La cuenta de partidas es de toda la instalacion, asi que vive con los datos
 // comunes y no en la carpeta de cada usuario.
 estadisticas.iniciar({ archivo: () => path.join(DATA_DIR, 'estadisticas.json'), writeJson });
+// El rey de la colina no reparte nada: solo guarda su palabra y su record.
+colina.iniciar({ userDir, ensureUserDir, writeJson });
 // La batalla reparte en el mismo marcador que la carrera.
 batalla.iniciar({
   userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos,

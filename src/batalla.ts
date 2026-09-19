@@ -202,6 +202,13 @@ function clasesEnJuego(): string[] {
   return conArte.length ? conArte : CLASES_DOFUS;
 }
 
+// Una clase al azar de las que estan en juego. La usa tambien el rey de la
+// colina, que reparte clase igual que aqui.
+export function sortearClase(): string {
+  const enJuego = clasesEnJuego();
+  return enJuego[Math.floor(Math.random() * enJuego.length)];
+}
+
 // A cada luchador le toca una clase al azar, para todo el torneo.
 function sortearClases(luchadores: Luchador[]): Luchador[] {
   const enJuego = clasesEnJuego();
@@ -311,6 +318,15 @@ function pelear(duelo: Duelo): void {
   }
   // Si por lo que sea no ha caido ninguno, gana el que mas vida tenga.
   duelo.ganador = vidas[duelo.a] >= vidas[duelo.b] ? duelo.a : duelo.b;
+}
+
+// Un combate suelto entre dos, con estas mismas reglas. Lo usa el rey de la
+// colina: alli no hay cuadro ni rondas, pero la pelea es la misma, y dos
+// motores de combate serian dos sitios que tocar cada vez que se cambie una.
+export function pelearSueltos(a: string, b: string): Duelo {
+  const duelo: Duelo = { a, b, ganador: '', golpes: [] };
+  pelear(duelo);
+  return duelo;
 }
 
 // La ronda que esta por pelear, si la hay.

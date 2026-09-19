@@ -413,6 +413,92 @@
     .config-section > h4{margin:0;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:var(--accent)}
     .config-section > .meta{margin:.15rem 0 0}
     .config-section .subtabs{margin-top:1.1rem}
+    /* --- Rey de la colina ---------------------------------------------
+       El trono y el record van arriba, uno al lado del otro; debajo el
+       combate, que reaprovecha el cuadro de la batalla; y al final la cola. */
+    .colina-marcas{display:flex;gap:.8rem;flex-wrap:wrap;align-items:stretch;margin-bottom:.8rem}
+    .colina-trono,.colina-record{flex:1 1 240px;border-radius:12px;padding:.7rem .9rem;
+      border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05)}
+    /* El que manda destaca: es lo que hay que mirar. */
+    .colina-trono{border-color:rgba(251,191,36,0.55);
+      background:linear-gradient(180deg,rgba(251,191,36,0.18),rgba(251,191,36,0.05))}
+    .colina-trono .quien{display:block;font-weight:700;font-size:1.25rem;line-height:1.2}
+    .colina-trono .corona{font-size:1.1rem}
+    .colina-trono .clase,.colina-record .clase{font-size:12px;color:var(--muted)}
+    /* La racha, en grande: es el numero del juego. */
+    .colina-racha{display:flex;align-items:baseline;gap:.35rem;margin-top:.3rem}
+    .colina-racha b{font-size:1.9rem;line-height:1;color:#fbbf24}
+    .colina-racha span{font-size:12px;color:var(--muted)}
+    /* A partir de tres seguidas, la racha arde. */
+    .colina-trono.ardiendo{animation:colinaArde 1.6s ease-in-out infinite}
+    @keyframes colinaArde{
+      0%,100%{box-shadow:0 0 0 rgba(251,191,36,0)}
+      50%{box-shadow:0 0 18px rgba(251,191,36,0.45)}
+    }
+    @media (prefers-reduced-motion:reduce){.colina-trono.ardiendo{animation:none}}
+    .colina-record .marca{font-weight:600}
+    .colina-record .nueva{color:#6ee7b7}
+    /* La cuenta atras entre combate y combate. */
+    .colina-cuenta{margin:.2rem 0 0;font-size:13px;color:var(--accent)}
+    .colina-cuenta b{font-size:1.1rem}
+    /* El cartel del rey, para el rato en que no se pelea. Va en grande a
+       proposito: es lo que se queda en pantalla durante el directo. */
+    .colina-cartel{display:flex;align-items:center;gap:1.2rem;margin:1rem auto 0;
+      max-width:520px;padding:1.1rem 1.3rem;border-radius:14px;
+      border:1px solid rgba(251,191,36,0.45);
+      background:linear-gradient(180deg,rgba(251,191,36,0.16),rgba(251,191,36,0.04))}
+    .colina-cartel .dibujo{flex:none;width:92px;height:118px;display:flex;
+      align-items:flex-end;justify-content:center}
+    .colina-cartel .dibujo svg,.colina-cartel .dibujo img{width:100%;height:auto;display:block}
+    .colina-cartel .texto{min-width:0;flex:1}
+    .colina-cartel .titulo{font-size:12px;color:var(--muted);text-transform:uppercase;
+      letter-spacing:.05em}
+    .colina-cartel .quien{display:block;font-size:1.7rem;font-weight:800;line-height:1.15;
+      overflow-wrap:anywhere}
+    .colina-cartel .clase{font-size:12px;color:var(--muted)}
+    .colina-cartel .racha{display:flex;align-items:baseline;gap:.4rem;margin-top:.35rem}
+    .colina-cartel .racha b{font-size:2.6rem;line-height:1;color:#fbbf24}
+    .colina-cartel .reta{margin-top:.5rem;font-size:14px}
+    .colina-cartel .reta code{background:rgba(255,255,255,0.1);padding:.1rem .4rem;
+      border-radius:5px;font-size:14px}
+    .colina-cartel .es-record{margin-top:.35rem;font-size:13px;color:#6ee7b7;font-weight:600}
+    /* Sin rey todavia: el cartel invita, sin dibujo. */
+    .colina-cartel.vacio{justify-content:center;text-align:center;
+      border-color:rgba(255,255,255,0.14);background:rgba(255,255,255,0.05)}
+
+    .colina-cola{margin-top:.8rem}
+    .colina-cola h4{margin:0 0 .4rem}
+    .colina-cola .fichas{display:flex;flex-wrap:wrap;gap:.45rem}
+    /* Con el mismo aire que las del tablero de clavijas. Se puede pulsar para
+       sacar a alguien, asi que se comporta como un boton. */
+    .colina-cola .ficha{display:inline-flex;align-items:center;gap:.4rem;
+      padding:.35rem .8rem;border-radius:999px;cursor:pointer;font-size:13px;
+      background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.13);
+      animation:fichaEntra .35s cubic-bezier(.2,.9,.3,1.3)}
+    .colina-cola .ficha:hover{background:rgba(255,255,255,0.11)}
+    /* El primero de la cola es el que sale ahora: se le nota. */
+    .colina-cola .ficha.siguiente{border-color:var(--accent);color:var(--accent);
+      background:rgba(110,231,183,0.12)}
+    .colina-cola .turno{font-size:11px;opacity:.6}
+    @media (prefers-reduced-motion:reduce){.colina-cola .ficha{animation:none}}
+
+    /* Aqui solo se pelea un combate cada vez, asi que ocupa el ancho entero
+       en vez de una columna de cuadro de torneo. Y al acabar no se encoge:
+       el recuadro es lo unico que cuenta quien ha tumbado a quien. */
+    /* El ancho se limita en la columna y no en el combate: un margin auto
+       sobre una celda de rejilla la encoge al contenido en vez de estirarla. */
+    #colinaCuadro .duelos{grid-template-columns:minmax(0,520px);justify-content:center}
+    /* Y no se encoge al acabar: el ring y el perdedor se quedan a la vista,
+       que es lo unico que cuenta quien ha tumbado a quien. */
+    #colinaCuadro .duelo.resuelto{padding:.45rem .6rem}
+    #colinaCuadro .duelo.resuelto .ring,
+    #colinaCuadro .duelo.resuelto .vida,
+    #colinaCuadro .duelo.resuelto .golpe,
+    #colinaCuadro .duelo.resuelto .lado.pierde{display:block}
+    /* Y el huevo se queda en medio, que si no las dos barras se miran de lejos. */
+    #colinaCuadro .duelo.resuelto .mk-vs{display:flex}
+    #colinaCuadro .duelo.resuelto .lineas{max-height:none;opacity:1}
+
     .game-subpanel{display:none}
     .game-subpanel.active{display:block}
     /* La cuenta atrás para cerrar la inscripción: ámbar, roja y latiendo en
@@ -489,13 +575,23 @@
     /* La barra de vida de cada luchador durante el combate. */
     /* La vida al estilo Mortal Kombat: las dos barras arriba, una frente a la
        otra, con el nombre debajo y el VS en medio. */
-    .cuadro .mk{display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem}
-    .cuadro .mk-lado{flex:1;min-width:0}
+    /* Rejilla de dos filas: arriba las dos barras de vida, abajo los dos
+       nombres, y el huevo en medio ocupando las dos. Asi las barras quedan
+       siempre a la misma altura, mida lo que mida cada lado. */
+    .cuadro .mk{display:grid;grid-template-columns:1fr clamp(20px,6%,32px) 1fr;
+      column-gap:.5rem;align-items:center;margin-bottom:.45rem}
+    /* Los dos lados no pintan nada por si mismos: lo que se coloca en la
+       rejilla es lo que llevan dentro. */
+    .cuadro .mk-lado{display:contents}
+    .cuadro .mk-lado .vida{grid-row:1;min-width:0}
+    .cuadro .mk-lado .lado{grid-row:2;min-width:0}
+    .cuadro .mk-lado.a .vida,.cuadro .mk-lado.a .lado{grid-column:1}
+    .cuadro .mk-lado.b .vida,.cuadro .mk-lado.b .lado{grid-column:3}
     /* El Dofus en medio, entre las dos barras. Es cuadrado por dentro (el
        viewBox manda), asi que crece y encoge sin deformarse: el ancho sale
        del sitio que haya y el alto va solo. */
-    .cuadro .mk-vs{flex:none;width:clamp(20px,6%,32px);display:flex;align-items:center;
-      justify-content:center;line-height:0}
+    .cuadro .mk-vs{grid-column:2;grid-row:1 / span 2;width:100%;display:flex;
+      align-items:center;justify-content:center;line-height:0}
     /* Late despacio, como si guardara algo dentro. */
     .cuadro .mk-vs svg{width:100%;height:auto;display:block;
       filter:drop-shadow(0 0 5px rgba(198,240,0,.55));
@@ -587,6 +683,11 @@
     .premio-casilla input[type=file]{display:none}
     /* El buscador de objetos del catálogo. */
     .buscador-premio{display:flex;flex-direction:column;gap:.6rem}
+    /* De qué familia del catálogo se está eligiendo. */
+    .buscador-familias{display:flex;gap:.4rem}
+    .buscador-familias button{padding:.3rem .8rem;font-size:13px;box-shadow:none;
+      background:rgba(255,255,255,0.07);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
+    .buscador-familias button.activa{background:rgba(110,231,183,0.16);border-color:var(--accent);color:var(--accent)}
     .buscador-premio .resultados{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
       gap:.5rem;max-height:46vh;overflow-y:auto;padding-right:.2rem}
     .buscador-premio .opcion{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.45rem;
@@ -742,6 +843,21 @@
     .armario-caja .objetos img{width:24px;height:24px;object-fit:contain}
     .armario-caja button{width:100%;margin-top:.5rem;padding:.3rem;font-size:12px;box-shadow:none;
       background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
+    /* Cargar puntos desde una hoja de cálculo. */
+    .importar-puntos{margin-top:.9rem;padding:.7rem .8rem;border-radius:12px;
+      border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
+    .importar-puntos input[type=file]{display:none}
+    .importar-puntos .mandos{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+    .importar-puntos .resumen{margin-top:.6rem;font-size:13px;line-height:1.45}
+    .importar-puntos .resumen[hidden]{display:none}
+    .importar-puntos .resumen b{color:#e6eef8}
+    .importar-puntos .muestra{display:flex;flex-direction:column;gap:.2rem;margin-top:.45rem;
+      max-height:150px;overflow-y:auto}
+    .importar-puntos .linea{display:flex;gap:.5rem;font-size:12px;color:var(--muted);
+      padding:.2rem .45rem;border-radius:7px;background:rgba(255,255,255,0.04)}
+    .importar-puntos .linea .n{font-weight:700;color:#e6eef8;flex:1;min-width:0;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .importar-puntos .aviso{color:#fcd34d}
     .premios{margin-top:1rem}
     .premios summary{cursor:pointer;font-weight:700}
     .premios-lista{display:flex;flex-wrap:wrap;gap:.45rem;margin:.7rem 0}
@@ -1496,7 +1612,7 @@
 </head>
 <body>
   <header class="navbar">
-    <button type="button" class="server-tab juego-tab" id="juegoTab" title="Cambiar de juego: Dofus y Dofus Touch tienen catálogos distintos, y cada uno guarda sus servidores, rarezas, exclusiones y ganadores por separado">
+    <button type="button" class="server-tab juego-tab" id="juegoTab" hidden title="Cambiar de juego: cada uno tiene su catálogo y guarda sus servidores, rarezas, exclusiones y ganadores por separado">
       🎲 <span id="juegoTabName">Juego</span>
     </button>
     <button type="button" class="server-tab" id="serverTab" title="Cambiar de servidor: cada uno guarda sus rarezas, ganadores y ranking. Las exclusiones son las mismas dentro de un juego">
@@ -1578,6 +1694,7 @@
             <button type="button" class="subtab" data-game="batalla">⚔️ Batalla Dofus</button>
             <button type="button" class="subtab" data-game="plinko">🎯 Tablero de clavijas</button>
             <button type="button" class="subtab" data-game="cajas">📦 Cajas misteriosas</button>
+            <button type="button" class="subtab" data-game="colina">👑 Rey de la colina</button>
           </div>
 
           <div class="game-subpanel" id="game-batalla-panel">
@@ -1629,6 +1746,47 @@
             <div class="controls" style="margin-top:.8rem">
               <input id="batallaNombre" type="text" placeholder="Apuntar a alguien a mano" aria-label="Apuntar a mano" />
               <button type="button" id="batallaApuntar">Apuntar</button>
+            </div>
+          </section>
+          </div>
+
+          <div class="game-subpanel" id="game-colina-panel">
+          <section>
+            <h3>👑 Rey de la colina</h3>
+            <p class="meta">Tu chat hace cola escribiendo «<strong id="colinaComoRetar">!reto</strong>» y se van peleando de uno en uno contra el que manda. El que gana se queda arriba; el que pierde se va, y puede volver a ponerse a la cola cuantas veces quiera. <strong>No hay puntos: lo que se persigue es la racha.</strong> Se pelea con las mismas reglas que la Batalla Dofus. El canal se pone en Configuración › Mi cuenta.</p>
+
+            <div class="draw-controls">
+              <label class="meta" for="colinaPalabra">Se apuntan escribiendo</label>
+              <input id="colinaPalabra" type="text" value="!reto" style="width:110px" aria-label="Palabra para retar" />
+              <button type="button" id="colinaGuardar">Guardar</button>
+              <span class="meta" id="colinaGuardado"></span>
+            </div>
+
+            <div class="draw-controls">
+              <button type="button" id="colinaAbrir">Abrir la cola</button>
+            </div>
+            <p class="meta" id="colinaEstado">Sin colina abierta.</p>
+            <p class="colina-cuenta" id="colinaCuenta" hidden></p>
+
+            <div class="escena-barra">
+              <button type="button" class="btn-full" data-escena="colinaEscena">⛶ Pantalla completa</button>
+            </div>
+            <div class="escena" id="colinaEscena" data-presta="accionesColina">
+              <div class="colina-marcas">
+                <div class="colina-trono" id="colinaTrono" hidden></div>
+                <div class="colina-record" id="colinaRecord" hidden></div>
+              </div>
+              <div class="colina-cartel" id="colinaCartel" hidden></div>
+              <div id="colinaCuadro" class="cuadro" hidden></div>
+              <div class="colina-cola" id="colinaCola" hidden>
+                <h4 id="colinaColaTitulo">En la cola</h4>
+                <div class="fichas" id="colinaColaLista"></div>
+              </div>
+            </div>
+
+            <div class="controls" style="margin-top:.8rem">
+              <input id="colinaNombre" type="text" placeholder="Meter a alguien en la cola a mano" aria-label="Meter en la cola a mano" />
+              <button type="button" id="colinaApuntar">A la cola</button>
             </div>
           </section>
           </div>
@@ -1840,6 +1998,7 @@
             <div class="subtabs">
               <button type="button" class="subtab active" data-family="recursos">🧪 Recursos</button>
               <button type="button" class="subtab" data-family="objetos">⚔️ Objetos</button>
+              <button type="button" class="subtab" data-family="cosmeticos">✨ Cosméticos</button>
             </div>
 
             <div id="catalog-panel">
@@ -1896,10 +2055,10 @@
 
             <div id="equipment-panel" hidden>
             <div class="controls">
-              <button id="loadEquip" type="button">Recargar objetos</button>
+              <button id="loadEquip" type="button">Recargar</button>
               <div id="equipCount">Cargando objetos…</div>
             </div>
-            <p class="meta">Los equipables de Dofus. <strong>No entran en la ruleta:</strong> el sorteo sigue siendo solo de recursos, así que aquí no hay colores ni exclusiones. Sirven para regalarlos a mano: marca los que des, ponles precio y regístralos como premio de alguien.</p>
+            <p class="meta" id="equipIntro"></p>
             <div class="toolbar">
               <input id="searchEquip" type="search" placeholder="Buscar objeto por nombre" aria-label="Buscar objeto por nombre" />
               <div class="level-filter">
@@ -2358,7 +2517,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               </div>
 
               <h4>Armar una caja a mano</h4>
-              <p class="meta">Eliges tú lo que lleva dentro. Van <strong>equipables</strong> (la pestaña «Objetos» del catálogo), tú les pones precio y la caja vale la suma. Se guarda en el armario y la subastas cuando quieras.</p>
+              <p class="meta">Eliges tú lo que lleva dentro: <strong>objetos, recursos o cosméticos</strong>. Tú les pones precio y la caja vale la suma. Se guarda en el armario y la subastas cuando quieras.</p>
               <div class="armar-caja">
                 <div class="config-grid">
                   <div class="config-field">
@@ -2384,7 +2543,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 <div class="armar-elegidos" id="armarElegidos"></div>
                 <span class="armar-total" id="armarTotal"></span>
                 <div class="config-actions">
-                  <button type="button" id="armarAnadir">＋ Añadir objeto</button>
+                  <button type="button" id="armarAnadirObjeto">⚔️ Añadir objeto</button>
+                  <button type="button" id="armarAnadirRecurso">🧪 Añadir recurso</button>
+                  <button type="button" id="armarAnadirCosmetico">✨ Añadir cosmético</button>
                   <button type="button" id="armarGuardar">Guardar en el armario</button>
                   <span class="meta" id="armarEstado"></span>
                 </div>
@@ -2472,6 +2633,21 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           </div>
 
           <div class="config-section">
+            <h4>Puntos desde una hoja de cálculo</h4>
+            <p class="meta">Para traerte el marcador de otra herramienta, como Botrix. Una hoja <code>.xlsx</code> con una columna de nombre y otra de puntos; las busca por su nombre, así que da igual el orden y da igual que vengan en inglés.</p>
+            <p class="meta"><strong>A quien no esté se le crea con esos puntos; a quien ya esté, se le suman.</strong> No se pisa nunca lo que alguien llevara ganado, así que cargar dos veces el mismo archivo lo cuenta dos veces.</p>
+            <div class="importar-puntos">
+              <span class="mandos">
+                <button type="button" id="puntosImportar">Cargar desde Excel</button>
+                <span class="meta" id="puntosImportarEstado"></span>
+              </span>
+              <span class="meta">Se ve lo que va a pasar antes de tocar nada.</span>
+              <input type="file" id="puntosImportarArchivo" accept=".xlsx" />
+              <div class="resumen" id="puntosImportarResumen" hidden></div>
+            </div>
+          </div>
+
+          <div class="config-section">
             <h4>Ganadores</h4>
             <p class="meta">Para llevarte la lista a otro equipo o a la web publicada. Es la del servidor que tengas abierto.</p>
             <div class="config-grid">
@@ -2522,6 +2698,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     <button type="button" id="cajasCerrar">Adjudicar ya</button>
     <button type="button" id="cajasCancelar" class="btn-cancel">Cancelar</button>
   </div>
+  <div class="acciones-flotantes" id="accionesColina" data-juego="colina" hidden>
+    <button type="button" id="colinaSiguiente" disabled>Combatir ya</button>
+    <button type="button" id="colinaAuto">⏸ Pausar</button>
+    <button type="button" id="colinaDestronar" hidden>Bajar al rey</button>
+    <button type="button" id="colinaCerrar" class="btn-cancel" hidden>Cerrar</button>
+  </div>
   <div class="acciones-flotantes" id="accionesBatalla" data-juego="batalla" hidden>
     <button type="button" id="batallaEmpezar" disabled>Empezar torneo</button>
     <button type="button" id="batallaRonda" disabled>Siguiente ronda</button>
@@ -2558,6 +2740,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       <h4 id="premioPickerTitulo">Elegir objeto</h4>
       <p class="meta">Del catálogo del juego que tengas puesto. Se queda con su nombre y su imagen; el nombre lo puedes cambiar después.</p>
       <div class="buscador-premio">
+        <span class="buscador-familias" id="premioFamilias" hidden>
+          <button type="button" data-familia="equipment">⚔️ Objetos</button>
+          <button type="button" data-familia="items">🧪 Recursos</button>
+          <button type="button" data-familia="cosmetics">✨ Cosméticos</button>
+        </span>
         <input type="search" id="premioBuscar" placeholder="Buscar por nombre" aria-label="Buscar objeto por nombre" />
         <div class="resultados" id="premioResultados"></div>
       </div>
@@ -2674,7 +2861,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     let servers = [];
     let currentServer = localStorage.getItem(SERVER_KEY) || '';
 
-    // Juego activo. Dofus y Dofus Touch tienen catálogos distintos, así que
+    // Juego activo. Cada juego tiene su catálogo, así que
     // cuelga de él todo lo demás: los servidores son suyos, y las rarezas, las
     // exclusiones y los ganadores viven dentro de un servidor de ese juego. El
     // mismo ankama_id no es el mismo objeto en un juego y en otro, por eso no
@@ -4568,6 +4755,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         console.warn('No se pudieron cargar los juegos:', e.message);
         juegosDisponibles = [];
       }
+      // Solo se enseña el selector si hay entre qué elegir: con un juego
+      // sobra, y cuando vuelva a haber dos aparece solo.
+      const boton = document.getElementById('juegoTab');
+      if (boton) boton.hidden = juegosDisponibles.length < 2;
       renderJuegoPicker();
     }
 
@@ -4578,7 +4769,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     function renderJuegoPicker() {
       const actual = juegoActual();
       document.getElementById('juegoTabName').textContent = actual ? actual.nombre : 'Juego';
-      // El catálogo de Touch está congelado en 2019: se avisa donde se ven los
+      // Si el catálogo de un juego tiene alguna pega, se avisa donde se ven los
       // objetos, que si no parece que falten por un fallo.
       const aviso = document.getElementById('juegoAviso');
       if (aviso) {
@@ -4793,9 +4984,21 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const nivelMax = document.getElementById('equipLevelMax').value.trim();
       if (nivelMin || nivelMax) filtros.push(`nivel ${nivelMin || '1'}-${nivelMax || '200'}`);
 
+      // El panel lo comparten objetos y cosmeticos: se nombra lo que se esta
+      // mirando, que si no el contador dice «objetos» con cosmeticos delante.
+      const esCosmetico = equipFamilia === 'cosmeticos';
+      const comoSeLlaman = esCosmetico ? 'cosméticos' : 'objetos';
+      const intro = document.getElementById('equipIntro');
+      if (intro) {
+        intro.innerHTML = (esCosmetico
+          ? 'Lo que solo cambia la pinta: sombreros, capas, mascotas y armas de apariencia.'
+          : 'Los equipables de Dofus.')
+          + ' <strong>No entran en la ruleta</strong>, que sortea solo recursos:'
+          + ' son para regalarlos a mano o meterlos en una caja misteriosa.';
+      }
       document.getElementById('equipCount').textContent = equipCargando
-        ? 'Cargando objetos…'
-        : `Mostrando ${filtered.length ? start + 1 : 0}-${Math.min(start + pageItems.length, filtered.length)} / ${filtered.length} objetos`
+        ? `Cargando ${comoSeLlaman}…`
+        : `Mostrando ${filtered.length ? start + 1 : 0}-${Math.min(start + pageItems.length, filtered.length)} / ${filtered.length} ${comoSeLlaman}`
           + (filtros.length ? ` · filtrando por ${filtros.join(' y ')}` : '');
       document.getElementById('equipLevelClear').disabled = filtros.length === 0;
       document.getElementById('equipPageInfo').textContent = `Página ${equipPage}/${totalPages}`;
@@ -4889,12 +5092,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     }
 
+    // Cual de las dos familias se esta mirando en el panel compartido.
+    let equipFamilia = 'objetos';
+
     async function loadEquipment() {
       if (equipCargando) return;
       equipCargando = true;
       renderEquipmentPage();
       try {
-        const data = await api('/api/equipment');
+        const data = await api(equipFamilia === 'cosmeticos' ? '/api/cosmeticos' : '/api/equipment');
         equipItems = Array.isArray(data.items) ? data.items : [];
         equipPage = 1;
       } catch (e) {
@@ -5132,7 +5338,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // En cuanto tocas uno, deja de refrescarse hasta que lo guardas.
     ['carreraPalabra', 'carreraPuntos', 'carreraDuracion', 'batallaPalabra', 'batallaPuntos',
-      'nameChatPalabra', 'plinkoPalabra', 'plinkoPuntos', 'plinkoFilas'].forEach((id) => {
+      'nameChatPalabra', 'plinkoPalabra', 'plinkoPuntos', 'plinkoFilas',
+      'colinaPalabra'].forEach((id) => {
       const campo = document.getElementById(id);
       if (campo) campo.addEventListener('input', () => { campo.dataset.tocado = '1'; });
     });
@@ -5430,7 +5637,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // siempre la misma para cada nombre.
     function claseDe(nombre) {
       const l = (batalla.luchadores || []).find((x) => x.nombre === nombre);
-      const sorteada = l && CLASES_DOFUS.find((c) => c.clase === l.clase);
+      // El rey de la colina reparte clase por su cuenta y la guarda por
+      // persona, asi que si el nombre es de alli manda esa.
+      const deColina = (colina.clases || {})[String(nombre || '').toLowerCase()];
+      const sorteada = deColina
+        ? CLASES_DOFUS.find((c) => c.clase === deColina)
+        : (l && CLASES_DOFUS.find((c) => c.clase === l.clase));
       const clasesArte = (batalla.arte && batalla.arte.clases) || {};
       const conArte = CLASES_DOFUS.filter((c) => clasesArte[c.clase]);
       if (conArte.length && !(sorteada && clasesArte[sorteada.clase])) {
@@ -5837,8 +6049,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // Con «cuales» se cuentan solo esos combates (los que se acaban de pelear);
     // sin ello, los de toda la ronda. Es lo que evita que al soltar uno suelto
     // se vuelvan a contar los que ya se habían visto.
-    function contarRonda(ronda, indiceRonda, cuales) {
-      const cuadro = document.getElementById('batallaCuadro');
+    // «cuadro» dice donde se cuenta: el del torneo o el del rey de la colina,
+    // que pelea con las mismas reglas y se dibuja igual.
+    function contarRonda(ronda, indiceRonda, cuales, idCuadro) {
+      const cuadro = document.getElementById(idCuadro || 'batallaCuadro');
       // Ya no hay relato suelto: cada duelo cuenta el suyo dentro de su propia
       // caja, pegado a la pelea que esta contando.
       const cuenta = (di) => !cuales || cuales.includes(di);
@@ -6120,6 +6334,414 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
+
+    // --- Rey de la colina -------------------------------------------------
+    // La cola pelea de uno en uno contra el que manda. Aqui no se reparten
+    // puntos: lo unico que se lleva el rey es la racha, y el record historico
+    // de rachas es lo unico que sobrevive al directo.
+    //
+    // El combate lo resuelve el servidor con las mismas reglas que la batalla,
+    // asi que se dibuja con su mismo cuadro y se cuenta con su mismo relato.
+    let colina = { abierta: false, cola: [], rey: null, duelo: null, clases: {} };
+    let vigilanteColina = null;
+    let peleandoColina = false;   // mientras se cuenta un combate golpe a golpe
+    // Como estaban el trono y el record justo antes del combate. El servidor
+    // contesta con el resultado ya decidido, asi que si se pintara lo que
+    // contesta se veria al ganador coronado mientras todavia esta peleando.
+    // Mientras se cuenta se ensena esta foto de antes; al acabar, la de verdad.
+    let antesDelCombate = null;
+    // El respiro entre un combate y el siguiente. Sin el, con la cola llena se
+    // encadenarian sin que diera tiempo a ver como ha quedado cada uno.
+    const RESPIRO_COLINA = 4000;
+    // Cuando toca el siguiente combate (0 = no hay ninguno esperando), y el
+    // reloj que lo cuenta. Es uno solo: lleva la cuenta atras y lo dispara.
+    let tocaColina = 0;
+    let relojColina = null;
+    // Si el juego va solo. Se recuerda, que es cosa de cada uno y no de la
+    // partida; si algo falla al leerlo, va solo, que es lo normal.
+    let autoColina = true;
+    try { autoColina = localStorage.getItem('ruleton.colinaAuto') !== '0'; } catch (e) { /* sin recordar */ }
+
+    async function cargarColina() {
+      try {
+        colina = await api('/api/colina');
+      } catch (e) {
+        console.warn('No se pudo leer la colina:', e.message);
+        return;
+      }
+      // El arte (clases y escenarios) es el mismo de la batalla y se dibuja
+      // con sus funciones, que lo leen de ahi.
+      if (colina.arte) batalla.arte = colina.arte;
+      if (colina.palabra) ponerSiNoLoTocas('colinaPalabra', colina.palabra);
+      pintarColina();
+      // Aqui es donde el juego se mueve solo: cada vez que se mira la cola, si
+      // ya hay con quien pelear y no hay nada en marcha, se pone el siguiente
+      // combate en cuenta atras.
+      if (autoColina && !peleandoColina && !tocaColina && colina.abierta && hayCombateColina()) {
+        programarColina();
+      }
+    }
+
+    function palabraColina() {
+      return document.getElementById('colinaPalabra').value.trim() || '!reto';
+    }
+
+    // El trono: quien manda y cuantas lleva seguidas.
+    function pintarTrono(loDiceElCartel) {
+      const caja = document.getElementById('colinaTrono');
+      const rey = antesDelCombate ? antesDelCombate.rey : colina.rey;
+      // Con el cartel puesto seria decir dos veces lo mismo, una de ellas en
+      // pequeno: se queda solo el grande.
+      if (loDiceElCartel || !rey) {
+        caja.hidden = true;
+        caja.classList.remove('ardiendo');
+        return;
+      }
+      caja.hidden = false;
+      // A partir de tres seguidas la racha arde: es cuando empieza a tener
+      // merito y cuando conviene que se note en pantalla.
+      // Sin destripar nada: mientras se pelea no arde de mas de lo que ardia.
+      caja.classList.toggle('ardiendo', rey.racha >= 3);
+      caja.innerHTML = '<span class="corona">&#128081;</span> <span class="quien">' + escapeHtml(rey.nombre) + '</span>'
+        + '<span class="clase">' + escapeHtml(claseDe(rey.nombre).clase) + '</span>'
+        + '<div class="colina-racha"><b>' + rey.racha + '</b>'
+        + '<span>' + (rey.racha === 1 ? 'victoria seguida' : 'victorias seguidas') + '</span></div>';
+    }
+
+    // El record: el de siempre, y si en esta partida se esta batiendo.
+    function pintarRecordColina() {
+      const caja = document.getElementById('colinaRecord');
+      const r = antesDelCombate ? antesDelCombate.record : colina.record;
+      const rey = antesDelCombate ? antesDelCombate.rey : colina.rey;
+      caja.hidden = false;
+      if (!r) {
+        // Sin record no se ensena una caja vacia: se ensena el reto.
+        caja.innerHTML = '<span class="clase">Récord histórico</span>'
+          + '<div class="marca">Todavía no hay ninguno. La primera victoria lo estrena.</div>';
+        return;
+      }
+      // Si el que manda ahora es quien lo tiene, se dice: es lo que da tension.
+      const suyo = rey && rey.nombre === r.nombre && rey.racha === r.racha;
+      const fecha = r.cuando ? new Date(r.cuando).toLocaleDateString('es-ES') : '';
+      caja.innerHTML = '<span class="clase">Récord histórico</span>'
+        + '<div class="marca' + (suyo ? ' nueva' : '') + '">' + escapeHtml(r.nombre)
+        + ' · <b>' + r.racha + '</b> seguidas'
+        + (fecha ? ' <span class="clase">(' + escapeHtml(fecha) + ')</span>' : '')
+        + '</div>'
+        + (suyo ? '<span class="clase">Lo está batiendo ahora mismo.</span>' : '');
+    }
+
+    // La cola, en orden. El primero es el que sale en el siguiente combate.
+    function pintarColaColina() {
+      const caja = document.getElementById('colinaCola');
+      const lista = document.getElementById('colinaColaLista');
+      const cola = colina.cola || [];
+      caja.hidden = !cola.length;
+      document.getElementById('colinaColaTitulo').textContent = 'En la cola (' + cola.length + ')';
+      lista.innerHTML = cola.map((r, i) =>
+        '<span class="ficha' + (i === 0 ? ' siguiente' : '') + '" data-nombre="' + escapeHtml(r.nombre) + '">'
+        + '<span class="turno">' + (i + 1) + '.</span>' + escapeHtml(r.nombre) + '</span>').join('');
+    }
+
+    // El mismo recuadro de combate que el torneo, con la diferencia de que
+    // aqui no hay boton de pelear dentro: el combate lo lanza el de abajo.
+    // Con «conGanador» se pinta ya resuelto; sin ello, con las barras llenas,
+    // que es como tiene que empezar el relato para no destripar el final.
+    function htmlDueloColina(d, conGanador) {
+      const ganado = conGanador && d.ganador;
+      const clase = (quien) => ganado ? (d.ganador === quien ? 'lado gana' : 'lado pierde') : 'lado';
+      const golpes = d.golpes || [];
+      const ultimo = ganado ? golpes[golpes.length - 1] : null;
+      const barra = (lado, vida) => {
+        const cual = vida <= 20 ? 'critica' : vida <= 50 ? 'poca' : '';
+        return '<div class="vida"><b class="rastro" data-lado="' + lado + '" style="width:' + vida + '%"></b>'
+          + '<i data-lado="' + lado + '" class="' + cual + '" style="width:' + vida + '%"></i></div>';
+      };
+      const caido = (quien) => ganado && d.ganador !== quien ? ' cae' : '';
+      return '<div class="duelo' + (ganado ? ' resuelto' : '') + '" data-ronda="0" data-duelo="0">'
+        + '<div class="mk">'
+        + '<div class="mk-lado a">' + barra('a', ultimo ? ultimo.vidaA : 100)
+        + '<div class="' + clase(d.a) + '"><span class="quien">' + escapeHtml(d.a) + '</span>'
+        + etiquetaClase(d.a) + '</div></div>'
+        + '<div class="mk-vs" title="Dofus">' + dofusHuevoSvg() + '</div>'
+        + '<div class="mk-lado b">' + barra('b', ultimo ? ultimo.vidaB : 100)
+        + '<div class="' + clase(d.b) + '"><span class="quien">' + escapeHtml(d.b) + '</span>'
+        + etiquetaClase(d.b) + '</div></div>'
+        + '</div>'
+        + abrirRing(0, 0) + muneco('a', caido(d.a), d.a) + muneco('b', caido(d.b), d.b)
+        + '<div class="fx"></div></div>'
+        + '<div class="golpe"></div><div class="lineas"></div></div>';
+    }
+
+    function dibujarDueloColina(d, conGanador) {
+      const cuadro = document.getElementById('colinaCuadro');
+      cuadro.hidden = false;
+      cuadro.innerHTML = '<div class="ronda"><div class="duelos">' + htmlDueloColina(d, conGanador) + '</div></div>';
+    }
+
+    // Si hay con quien pelear. Sin rey hacen falta dos: uno sube al trono y el
+    // otro le reta.
+    function hayCombateColina() {
+      const cola = colina.cola || [];
+      return cola.length >= (colina.rey ? 1 : 2);
+    }
+
+    // El cartel de la espera: quien manda, cuanto lleva y como retarle. Solo
+    // sale cuando no hay nada mejor que ensenar, es decir, cuando no se esta
+    // peleando ni hay un combate a punto de salir.
+    function pintarCartelColina(sale) {
+      const caja = document.getElementById('colinaCartel');
+      caja.hidden = !sale;
+      if (!sale) return;
+
+      const rey = colina.rey;
+      if (!rey) {
+        caja.className = 'colina-cartel vacio';
+        caja.innerHTML = '<div class="texto">'
+          + '<span class="titulo">El trono está libre</span>'
+          + '<span class="quien">¿Quién sube?</span>'
+          + '<p class="reta">Escribe <code>' + escapeHtml(palabraColina()) + '</code> en el chat.</p>'
+          + '</div>';
+        return;
+      }
+
+      // Si lo que lleva encadenado es el record, se canta: es lo que hace que
+      // el siguiente combate importe.
+      const r = colina.record;
+      const esRecord = r && r.nombre === rey.nombre && r.racha === rey.racha;
+      caja.className = 'colina-cartel';
+      caja.innerHTML = '<div class="dibujo">' + dofusSvg(claseDe(rey.nombre), 'a') + '</div>'
+        + '<div class="texto">'
+        + '<span class="titulo">👑 Manda</span>'
+        + '<span class="quien">' + escapeHtml(rey.nombre) + '</span>'
+        + '<span class="clase">' + escapeHtml(claseDe(rey.nombre).clase) + '</span>'
+        + '<div class="racha"><b>' + rey.racha + '</b><span>'
+        + (rey.racha === 1 ? 'victoria seguida' : 'victorias seguidas') + '</span></div>'
+        + (esRecord ? '<div class="es-record">Récord histórico</div>' : '')
+        + '<p class="reta">Escribe <code>' + escapeHtml(palabraColina())
+        + '</code> para retarle.</p>'
+        + '</div>';
+    }
+
+    function pintarColina() {
+      const cola = colina.cola || [];
+      // Durante el combate no se ensena el trono nuevo; el resto (la cola, que
+      // sigue creciendo con quien escriba) si, que no destripa nada.
+      const hayCombate = hayCombateColina();
+
+      document.getElementById('colinaComoRetar').textContent = palabraColina();
+      document.getElementById('colinaAbrir').textContent = colina.abierta ? 'Reiniciar la colina' : 'Abrir la cola';
+
+      const estado = document.getElementById('colinaEstado');
+      if (!colina.abierta) {
+        estado.textContent = 'Sin colina abierta.';
+      } else {
+        const donde = 'Cola abierta en ' + (colina.escuchando || 'el chat')
+          + ': escriben «' + palabraColina() + '» para retar. ';
+        if (!cola.length && !colina.rey) estado.textContent = donde + 'Todavía no hay nadie.';
+        else estado.textContent = donde + cola.length + ' esperando'
+          + (hayCombate ? '.' : (colina.rey ? ': falta quien le rete.' : ': hace falta uno más para empezar.'));
+      }
+
+      // El cartel ocupa el hueco de cuando no pasa nada: la colina abierta,
+      // sin combate contandose y sin ninguno a punto de salir. Con un combate
+      // en cuenta atras no sale, que ya hay algo que mirar.
+      const enEspera = colina.abierta && !peleandoColina && !tocaColina && !hayCombate;
+      pintarCartelColina(enEspera);
+
+      pintarTrono(enEspera);
+      pintarRecordColina();
+      pintarColaColina();
+      // Mientras se cuenta no se repinta el combate: se borrarian las barras
+      // de vida a medias y se veria el ganador antes de tiempo.
+      if (!peleandoColina) {
+        const cuadro = document.getElementById('colinaCuadro');
+        // Con el cartel puesto, el combate de antes estorba: ya se vio.
+        if (colina.duelo && !enEspera) dibujarDueloColina(colina.duelo, true);
+        else {
+          cuadro.hidden = true;
+          cuadro.innerHTML = '';
+        }
+      }
+
+      // Con un combate contandose los mandos se apagan: soltar otro a medias
+      // dejaria el recuadro contando dos peleas a la vez.
+      document.getElementById('accionesColina').hidden = !colina.abierta;
+      document.getElementById('colinaSiguiente').disabled = peleandoColina || !hayCombate;
+      document.getElementById('colinaAuto').textContent = autoColina ? '⏸ Pausar' : '▶ Automático';
+      document.getElementById('colinaDestronar').hidden = peleandoColina || !colina.rey;
+      document.getElementById('colinaCerrar').hidden = !colina.abierta;
+    }
+
+    // Deja de haber combate esperando: ni cuenta atras ni disparo.
+    function pararEsperaColina() {
+      tocaColina = 0;
+      if (relojColina) { clearInterval(relojColina); relojColina = null; }
+      const caja = document.getElementById('colinaCuenta');
+      if (caja) caja.hidden = true;
+    }
+
+    // Pone el siguiente combate a correr solo. No hace nada si esta pausado, si
+    // la colina esta cerrada o si todavia no hay con quien pelear: en cuanto
+    // entre alguien, el vigilante vuelve a llamar aqui.
+    function programarColina() {
+      pararEsperaColina();
+      if (!autoColina || !colina.abierta || peleandoColina || !hayCombateColina()) return;
+      tocaColina = Date.now() + RESPIRO_COLINA;
+      relojColina = setInterval(latidoColina, 250);
+      latidoColina();
+    }
+
+    function latidoColina() {
+      const caja = document.getElementById('colinaCuenta');
+      if (!tocaColina) { pararEsperaColina(); return; }
+      // Si la cola se ha vaciado mientras se esperaba (alguien salio), se
+      // corta: no hay a quien echarle el combate.
+      if (!hayCombateColina() || !colina.abierta) { pararEsperaColina(); return; }
+      const quedan = tocaColina - Date.now();
+      if (quedan > 0) {
+        caja.hidden = false;
+        caja.innerHTML = 'Siguiente combate en <b>' + Math.ceil(quedan / 1000) + '</b>…';
+        return;
+      }
+      pararEsperaColina();
+      pelearColina();
+    }
+
+    function vigilarColina(encender) {
+      if (vigilanteColina) { clearInterval(vigilanteColina); vigilanteColina = null; }
+      if (!encender) pararEsperaColina();
+      // La cola no se cierra nunca: se sigue preguntando quien entra tambien
+      // mientras se pelea, que es justo la gracia del juego.
+      if (encender) vigilanteColina = setInterval(() => {
+        if (!peleandoColina) cargarColina();
+      }, 2000);
+    }
+
+    async function accionColina(ruta, cuerpo) {
+      try {
+        const r = await api(ruta, cuerpo ? {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo)
+        } : { method: 'POST' });
+        // Igual que en la batalla: algunas respuestas no traen el arte, y se
+        // conserva el que ya habia para no volver a los dibujos a medias.
+        if (r.arte) batalla.arte = r.arte;
+        colina = { ...colina, ...r };
+        pintarColina();
+        return true;
+      } catch (e) {
+        showAlert('Rey de la colina', e.message);
+        return false;
+      }
+    }
+
+    document.getElementById('colinaAbrir').addEventListener('click', async () => {
+      // Reiniciar vacia la cola y baja al rey, asi que se pregunta antes.
+      if (colina.abierta) {
+        const ok = await showModal({
+          title: 'Reiniciar la colina',
+          message: 'Se vacía la cola y el rey pierde su racha. El récord histórico no se toca.',
+          okText: 'Reiniciar', danger: true
+        });
+        if (!ok) return;
+      }
+      pararEsperaColina();
+      if (await accionColina('/api/colina/abrir', { palabra: palabraColina() })) vigilarColina(true);
+    });
+
+    async function pelearColina() {
+      if (peleandoColina) return;
+      pararEsperaColina();
+      const eraRey = colina.rey ? colina.rey.nombre : '';
+      const recordAntes = colina.record ? colina.record.racha : 0;
+      // Que no se repinte mientras se cuenta, ni por el vigilante ni por otro
+      // clic: se veria el final antes de tiempo.
+      peleandoColina = true;
+      antesDelCombate = { rey: colina.rey, record: colina.record };
+      pintarColina();
+      if (!await accionColina('/api/colina/siguiente')) {
+        peleandoColina = false;
+        antesDelCombate = null;
+        pintarColina();
+        return;
+      }
+
+      // El duelo ya viene resuelto del servidor; aqui se dibuja sin ganador y
+      // se cuenta golpe a golpe, como una ronda de un solo combate.
+      const d = colina.duelo;
+      dibujarDueloColina(d, false);
+      await contarRonda({ duelos: [d] }, 0, [0], 'colinaCuadro');
+
+      // Ya se ha visto quien cae: se suelta la foto de antes y sale el trono
+      // como ha quedado. Y se avisa al servidor, que hasta ahora tenia a los
+      // dos por ocupados y no les dejaba volver a la cola.
+      peleandoColina = false;
+      antesDelCombate = null;
+      await accionColina('/api/colina/fincombate');
+
+      // Y al acabar, lo que merece celebrarse: un rey nuevo, o un record.
+      if (colina.record && colina.record.racha > recordAntes) makeConfetti(40);
+      else if (eraRey && colina.rey && colina.rey.nombre !== eraRey) makeConfetti(20);
+
+      // Y a por el siguiente, si queda alguien en la cola.
+      programarColina();
+    }
+
+    // El boton ya no hace falta para que el juego avance: sirve para adelantar
+    // el que esta en cuenta atras, o para soltar uno con el juego pausado.
+    document.getElementById('colinaSiguiente').addEventListener('click', () => pelearColina());
+
+    document.getElementById('colinaAuto').addEventListener('click', () => {
+      autoColina = !autoColina;
+      try { localStorage.setItem('ruleton.colinaAuto', autoColina ? '1' : '0'); } catch (e) { /* sin recordar */ }
+      if (autoColina) programarColina();
+      else pararEsperaColina();
+      pintarColina();
+    });
+
+    document.getElementById('colinaDestronar').addEventListener('click', async () => {
+      const ok = await showModal({
+        title: 'Bajar al rey',
+        message: 'El trono se queda libre y su racha se pierde. El siguiente de la cola sube sin pelear.',
+        okText: 'Bajarlo', danger: true
+      });
+      if (!ok) return;
+      pararEsperaColina();
+      await accionColina('/api/colina/destronar');
+      // Con el trono libre, el siguiente sube y pelea solo, como siempre.
+      programarColina();
+    });
+
+    document.getElementById('colinaCerrar').addEventListener('click', async () => {
+      if (await accionColina('/api/colina/cerrar')) vigilarColina(false);
+    });
+
+    document.getElementById('colinaApuntar').addEventListener('click', async () => {
+      const campo = document.getElementById('colinaNombre');
+      if (!campo.value.trim()) return;
+      if (await accionColina('/api/colina/entrar', { nombre: campo.value.trim() })) campo.value = '';
+    });
+
+    document.getElementById('colinaGuardar').addEventListener('click', async () => {
+      if (await accionColina('/api/colina/config', { palabra: palabraColina() })) {
+        olvidarTocados(['colinaPalabra']);
+        document.getElementById('colinaGuardado').textContent = 'Guardado.';
+      }
+    });
+
+    // Un clic sobre alguien de la cola lo saca, por si se cuela quien no debe.
+    document.getElementById('colinaColaLista').addEventListener('click', async (ev) => {
+      const ficha = ev.target.closest('.ficha');
+      if (!ficha) return;
+      const nombre = ficha.dataset.nombre;
+      const ok = await showModal({
+        title: 'Sacar de la cola',
+        message: 'Se saca a ' + nombre + '. Puede volver a escribir la palabra cuando quiera.',
+        okText: 'Sacar', danger: true
+      });
+      if (ok) await accionColina('/api/colina/sacar', { nombre });
+    });
+
     // --- Combates: lo que paso en las rondas ya peleadas -------------------
     // El cuadro solo ensena la ronda en curso, asi que lo anterior no habia
     // donde volver a verlo. Aqui se rehace el parte de cada duelo a partir de
@@ -6236,6 +6858,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (cual === 'carrera') cargarCarrera();
         if (cual === 'plinko') cargarPlinko();
         if (cual === 'cajas') { cargarCajas(); cargarRarezasCajas(); }
+        if (cual === 'colina') cargarColina();
         ajustarAcciones();
       });
     });
@@ -6918,6 +7541,104 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     let puntos = [];
 
+
+    // --- Cargar puntos desde una hoja de cálculo ----------------------------
+    // Primero se mira, luego se aplica. En modo «dejar tal cual» esto pisa lo
+    // que cada uno tuviera ganado, así que enseñar antes lo que va a pasar no
+    // es un adorno.
+
+    let importarPendiente = null;
+
+    document.getElementById('puntosImportar').addEventListener('click', () => {
+      document.getElementById('puntosImportarArchivo').click();
+    });
+
+    document.getElementById('puntosImportarArchivo').addEventListener('change', async (ev) => {
+      const archivo = ev.target.files && ev.target.files[0];
+      ev.target.value = '';
+      if (!archivo) return;
+      const estado = document.getElementById('puntosImportarEstado');
+      estado.textContent = 'Leyendo…';
+      try {
+        const dataUrl = await new Promise((resolver, fallar) => {
+          const lector = new FileReader();
+          lector.onload = () => resolver(lector.result);
+          lector.onerror = () => fallar(new Error('no se pudo leer el archivo'));
+          lector.readAsDataURL(archivo);
+        });
+        importarPendiente = { dataUrl, nombre: archivo.name };
+        const r = await api('/api/puntos/importar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl })
+        });
+        estado.textContent = '';
+        pintarResumenImportar(r);
+      } catch (e) {
+        importarPendiente = null;
+        estado.textContent = '';
+        document.getElementById('puntosImportarResumen').hidden = true;
+        showAlert('No se pudo leer', e.message);
+      }
+    });
+
+    function pintarResumenImportar(r) {
+      const caja = document.getElementById('puntosImportarResumen');
+      caja.hidden = false;
+      caja.innerHTML =
+        'Del archivo «' + escapeHtml(importarPendiente?.nombre || '') + '»: '
+        + '<b>' + r.validas + '</b> de ' + r.filas + ' filas, '
+        + '<b>' + r.suma.toLocaleString('es-ES') + '</b> puntos en total. '
+        + 'Se leen las columnas <b>' + escapeHtml(r.columnas.nombre) + '</b> y <b>'
+        + escapeHtml(r.columnas.puntos) + '</b>.'
+        + (r.sinNombre || r.sinNumero
+          ? ' <span class="aviso">Se saltan ' + (r.sinNombre + r.sinNumero) + ' fila(s) sin nombre o sin número.</span>'
+          : '')
+        + '<br><b>' + r.nuevos + '</b> se crean y a <b>' + r.yaEstaban + '</b> se les suma.'
+        + '<div class="muestra">' + (r.muestra || []).map((m) =>
+          '<span class="linea"><span class="n">' + escapeHtml(m.nombre) + '</span>'
+          + (m.tenia === null ? 'nuevo' : m.tenia.toLocaleString('es-ES'))
+          + ' → <b>' + ((m.tenia || 0) + m.puntos).toLocaleString('es-ES')
+          + '</b></span>').join('') + '</div>'
+        + '<span class="mandos" style="margin-top:.6rem">'
+        + '<button type="button" id="puntosImportarAplicar">Cargar estos ' + r.validas + '</button>'
+        + '<button type="button" class="btn-cancel" id="puntosImportarCancelar">Dejarlo</button>'
+        + '</span>';
+
+      document.getElementById('puntosImportarCancelar').addEventListener('click', () => {
+        importarPendiente = null;
+        caja.hidden = true;
+      });
+
+      document.getElementById('puntosImportarAplicar').addEventListener('click', async () => {
+        if (!importarPendiente) return;
+        const ok = await showModal({
+          title: 'Cargar los puntos',
+          message: 'Se crean ' + r.nuevos + ' y se les suman los puntos a ' + r.yaEstaban
+            + ' que ya estaban. Si cargas el mismo archivo otra vez, se vuelven a sumar.',
+          okText: 'Cargar'
+        });
+        if (!ok) return;
+        const estado = document.getElementById('puntosImportarEstado');
+        estado.textContent = 'Cargando…';
+        try {
+          const hecho = await api('/api/puntos/importar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataUrl: importarPendiente.dataUrl, aplicar: true })
+          });
+          importarPendiente = null;
+          caja.hidden = true;
+          estado.textContent = 'Cargados ' + hecho.validas + '.';
+          setTimeout(() => { estado.textContent = ''; }, 4000);
+          await cargarPuntos();
+        } catch (e) {
+          estado.textContent = '';
+          showAlert('No se pudo cargar', e.message);
+        }
+      });
+    }
+
     async function cargarPuntos() {
       try {
         puntos = (await api('/api/puntos?limite=1000')).puntos || [];
@@ -7182,7 +7903,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               + '<button type="button" class="quitar" data-quitar="' + i + '" title="Quitar">✕</button>'
               + '</div>';
           }).join('')
-          : '<span class="vacio">Todavía no has metido nada. Pulsa «Añadir objeto».</span>';
+          : '<span class="vacio">Todavía no has metido nada. Añade objetos o recursos.</span>';
       }
 
       const total = document.getElementById('armarTotal');
@@ -7266,11 +7987,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
 
     document.getElementById('armarTipo').addEventListener('change', pintarCaraArmada);
-    document.getElementById('armarAnadir').addEventListener('click', () => abrirBuscadorObjetoCaja());
+    document.getElementById('armarAnadirObjeto').addEventListener('click', () => abrirBuscadorObjetoCaja('equipment'));
+    document.getElementById('armarAnadirRecurso').addEventListener('click', () => abrirBuscadorObjetoCaja('items'));
+    document.getElementById('armarAnadirCosmetico').addEventListener('click', () => abrirBuscadorObjetoCaja('cosmetics'));
 
     document.getElementById('armarGuardar').addEventListener('click', async () => {
       const aviso = document.getElementById('armarEstado');
-      if (!armarObjetos.length) { aviso.textContent = 'Mete al menos un objeto.'; return; }
+      if (!armarObjetos.length) { aviso.textContent = 'Mete al menos una cosa.'; return; }
       try {
         cajas = await api('/api/cajas/armar', {
           method: 'POST',
@@ -7294,31 +8017,49 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
-    // El buscador, sobre los equipables. Se pide una vez y se queda: son miles
-    // y no cambian mientras miras.
-    let catalogoEquipables = null;
+    // Las dos familias del catálogo: los equipables y los recursos. Cada una se
+    // pide una sola vez y se queda, que son miles y no cambian mientras miras.
+    const catalogoFamilia = { equipment: null, items: null, cosmetics: null };
+    let familiaCaja = 'equipment';
 
-    async function abrirBuscadorObjetoCaja() {
+    async function abrirBuscadorObjetoCaja(cual) {
       // Se reaprovecha el superpuesto del plinko, pero en modo «sumar a la caja».
       premioEditando = -2;
-      document.getElementById('premioPickerTitulo').textContent = 'Añadir objeto a la caja';
+      document.getElementById('premioFamilias').hidden = false;
       document.getElementById('premioPickerBackdrop').hidden = false;
-      const buscar = document.getElementById('premioBuscar');
-      buscar.value = '';
+      document.getElementById('premioBuscar').value = '';
+      await cargarFamiliaCaja(cual || familiaCaja);
+      document.getElementById('premioBuscar').focus();
+    }
+
+    async function cargarFamiliaCaja(cual) {
+      familiaCaja = cual;
+      document.getElementById('premioPickerTitulo').textContent =
+        cual === 'items' ? 'Añadir un recurso'
+          : cual === 'cosmetics' ? 'Añadir un cosmético' : 'Añadir un objeto';
+      document.querySelectorAll('#premioFamilias button').forEach((b) => {
+        b.classList.toggle('activa', b.dataset.familia === cual);
+      });
       const salida = document.getElementById('premioResultados');
-      salida.innerHTML = '<span class="meta">Cargando los equipables…</span>';
+      salida.innerHTML = '<span class="meta">Cargando…</span>';
       try {
-        if (!catalogoEquipables) {
-          const data = await api('/api/equipment');
-          catalogoEquipables = Array.isArray(data.items) ? data.items : [];
+        if (!catalogoFamilia[cual]) {
+          const data = await api(
+            cual === 'items' ? '/api/items' : cual === 'cosmetics' ? '/api/cosmeticos' : '/api/equipment'
+          );
+          catalogoFamilia[cual] = Array.isArray(data.items) ? data.items : [];
         }
-        catalogoPremios = catalogoEquipables;
-        pintarResultadosPremio('');
-        buscar.focus();
+        catalogoPremios = catalogoFamilia[cual];
+        pintarResultadosPremio(document.getElementById('premioBuscar').value);
       } catch (e) {
         salida.innerHTML = '<span class="meta">' + escapeHtml(e.message) + '</span>';
       }
     }
+
+    document.getElementById('premioFamilias').addEventListener('click', (ev) => {
+      const boton = ev.target.closest('[data-familia]');
+      if (boton) cargarFamiliaCaja(boton.dataset.familia);
+    });
 
 
     // --- La cara de las cajas -----------------------------------------------
@@ -8663,6 +9404,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     async function abrirBuscadorPremio(casilla) {
       premioEditando = casilla;
+      // El del tablero va solo de recursos: no ensena el conmutador.
+      document.getElementById('premioPickerTitulo').textContent = 'Elegir objeto';
+      document.getElementById('premioFamilias').hidden = true;
       document.getElementById('premioPickerBackdrop').hidden = false;
       const buscar = document.getElementById('premioBuscar');
       buscar.value = '';
@@ -9860,9 +10604,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         document.querySelectorAll('#draw-catalog-panel .subtab[data-family]')
           .forEach((b) => b.classList.toggle('active', b === subtab));
         document.getElementById('catalog-panel').hidden = cual !== 'recursos';
-        document.getElementById('equipment-panel').hidden = cual !== 'objetos';
-        // Los objetos se bajan la primera vez que se abre su pestaña.
-        if (cual === 'objetos' && !equipItems.length) loadEquipment();
+        // Objetos y cosméticos comparten panel: es la misma lista con otra
+        // fuente, y duplicar la pantalla solo daría dos sitios que arreglar.
+        document.getElementById('equipment-panel').hidden = cual === 'recursos';
+        if (cual !== 'recursos' && cual !== equipFamilia) {
+          equipFamilia = cual;
+          equipItems = [];
+          equipSelected.clear();
+          loadEquipment();
+        }
       });
     });
 

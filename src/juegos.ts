@@ -1,37 +1,32 @@
-// De que juego son los objetos. Hay dos, y no se parecen en nada por dentro:
+// De que juego son los objetos.
 //
-//  - dofus3: la API de dofusdu.de, viva, en espanol y al dia. Es la de siempre.
-//  - touch:  Dofus Touch. Aqui viene el problema: NO hay ninguna API viva de
-//            Touch. La oficial (dofus-touch.com) contesta 403 a todo, y Dofapi,
-//            que era la de la comunidad, esta muerta: sus dominios ni resuelven.
-//            Lo unico que queda es un volcado de la enciclopedia que hizo la
-//            herramienta crawlit, congelado en enero de 2019. Son datos de Touch
-//            de verdad, pero con dos pegas que hay que saber: estan en frances y
-//            les falta todo lo que Touch haya sacado desde 2019.
+// Ahora mismo solo hay uno, Dofus, que tira de la API de dofusdu.de: viva, en
+// espanol y al dia. Hubo tambien Dofus Touch, y se quito: no existe ninguna
+// fuente viva de Touch (la oficial contesta 403 y Dofapi esta muerta), y lo
+// unico que quedaba era un volcado de 2019 en frances.
 //
-// Como las dos fuentes tienen forma distinta, cada juego trae su traductor al
-// formato comun (el de dofus3, que es el que ya entendia la pagina). Asi nada
-// de lo que hay aguas abajo (sorteo, rarezas, exclusiones) tiene que enterarse
-// de donde salio cada objeto.
+// Se deja montado como una lista de juegos, y no como una sola constante, por
+// dos motivos: los datos de cada usuario ya viven separados por juego
+// (juegos/<juego>/...), y volver a meter otro juego es anadirlo aqui con su
+// traductor, sin tocar nada de lo que hay aguas abajo.
 
-export const JUEGOS = ['dofus3', 'touch'] as const;
+export const JUEGOS = ['dofus3'] as const;
 export type Juego = typeof JUEGOS[number];
 export const JUEGO_POR_DEFECTO: Juego = 'dofus3';
 
 export const NOMBRES: Record<Juego, string> = {
-  dofus3: 'Dofus',
-  touch: 'Dofus Touch'
+  dofus3: 'Dofus'
 };
 
-// Lo que se le cuenta a la pagina de cada juego, para que pueda avisar de que
-// el catalogo de Touch no esta al dia en vez de dejar al usuario pensando que
-// le faltan objetos por un fallo.
+// Lo que se le cuenta a la pagina de cada juego: un aviso, si su catalogo
+// tiene alguna pega que convenga saber antes de mirarlo.
 export const AVISOS: Record<Juego, string> = {
-  dofus3: '',
-  touch: 'Catalogo de 2019 y en frances: es el ultimo volcado publico de Touch que existe.'
+  dofus3: ''
 };
 
-export type Familia = 'resources' | 'equipment';
+// Las familias del catalogo: lo que se sortea (recursos), lo que se lleva
+// puesto (equipables) y lo que solo cambia la pinta (cosmeticos).
+export type Familia = 'resources' | 'equipment' | 'cosmetics';
 
 interface Fuente {
   url: string;
@@ -41,7 +36,8 @@ interface Fuente {
   normaliza(crudo: any): any | null;
 }
 
-// El formato comun es el de dofus3, asi que estos no tocan nada.
+// El formato comun es el de dofus3, asi que estos no tocan nada. Un juego con
+// otra fuente traeria aqui su propio traductor.
 const dofus3 = (familia: Familia): Fuente => ({
   url: `https://api.dofusdu.de/dofus3/v1/es/items/${familia}/all`,
   // La API responde { items: [...] }; se admite tambien un array pelado.
@@ -49,55 +45,12 @@ const dofus3 = (familia: Familia): Fuente => ({
   normaliza: (crudo) => crudo
 });
 
-// El volcado de crawlit: un array pelado de objetos con otros nombres de campo.
-//
-// Las imagenes traen dos problemas encadenados. Apuntan a s.ankama.com, un CDN
-// que Ankama ya apago y cuyo nombre ni siquiera resuelve; la misma ruta sigue
-// viva en static.ankama.com, pero ahi CloudFront contesta 403 en cuanto la
-// peticion parece de un navegador (Referer y User-Agent), asi que enlazarlas
-// desde la pagina no funciona: Chrome las bloquea por ORB.
-//
-// Por eso no se enlaza al CDN: se apunta a /api/img/touch/<tamano>/<id>.png,
-// del propio Ruleton, que las baja como lo que es (un servidor, sin cabeceras
-// de navegador) y las deja cacheadas. Todas las del volcado siguen este mismo
-// patron, comprobado: no hay ninguna que se escape.
-const RUTA_CDN = /^https:\/\/s\.ankama\.com\/www\/static\.ankama\.com\/dofus-touch\/www\/game\/items\/(\d+)\/(\d+)\.png$/;
-
-// El CDN de verdad, al que llama el servidor (no la pagina).
-export const CDN_TOUCH = 'https://static.ankama.com/dofus-touch/www/game/items';
-
-function imagenTouch(url: unknown): string {
-  const m = RUTA_CDN.exec(String(url ?? ''));
-  return m ? `/api/img/touch/${m[1]}/${m[2]}.png` : '';
-}
-
-const touch = (familia: Familia): Fuente => ({
-  url: `https://raw.githubusercontent.com/dofapi/crawlit-dofus-encyclopedia-parser/master/data/dofus-touch/${familia === 'resources' ? 'resource' : 'allequipments'}.json`,
-  lista: (data) => (Array.isArray(data) ? data : []),
-  normaliza: (crudo) => {
-    const id = Number(crudo?._id);
-    const nombre = String(crudo?.name ?? '').trim();
-    // Sin id o sin nombre no hay objeto que valga: un objeto sin id no se puede
-    // ni excluir ni marcar, asi que es mejor que no exista.
-    if (!Number.isFinite(id) || !nombre) return null;
-    const img = imagenTouch(crudo?.imgUrl);
-    return {
-      ankama_id: id,
-      name: nombre,
-      // En dofus3 el tipo es un objeto { name, id }; aqui solo hay el nombre.
-      type: { name: String(crudo?.type ?? '') },
-      level: Number(crudo?.lvl) || 0,
-      // El volcado trae una sola imagen: se pone en los cuatro tamanos para no
-      // obligar a la pagina a saber de que juego viene lo que esta pintando.
-      image_urls: { icon: img, sd: img, hq: img, hd: img },
-      description: String(crudo?.description ?? '')
-    };
-  }
-});
-
 const FUENTES: Record<Juego, Record<Familia, Fuente>> = {
-  dofus3: { resources: dofus3('resources'), equipment: dofus3('equipment') },
-  touch: { resources: touch('resources'), equipment: touch('equipment') }
+  dofus3: {
+    resources: dofus3('resources'),
+    equipment: dofus3('equipment'),
+    cosmetics: dofus3('cosmetics')
+  }
 };
 
 export function fuente(juego: Juego, familia: Familia): Fuente {
@@ -106,8 +59,14 @@ export function fuente(juego: Juego, familia: Familia): Fuente {
 
 // El archivo de cache de un catalogo. Cada juego y familia tiene el suyo: son
 // listas distintas y los ankama_id se repiten entre ellas.
+const NOMBRE_CACHE: Record<Familia, string> = {
+  resources: 'items',
+  equipment: 'equipment',
+  cosmetics: 'cosmetics'
+};
+
 export function archivoCache(juego: Juego, familia: Familia): string {
-  const base = familia === 'resources' ? 'items' : 'equipment';
+  const base = NOMBRE_CACHE[familia];
   return juego === JUEGO_POR_DEFECTO ? `${base}.json` : `${base}-${juego}.json`;
 }
 
