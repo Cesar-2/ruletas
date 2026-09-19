@@ -3,6 +3,7 @@ import axios from 'axios';
 import cors from 'cors';
 import * as twitch from './twitch';
 import * as carrera from './carrera';
+import * as juegos from './juegos';
 import * as plinko from './plinko';
 import * as estadisticas from './estadisticas';
 import * as batalla from './batalla';
@@ -20,20 +21,21 @@ app.use(cors());
 app.use(express.json({ limit: '16mb' }));
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
-const ITEMS_URL = 'https://api.dofusdu.de/dofus3/v1/es/items/resources/all';
-// Los equipables son otra familia de la misma API. Viven en su propio catalogo
-// y NO entran en la ruleta: son solo para mirarlos desde la pestana de objetos,
-// asi que no comparten rarezas ni exclusiones con los recursos. Menos mal, que
-// los ankama_id se repiten entre una familia y otra.
-const EQUIPMENT_URL = 'https://api.dofusdu.de/dofus3/v1/es/items/equipment/all';
+// Los catalogos de objetos (que juego, de donde se bajan y como se traducen al
+// formato comun) viven en juegos.ts. Hay dos juegos, Dofus y Dofus Touch, y
+// cada uno tiene su catalogo de recursos (lo que se sortea) y el de equipables
+// (solo de consulta): los ankama_id se repiten entre familias y entre juegos,
+// asi que no se mezclan nunca.
 // Donde viven los datos. En un hosting, cada despliegue reemplaza la carpeta
 // de la aplicacion, asi que si los datos estan dentro se pierden en cada
 // deploy: con RULETON_DATA se apuntan a una ruta de fuera, que sobrevive.
 const DATA_DIR = process.env.RULETON_DATA
   ? path.resolve(process.env.RULETON_DATA)
   : path.join(process.cwd(), 'data');
-const ITEMS_FILE = path.join(DATA_DIR, 'items.json');   // catalogo, comun a todo
-const EQUIPMENT_FILE = path.join(DATA_DIR, 'equipment.json');   // idem, equipables
+// Cada catalogo se cachea en disco por separado (ver juegos.ts).
+function catalogoFile(juego: juegos.Juego, familia: juegos.Familia): string {
+  return path.join(DATA_DIR, juegos.archivoCache(juego, familia));
+}
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const USERS_DIR = path.join(DATA_DIR, 'users');
@@ -115,13 +117,50 @@ function settingsFile(uid: string): string {
   return path.join(userDir(uid), 'settings.json');
 }
 
-function serversFile(uid: string): string {
-  return path.join(userDir(uid), 'servers.json');
+function serversFile(uid: string, juego: juegos.Juego): string {
+  return path.join(juegoDir(uid, juego), 'servers.json');
 }
 
-// Las exclusiones son del usuario entero, no de un servidor suyo.
-function exclusionsFile(uid: string): string {
-  return path.join(userDir(uid), 'exclusions.json');
+// Cada juego tiene sus cosas aparte: sus servidores, sus rarezas, sus ganadores
+// y sus exclusiones. Tiene que ser asi porque los catalogos son distintos: un
+// ankama_id de Touch no es el mismo objeto que ese ankama_id en Dofus, asi que
+// una lista compartida excluiria cualquier cosa.
+function juegoDir(uid: string, juego: juegos.Juego): string {
+  return path.join(userDir(uid), 'juegos', juego);
+}
+
+// Las exclusiones son del juego entero, no de un servidor suyo.
+function exclusionsFile(uid: string, juego: juegos.Juego): string {
+  return path.join(juegoDir(uid, juego), 'exclusions.json');
+}
+
+// Todo lo que habia antes (servers.json, servers/, exclusions.json) era de un
+// solo juego, el unico que habia: Dofus. Al separar por juego se mete tal cual
+// en juegos/dofus3/, que es donde lo buscara a partir de ahora. Se mueve, no se
+// copia, y solo pasa una vez: en cuanto existe la carpeta del juego no se
+// vuelve a entrar.
+function migrarAJuegoPorDefecto(uid: string): void {
+  const destino = juegoDir(uid, juegos.JUEGO_POR_DEFECTO);
+  if (fs.existsSync(destino)) return;
+  const base = userDir(uid);
+  const sueltos = ['servers.json', 'servers', 'exclusions.json']
+    .map((n) => [path.join(base, n), path.join(destino, n)] as const)
+    .filter(([viejo]) => fs.existsSync(viejo));
+  if (!sueltos.length) return;
+  try {
+    fs.mkdirSync(destino, { recursive: true });
+    for (const [viejo, nuevo] of sueltos) fs.renameSync(viejo, nuevo);
+    console.log(`Migrados ${sueltos.length} dato(s) del usuario ${uid} -> juego ${juegos.JUEGO_POR_DEFECTO}`);
+  } catch (err) {
+    console.error('Failed to migrate user data to default game:', err);
+  }
+}
+
+function ensureJuegoDir(uid: string, juego: juegos.Juego): void {
+  ensureUserDir(uid);
+  migrarAJuegoPorDefecto(uid);
+  const dir = juegoDir(uid, juego);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
 function ensureUserDir(uid: string): void {
@@ -130,18 +169,26 @@ function ensureUserDir(uid: string): void {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-// Ambito de una peticion: "<usuario>/<servidor>". Se pasa entero a los lectores
-// y escritores de datos, que solo lo usan para componer su ruta.
-function partirAmbito(ambito: string): { uid: string; sid: string } {
-  const corte = ambito.indexOf('/');
-  return corte < 0
-    ? { uid: ambito, sid: DEFAULT_SERVER.id }
-    : { uid: ambito.slice(0, corte), sid: ambito.slice(corte + 1) };
+// Ambito de una peticion: "<usuario>/<juego>/<servidor>". Se pasa entero a los
+// lectores y escritores de datos, que solo lo usan para componer su ruta.
+// Se admite tambien el de antes ("<usuario>/<servidor>", sin juego): lo traen
+// los canjes de Twitch guardados de antes del cambio, y se quedan en Dofus.
+function partirAmbito(ambito: string): { uid: string; juego: juegos.Juego; sid: string } {
+  const trozos = ambito.split('/');
+  const uid = trozos[0] ?? '';
+  if (trozos.length < 3) {
+    return { uid, juego: juegos.JUEGO_POR_DEFECTO, sid: trozos[1] || DEFAULT_SERVER.id };
+  }
+  return {
+    uid,
+    juego: juegos.normalizar(trozos[1]),
+    sid: trozos.slice(2).join('/') || DEFAULT_SERVER.id
+  };
 }
 
 function serverDir(ambito: string): string {
-  const { uid, sid } = partirAmbito(ambito);
-  return path.join(userDir(uid), 'servers', sid);
+  const { uid, juego, sid } = partirAmbito(ambito);
+  return path.join(juegoDir(uid, juego), 'servers', sid);
 }
 
 function serverFile(ambito: string, name: ServerFile): string {
@@ -362,17 +409,19 @@ function migrarRuletonExistente(uid: string): void {
   const viejoPerfil = path.join(DATA_DIR, 'profiles', 'principal');
   const base = fs.existsSync(viejoPerfil) ? viejoPerfil : DATA_DIR;
   mover(path.join(base, 'settings.json'), settingsFile(uid));
-  mover(path.join(base, 'servers.json'), serversFile(uid));
+  // A la ruta de antes del reparto por juegos, a proposito: de ahi los recoge
+  // migrarAJuegoPorDefecto y los deja en el juego de siempre.
+  mover(path.join(base, 'servers.json'), path.join(userDir(uid), 'servers.json'));
   mover(path.join(base, 'servers'), path.join(userDir(uid), 'servers'));
   fs.rmSync(path.join(DATA_DIR, 'profiles'), { recursive: true, force: true });
   fs.rmSync(path.join(DATA_DIR, 'profiles.json'), { force: true });
 }
 
-function readServers(uid: string): GameServer[] {
-  ensureUserDir(uid);
+function readServers(uid: string, juego: juegos.Juego): GameServer[] {
+  ensureJuegoDir(uid, juego);
   try {
-    if (fs.existsSync(serversFile(uid))) {
-      const parsed = JSON.parse(fs.readFileSync(serversFile(uid), 'utf8'));
+    if (fs.existsSync(serversFile(uid, juego))) {
+      const parsed = JSON.parse(fs.readFileSync(serversFile(uid, juego), 'utf8'));
       const list = Array.isArray(parsed?.servers) ? parsed.servers : parsed;
       if (Array.isArray(list)) {
         const clean = list
@@ -387,25 +436,26 @@ function readServers(uid: string): GameServer[] {
   // Primera vez: se crea el servidor por defecto y se le adjudican los datos
   // que ya existieran sueltos (instalaciones anteriores).
   const servers = [DEFAULT_SERVER];
-  writeServers(uid, servers);
-  migrarDatosSueltos(uid, DEFAULT_SERVER.id);
+  writeServers(uid, juego, servers);
+  migrarDatosSueltos(uid, juego, DEFAULT_SERVER.id);
   return servers;
 }
 
-function writeServers(uid: string, servers: GameServer[]): void {
-  ensureUserDir(uid);
-  writeJson(serversFile(uid), { servers });
+function writeServers(uid: string, juego: juegos.Juego, servers: GameServer[]): void {
+  ensureJuegoDir(uid, juego);
+  writeJson(serversFile(uid, juego), { servers });
 }
 
-function migrarDatosSueltos(uid: string, sid: string): void {
-  ensureServerDir(`${uid}/${sid}`);
+function migrarDatosSueltos(uid: string, juego: juegos.Juego, sid: string): void {
+  const ambito = `${uid}/${juego}/${sid}`;
+  ensureServerDir(ambito);
   for (const name of SERVER_FILES) {
-    const viejo = path.join(userDir(uid), `${name}.json`);
-    const nuevo = serverFile(`${uid}/${sid}`, name);
+    const viejo = path.join(juegoDir(uid, juego), `${name}.json`);
+    const nuevo = serverFile(ambito, name);
     if (fs.existsSync(viejo) && !fs.existsSync(nuevo)) {
       try {
         fs.renameSync(viejo, nuevo);
-        console.log(`Migrado ${name}.json -> usuario ${uid}, servidor ${sid}`);
+        console.log(`Migrado ${name}.json -> usuario ${uid}, juego ${juego}, servidor ${sid}`);
       } catch (err) {
         console.error(`Failed to migrate ${name}.json:`, err);
       }
@@ -418,17 +468,26 @@ function migrarDatosSueltos(uid: string, sid: string): void {
 // nadie puede pedir los datos de otro cambiando un parametro.
 function resolveServer(req: Request): string {
   const uid = requireUid(req);
-  const servers = readServers(uid);
+  const juego = juegoDe(req);
+  const servers = readServers(uid, juego);
   const pedido = String((req.query?.server ?? (req.body as any)?.server ?? '')).trim();
   const encontrado = servers.find((s) => s.id === pedido);
-  return `${uid}/${encontrado ? encontrado.id : servers[0].id}`;
+  return `${uid}/${juego}/${encontrado ? encontrado.id : servers[0].id}`;
 }
 
-// Un catalogo de la API de Dofus: se baja una vez y se deja en disco, que son
-// varios miles de objetos y no cambian de un dia para otro. Sirve tanto para
-// los recursos (lo que se sortea) como para los equipables (solo de consulta).
-async function fetchCatalogCached(url: string, file: string, que: string): Promise<any[]> {
+// El juego que pide la peticion (?juego=). Si no lo dice o dice algo raro, el
+// de siempre: asi una pagina vieja en una pestana abierta sigue funcionando.
+function juegoDe(req: Request): juegos.Juego {
+  return juegos.normalizar(req.query?.juego ?? (req.body as any)?.juego);
+}
+
+// Un catalogo de objetos: se baja una vez y se deja en disco, que son varios
+// miles y no cambian de un dia para otro. De donde se baja y como se traduce al
+// formato comun lo decide juegos.ts, asi que aqui da igual de que juego sea.
+async function fetchCatalogCached(juego: juegos.Juego, familia: juegos.Familia): Promise<any[]> {
   ensureDataDir();
+  const file = catalogoFile(juego, familia);
+  const que = `${familia} de ${juego}`;
   const leerCache = (): any[] | null => {
     try {
       if (fs.existsSync(file)) {
@@ -444,12 +503,14 @@ async function fetchCatalogCached(url: string, file: string, que: string): Promi
   const cache = leerCache();
   if (cache) return cache;
 
+  const fuente = juegos.fuente(juego, familia);
   try {
-    const res = await axios.get(url, { timeout: 20000 });
-    // La API responde { items: [...] }; se admite tambien un array pelado.
-    const data = res.data;
-    const items = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
-    if (!Array.isArray(items) || items.length === 0) {
+    const res = await axios.get(fuente.url, { timeout: 20000 });
+    // Cada fuente sabe sacar su lista y traducir sus objetos al formato comun.
+    // Los que no se pueden traducir (sin id o sin nombre) se quedan fuera: un
+    // objeto sin id no se podria ni excluir ni marcar.
+    const items = fuente.lista(res.data).map((x: any) => fuente.normaliza(x)).filter(Boolean);
+    if (items.length === 0) {
       console.warn(`Remote ${que} response did not contain items; returning empty array`);
       return [];
     }
@@ -466,21 +527,22 @@ async function fetchCatalogCached(url: string, file: string, que: string): Promi
   }
 }
 
-async function fetchItemsCached(): Promise<any[]> {
-  return fetchCatalogCached(ITEMS_URL, ITEMS_FILE, 'items');
+// Lo que se sortea.
+async function fetchItemsCached(juego: juegos.Juego): Promise<any[]> {
+  return fetchCatalogCached(juego, 'resources');
 }
 
 // Los equipables: catalogo aparte, que no toca al sorteo.
-async function fetchEquipmentCached(): Promise<any[]> {
-  return fetchCatalogCached(EQUIPMENT_URL, EQUIPMENT_FILE, 'equipment');
+async function fetchEquipmentCached(juego: juegos.Juego): Promise<any[]> {
+  return fetchCatalogCached(juego, 'equipment');
 }
 
 // Antes cada servidor guardaba sus exclusiones. Al pasar a una sola lista por
 // usuario se juntan las que hubiera en cada servidor y los archivos viejos se
 // borran, asi que esto solo hace algo la primera vez.
-function migrarExclusionesDeServidores(uid: string): void {
-  const raiz = path.join(userDir(uid), 'servers');
-  if (fs.existsSync(exclusionsFile(uid)) || !fs.existsSync(raiz)) return;
+function migrarExclusionesDeServidores(uid: string, juego: juegos.Juego): void {
+  const raiz = path.join(juegoDir(uid, juego), 'servers');
+  if (fs.existsSync(exclusionsFile(uid, juego)) || !fs.existsSync(raiz)) return;
   const juntas = new Set<string>();
   const viejos: string[] = [];
   try {
@@ -492,22 +554,22 @@ function migrarExclusionesDeServidores(uid: string): void {
       if (Array.isArray(parsed)) parsed.forEach((id) => juntas.add(String(id)));
     }
     if (!viejos.length) return;
-    writeJson(exclusionsFile(uid), Array.from(juntas));
+    writeJson(exclusionsFile(uid, juego), Array.from(juntas));
     // Los archivos viejos se quedan donde estan: ya no se leen (la migracion
     // no vuelve a entrar en cuanto existe el del usuario), pero son la unica
     // copia de una lista que puede costar horas de rehacer.
-    console.log(`Migradas ${juntas.size} exclusion(es) de ${viejos.length} servidor(es) -> usuario ${uid}`);
+    console.log(`Migradas ${juntas.size} exclusion(es) de ${viejos.length} servidor(es) -> usuario ${uid}, juego ${juego}`);
   } catch (err) {
     console.error('Failed to migrate exclusions:', err);
   }
 }
 
 function readExclusions(ambito: string): string[] {
-  const { uid } = partirAmbito(ambito);
-  ensureUserDir(uid);
-  migrarExclusionesDeServidores(uid);
+  const { uid, juego } = partirAmbito(ambito);
+  ensureJuegoDir(uid, juego);
+  migrarExclusionesDeServidores(uid, juego);
   try {
-    const f = exclusionsFile(uid);
+    const f = exclusionsFile(uid, juego);
     if (fs.existsSync(f)) {
       const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
       if (Array.isArray(parsed)) return parsed.map(String);
@@ -519,10 +581,10 @@ function readExclusions(ambito: string): string[] {
 }
 
 function writeExclusions(ambito: string, ids: string[]): void {
-  const { uid } = partirAmbito(ambito);
-  ensureUserDir(uid);
-  migrarExclusionesDeServidores(uid);
-  writeJson(exclusionsFile(uid), ids);
+  const { uid, juego } = partirAmbito(ambito);
+  ensureJuegoDir(uid, juego);
+  migrarExclusionesDeServidores(uid, juego);
+  writeJson(exclusionsFile(uid, juego), ids);
 }
 
 // Las rarezas son colores, sin nombre: gris, azul, morado y rojo. Un objeto
@@ -960,7 +1022,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     ensureUserDir(id);
     // El Ruleton que ya hubiera en el equipo se queda con la primera cuenta.
     if (users.length === 0) migrarRuletonExistente(id);
-    readServers(id);   // nace con su servidor por defecto
+    readServers(id, juegos.JUEGO_POR_DEFECTO);   // nace con su servidor por defecto
 
     ponerCookie(req, res, crearSesion(id));
     res.json({ user: datosPublicos(nuevo) });
@@ -1292,21 +1354,25 @@ app.post('/api/auth/password', (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/items', async (_req: Request, res: Response) => {
+// GET /api/items?juego=  -> el catalogo que se sortea, del juego que se pida
+app.get('/api/items', async (req: Request, res: Response) => {
   try {
-    const items = await fetchItemsCached();
-    res.json({ count: items.length, items });
+    const juego = juegoDe(req);
+    const items = await fetchItemsCached(juego);
+    res.json({ count: items.length, items, juego, aviso: juegos.AVISOS[juego] });
   } catch (err) {
     res.status(500).json({ error: 'failed to get items' });
   }
 });
 
 // El catalogo de equipables. Solo se mira desde la pestana de objetos: no hay
-// rarezas, ni exclusiones, ni sorteo, asi que aqui no hace falta el ambito.
-app.get('/api/equipment', async (_req: Request, res: Response) => {
+// rarezas, ni exclusiones, ni sorteo, asi que aqui no hace falta el ambito,
+// pero si el juego: son catalogos distintos.
+app.get('/api/equipment', async (req: Request, res: Response) => {
   try {
-    const items = await fetchEquipmentCached();
-    res.json({ count: items.length, items });
+    const juego = juegoDe(req);
+    const items = await fetchEquipmentCached(juego);
+    res.json({ count: items.length, items, juego, aviso: juegos.AVISOS[juego] });
   } catch (err) {
     res.status(500).json({ error: 'failed to get equipment' });
   }
@@ -1314,7 +1380,64 @@ app.get('/api/equipment', async (_req: Request, res: Response) => {
 
 // GET /api/servers -> { servers: GameServer[] }  (los del usuario que ha entrado)
 app.get('/api/servers', (req: Request, res: Response) => {
-  res.json({ servers: readServers(requireUid(req)) });
+  const juego = juegoDe(req);
+  res.json({ servers: readServers(requireUid(req), juego), juego });
+});
+
+// GET /api/img/touch/<tamano>/<id>.png -> la imagen de un objeto de Touch
+//
+// No se enlaza al CDN de Ankama desde la pagina porque CloudFront contesta 403
+// en cuanto la peticion lleva pinta de navegador, y entonces Chrome la bloquea.
+// Desde aqui si se puede: se pide como servidor, se guarda en disco y se sirve
+// del propio Ruleton. La primera vez que se ve un objeto cuesta una descarga;
+// a partir de ahi sale del disco.
+const IMG_TOUCH_DIR = path.join(DATA_DIR, 'img-touch');
+
+app.get('/api/img/touch/:tamano/:archivo', async (req: Request, res: Response) => {
+  // Solo numeros, y nada mas: asi este endpoint no se puede usar para pedirle
+  // al servidor que baje cualquier otra cosa ni para salirse de la carpeta.
+  const tamano = String(req.params.tamano || '');
+  const id = String(req.params.archivo || '').replace(/\.png$/, '');
+  if (!/^\d+$/.test(tamano) || !/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'imagen no valida' });
+  }
+
+  const dir = path.join(IMG_TOUCH_DIR, tamano);
+  const file = path.join(dir, `${id}.png`);
+  // Un mes: son imagenes de un catalogo congelado en 2019, no cambian.
+  res.setHeader('Cache-Control', 'public, max-age=2592000');
+  res.setHeader('Content-Type', 'image/png');
+  if (fs.existsSync(file)) return res.sendFile(file);
+
+  try {
+    const r = await axios.get(`${juegos.CDN_TOUCH}/${tamano}/${id}.png`, {
+      responseType: 'arraybuffer',
+      timeout: 20000
+    });
+    const datos = Buffer.from(r.data);
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(file, datos);
+    } catch (err) {
+      console.warn('Failed to cache Touch image:', err);
+    }
+    res.end(datos);
+  } catch (err) {
+    // Que falte una imagen no es motivo para romper la ficha del objeto.
+    res.status(404).end();
+  }
+});
+
+// GET /api/juegos -> los juegos que hay, para el selector de la pagina
+app.get('/api/juegos', (_req: Request, res: Response) => {
+  res.json({
+    juegos: juegos.JUEGOS.map((j) => ({
+      id: j,
+      nombre: juegos.NOMBRES[j],
+      aviso: juegos.AVISOS[j]
+    })),
+    porDefecto: juegos.JUEGO_POR_DEFECTO
+  });
 });
 
 // POST /api/servers  Body: { name: string }  -> crea un servidor vacio
@@ -1324,7 +1447,8 @@ app.post('/api/servers', (req: Request, res: Response) => {
 
   try {
     const uid = requireUid(req);
-    const servers = readServers(uid);
+    const juego = juegoDe(req);
+    const servers = readServers(uid, juego);
     if (servers.some((s) => s.name.toLowerCase() === name.toLowerCase())) {
       return res.status(409).json({ error: 'ya existe un servidor con ese nombre' });
     }
@@ -1332,9 +1456,9 @@ app.post('/api/servers', (req: Request, res: Response) => {
     while (servers.some((s) => s.id === id)) id = `${id}-2`;
 
     const nuevo: GameServer = { id, name };
-    ensureServerDir(`${uid}/${id}`);
-    writeServers(uid, servers.concat(nuevo));
-    res.json({ server: nuevo, servers: readServers(uid) });
+    ensureServerDir(`${uid}/${juego}/${id}`);
+    writeServers(uid, juego, servers.concat(nuevo));
+    res.json({ server: nuevo, servers: readServers(uid, juego) });
   } catch (err) {
     console.error('Failed to create server:', err);
     res.status(500).json({ error: 'failed to create server' });
@@ -1348,14 +1472,15 @@ app.patch('/api/servers/:id', (req: Request, res: Response) => {
 
   try {
     const uid = requireUid(req);
-    const servers = readServers(uid);
+    const juego = juegoDe(req);
+    const servers = readServers(uid, juego);
     const destino = servers.find((s) => s.id === req.params.id);
     if (!destino) return res.status(404).json({ error: 'server not found' });
     if (servers.some((s) => s.id !== destino.id && s.name.toLowerCase() === name.toLowerCase())) {
       return res.status(409).json({ error: 'ya existe un servidor con ese nombre' });
     }
     destino.name = name;
-    writeServers(uid, servers);
+    writeServers(uid, juego, servers);
     res.json({ server: destino, servers });
   } catch (err) {
     console.error('Failed to rename server:', err);
@@ -1367,7 +1492,8 @@ app.patch('/api/servers/:id', (req: Request, res: Response) => {
 app.delete('/api/servers/:id', (req: Request, res: Response) => {
   try {
     const uid = requireUid(req);
-    const servers = readServers(uid);
+    const juego = juegoDe(req);
+    const servers = readServers(uid, juego);
     if (!servers.some((s) => s.id === req.params.id)) {
       return res.status(404).json({ error: 'server not found' });
     }
@@ -1375,8 +1501,8 @@ app.delete('/api/servers/:id', (req: Request, res: Response) => {
       return res.status(409).json({ error: 'debe quedar al menos un servidor' });
     }
     const rest = servers.filter((s) => s.id !== req.params.id);
-    writeServers(uid, rest);
-    fs.rmSync(serverDir(`${uid}/${req.params.id}`), { recursive: true, force: true });
+    writeServers(uid, juego, rest);
+    fs.rmSync(serverDir(`${uid}/${juego}/${req.params.id}`), { recursive: true, force: true });
     res.json({ servers: rest });
   } catch (err) {
     console.error('Failed to delete server:', err);
@@ -1760,7 +1886,9 @@ app.put('/api/tags', (req: Request, res: Response) => {
 app.get('/api/random-items', async (req: Request, res: Response) => {
   const n = Number(req.query.n) || 1;
   try {
-    const all = await fetchItemsCached();
+    // El juego lo dice la peticion, y el ambito de mas abajo sale del mismo
+    // juego, asi que exclusiones y rarezas son siempre las de este catalogo.
+    const all = await fetchItemsCached(juegoDe(req));
     if (all.length === 0) return res.status(500).json({ error: 'no items available' });
 
     // Participan todos menos los excluidos.
@@ -1824,7 +1952,7 @@ app.post('/api/draw', async (req: Request, res: Response) => {
   const itemsCount = typeof body.itemsCount === 'number' && body.itemsCount > 0 ? Math.floor(body.itemsCount) : 1;
 
   try {
-    const items = await fetchItemsCached();
+    const items = await fetchItemsCached(juegoDe(req));
     if (items.length === 0) return res.status(500).json({ error: 'no items available for draw' });
     const selectedItems = shuffle(items).slice(0, Math.min(itemsCount, items.length));
 
@@ -1848,8 +1976,10 @@ app.post('/api/draw', async (req: Request, res: Response) => {
 // Sortea para un canje y deja al espectador como ganador, igual que si se
 // hubiera sorteado a mano desde la pagina.
 async function sortearParaTwitch(uid: string, sid: string, nombre: string, n: number): Promise<string[]> {
-  const ambito = `${uid}/${sid}`;
-  const todos = await fetchItemsCached();
+  // Los canjes se configuran por servidor, no por juego, asi que sortean del de
+  // siempre. Para sortear de Touch desde Twitch harian falta canjes por juego.
+  const ambito = `${uid}/${juegos.JUEGO_POR_DEFECTO}/${sid}`;
+  const todos = await fetchItemsCached(juegos.JUEGO_POR_DEFECTO);
   const excluidos = new Set(readExclusions(ambito));
   const disponibles = todos.filter((it) => !excluidos.has(getItemId(it)));
   if (!disponibles.length) throw new Error('no quedan objetos que sortear');
@@ -2356,7 +2486,7 @@ twitch.iniciar(
     ensureUserDir,
     writeJson,
     sortearPara: sortearParaTwitch,
-    servidoresDe: (uid: string) => readServers(uid)
+    servidoresDe: (uid: string) => readServers(uid, juegos.JUEGO_POR_DEFECTO)
   },
   {
     redirect: process.env.TWITCH_REDIRECT || `http://localhost:${PORT}/api/twitch/callback`,
