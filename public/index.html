@@ -336,8 +336,14 @@
     .acceso-lista{display:flex;flex-direction:column;gap:.5rem;margin-top:.8rem}
     /* A qué se juega más, solo para el admin. Una barra por minijuego, que de
        un vistazo dice más que la cifra. */
-    .uso-lista{display:flex;flex-direction:column;gap:.55rem;margin:.8rem 0 1.2rem}
-    .uso-fila{display:grid;grid-template-columns:minmax(120px,1fr) 2fr auto;gap:.7rem;align-items:center}
+    /* Una sola rejilla para todas las filas, no una por fila: si cada fila
+       lleva la suya, el texto de la derecha (que cambia de largo) le roba
+       sitio a la barra y cada una empieza y acaba donde le parece. Con las
+       columnas compartidas, las barras quedan alineadas y se pueden comparar,
+       que es justamente para lo que estan. */
+    .uso-lista{display:grid;grid-template-columns:minmax(120px,max-content) minmax(80px,1fr) auto;
+      gap:.55rem .7rem;align-items:center;margin:.8rem 0 1.2rem}
+    .uso-fila{display:contents}
     .uso-fila .uso-nombre{font-weight:600;font-size:14px}
     .uso-fila .uso-barra{height:12px;border-radius:999px;background:rgba(255,255,255,0.07);overflow:hidden}
     .uso-fila .uso-barra i{display:block;height:100%;border-radius:999px;
@@ -345,11 +351,43 @@
       transition:width .4s ease}
     .uso-fila.mas .uso-nombre::after{content:' 👑';font-size:13px}
     .uso-fila .uso-cifra{font-size:13px;color:var(--muted);white-space:nowrap}
+    /* En pantalla estrecha no caben las tres columnas: el texto de la derecha
+       solo no mide ya mas que la pantalla entera. Se apila cada juego y se le
+       deja fluir, que alinear barras no sirve de nada si hay que arrastrar la
+       pagina de lado para verlas. */
+    @media (max-width: 720px){
+      .uso-lista{display:flex;flex-direction:column;gap:.85rem}
+      .uso-fila{display:flex;flex-direction:column;gap:.3rem}
+      .uso-fila .uso-cifra{white-space:normal}
+    }
     .uso-usuarios{display:flex;flex-direction:column;gap:.35rem;margin-top:.6rem}
     .uso-usuario{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;padding:.45rem .7rem;
       border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)}
     .uso-usuario .quien{font-weight:700;font-size:14px}
     .uso-usuario .detalle{color:var(--muted);font-size:13px}
+    .uso-titulo{margin:1.3rem 0 .5rem;font-size:14px}
+    .uso-titulo .meta{font-weight:400;font-size:12px}
+    .uso-aviso{margin:.6rem 0 0;font-size:13px;color:#fcd34d;line-height:1.35}
+    .uso-aviso[hidden]{display:none}
+    .uso-tarjetas{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem;margin:.9rem 0 .3rem}
+    .uso-tarjeta{padding:.6rem .75rem;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
+    .uso-tarjeta .cifra{font-size:22px;font-weight:800;line-height:1.1}
+    .uso-tarjeta .rotulo{display:block;margin-top:.15rem;font-size:12px;color:var(--muted)}
+    .uso-tarjeta .cambio{font-size:12px;font-weight:700}
+    .uso-tarjeta .cambio.sube{color:var(--accent)}
+    .uso-tarjeta .cambio.baja{color:#fca5a5}
+    /* Una sola serie: sin leyenda, el título ya la nombra. */
+    .uso-grafica{display:flex;align-items:flex-end;gap:2px;height:84px;padding:.5rem .1rem 0}
+    .uso-grafica.pequena{height:56px}
+    .uso-grafica .col{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+    .uso-grafica .col i{display:block;border-radius:4px 4px 0 0;background:var(--accent);opacity:.85;min-height:2px}
+    .uso-grafica .col.vacia i{background:rgba(255,255,255,0.13)}
+    .uso-grafica .col:hover i{opacity:1}
+    .uso-ejes{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:.25rem}
+    .uso-cuando{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem}
+    .uso-fila .uso-tendencia{font-size:12px;font-weight:700}
+    .uso-fila .uso-tendencia.sube{color:var(--accent)}
+    .uso-fila .uso-tendencia.baja{color:#fca5a5}
     .acceso-fila{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;padding:.6rem .8rem;border:1px solid rgba(255,255,255,0.12);border-radius:12px;background:rgba(255,255,255,0.04)}
     .acceso-fila.sin-acceso{opacity:.62;border-style:dashed}
     .acceso-quien{display:flex;flex-direction:column;min-width:0;flex:1 1 12rem}
@@ -1281,6 +1319,7 @@
       <button type="button" class="tab" data-tab="puntos">🏅 Puntos</button>
       <button type="button" class="tab" data-tab="winners">Ganadores (0)</button>
       <button type="button" class="tab" data-tab="history">📜 Historial</button>
+      <button type="button" class="tab" data-tab="uso" id="tabUso" hidden>📊 Estadísticas</button>
       <button type="button" class="tab" data-tab="config">⚙ Configuración</button>
     </nav>
     <div class="user-tab">
@@ -1729,6 +1768,50 @@
           </section>
         </div>
 
+        <!-- A qué se juega. Solo para el administrador: la pestaña no se le
+             enseña a nadie más, y el servidor tampoco contesta a nadie más. -->
+        <div class="tab-panel" id="uso-panel">
+          <section>
+          <h3>Estadísticas</h3>
+          <div class="config-section">
+            <h4>Uso de los minijuegos</h4>
+            <p class="meta">Partidas jugadas de verdad, de todas las cuentas: un sorteo hecho, una carrera corrida, un torneo empezado, una ronda de bolas soltada, una vuelta de la ruleta de nombres. Abrir la inscripción y no jugar no cuenta.</p>
+            <p class="uso-aviso" id="usoAviso" hidden></p>
+
+            <!-- Las cifras que se miran primero. -->
+            <div class="uso-tarjetas" id="usoTarjetas"></div>
+
+            <h5 class="uso-titulo">Partidas por día <span class="meta">(últimos 30 días)</span></h5>
+            <div class="uso-grafica" id="usoPorDia"></div>
+            <div class="uso-ejes" id="usoPorDiaEjes"></div>
+
+            <h5 class="uso-titulo">Por minijuego</h5>
+            <div id="usoJuegos" class="uso-lista"></div>
+
+            <h5 class="uso-titulo">Cuándo se juega</h5>
+            <div class="uso-cuando">
+              <div>
+                <span class="meta">Por hora del día</span>
+                <div class="uso-grafica pequena" id="usoPorHora"></div>
+                <div class="uso-ejes" id="usoPorHoraEjes"></div>
+              </div>
+              <div>
+                <span class="meta">Por día de la semana</span>
+                <div class="uso-grafica pequena" id="usoPorSemana"></div>
+                <div class="uso-ejes" id="usoPorSemanaEjes"></div>
+              </div>
+            </div>
+
+            <h5 class="uso-titulo">Quién juega a qué</h5>
+            <div id="usoUsuarios" class="uso-usuarios"></div>
+            <div class="config-actions">
+              <button type="button" class="btn-cancel" id="usoRefrescar">Actualizar</button>
+              <span class="meta" id="usoStatus" style="margin-left:auto"></span>
+            </div>
+          </div>
+          </section>
+        </div>
+
         <div class="tab-panel" id="config-panel">
           <section class="config-panel">
           <h3>Configuración</h3>
@@ -1774,18 +1857,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
           </div>
 
-          <!-- A qué se juega más. Solo aquí: no sale en ninguna otra pantalla. -->
-          <div class="config-section">
-            <h4>Uso de los minijuegos</h4>
-            <p class="meta">Partidas jugadas de verdad, de todas las cuentas: un sorteo hecho, una carrera corrida, un torneo empezado, una ronda de bolas soltada, una vuelta de la ruleta de nombres. Abrir la inscripción y no jugar no cuenta.</p>
-            <div id="usoJuegos" class="uso-lista"></div>
-            <h4>Quién juega a qué</h4>
-            <div id="usoUsuarios" class="uso-usuarios"></div>
-            <div class="config-actions">
-              <button type="button" class="btn-cancel" id="usoRefrescar">Actualizar</button>
-              <span class="meta" id="usoStatus" style="margin-left:auto"></span>
-            </div>
-          </div>
           </div>
 
           <div class="cfg-tabpanel active" id="cfgtab-cuenta">
@@ -2272,6 +2343,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (canal && usuario) canal.value = usuario.twitchCanal || '';
       const pestana = document.getElementById('cfgtabAcceso');
       if (pestana) pestana.hidden = !usuario?.admin;
+      // La pestaña de estadísticas, igual: solo la ve el administrador. Quien
+      // no lo sea no la tiene, y si llegara igualmente el servidor no contesta.
+      const tabUso = document.getElementById('tabUso');
+      if (tabUso) tabUso.hidden = !usuario?.admin;
     }
 
     // --- Panel de acceso ----------------------------------------------------
@@ -2325,11 +2400,52 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         lista.innerHTML = '';
         estado.textContent = e.message;
       }
-      cargarUso();
     }
 
-    // A qué se juega más. Solo el admin llega aquí: el servidor no contesta a
-    // nadie más, y esta parte de la página tampoco se le enseña.
+    // A qué se juega más, cuánto y cuándo. Solo el admin llega aquí: el
+    // servidor no contesta a nadie más, y esta parte de la página tampoco se
+    // le enseña. Las cuentas las hace el servidor; aquí solo se pintan.
+
+    // Barras de una sola serie: sin leyenda, que el título ya la nombra, y con
+    // el valor en el tooltip en vez de un número encima de cada barra.
+    function pintarGrafica(el, valores, etiqueta) {
+      if (!el) return;
+      const mayor = Math.max(1, ...valores.map((v) => v.valor));
+      el.innerHTML = valores.map((v) => {
+        const alto = v.valor ? Math.max(Math.round(v.valor / mayor * 100), 3) : 2;
+        return '<span class="col' + (v.valor ? '' : ' vacia') + '" title="' + escapeHtml(v.titulo) + '">'
+          + '<i style="height:' + alto + '%"></i></span>';
+      }).join('');
+      el.setAttribute('role', 'img');
+      el.setAttribute('aria-label', etiqueta);
+    }
+
+    function pintarEjes(id, izq, der) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<span>' + escapeHtml(izq) + '</span><span>' + escapeHtml(der) + '</span>';
+    }
+
+    // «+40%» o «−15%» respecto al periodo anterior. Sin periodo anterior no se
+    // inventa nada: no es una subida del 100%, es que no hay con qué comparar.
+    function cambio(ahora, antes) {
+      if (!antes) return ahora ? '<span class="cambio sube">nuevo</span>' : '';
+      const pct = Math.round((ahora - antes) / antes * 100);
+      if (!pct) return '<span class="cambio">igual</span>';
+      const sube = pct > 0;
+      return '<span class="cambio ' + (sube ? 'sube' : 'baja') + '">'
+        + (sube ? '+' : '−') + Math.abs(pct) + '%</span>';
+    }
+
+    const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+    function fechaCorta(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return isNaN(d.getTime())
+        ? '—'
+        : d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    }
+
     async function cargarUso() {
       const lista = document.getElementById('usoJuegos');
       const quienes = document.getElementById('usoUsuarios');
@@ -2347,50 +2463,109 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
 
       const juegos = data.juegos || [];
-      const total = juegos.reduce((s, j) => s + j.partidas, 0);
-      const mayor = Math.max(1, ...juegos.map((j) => j.partidas));
+      const t = data.totales || {};
+      const total = t.partidas || 0;
+
+      // El historial empezó después que los contadores: entonces las tendencias
+      // miran menos partidas que los totales, y eso hay que decirlo.
+      const aviso = document.getElementById('usoAviso');
+      aviso.hidden = !data.historialParcial;
+      if (data.historialParcial) {
+        // Sin ninguna partida fechada no hay nada que recortar: es que esto
+        // acaba de empezar a guardarse, y conviene decirlo así y no con un 0.
+        aviso.textContent = t.partidasConHistorial
+          ? 'Las tendencias y los horarios solo miran las ' + t.partidasConHistorial
+            + ' partida(s) guardadas con fecha, desde el ' + fechaCorta(data.historialDesde)
+            + '. Los totales van desde el principio.'
+          : 'Las partidas de antes de esta versión no llevan fecha, así que las tendencias y'
+            + ' los horarios empiezan a contar desde la próxima que se juegue. Los totales ya están completos.';
+      }
+
       if (!total) {
+        document.getElementById('usoTarjetas').innerHTML = '';
         lista.innerHTML = '<span class="meta">Todavía no se ha jugado a ninguno.</span>';
         quienes.innerHTML = '';
         estado.textContent = '';
         return;
       }
 
+      // Las cifras que se miran primero.
+      document.getElementById('usoTarjetas').innerHTML = [
+        { cifra: total, rotulo: 'partidas en total' },
+        { cifra: t.jugadores || 0, rotulo: 'participaciones' },
+        { cifra: t.recientes || 0, rotulo: 'en 30 días', extra: cambio(t.recientes || 0, t.previas || 0) },
+        { cifra: t.mediaPorDiaActivo || 0, rotulo: 'partidas por día jugado' },
+        { cifra: t.diasActivos || 0, rotulo: (t.diasActivos === 1 ? 'día' : 'días') + ' con partidas' },
+        { cifra: t.racha || 0, rotulo: t.racha === 1 ? 'día seguido' : 'días seguidos' }
+      ].map((c) => '<div class="uso-tarjeta"><span class="cifra">' + c.cifra + '</span> '
+        + (c.extra || '') + '<span class="rotulo">' + escapeHtml(c.rotulo) + '</span></div>').join('');
+
+      // Tendencia diaria. Los días sin jugar salen como hueco: dicen tanto como
+      // los picos, y sin pintarlos la gráfica mentiría juntando días lejanos.
+      const porDia = data.porDia || [];
+      pintarGrafica(
+        document.getElementById('usoPorDia'),
+        porDia.map((d) => ({
+          valor: d.partidas,
+          titulo: fechaCorta(d.dia) + ': ' + d.partidas + ' partida(s)'
+            + (d.jugadores ? ', ' + d.jugadores + ' jugador(es)' : '')
+        })),
+        'Partidas por día en los últimos 30 días'
+      );
+      if (porDia.length) pintarEjes('usoPorDiaEjes', fechaCorta(porDia[0].dia), 'hoy');
+
       // De más jugado a menos, que es lo que se viene a mirar.
-      lista.innerHTML = juegos.slice().sort((a, b) => b.partidas - a.partidas).map((j, i) => {
+      const mayor = Math.max(1, ...juegos.map((j) => j.partidas));
+      lista.innerHTML = juegos.slice().sort((x, y) => y.partidas - x.partidas).map((j, i) => {
         const parte = total ? Math.round(j.partidas / total * 100) : 0;
-        const cuando = j.ultima
-          ? new Date(j.ultima).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
-          : '—';
         // La corona solo si de verdad va primero: con empate a cero no.
         const manda = i === 0 && j.partidas > 0;
-        return `
-          <div class="uso-fila${manda ? ' mas' : ''}">
-            <span class="uso-nombre">${escapeHtml(j.nombre)}</span>
-            <span class="uso-barra"><i style="width:${Math.round(j.partidas / mayor * 100)}%"></i></span>
-            <span class="uso-cifra">${j.partidas} partida${j.partidas === 1 ? '' : 's'} · ${parte}%`
-              + `${j.jugadores ? ` · ${j.jugadores} jugador(es)` : ''} · última ${cuando}</span>
-          </div>`;
+        return '<div class="uso-fila' + (manda ? ' mas' : '') + '">'
+          + '<span class="uso-nombre">' + escapeHtml(j.nombre) + '</span>'
+          + '<span class="uso-barra" title="' + j.partidas + ' de ' + total + ' partidas">'
+          + '<i style="width:' + Math.round(j.partidas / mayor * 100) + '%"></i></span>'
+          + '<span class="uso-cifra">' + j.partidas + ' partida' + (j.partidas === 1 ? '' : 's') + ' · ' + parte + '%'
+          + (j.mediaJugadores ? ' · ' + j.mediaJugadores + ' jugador(es) de media' : '')
+          + ' · última ' + fechaCorta(j.ultima) + ' ' + cambio(j.recientes, j.previas)
+          + '</span></div>';
       }).join('');
+
+      // Cuándo está la gente: a qué hora y qué día. Es lo que decide cuándo
+      // montar el directo.
+      pintarGrafica(
+        document.getElementById('usoPorHora'),
+        (data.porHora || []).map((v, h) => ({
+          valor: v, titulo: String(h).padStart(2, '0') + ':00 — ' + v + ' partida(s)'
+        })),
+        'Partidas por hora del día'
+      );
+      pintarEjes('usoPorHoraEjes', '00:00', '23:00');
+      pintarGrafica(
+        document.getElementById('usoPorSemana'),
+        (data.porDiaSemana || []).map((v, d) => ({
+          valor: v, titulo: DIAS_SEMANA[d] + ' — ' + v + ' partida(s)'
+        })),
+        'Partidas por día de la semana'
+      );
+      pintarEjes('usoPorSemanaEjes', 'Lun', 'Dom');
 
       const usuarios = data.usuarios || [];
       quienes.innerHTML = usuarios.length
         ? usuarios.map((u) => {
           const suyos = Object.entries(u.juegos || {})
-            .sort((a, b) => b[1] - a[1])
-            .map(([id, veces]) => {
-              const juego = juegos.find((j) => j.id === id);
-              return `${escapeHtml(juego ? juego.nombre : id)} ${veces}`;
+            .sort((x, y) => y[1] - x[1])
+            .map((par) => {
+              const juego = juegos.find((j) => j.id === par[0]);
+              return escapeHtml(juego ? juego.nombre : par[0]) + ' ' + par[1];
             }).join(' · ');
-          return `<div class="uso-usuario"><span class="quien">${escapeHtml(u.username || u.id)}</span>`
-            + `<span class="detalle">${u.total} partida(s)${suyos ? ' — ' + suyos : ''}</span></div>`;
+          return '<div class="uso-usuario"><span class="quien">' + escapeHtml(u.username || u.id) + '</span>'
+            + '<span class="detalle">' + u.total + ' partida(s)' + (suyos ? ' — ' + suyos : '')
+            + (u.ultima ? ' · última ' + fechaCorta(u.ultima) : '') + '</span></div>';
         }).join('')
         : '<span class="meta">Nadie ha jugado todavía.</span>';
 
-      const desde = data.desde
-        ? new Date(data.desde).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-        : '';
-      estado.textContent = `${total} partida${total === 1 ? '' : 's'}` + (desde ? ` desde el ${desde}.` : '.');
+      estado.textContent = total + ' partida' + (total === 1 ? '' : 's')
+        + ' desde el ' + fechaCorta(data.desde) + '.';
     }
 
     document.getElementById('usoRefrescar').addEventListener('click', cargarUso);
@@ -8290,6 +8465,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarBatalla(); cargarPlinko(); }
       ajustarAcciones();
         if (tab.dataset.tab === 'puntos') cargarPuntos();
+        if (tab.dataset.tab === 'uso') cargarUso();
         document.getElementById('fontDock').hidden = tab.dataset.tab !== 'config';
         if (tab.dataset.tab === 'config') { fillConfigForm(); pintarCfgGuardar(); }
         // Al salir de Configuración se corta la animación de prueba.

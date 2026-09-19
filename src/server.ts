@@ -1130,28 +1130,13 @@ app.get('/api/admin/users', (req: Request, res: Response) => {
   res.json({ users, invite: inviteActual() });
 });
 
-// GET /api/admin/estadisticas -> a que se juega mas
+// GET /api/admin/estadisticas -> a que se juega, cuanto y cuando
 // Solo lo ve el admin: el resto ni sabe que existe (lo corta el guardia de
-// /api/admin de mas arriba).
+// /api/admin de mas arriba). Las cuentas y las medias las hace el modulo; aqui
+// solo se le presta como se llama cada cuenta, para no ensenar identificadores.
 app.get('/api/admin/estadisticas', (_req: Request, res: Response) => {
-  const registro = estadisticas.leer();
-  const porNombre = new Map(readUsers().map((u) => [u.id, u.username]));
-  const juegos = estadisticas.JUEGOS.map((j) => ({
-    id: j,
-    nombre: estadisticas.NOMBRES[j],
-    ...registro.juegos[j]
-  }));
-  // Quien juega a que, de mas a menos. Las cuentas borradas se quedan fuera.
-  const usuarios = Object.entries(registro.porUsuario)
-    .filter(([uid]) => porNombre.has(uid))
-    .map(([uid, suyos]) => ({
-      id: uid,
-      username: porNombre.get(uid),
-      juegos: suyos,
-      total: Object.values(suyos).reduce((a, b) => a + (Number(b) || 0), 0)
-    }))
-    .sort((a, b) => b.total - a.total);
-  res.json({ desde: registro.desde, juegos, usuarios });
+  const nombres = new Map(readUsers().map((u) => [u.id, u.username]));
+  res.json(estadisticas.resumen(nombres));
 });
 
 // PATCH /api/admin/users/:id  Body: { bloqueado?, admin? }
