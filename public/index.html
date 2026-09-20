@@ -242,10 +242,44 @@
     .names-side{flex:1;min-width:240px;display:flex;flex-direction:column;gap:.6rem}
     .names-side textarea{width:100%;resize:vertical;font-family:inherit;font-size:15px;padding:.6rem;border-radius:10px;background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14)}
     .names-check{display:flex;align-items:center;gap:.4rem;font-size:14px;color:var(--muted);cursor:pointer}
-    .names-wheel-box{position:relative;flex:none;width:320px;max-width:100%;margin:0 auto}
-    .names-wheel{width:100%;height:auto;display:block;filter:drop-shadow(0 10px 30px rgba(2,6,23,0.6));transition:transform 5s cubic-bezier(.15,.9,.2,1)}
-    .names-pointer{position:absolute;top:-6px;left:50%;transform:translateX(-50%);font-size:28px;color:var(--accent);z-index:2;text-shadow:0 2px 8px rgba(0,0,0,0.8)}
-    .names-wheel text{font-size:8px;font-weight:600;fill:#021018}
+    /* --- El rodillo de nombres ------------------------------------------
+       Antes esto era una tarta que giraba. Con cuatro nombres se leia, pero
+       con los ciento y pico que deja el chat las porciones eran rayas sin
+       sitio para el nombre dentro: se veia girar algo, no quien participaba.
+       Un rodillo los pasa a todos por delante con el nombre entero, y lo que
+       se mira es quien va cayendo.
+
+       Va en vertical y no en horizontal porque los nombres son anchos: asi
+       cada uno tiene la linea entera para el y caben siete a la vez. */
+    .names-reel-box{position:relative;flex:none;width:100%;max-width:100%;margin:0 auto;
+      /* El alto de fila manda en todo lo demas: el alto de la ventana, el
+         cuerpo de letra y donde para el ganador salen de aqui. Cambiarlo en
+         pantalla completa agranda el rodillo entero sin tocar nada mas. */
+      --fila:46px; --visibles:7}
+    .names-reel{position:relative;height:calc(var(--fila) * var(--visibles));overflow:hidden;
+      border-radius:14px;background:rgba(9,15,28,0.75);border:1px solid rgba(255,255,255,0.14);
+      box-shadow:0 10px 30px rgba(2,6,23,0.6),inset 0 0 40px rgba(2,6,23,0.55)}
+    .names-reel .tira{will-change:transform}
+    .names-reel .fila{height:var(--fila);display:flex;align-items:center;justify-content:center;
+      padding:0 .9rem;font-size:calc(var(--fila) * .4);font-weight:700;color:#e6eef8;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      border-bottom:1px solid rgba(255,255,255,0.05)}
+    .names-reel .fila.vacio{color:var(--muted);font-weight:600;font-size:calc(var(--fila) * .3)}
+    /* La banda del centro: donde para el que gana. Hace de flecha, pero sin
+       tapar el nombre. */
+    .names-reel .marca{position:absolute;left:0;right:0;top:50%;height:var(--fila);
+      transform:translateY(-50%);pointer-events:none;z-index:2;
+      border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);
+      background:linear-gradient(90deg,rgba(110,231,183,0.16),rgba(110,231,183,0.03) 45%,
+        rgba(110,231,183,0.03) 55%,rgba(110,231,183,0.16))}
+    /* Arriba y abajo se difumina, para que se vea que la cinta sigue y no que
+       se corta. */
+    .names-reel .velo{position:absolute;inset:0;pointer-events:none;z-index:3;
+      background:linear-gradient(180deg,rgba(9,15,28,0.96),rgba(9,15,28,0) 30%,
+        rgba(9,15,28,0) 70%,rgba(9,15,28,0.96))}
+    /* Al parar, el ganador se enciende dentro de la banda. */
+    .names-reel .fila.gana{color:#021018;background:var(--accent);
+      border-bottom-color:transparent;text-shadow:none}
     .tab-panel{display:none}
     .tab-panel.active{display:block}
     #items,#equipItems,#randomResult{display:flex;flex-wrap:wrap;gap:12px;padding-top:8px}
@@ -1533,7 +1567,7 @@
     .escena-barra{display:flex;justify-content:flex-end;margin-top:.8rem}
     .btn-full{padding:.35rem .7rem;font-size:13px}
     /* La rueda de nombres va dentro de su escena: el hueco es el mismo. */
-    .names-layout > .escena{flex:none;width:320px;max-width:100%;margin:0 auto}
+    .names-layout > .escena{flex:none;width:420px;max-width:100%;margin:0 auto}
     .escena:fullscreen{background:#04121c;padding:1.4rem;overflow:auto;
       display:flex;flex-direction:column;justify-content:center;width:100%;margin:0}
     .escena:fullscreen > *:first-child{margin-top:0}
@@ -1543,7 +1577,10 @@
        de lo que se esta mirando. Siguen ahi al salir de pantalla completa. */
     .escena:fullscreen .relato,
     .escena:fullscreen .cuadro .duelo .lineas{display:none}
-    .escena:fullscreen .names-wheel-box{width:min(78vh,92vw)}
+    /* A pantalla completa el rodillo se come la pantalla: filas mas altas, que
+       es lo que hace el nombre legible de lejos. Siete filas de 11vh son 77vh
+       y dejan sitio al cartel del ganador. */
+    .escena:fullscreen .names-reel-box{width:min(1000px,92vw);--fila:min(11vh,104px)}
     #nombresEscena:fullscreen{align-items:center}
     .escena:fullscreen .pista{font-size:1.15em}
 
@@ -1630,8 +1667,8 @@
       .navbar{padding:.6rem .8rem}
       .brand{flex-direction:column;align-items:flex-start;text-align:left}
       .names-layout{flex-direction:column}
-      .names-layout > .escena{width:min(320px,100%)}
-      .names-wheel-box{width:min(320px,100%)}
+      .names-layout > .escena{width:100%}
+      .names-reel-box{--fila:40px}
       .draw-controls{flex-wrap:wrap}
       .draw-controls .push-right{margin-left:0}
       h1{font-size:24px}
@@ -2013,9 +2050,12 @@
                 </div>
               </div>
               <div class="escena" id="nombresEscena" data-presta="nameWinnerBanner">
-                <div class="names-wheel-box">
-                  <div class="names-pointer">▼</div>
-                  <svg id="nameWheel" class="names-wheel" viewBox="0 0 200 200" role="img" aria-label="Ruleta de nombres"></svg>
+                <div class="names-reel-box">
+                  <div class="names-reel" id="nameReel" role="img" aria-label="Rodillo de nombres">
+                    <div class="tira" id="nameReelTira"></div>
+                    <div class="marca"></div>
+                    <div class="velo"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -11053,7 +11093,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     const NAMES_KEY = 'ruleton.names';
     let nombreGanador = '';
     let girandoNombres = false;
-    let vueltaNombres = 0;   // se acumula para que cada giro siga hacia delante
+    // Cuánto dura el giro y con qué curva frena. Arranca rápido y se arrastra
+    // al final: es lo que hace que los últimos nombres pasen de uno en uno y
+    // se puedan leer justo antes de parar.
+    const GIRO_NOMBRES = 5200;
+    const CURVA_NOMBRES = 'cubic-bezier(.12,.72,.18,1)';
 
     function clave_nombres() {
       return NAMES_KEY + ':' + (currentServer || 'sin-servidor');
@@ -11176,53 +11220,54 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       renderNameWheel();
     }
 
+    // Las filas del rodillo. Van todas: el rodillo existe justamente para
+    // enseñar a todo el mundo, no una muestra.
+    function filasNombres(lista) {
+      return lista.map((n) => '<div class="fila">' + escapeHtml(n) + '</div>').join('');
+    }
+
+    // El alto de fila se mide, no se supone: lo pone el CSS y cambia en
+    // pantalla completa y en móvil. Si se calculara aquí, el rodillo pararía
+    // entre dos nombres en cuanto la pantalla cambiara de tamaño.
+    function altoFilaNombres() {
+      const fila = document.querySelector('#nameReelTira .fila');
+      return fila ? fila.getBoundingClientRect().height : 46;
+    }
+
+    // Cuánto hay que subir la cinta para dejar la fila «i» dentro de la banda
+    // del centro.
+    function paradaNombres(i, alto) {
+      const caja = document.getElementById('nameReel');
+      const visibles = Math.max(1, Math.round(caja.getBoundingClientRect().height / alto));
+      return -i * alto + alto * (visibles - 1) / 2;
+    }
+
     function renderNameWheel() {
-      const svg = document.getElementById('nameWheel');
-      if (!svg) return;
+      const tira = document.getElementById('nameReelTira');
+      if (!tira) return;
       const nombres = leerNombres();
       document.getElementById('nameCount').textContent = `${nombres.length} participante(s)`;
       document.getElementById('spinNames').disabled = nombres.length < 2 || girandoNombres;
+      // Mientras gira no se toca: repintar dejaría la cinta a medias.
+      if (girandoNombres) return;
+
+      tira.style.transition = 'none';
+      tira.style.transform = 'translateY(0px)';
 
       if (!nombres.length) {
-        svg.innerHTML = '<circle cx="100" cy="100" r="95" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.18)" /><text x="100" y="103" text-anchor="middle" fill="#9fb0c8" font-size="10">Escribe algunos nombres</text>';
+        tira.innerHTML = '<div class="fila vacio">Escribe algunos nombres</div>';
         return;
       }
+      // En reposo se repite lo justo para que no queden huecos: una lista de
+      // dos nombres dejaría cinco filas vacías en una ventana de siete.
+      const veces = Math.max(1, Math.ceil(12 / nombres.length));
+      tira.innerHTML = filasNombres(repetir(nombres, veces));
+    }
 
-      const colores = ['#6ee7b7', '#7dd3fc', '#c084fc', '#fbbf24', '#fb7185', '#34d399', '#93c5fd', '#f0abfc'];
-      const seg = 360 / nombres.length;
-      // El 0 se coloca arriba, donde apunta la flecha.
-      const punto = (grados, radio) => {
-        const rad = (grados - 90) * Math.PI / 180;
-        return [100 + radio * Math.cos(rad), 100 + radio * Math.sin(rad)];
-      };
-
-      const partes = nombres.map((nombre, i) => {
-        const a0 = i * seg;
-        const a1 = (i + 1) * seg;
-        const [x0, y0] = punto(a0, 95);
-        const [x1, y1] = punto(a1, 95);
-        const grande = seg > 180 ? 1 : 0;
-        const color = colores[i % colores.length];
-        const medio = a0 + seg / 2;
-        // El nombre se escribe a lo largo del radio, no cruzado: así cabe más
-        // texto aunque la porción sea estrecha. En la mitad izquierda se
-        // escribe de fuera hacia dentro para que no quede boca abajo.
-        const alReves = medio > 180;
-        const [tx, ty] = punto(medio, alReves ? 90 : 26);
-        const giro = alReves ? medio + 90 : medio - 90;
-        // Con una sola persona el arco degenera: se pinta el círculo entero.
-        const forma = nombres.length === 1
-          ? `<circle cx="100" cy="100" r="95" fill="${color}" />`
-          : `<path d="M100,100 L${x0.toFixed(2)},${y0.toFixed(2)} A95,95 0 ${grande},1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${color}" stroke="rgba(2,6,23,0.35)" stroke-width="0.6" />`;
-        const corto = nombre.length > 14 ? nombre.slice(0, 13) + '…' : nombre;
-        // Con una sola persona no hay porción que seguir: se centra y ya.
-        const etiqueta = nombres.length === 1
-          ? `<text x="100" y="60" text-anchor="middle" dominant-baseline="middle">${escapeHtml(corto)}</text>`
-          : `<text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" text-anchor="start" dominant-baseline="middle" transform="rotate(${giro.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)})">${escapeHtml(corto)}</text>`;
-        return forma + etiqueta;
-      }).join('');
-
-      svg.innerHTML = partes + '<circle cx="100" cy="100" r="12" fill="rgba(9,15,28,0.9)" stroke="rgba(255,255,255,0.25)" />';
+    function repetir(lista, veces) {
+      const salida = [];
+      for (let i = 0; i < veces; i++) salida.push(...lista);
+      return salida;
     }
 
     async function girarNombres() {
@@ -11243,13 +11288,38 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }).catch(() => {});
 
       const elegido = Math.floor(Math.random() * nombres.length);
-      const seg = 360 / nombres.length;
-      // Se gira hasta dejar el centro de su porción justo bajo la flecha.
-      vueltaNombres += 360 * 6 - ((vueltaNombres + elegido * seg + seg / 2) % 360);
-      const svg = document.getElementById('nameWheel');
-      svg.style.transform = `rotate(${vueltaNombres}deg)`;
 
-      await new Promise((resolve) => setTimeout(resolve, 5200));
+      // La cinta lleva la lista entera repetida unas cuantas veces, y el
+      // ganador es el de la última vuelta: así, pase lo que pase, delante de la
+      // banda han desfilado todos los participantes al menos dos veces antes de
+      // parar. Las vueltas se ajustan al tamaño de la lista para que cuatro
+      // nombres no den un giro de cuatro filas, y para que doscientos no monten
+      // miles de filas de nada.
+      const vueltas = Math.max(3, Math.min(12, Math.ceil(80 / nombres.length)));
+      // Y detrás del ganador va una cola, que si no, cuando el que gana es el
+      // último de la lista, para en la banda con media ventana vacía debajo.
+      // Seis filas cubren la mitad de abajo de cualquier ventana razonable.
+      const cola = Array.from({ length: 6 }, (_, i) => nombres[i % nombres.length]);
+      const tira = document.getElementById('nameReelTira');
+      tira.innerHTML = filasNombres(repetir(nombres, vueltas).concat(cola));
+
+      const alto = altoFilaNombres();
+      const cual = (vueltas - 1) * nombres.length + elegido;
+
+      // Se arranca desde arriba del todo, sin transición, y se fuerza el
+      // recálculo: si no, el navegador junta las dos posiciones en una sola y
+      // no se ve girar nada.
+      tira.style.transition = 'none';
+      tira.style.transform = 'translateY(0px)';
+      void tira.offsetHeight;
+      tira.style.transition = `transform ${GIRO_NOMBRES}ms ${CURVA_NOMBRES}`;
+      tira.style.transform = `translateY(${paradaNombres(cual, alto)}px)`;
+
+      await new Promise((resolve) => setTimeout(resolve, GIRO_NOMBRES + 200));
+
+      // El que ha parado en la banda se enciende.
+      const ganadora = tira.children[cual];
+      if (ganadora) ganadora.classList.add('gana');
 
       nombreGanador = nombres[elegido];
       const banner = document.getElementById('nameWinnerBanner');
@@ -11263,14 +11333,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const resto = nombres.filter((_, i) => i !== elegido);
         document.getElementById('nameList').value = resto.join('\n');
         guardarNombres();
-        // La ruleta se repinta desde cero, así que el giro acumulado se olvida.
-        vueltaNombres = 0;
-        svg.style.transition = 'none';
-        svg.style.transform = 'rotate(0deg)';
-        requestAnimationFrame(() => { svg.style.transition = ''; });
       }
 
       girandoNombres = false;
+      // Repinta la cinta en reposo, ya sin el ganador encendido y con la lista
+      // nueva si se ha quitado a alguien.
       renderNameWheel();
     }
 
