@@ -14,9 +14,17 @@ import { Cronometro } from './cronometro';
 
 export interface Ajustes {
   palabra: string;      // lo que se escribe en el chat para apuntarse
+  // Que posibilidades hay de doblar el premio en el doble o nada, en tanto por
+  // ciento. La mitad de las veces por defecto: es el envite que todo el mundo
+  // entiende sin que se lo expliquen, y desde ahi se aprieta o se afloja.
+  //
+  // Vale el cero (no se dobla nunca) y vale el cien (se dobla siempre). Los dos
+  // son absurdos jugando, pero son utiles para probar la animacion sin estar
+  // girando hasta que salga.
+  doblePct: number;
 }
 
-export const AJUSTES_POR_DEFECTO: Ajustes = { palabra: '!ruleta' };
+export const AJUSTES_POR_DEFECTO: Ajustes = { palabra: '!ruleta', doblePct: 50 };
 
 // Con mas de esto la ruleta no se lee, y la lista es del navegador.
 const MAX_NOMBRES = 200;
@@ -41,6 +49,7 @@ export interface Estado {
   nombres: string[];
   escuchando: string;
   palabra: string;
+  doblePct: number;     // posibilidades de doblar en el doble o nada
   cierraEn: number;     // cuando se cierra sola (reloj del servidor); 0 = sin limite
   ahora: number;        // la hora del servidor, para que la pagina cuadre la cuenta atras
 }
@@ -51,6 +60,7 @@ export function estado(uid: string): Estado {
     nombres: listas.get(uid) || [],
     escuchando: escuchas.get(uid)?.canal || '',
     palabra: leerAjustes(uid).palabra,
+    doblePct: leerAjustes(uid).doblePct,
     cierraEn: crono.cierraEn(uid),
     ahora: Date.now()
   };
@@ -85,6 +95,14 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
   const actual = leerAjustes(uid);
   if (typeof ajustes.palabra === 'string') {
     actual.palabra = ajustes.palabra.trim().slice(0, 30) || AJUSTES_POR_DEFECTO.palabra;
+  }
+  // El cero es un valor bueno, asi que no sirve el «|| por defecto» de siempre:
+  // se mira si el numero es un numero y luego se recorta.
+  if (ajustes.doblePct !== undefined) {
+    const n = Math.round(Number(ajustes.doblePct));
+    actual.doblePct = Number.isFinite(n)
+      ? Math.max(0, Math.min(100, n))
+      : AJUSTES_POR_DEFECTO.doblePct;
   }
   deps.ensureUserDir(uid);
   deps.writeJson(archivo(uid), { ...leerTodo(uid), ruleta: actual });

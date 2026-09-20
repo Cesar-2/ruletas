@@ -2531,6 +2531,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 </div>
               </div>
             </div>
+
+            <h4>Ruleta de nombres</h4>
+            <p class="meta">Quien gana el rodillo puede jugarse el premio: o lo dobla, o lo pierde entero. Esto es lo que hay de que lo doble.</p>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgDoblePct">Doble o nada: posibilidades de doblar (%)</label>
+                <input id="cfgDoblePct" type="number" min="0" max="100" step="1" value="50" />
+                <span class="meta">A <strong>50</strong> es una moneda al aire. Bájalo para que doblar sea una hazaña y subirlo para que casi siempre salga bien. Con <strong>0</strong> no se dobla nunca y con <strong>100</strong> siempre, que sirven para probar las animaciones sin estar girando hasta que toque.</span>
+              </div>
+            </div>
             </div>
 
             <div class="cfg-subpanel" id="mini-carrera-panel">
@@ -10548,6 +10558,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       } catch (e) {
         console.warn('No se pudieron leer los ajustes de minijuegos:', e.message);
       }
+      // Y el del doble o nada, que es de la ruleta de nombres.
+      try {
+        aplicarDoblePct((await api('/api/ruleta-chat')).doblePct);
+      } catch (e) {
+        console.warn('No se pudo leer el doble o nada:', e.message);
+      }
       // Los del tablero y los de las cajas viven aquí: hay que traerlos aunque
       // no se haya abierto su minijuego en toda la sesión.
       cargarPlinko();
@@ -10564,6 +10580,19 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         });
         // La carrera que tenga abierta la página se entera del cambio.
         if (carrera && hecha.ajustes) carrera.ajustes = hecha.ajustes;
+        // El doble o nada se guarda donde la palabra de la ruleta de nombres,
+        // que es lo único suyo que vive en el servidor.
+        const ruleta = await api('/api/ruleta-chat/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ doblePct: Number(document.getElementById('cfgDoblePct').value) })
+        });
+        // Se recoge lo que haya guardado el servidor y no lo tecleado: si has
+        // escrito 300, el botón del envite tiene que decir 100, que es lo que
+        // va a pasar de verdad.
+        const campo = document.getElementById('cfgDoblePct');
+        if (campo) delete campo.dataset.tocado;
+        aplicarDoblePct(ruleta.doblePct);
         aviso.textContent = 'Guardado.';
         return true;
       } catch (e) {
@@ -11126,7 +11155,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // Aqui no se guarda ningun premio: el Ruleton no sabe que se esta
     // sorteando. Lo unico que lleva es por cuanto hay que multiplicar lo que
     // entregues, y eso se dice en el cartel.
-    const PROB_DOBLE = 0.10;
+    // Lo pone el dueño en Configuración › Minijuegos › Ruletas. Hasta que el
+    // servidor conteste se usa el mismo valor por defecto que él, para que un
+    // envite antes de que cargue no salga con otras posibilidades.
+    let doblePct = 50;
     let premioNombres = 1;      // por cuanto se multiplica el premio
     let jugandoDoble = false;   // mientras corre la animacion no se toca nada
 
@@ -11237,11 +11269,23 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       try {
         const estado = await api('/api/ruleta-chat');
         ponerSiNoLoTocas('nameChatPalabra', estado.palabra);
+        aplicarDoblePct(estado.doblePct);
         pintarInscripcion(estado);
         if (estado.abierta) vigilarNombres(true);
       } catch (e) {
         console.warn('No se pudo leer la inscripción:', e.message);
       }
+    }
+
+    // El porcentaje llega con el estado de la inscripción, que es lo único que
+    // la ruleta de nombres guarda en el servidor. Se refleja en los dos sitios:
+    // el ajuste de Configuración y el botón del envite, que lo canta.
+    function aplicarDoblePct(valor) {
+      const n = Math.round(Number(valor));
+      if (!Number.isFinite(n)) return;
+      doblePct = Math.max(0, Math.min(100, n));
+      ponerSiNoLoTocas('cfgDoblePct', doblePct);
+      if (nombreGanador && !jugandoDoble) mandosNombres(premioNombres > 0);
     }
 
     function cargarNombres() {
@@ -11359,8 +11403,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       doble.disabled = jugandoDoble;
       retirar.disabled = jugandoDoble;
       doble.textContent = premioNombres > 1
-        ? '🎲 Doblar otra vez: x' + (premioNombres * 2) + ' (10%)'
-        : '🎲 Doble o nada (10%)';
+        ? '🎲 Doblar otra vez: x' + (premioNombres * 2) + ' (' + doblePct + '%)'
+        : '🎲 Doble o nada (' + doblePct + '%)';
     }
 
     async function dobleONada() {
@@ -11368,7 +11412,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       jugandoDoble = true;
       mandosNombres(true);
 
-      const gana = Math.random() < PROB_DOBLE;
+      const gana = Math.random() * 100 < doblePct;
       await animacionNombres(gana ? 'ganar' : 'perder');
 
       jugandoDoble = false;
