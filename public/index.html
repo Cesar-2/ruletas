@@ -1701,7 +1701,9 @@
     @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.03)}100%{transform:scale(1)}}
     @keyframes glow{0%{box-shadow:0 0 0 rgba(110,231,183,0)}50%{box-shadow:0 20px 40px rgba(110,231,183,0.12)}100%{box-shadow:0 28px 60px rgba(110,231,183,0.18)}}
     /* confetti */
-    .confetti{pointer-events:none;position:fixed;left:0;top:0;width:100%;height:100%;overflow:hidden}
+    .confetti,.confetti-lienzo{pointer-events:none;position:fixed;left:0;top:0;
+      width:100%;height:100%;overflow:hidden}
+    .confetti-lienzo{z-index:1200}
     .confetti span{position:absolute;width:10px;height:16px;border-radius:2px;opacity:0.95;transform:translateY(-10vh);animation:fall linear forwards}
     @keyframes fall{to{transform:translateY(110vh) rotate(520deg)}}
     footer{color:var(--muted);font-size:14px;margin-top:1.5rem;text-align:center;padding:.8rem;text-shadow:0 2px 8px rgba(0,0,0,0.8)}
@@ -2056,7 +2058,10 @@
             <div class="escena-barra">
               <button type="button" class="btn-full" data-escena="sorteoEscena">⛶ Pantalla completa</button>
             </div>
-            <div class="escena" id="sorteoEscena" data-presta="sorteoMandos">
+            <!-- La tragaperras y la ruleta viven fuera de .app, y a pantalla
+                 completa lo que no cuelga de la escena no se pinta. Asi que se
+                 las lleva prestadas igual que los mandos. -->
+            <div class="escena" id="sorteoEscena" data-presta="sorteoMandos slotWrapper rouletteWrapper">
               <div id="winnerBanner" class="ganador-grande" hidden></div>
               <div id="randomResult" style="margin-top:.75rem"></div>
               <div id="valueTotal" class="value-total" hidden></div>
@@ -2938,6 +2943,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     </div>
   </div>
 
+  <!-- El confeti se pinta aqui y no donde la libreria quiera, para poder
+       llevarlo dentro de la pantalla completa: lo que se queda fuera no se ve.
+       El div es el respaldo de cuando la libreria no carga. -->
+  <canvas class="confetti-lienzo" id="confettiLienzo"></canvas>
   <div class="confetti" id="confetti"></div>
 
   <script>
@@ -11026,19 +11035,30 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     // improved confetti using canvas-confetti when available
+    // El disparador atado a nuestro lienzo. Sin esto la librería se crea el
+    // suyo y lo cuelga del body, que a pantalla completa no se pinta.
+    let tirarConfeti = null;
+
     async function ensureConfetti(){
-      if (typeof window.confetti === 'function') return;
-      await new Promise((resolve)=>{
-        const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js';
-        s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
-      });
+      if (!tirarConfeti && typeof window.confetti !== 'function') {
+        await new Promise((resolve)=>{
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js';
+          s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
+        });
+      }
+      if (!tirarConfeti && typeof window.confetti === 'function' && window.confetti.create) {
+        const lienzo = document.getElementById('confettiLienzo');
+        // resize: que el lienzo siga al tamaño de donde esté, que al entrar y
+        // salir de pantalla completa cambia.
+        if (lienzo) tirarConfeti = window.confetti.create(lienzo, { resize: true });
+      }
     }
 
     function makeConfetti(count=40){
       ensureConfetti().then(()=>{
-        if (typeof window.confetti === 'function') {
-          const burst = window.confetti;
+        if (tirarConfeti) {
+          const burst = tirarConfeti;
           burst({ particleCount: Math.min(30, count), spread: 60, origin: { y: 0.3 } });
           burst({ particleCount: Math.min(20, count), spread: 120, origin: { y: 0.6 } });
         } else {
@@ -11688,10 +11708,56 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         });
       });
 
+      // El confeti no es de ninguna escena: lo tiran todos los minijuegos, así
+      // que no puede ir en el data-presta de una sola. Se lleva a la que esté a
+      // pantalla completa y se devuelve al body al salir.
+      // En el orden en que están en el documento: se devuelven del revés, y
+      // cada uno apunta al siguiente como su sitio.
+      //
+      // El diálogo va aquí porque a pantalla completa hay botones que preguntan
+      // antes de hacer: vaciar la lista, destronar al rey, cancelar la ronda.
+      // Sin esto, la pregunta se hace donde no se ve y la página se queda
+      // esperando una respuesta que nadie puede dar.
+      const SUPERPUESTOS = ['modalBackdrop', 'confettiLienzo', 'confetti'];
+      // De dónde salió cada uno, para devolverlo ahí y no al final del body:
+      // si vuelve al final se pinta por encima de los diálogos.
+      const sitioSuperpuesto = new Map();
+
+      function moverSuperpuestos(escena) {
+        if (escena) {
+          SUPERPUESTOS.forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (!sitioSuperpuesto.has(el)) {
+              sitioSuperpuesto.set(el, { padre: el.parentNode, ancla: el.nextSibling });
+            }
+            escena.appendChild(el);
+          });
+          return;
+        }
+        // Al revés para devolverlos, como el préstamo: son hermanos, y el ancla
+        // del primero es el segundo, que todavía estaría fuera de su sitio.
+        SUPERPUESTOS.slice().reverse().forEach((id) => {
+          const el = document.getElementById(id);
+          const sitio = el && sitioSuperpuesto.get(el);
+          if (!sitio) return;
+          sitioSuperpuesto.delete(el);
+          sitio.padre.insertBefore(el, sitio.ancla);
+        });
+      }
+
       function alCambiar() {
         const dentro = actual();
+        const esEscena = !!(dentro && dentro.classList.contains('escena'));
+        // El confeti vuelve a su sitio ANTES de devolver lo prestado, y se
+        // lleva DESPUÉS de prestar. Vive en medio del body, entre las
+        // animaciones del sorteo, así que es el vecino que alguna de ellas
+        // apuntó como sitio al que volver: si sigue movido, devolverla es
+        // buscar un ancla que ya no está donde estaba.
+        moverSuperpuestos(null);
         prestado.forEach((_, escena) => { if (escena !== dentro) devolver(escena); });
-        if (dentro && dentro.classList.contains('escena')) prestar(dentro);
+        if (esEscena) prestar(dentro);
+        if (esEscena) moverSuperpuestos(dentro);
         document.querySelectorAll('.btn-full').forEach((boton) => {
           const suya = document.getElementById(boton.dataset.escena);
           boton.textContent = suya && suya === dentro ? '⛶ Salir de pantalla completa' : '⛶ Pantalla completa';
