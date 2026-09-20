@@ -119,6 +119,11 @@
       background:linear-gradient(90deg,var(--accent),var(--accent-2));box-shadow:0 14px 44px rgba(110,231,183,0.3);
       animation:entraGanador .45s cubic-bezier(.2,1.5,.4,1)}
     .ganador-grande[hidden]{display:none}
+    /* Cuando el doble o nada sale mal, el mismo cartel en rojo: es el mismo
+       sitio de la pantalla, asi que no hay que buscar donde mirar. */
+    .ganador-grande.pierde{color:#fff5f5;
+      background:linear-gradient(90deg,#b91c1c,#7f1d1d);box-shadow:0 14px 44px rgba(185,28,28,0.35)}
+    .ganador-grande.pierde .quien-gana{text-decoration:line-through;opacity:.85}
     .ganador-grande .corona{display:block;font-size:46px;line-height:1}
     .ganador-grande .quien-gana{display:block;font-size:52px;font-weight:800;line-height:1.1;
       word-break:break-word;margin-top:.2rem}
@@ -277,6 +282,13 @@
     .names-reel .velo{position:absolute;inset:0;pointer-events:none;z-index:3;
       background:linear-gradient(180deg,rgba(9,15,28,0.96),rgba(9,15,28,0) 30%,
         rgba(9,15,28,0) 70%,rgba(9,15,28,0.96))}
+    /* La animacion del doble o nada, encima del rodillo. Va aqui dentro y no
+       suelta por la pagina para que tambien se vea a pantalla completa, que es
+       donde se mira el sorteo: el rodillo esta dentro de la escena. */
+    .names-reel .video{position:absolute;inset:0;z-index:4;background:#04121c;
+      display:flex;align-items:center;justify-content:center}
+    .names-reel .video[hidden]{display:none}
+    .names-reel .video video{width:100%;height:100%;object-fit:contain;display:block}
     /* Al parar, el ganador se enciende dentro de la banda. */
     .names-reel .fila.gana{color:#021018;background:var(--accent);
       border-bottom-color:transparent;text-shadow:none}
@@ -2024,6 +2036,8 @@
             <div class="draw-subpanel" id="draw-custom-panel">
             <div id="nameWinnerBanner" class="ganador-grande" hidden></div>
             <div class="controls" id="nameWinnerActions" hidden>
+              <button type="button" id="nameDouble">🎲 Doble o nada (10%)</button>
+              <button type="button" id="nameCashOut" class="btn-cancel">Retirarse con el premio</button>
               <button type="button" id="useNameWinner">Usar este nombre en el sorteo</button>
             </div>
             <h3>🎡 Ruleta de nombres</h3>
@@ -2055,6 +2069,11 @@
                     <div class="tira" id="nameReelTira"></div>
                     <div class="marca"></div>
                     <div class="velo"></div>
+                    <!-- La animacion del doble o nada. Si no hay archivo puesto
+                         no se enseña nunca: el juego funciona igual sin ella. -->
+                    <div class="video" id="nameVideo" hidden>
+                      <video id="nameVideoPlayer" playsinline preload="auto"></video>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -11099,6 +11118,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     const GIRO_NOMBRES = 5200;
     const CURVA_NOMBRES = 'cubic-bezier(.12,.72,.18,1)';
 
+    // --- Doble o nada -----------------------------------------------------
+    // El que gana puede jugarse el premio: una de cada diez lo dobla, las otras
+    // nueve lo pierde entero. Se puede encadenar mientras siga acertando, asi
+    // que el multiplicador sube x2, x4, x8...
+    //
+    // Aqui no se guarda ningun premio: el Ruleton no sabe que se esta
+    // sorteando. Lo unico que lleva es por cuanto hay que multiplicar lo que
+    // entregues, y eso se dice en el cartel.
+    const PROB_DOBLE = 0.10;
+    let premioNombres = 1;      // por cuanto se multiplica el premio
+    let jugandoDoble = false;   // mientras corre la animacion no se toca nada
+
     function clave_nombres() {
       return NAMES_KEY + ':' + (currentServer || 'sin-servidor');
     }
@@ -11247,7 +11278,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (!tira) return;
       const nombres = leerNombres();
       document.getElementById('nameCount').textContent = `${nombres.length} participante(s)`;
-      document.getElementById('spinNames').disabled = nombres.length < 2 || girandoNombres;
+      document.getElementById('spinNames').disabled =
+        nombres.length < 2 || girandoNombres || jugandoDoble;
       // Mientras gira no se toca: repintar dejaría la cinta a medias.
       if (girandoNombres) return;
 
@@ -11270,9 +11302,91 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       return salida;
     }
 
+    // El cartel del ganador, con el multiplicador si se ha doblado alguna vez.
+    function pintarGanadorNombres(estado) {
+      const banner = document.getElementById('nameWinnerBanner');
+      banner.className = 'ganador-grande' + (estado === 'pierde' ? ' pierde' : '');
+      const cara = estado === 'pierde' ? '😵' : '🎉';
+      const pie = estado === 'pierde'
+        ? 'Se queda sin nada'
+        : (premioNombres > 1 ? 'Premio x' + premioNombres : '');
+      banner.innerHTML = '<span class="corona">' + cara + '</span>'
+        + '<span class="quien-gana">' + escapeHtml(nombreGanador) + '</span>'
+        + (pie ? '<span class="premio">' + escapeHtml(pie) + '</span>' : '');
+      banner.hidden = false;
+    }
+
+    // Enseña ganar.mp4 o perder.mp4 encima del rodillo y espera a que acabe.
+    //
+    // Si no hay archivo puesto, no se enseña nada y se sigue: el juego tiene
+    // que funcionar sin las animaciones, que son de quien monta el Ruleton y
+    // puede no haberlas hecho todavia.
+    function animacionNombres(cual) {
+      return new Promise((resolve) => {
+        const caja = document.getElementById('nameVideo');
+        const video = document.getElementById('nameVideoPlayer');
+        let acabado = false;
+        const fin = () => {
+          if (acabado) return;
+          acabado = true;
+          clearTimeout(seguro);
+          caja.hidden = true;
+          try { video.pause(); } catch (e) { /* ya estaba parado */ }
+          resolve();
+        };
+        // La caja solo se enseña cuando el video arranca de verdad: si el
+        // archivo no esta, no se ve un recuadro negro parpadear.
+        video.onplaying = () => { caja.hidden = false; };
+        video.onended = fin;
+        video.onerror = fin;
+        // Y un seguro: una animacion larga o un video que se atasca no puede
+        // dejar el sorteo colgado en mitad del directo.
+        const seguro = setTimeout(fin, 15000);
+        video.src = '/assets/' + cual + '.mp4';
+        const promesa = video.play();
+        if (promesa && promesa.catch) promesa.catch(fin);
+      });
+    }
+
+    // Los botones de después del giro. Retirarse y usar el nombre siguen
+    // disponibles siempre; doblar solo mientras no se haya perdido ni retirado.
+    function mandosNombres(puedeDoblar) {
+      document.getElementById('nameWinnerActions').hidden = false;
+      const doble = document.getElementById('nameDouble');
+      const retirar = document.getElementById('nameCashOut');
+      doble.hidden = !puedeDoblar;
+      retirar.hidden = !puedeDoblar;
+      doble.disabled = jugandoDoble;
+      retirar.disabled = jugandoDoble;
+      doble.textContent = premioNombres > 1
+        ? '🎲 Doblar otra vez: x' + (premioNombres * 2) + ' (10%)'
+        : '🎲 Doble o nada (10%)';
+    }
+
+    async function dobleONada() {
+      if (jugandoDoble || !nombreGanador) return;
+      jugandoDoble = true;
+      mandosNombres(true);
+
+      const gana = Math.random() < PROB_DOBLE;
+      await animacionNombres(gana ? 'ganar' : 'perder');
+
+      jugandoDoble = false;
+      if (gana) {
+        premioNombres *= 2;
+        pintarGanadorNombres('gana');
+        makeConfetti(40);
+        mandosNombres(true);
+      } else {
+        premioNombres = 0;
+        pintarGanadorNombres('pierde');
+        mandosNombres(false);
+      }
+    }
+
     async function girarNombres() {
       const nombres = leerNombres();
-      if (nombres.length < 2 || girandoNombres) return;
+      if (nombres.length < 2 || girandoNombres || jugandoDoble) return;
 
       girandoNombres = true;
       document.getElementById('spinNames').disabled = true;
@@ -11322,11 +11436,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (ganadora) ganadora.classList.add('gana');
 
       nombreGanador = nombres[elegido];
-      const banner = document.getElementById('nameWinnerBanner');
-      banner.className = 'ganador-grande';
-      banner.innerHTML = `<span class="corona">🎉</span><span class="quien-gana">${escapeHtml(nombreGanador)}</span>`;
-      banner.hidden = false;
-      document.getElementById('nameWinnerActions').hidden = false;
+      // Cada giro empieza con el premio sin doblar.
+      premioNombres = 1;
+      pintarGanadorNombres('gana');
+      mandosNombres(true);
       makeConfetti(30);
 
       if (document.getElementById('nameRemoveWinner').checked) {
@@ -11347,6 +11460,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
 
     document.getElementById('spinNames').addEventListener('click', girarNombres);
+    document.getElementById('nameDouble').addEventListener('click', dobleONada);
+
+    // Retirarse: el premio se queda como esté y se apagan los dos botones del
+    // envite. El nombre sigue ahí, que aún puede pasar al sorteo de objetos.
+    document.getElementById('nameCashOut').addEventListener('click', () => {
+      if (jugandoDoble || !nombreGanador) return;
+      pintarGanadorNombres('gana');
+      mandosNombres(false);
+    });
 
     document.getElementById('clearNames').addEventListener('click', async () => {
       if (!leerNombres().length) return;
@@ -11356,6 +11478,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       guardarNombres();
       document.getElementById('nameWinnerBanner').hidden = true;
       document.getElementById('nameWinnerActions').hidden = true;
+      // Sin lista no hay ganador ni premio que doblar.
+      nombreGanador = '';
+      premioNombres = 1;
       renderNameWheel();
     });
 
