@@ -498,6 +498,29 @@
     /* Y el huevo se queda en medio, que si no las dos barras se miran de lejos. */
     #colinaCuadro .duelo.resuelto .mk-vs{display:flex}
     #colinaCuadro .duelo.resuelto .lineas{max-height:none;opacity:1}
+    /* A pantalla completa lo que crece es EL COMBATE. Es lo unico que se mira
+       mientras se pelea, y hasta ahora se quedaba en sus 520px en medio de una
+       pantalla vacia. El trono, el record y la cola se quedan como estan y le
+       dejan el sitio: son de leer, no de mirar de lejos.
+
+       Con zoom y no con un ancho mayor porque el ring y los muñecos van
+       medidos en pixeles, asi que es lo unico que los agranda a la vez. Es el
+       mismo recurso que usa la Batalla al ampliar un combate.
+
+       El zoom va por el ANCHO de la pantalla y no por el alto porque es el
+       ancho el que se queda corto primero: el combate mide 520px de ancho por
+       unos 170 de alto. Y no hace falta afinarlo, porque la rejilla de dentro
+       es minmax(0,520px): si el sitio no da, el combate se encoge solo en vez
+       de salirse. */
+    .escena:fullscreen #colinaCuadro{zoom:2.2}
+    @media (min-width:1500px){ .escena:fullscreen #colinaCuadro{zoom:2.9} }
+    @media (min-width:1900px){ .escena:fullscreen #colinaCuadro{zoom:3.4} }
+    /* En una pantalla baja manda el alto: con el combate a tamaño completo no
+       cabrian ni el trono ni la cola. */
+    @media (max-height:760px){ .escena:fullscreen #colinaCuadro{zoom:2} }
+    /* El cursor de lupa es de la Batalla, donde pulsando un combate se amplia.
+       Aqui no hay nada que pulsar: solo se pelea uno cada vez y ya sale grande. */
+    #colinaCuadro .duelo[data-ronda]{cursor:default}
 
     .game-subpanel{display:none}
     .game-subpanel.active{display:block}
@@ -1514,7 +1537,12 @@
     .escena:fullscreen{background:#04121c;padding:1.4rem;overflow:auto;
       display:flex;flex-direction:column;justify-content:center;width:100%;margin:0}
     .escena:fullscreen > *:first-child{margin-top:0}
-    .escena:fullscreen .relato{display:none}
+    /* A pantalla completa no se lee, se mira: fuera los partes de texto. El
+       relato de la carrera y el log golpe a golpe de cada combate son para
+       repasar que paso con la pagina delante, y en grande solo roban el sitio
+       de lo que se esta mirando. Siguen ahi al salir de pantalla completa. */
+    .escena:fullscreen .relato,
+    .escena:fullscreen .cuadro .duelo .lineas{display:none}
     .escena:fullscreen .names-wheel-box{width:min(78vh,92vw)}
     #nombresEscena:fullscreen{align-items:center}
     .escena:fullscreen .pista{font-size:1.15em}
