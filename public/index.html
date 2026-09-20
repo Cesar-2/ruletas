@@ -1352,6 +1352,15 @@
 
     .pista.llena .calle .bola.dibujo{width:25px;height:18px}
     .pista.llena .caballo,.pista.llena .pato,.pista.llena .hormiga,.pista.llena .larva{width:25px;height:18px}
+    /* El corredor del pliego. El tamaño y el recorte los pone el JS, que es
+       quien sabe qué pose toca; aquí solo va lo que no cambia.
+       image-rendering auto y no pixelado: el dibujo no es de píxeles, así que
+       al escalarlo interesa que suavice. */
+    .corredor{display:block;background-repeat:no-repeat;
+      filter:drop-shadow(0 3px 4px rgba(2,6,23,.45))}
+    /* Los que van pegados al suelo se sientan sobre la línea de la calle, no
+       flotando: el sprite ya trae su propia sombra dibujada. */
+    .bola.dibujo .corredor{transform-origin:50% 100%}
     .pista.llena.patos .calle{height:18px}
     .pista.llena.patos .calle .quien{line-height:18px;left:36px;font-size:11px}
     .pista.llena.patos .calle .bola.dibujo{width:25px;height:18px}
@@ -6685,6 +6694,157 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // --- Carrera de balineras ---------------------------------------------
     // Quien corre la carrera, según lo elegido en Configuración > Minijuegos.
     const BICHOS = { caballos: '🐎', patos: '🦆', hormigas: '🐜', larvas: '🐛' };
+
+    // --- Los corredores dibujados -----------------------------------------
+    // Las cuatro carreras corren con un pliego de sprites: cuatro filas (un
+    // bicho cada una) por doce poses. Las medidas de aquí abajo están sacadas
+    // del propio archivo, mirando dónde deja de haber dibujo, no puestas a
+    // ojo: por eso los cortes no van a intervalos iguales.
+    //
+    // Los caballos venían pegados por las colas y no se podían separar solos.
+    // Pero las cuatro filas están alineadas en columnas (18 px de diferencia
+    // como mucho), así que sus cortes salen de las otras tres y se comprobó
+    // que ninguno parte un caballo.
+    const PLIEGO = {
+      archivo: '/assets/corredores.png',
+      ancho: 2072,
+      alto: 759,
+      // Trece bordes para doce poses: el principio, once cortes y el final.
+      cortes: [0, 166, 337, 510, 685, 856, 1028, 1197, 1365, 1534, 1713, 1873, 2072],
+      // La columna más ancha: fija el tamaño de la caja de todas las poses.
+      anchoMaximo: 199,
+      filas: {
+        larvas:   [52, 195],
+        caballos: [224, 412],
+        patos:    [438, 574],
+        hormigas: [596, 722]
+      }
+    };
+
+    // Qué pose es cada columna. El pliego trae doce de las trece del guion
+    // original: falta «recuperación», así que después de un tropiezo se usa
+    // «esfuerzo», que es la que mejor cuenta lo de volver a arrancar.
+    const POSE = {
+      idle: 0, correr: [1, 2, 3, 4, 5, 6], acelera: 7, esfuerzo: 8,
+      tropieza: 9, gana: 10, pierde: 11
+    };
+
+    // Si el archivo no está o no carga, se siguen usando los bichos dibujados
+    // a mano de siempre: una carrera sin corredores no se puede enseñar.
+    let hayPliego = false;
+    (function cargarPliego() {
+      const img = new Image();
+      img.onload = () => {
+        hayPliego = true;
+        // Si la pista ya estaba pintada con los bichos de repuesto, se rehace
+        // para que salgan los buenos. Nunca a mitad de carrera: eso devolvería
+        // a todos a la salida.
+        const pista = document.getElementById('carreraPista');
+        if (pista && !pista.hidden && !corriendo && (carrera.corredores || []).length) dibujarPista();
+      };
+      img.onerror = () => { hayPliego = false; };
+      img.src = PLIEGO.archivo;
+    })();
+
+    // Coloca la ventana del pliego sobre la pose que toque. Todo se escala
+    // por el alto de la fila, que es lo que fija el tamaño del bicho en la
+    // pista; el ancho sale de lo que mida esa columna.
+    // --- El pulso del dibujo ----------------------------------------------
+    // Cada poco se mira en qué anda cada corredor y se le pone la pose que
+    // toca. Va por su cuenta y no con los ticks de la carrera a propósito: los
+    // ticks son lentos y las patas tienen que ir más deprisa, o el galope se
+    // ve a trompicones.
+    const PASO_CORREDOR = 90;        // ms por fotograma del ciclo de correr
+    const ESFUERZO_TRAS_CAIDA = 5;   // fotogramas levantándose después de caer
+
+    let pulsoCorredores = null;
+    // Cuántos fotogramas le quedan a cada uno de estar recuperándose. Va por
+    // elemento, así que al repintar la pista se olvida solo.
+    const levantandose = new WeakMap();
+
+    function bichoDeLaPista(pista) {
+      for (const n of Object.keys(PLIEGO.filas)) if (pista.classList.contains(n)) return n;
+      return 'caballos';
+    }
+
+    function pintarCorredores() {
+      const pista = document.getElementById('carreraPista');
+      if (!pista || pista.hidden) return;
+      const corredores = pista.querySelectorAll('.corredor');
+      if (!corredores.length) return;
+
+      const bicho = bichoDeLaPista(pista);
+      // Con mucha gente las fichas se encogen, y el bicho con ellas.
+      const alto = pista.classList.contains('llena') ? 26 : 46;
+      const parada = pista.classList.contains('parada');
+      // Parada y con un ganador marcado es que ya se corrió; parada sin
+      // ganador es que todavía no ha salido.
+      const acabada = parada && !!pista.querySelector('.calle.gana');
+      const marca = Math.floor(Date.now() / PASO_CORREDOR);
+
+      corredores.forEach((el) => {
+        const calle = el.closest('.calle');
+        const bola = el.closest('.bola');
+        if (!calle || !bola) return;
+        let col;
+
+        if (acabada) {
+          // Gana uno y pierden todos los demás: aquí no hay segundo puesto que
+          // valga, solo se cruza la meta o no se cruza.
+          col = calle.classList.contains('gana') ? POSE.gana : POSE.pierde;
+          levantandose.delete(el);
+        } else if (parada) {
+          col = POSE.idle;
+          levantandose.delete(el);
+        } else if (bola.classList.contains('tropieza')) {
+          col = POSE.tropieza;
+          // Al levantarse se le deben unos fotogramas de esfuerzo: el pliego
+          // no trae pose de recuperación y ésta es la que más se le parece.
+          levantandose.set(el, ESFUERZO_TRAS_CAIDA);
+        } else if ((levantandose.get(el) || 0) > 0) {
+          col = POSE.esfuerzo;
+          levantandose.set(el, levantandose.get(el) - 1);
+        } else if (bola.classList.contains('turbo')) {
+          col = POSE.acelera;
+        } else {
+          // El ciclo de correr. Cada calle arranca en un fotograma distinto,
+          // que si no los treinta corredores mueven la pata a la vez y se ve
+          // como un desfile.
+          const desfase = (+calle.style.getPropertyValue('--fila') || 0);
+          col = POSE.correr[(marca + desfase) % POSE.correr.length];
+        }
+        ponerPose(el, bicho, col, alto);
+      });
+    }
+
+    function pulsarCorredores(encender) {
+      if (pulsoCorredores) { clearInterval(pulsoCorredores); pulsoCorredores = null; }
+      if (!encender) return;
+      pintarCorredores();
+      pulsoCorredores = setInterval(pintarCorredores, PASO_CORREDOR);
+    }
+
+    function ponerPose(el, bicho, columna, altoDestino) {
+      const fila = PLIEGO.filas[bicho];
+      if (!fila) return;
+      if (!el.style.backgroundImage) el.style.backgroundImage = 'url("' + PLIEGO.archivo + '")';
+      const altoFila = fila[1] - fila[0] + 1;
+      const escala = altoDestino / altoFila;
+      const x0 = PLIEGO.cortes[columna];
+      const anchoCol = PLIEGO.cortes[columna + 1] - x0;
+      // La caja mide siempre lo mismo, la de la pose más ancha, y cada pose se
+      // centra dentro. Si la caja cambiara de ancho con cada fotograma, la
+      // ficha entera daría un tirón a cada paso, porque el nombre y el puesto
+      // van al lado y se recolocarían.
+      const caja = Math.round(PLIEGO.anchoMaximo * escala);
+      el.style.width = caja + 'px';
+      el.style.height = Math.round(altoDestino) + 'px';
+      el.style.backgroundSize =
+        Math.round(PLIEGO.ancho * escala) + 'px ' + Math.round(PLIEGO.alto * escala) + 'px';
+      const centrado = Math.round((caja - anchoCol * escala) / 2);
+      el.style.backgroundPosition =
+        (centrado - Math.round(x0 * escala)) + 'px -' + Math.round(fila[0] * escala) + 'px';
+    }
     const COLORES_BOLA = ['#fbbf24', '#f43f5e', '#a3e635', '#e879f9', '#22d3ee',
       '#fb923c', '#4ade80', '#f472b6', '#facc15', '#38bdf8'];
     let carrera = { abierta: false, corredores: [], resultado: [], escuchando: '' };
@@ -7189,9 +7349,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         calle.style.setProperty('--filas', cuantos);
         calle.style.zIndex = i + 1;
         const color = COLORES_BOLA[i % COLORES_BOLA.length];
-        // Cada bicho va dibujado y de su color, con el dorsal de su calle.
+        // Con el pliego cargado corre el dibujo de verdad; si no está, los
+        // bichos de siempre, que se pintan solos y no dependen de ningún
+        // archivo.
         const dibujo = { caballos: caballoSvg, patos: patoSvg, hormigas: hormigaSvg, larvas: larvaSvg }[bicho];
-        const dentro = dibujo(color, COLORES_BOLA[(i + 3) % COLORES_BOLA.length], i + 1, i);
+        const dentro = hayPliego
+          ? '<span class="corredor"></span>'
+          : dibujo(color, COLORES_BOLA[(i + 3) % COLORES_BOLA.length], i + 1, i);
         // El nombre y el puesto van dentro de la ficha: se mueven con el
         // bicho, que es lo que hace que se lea como una carrera y no como
         // cuatro barras de progreso.
@@ -7218,6 +7382,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       meta.className = 'meta-global';
       carriles.appendChild(meta);
       pista.appendChild(carriles);
+      // Con el pliego puesto, las poses las lleva el pulso; sin él, los bichos
+      // dibujados se animan solos con CSS y aquí no hay nada que hacer.
+      pulsarCorredores(hayPliego);
     }
 
     // El servidor ya ha decidido el orden; esto solo lo cuenta. Cada balinera
