@@ -288,13 +288,13 @@
     .names-reel .velo{position:absolute;inset:0;pointer-events:none;z-index:3;
       background:linear-gradient(180deg,rgba(9,15,28,0.96),rgba(9,15,28,0) 30%,
         rgba(9,15,28,0) 70%,rgba(9,15,28,0.96))}
-    /* La animacion del doble o nada, encima del rodillo. Va aqui dentro y no
-       suelta por la pagina para que tambien se vea a pantalla completa, que es
-       donde se mira el sorteo: el rodillo esta dentro de la escena. */
-    .names-reel .video{position:absolute;inset:0;z-index:4;background:#04121c;
+    /* La animación del doble o nada tapa la escena ENTERA, no solo el rodillo:
+       cuando suena es el número principal, y a pantalla completa eso quiere
+       decir toda la pantalla. */
+    .escena-video{position:absolute;inset:0;z-index:20;background:#04121c;
       display:flex;align-items:center;justify-content:center}
-    .names-reel .video[hidden]{display:none}
-    .names-reel .video video{width:100%;height:100%;object-fit:contain;display:block}
+    .escena-video[hidden]{display:none}
+    .escena-video video{width:100%;height:100%;object-fit:contain;display:block}
     /* Al parar, el ganador se enciende dentro de la banda. */
     .names-reel .fila.gana{color:#021018;background:var(--accent);
       border-bottom-color:transparent;text-shadow:none}
@@ -1586,6 +1586,11 @@
     .font-dock input[type="range"]{width:200px;max-width:50vw}
     /* Lo que se mira de cada minijuego puede irse a pantalla completa: el
        resto de la página (mandos, pestañas, chat) se queda fuera. */
+    /* Marco de referencia de la animación del doble o nada, que se pone encima
+       de la escena entera. Solo esta escena: hacerlo con todas cambiaría de
+       quién cuelgan las cosas colocadas a mano de los otros minijuegos, y no
+       hace falta para nada. */
+    #nombresEscena{position:relative}
     .escena-barra{display:flex;justify-content:flex-end;margin-top:.8rem}
     .btn-full{padding:.35rem .7rem;font-size:13px}
     /* La rueda de nombres va dentro de su escena: el hueco es el mismo. */
@@ -1603,6 +1608,24 @@
        es lo que hace el nombre legible de lejos. Siete filas de 11vh son 77vh
        y dejan sitio al cartel del ganador. */
     .escena:fullscreen .names-reel-box{width:min(1000px,92vw);--fila:min(11vh,104px)}
+    /* Lo que la escena toma prestado entra siempre por delante, asi que sin
+       esto el rodillo acabaria debajo de sus propios botones. Como a pantalla
+       completa la escena es una columna flexible, se ordena aqui y ya: el
+       cartel arriba, el rodillo en medio y los mandos abajo, que es donde la
+       mano los busca. */
+    .escena:fullscreen #nameWinnerBanner{order:1}
+    .escena:fullscreen .names-reel-box{order:2}
+    .escena:fullscreen #nameWinnerActions{order:3}
+    .escena:fullscreen #nombresMandos{order:4}
+    /* En el sorteo de objetos, los mandos tambien al final. */
+    .escena:fullscreen #winnerBanner{order:1}
+    .escena:fullscreen #randomResult{order:2}
+    .escena:fullscreen #valueTotal{order:3}
+    .escena:fullscreen #sorteoMandos{order:4}
+    /* Y los dos grupos de mandos, centrados: dentro de su panel van pegados a
+       la izquierda, pero en medio de una pantalla entera eso queda perdido. */
+    .escena:fullscreen #nombresMandos,
+    .escena:fullscreen #sorteoMandos{justify-content:center;margin-top:1rem}
     #nombresEscena:fullscreen{align-items:center}
     .escena:fullscreen .pista{font-size:1.15em}
 
@@ -2022,7 +2045,9 @@
 
             <div class="draw-subpanel active" id="draw-normal-panel">
             <h3>Bienvenido al ruleton</h3>
-            <div class="draw-controls">
+            <!-- Se los lleva la escena a pantalla completa, por lo mismo: sin
+                 ellos no hay manera de sortear sin salirse. -->
+            <div class="draw-controls" id="sorteoMandos">
               <input id="winnerName" type="text" placeholder="Nombre del ganador" aria-label="Nombre del ganador" />
               <input id="n" type="number" value="3" min="1" style="width:90px" />
               <button id="rand">Sortear</button>
@@ -2031,7 +2056,7 @@
             <div class="escena-barra">
               <button type="button" class="btn-full" data-escena="sorteoEscena">⛶ Pantalla completa</button>
             </div>
-            <div class="escena" id="sorteoEscena">
+            <div class="escena" id="sorteoEscena" data-presta="sorteoMandos">
               <div id="winnerBanner" class="ganador-grande" hidden></div>
               <div id="randomResult" style="margin-top:.75rem"></div>
               <div id="valueTotal" class="value-total" hidden></div>
@@ -2046,7 +2071,7 @@
             <div class="draw-subpanel" id="draw-custom-panel">
             <div id="nameWinnerBanner" class="ganador-grande" hidden></div>
             <div class="controls" id="nameWinnerActions" hidden>
-              <button type="button" id="nameDouble">🎲 Doble o nada (10%)</button>
+              <button type="button" id="nameDouble">🎲 Doble o nada (50%)</button>
               <button type="button" id="nameCashOut" class="btn-cancel">Retirarse con el premio</button>
               <button type="button" id="useNameWinner">Usar este nombre en el sorteo</button>
             </div>
@@ -2068,24 +2093,29 @@
                 <div class="meta" id="nameCount">0 participantes</div>
                 <label class="names-check"><input type="checkbox" id="nameElimina" /> <span>Eliminación: cada giro echa a uno y gana el último que quede</span></label>
                 <label class="names-check" id="nameRemoveWinnerFila"><input type="checkbox" id="nameRemoveWinner" /> Quitar al ganador de la lista al terminar</label>
-                <div class="controls">
+                <!-- La escena se lleva estos mandos mientras esté a pantalla
+                     completa: si no, girar y doblar se quedan fuera y no hay
+                     forma de lanzar nada sin salirse. -->
+                <div class="controls" id="nombresMandos">
                   <button type="button" id="spinNames">Girar</button>
                   <button type="button" class="btn-cancel" id="clearNames">Vaciar lista</button>
                   <button type="button" class="btn-full push-right" data-escena="nombresEscena">⛶ Pantalla completa</button>
                 </div>
               </div>
-              <div class="escena" id="nombresEscena" data-presta="nameWinnerBanner">
+              <div class="escena" id="nombresEscena" data-presta="nombresMandos nameWinnerActions nameWinnerBanner">
                 <div class="names-reel-box">
                   <div class="names-reel" id="nameReel" role="img" aria-label="Rodillo de nombres">
                     <div class="tira" id="nameReelTira"></div>
                     <div class="marca"></div>
                     <div class="velo"></div>
-                    <!-- La animacion del doble o nada. Si no hay archivo puesto
-                         no se enseña nunca: el juego funciona igual sin ella. -->
-                    <div class="video" id="nameVideo" hidden>
-                      <video id="nameVideoPlayer" playsinline preload="auto"></video>
-                    </div>
                   </div>
+                </div>
+                <!-- La animación del doble o nada. Cuelga de la escena entera y
+                     no del rodillo, para que a pantalla completa ocupe la
+                     pantalla: cuando suena, es lo único que hay que mirar. Si no
+                     hay archivo puesto no se enseña nunca. -->
+                <div class="escena-video" id="nameVideo" hidden>
+                  <video id="nameVideoPlayer" playsinline preload="auto"></video>
                 </div>
               </div>
             </div>
