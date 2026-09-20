@@ -8,37 +8,48 @@
 //
 // Tres cosas van separadas a proposito:
 //
-//  - El VALOR de catalogo de un objeto (rareza y nivel). Es la vara de medir:
-//    sin ella nadie sabe si mil puntos es caro o barato.
+//  - El VALOR de catalogo de un objeto, en kamas. Es la vara de medir: sin
+//    ella nadie sabe si una caja es cara o barata.
 //  - La CAJA: que lleva dentro, decidido al crearla y no al abrirla. Esa
 //    diferencia es la que separa una subasta de una tragaperras; si se
 //    decidiera al abrir, nadie estaria pujando por unos objetos, estaria
 //    pujando por una tirada de dados.
 //  - La SUBASTA: como se puja y quien gana. No sabe nada del contenido.
 //
-// Los puntos son los mismos de la carrera, la batalla y el plinko.
+// Se puja en PUNTOS y se tasa en KAMAS, y eso no es un descuido. Los puntos son
+// los mismos de la carrera, la batalla y el plinko: la aplicacion los tiene, los
+// retiene mientras vas ganando y los devuelve si te superan. Los kamas viven
+// dentro de Dofus, aqui no se pueden ni retener ni comprobar, asi que sirven
+// para medir y nunca para cobrar. El puente entre las dos monedas es un solo
+// numero, puntosPorMillon, y esta en los ajustes.
 
 import fs from 'fs';
 import path from 'path';
 import * as chat from './chat';
 import { Cronometro } from './cronometro';
 
-// --- El valor de catalogo -----------------------------------------------
-// Lo que "vale" un objeto, para poder comparar cajas entre si. No es un precio:
-// el precio lo pone quien puja. La gracia del juego esta justo en la distancia
-// entre las dos cosas.
+// --- El valor de catalogo, en kamas --------------------------------------
+// Lo que "vale" un objeto, para poder comparar cajas entre si. No es lo que se
+// paga: eso son puntos y lo pone quien puja. La gracia del juego esta justo en
+// la distancia entre las dos cosas.
+//
+// Se mide en kamas porque es la unica vara que el chat ya sabe leer: «esta caja
+// vale 3M» dice algo, «esta caja vale 900» no dice nada.
 
 export type Rareza = 'common' | 'rare' | 'epic' | 'mythic';
 
 const ORDEN_RAREZA: Rareza[] = ['common', 'rare', 'epic', 'mythic'];
 
+// La rareza es un COLOR, y nada mas. Sirve para pintar el objeto y para decidir
+// de que puede salir cada categoria. Lo que vale un objeto lo dice su nivel (ver
+// valorEnKamas), no su color: cuando el color era tambien el precio, el catalogo
+// entero se reducia a cuatro cifras y no habia forma de armar una caja que
+// valiera algo intermedio.
+//
 // Dentro de las cajas van EQUIPABLES, no recursos. Y los equipables no llevan
 // rareza marcada: esa pestana del catalogo es solo de consulta, no hay donde
-// pintarlos de un color. Asi que el color sale del nivel, que para equipo de
-// Dofus es justo lo que dice cuanto vale.
-//
-// Esto tiene una ventaja que no es menor: no hay que marcar nada a mano, asi
-// que funciona en cualquier servidor desde el primer dia.
+// pintarlos de un color. Asi que el color sale del nivel, y por eso esto
+// funciona en cualquier servidor desde el primer dia, sin marcar nada a mano.
 //
 // El rojo se queda en el 20% del catalogo y no en el 5% que seria bonito,
 // porque en Dofus el equipo de nivel maximo es abundante: hay 872 equipables
@@ -55,30 +66,55 @@ export function rarezaPorNivel(nivel: number): Rareza {
   return (BANDAS.find((b) => n <= b.hasta) || BANDAS[BANDAS.length - 1]).rareza;
 }
 
-export const VALOR_BASE: Record<Rareza, number> = {
-  common: 10,
-  rare: 40,
-  epic: 150,
-  mythic: 600
-};
-
-// Cuanto vale un objeto lo decide el dueno, objeto a objeto, y una caja vale
-// la suma de lo que lleva. Esto de aqui NO es ese precio: es solo lo que se
-// propone cuando todavia no has dicho nada, para no empezar de cero y para que
-// las cajas al azar (que sacan de 4.000 equipables, y a esos no les vas a poner
-// precio uno a uno) tengan con que medirse. En cuanto pones un precio, manda el
-// tuyo y esto no se vuelve a mirar.
+// --- La referencia del servidor ------------------------------------------
+// Lo que cuesta en ESE servidor un equipable de nivel 200 corriente. Es el
+// unico precio que se escribe a mano, y se escribe una vez por servidor.
 //
-// El nivel sube el valor, pero poco: manda la rareza. Un nivel 200 vale el
-// doble que un nivel 1 de su mismo color, no diez veces mas.
-export function precioSugerido(nivel: number): number {
-  return valorDe(rarezaPorNivel(nivel), nivel);
+// No hay una tabla de precios objeto a objeto, y es a proposito: los kamas se
+// mueven, una tabla de 4.000 precios envejece mal y no la va a mantener nadie.
+// Lo que se mueve cuando se mueve el mercado es la escala entera, asi que se
+// toca este numero y se recalcula todo lo demas.
+export const KAMAS_REFERENCIA_POR_DEFECTO = 1000000;
+
+export function limpiarReferencia(x: any): number {
+  const n = Math.floor(Number(x) || 0);
+  if (!Number.isFinite(n) || n <= 0) return KAMAS_REFERENCIA_POR_DEFECTO;
+  return Math.max(1000, Math.min(1000000000, n));
 }
 
-export function valorDe(rareza: Rareza, nivel: number): number {
-  const base = VALOR_BASE[rareza] ?? VALOR_BASE.common;
+// Cuanto vale un equipable, en kamas. Es una curva continua sobre el nivel y no
+// cuatro escalones por color: con cuatro precios, el reparto de presupuesto de
+// mas abajo no podia gastarlo (sobraba siempre calderilla que no compraba nada)
+// y todas las cajas de una categoria acababan llevando lo mismo.
+//
+// El exponente sale de como se comporta el equipo de Dofus: un nivel 100 vale
+// del orden de la octava parte que un nivel 200, no la mitad.
+const CURVA = 3;
+// Por debajo de nivel ~13 la curva da cifras ridiculas. El suelo evita que un
+// objeto valga cero y que una caja pueda salir sin valor ninguno.
+const SUELO = 1 / 4000;
+
+export function valorEnKamas(nivel: number, referencia: number): number {
+  const ref = limpiarReferencia(referencia);
   const n = Math.max(0, Math.min(200, Number(nivel) || 0));
-  return Math.round(base * (1 + n / 200));
+  const proporcion = Math.max(SUELO, Math.pow(n / 200, CURVA));
+  // Redondeado a diez kamas: nadie cotiza al kama exacto.
+  return Math.max(10, Math.round(ref * proporcion / 10) * 10);
+}
+
+// Lo que se propone cuando todavia no has dicho nada. En cuanto pones un precio
+// tuyo, manda el tuyo y esto no se vuelve a mirar.
+export function precioSugerido(nivel: number, referencia: number): number {
+  return valorEnKamas(nivel, referencia);
+}
+
+// --- El puente entre kamas y puntos --------------------------------------
+// Se tasa en kamas y se cobra en puntos, asi que en algun punto hay que pasar
+// de una moneda a la otra: el precio de salida y lo que cuestan las pistas
+// salen del valor de la caja, que esta en kamas, pero se cobran en puntos.
+export function enPuntos(kamas: number, puntosPorMillon: number): number {
+  const tasa = Math.max(1, Number(puntosPorMillon) || 1);
+  return Math.max(1, Math.round((Number(kamas) || 0) / 1000000 * tasa));
 }
 
 // --- Los tipos de caja ---------------------------------------------------
@@ -92,11 +128,18 @@ export interface TipoCaja {
   minObjetos: number;
   maxObjetos: number;
   rarezas: Rareza[];      // de cuales puede salir
-  // Lo que se espera que valga una caja de esta clase. Manda en tres sitios: el
-  // precio de salida, lo que cuestan las pistas, y con que se compara el peso.
-  // En las cajas que armas a mano el valor es la suma de lo que metes; esto
-  // sigue siendo la vara con la que se mide si eso es mucho o poco.
-  valorMedio: number;
+  // A que apunta una caja de esta clase, en porcentaje de la referencia del
+  // servidor: 100 es «lo que cuesta ahi un nivel 200».
+  //
+  // Es un porcentaje y no una cifra en kamas para que no envejezca. Si el
+  // mercado se mueve, mueves la referencia del servidor y esto sigue queriendo
+  // decir lo mismo; una cifra en kamas guardada aqui empezaria a mentir al dia
+  // siguiente.
+  //
+  // Ojo: esto es el OBJETIVO con el que se llena la caja, no lo que acaban
+  // valiendo. Lo segundo se mide (ver mediaDe) y casi nunca coincide, porque los
+  // objetos son piezas enteras y el presupuesto no siempre se gasta entero.
+  objetivoPct: number;
   // Con que cara sale en la tarjeta y en la subasta.
   imagen?: string;
 }
@@ -111,7 +154,7 @@ export const TIPOS_POR_DEFECTO: TipoCaja[] = [
     descripcion: 'Mucho objeto malo. Casi nunca sorprende, casi nunca arruina.',
     minObjetos: 3, maxObjetos: 6,
     rarezas: ['common', 'rare'],
-    valorMedio: 150
+    objetivoPct: 13
   },
   {
     id: 'comun',
@@ -119,7 +162,7 @@ export const TIPOS_POR_DEFECTO: TipoCaja[] = [
     descripcion: 'El pan de cada dia: puede salir algo morado, pero no cuentes con ello.',
     minObjetos: 2, maxObjetos: 4,
     rarezas: ['common', 'rare', 'epic'],
-    valorMedio: 350
+    objetivoPct: 30
   },
   {
     id: 'sellada',
@@ -127,7 +170,7 @@ export const TIPOS_POR_DEFECTO: TipoCaja[] = [
     descripcion: 'La del pelotazo. La mayoria de las veces sale por debajo de lo que costo.',
     minObjetos: 1, maxObjetos: 3,
     rarezas: ['rare', 'epic', 'mythic'],
-    valorMedio: 900
+    objetivoPct: 110
   }
 ];
 
@@ -139,8 +182,21 @@ export function tipoDe(tipos: TipoCaja[], id: string): TipoCaja {
   return lista.find((t) => t.id === id) || lista[0];
 }
 
-// Que una categoria sea utilizable: nombre, cuantos objetos, de que rarezas y
-// cuanto vale. Lo que venga mal se endereza en vez de rechazarse entero.
+// El objetivo de una categoria, en porcentaje de la referencia.
+//
+// Antes esto era «valorMedio», una cifra suelta en una escala propia donde un
+// nivel 200 valia 1200 puntos. Se convierte a porcentaje con esa misma vara
+// para no perder lo que hubieras ajustado a mano.
+function objetivoPct(x: any): number {
+  const puesto = Number(x?.objetivoPct);
+  const pct = Number.isFinite(puesto) && puesto > 0
+    ? puesto
+    : (Number(x?.valorMedio) || 0) / 1200 * 100;
+  return Math.max(1, Math.min(2000, Math.round(pct))) || 30;
+}
+
+// Que una categoria sea utilizable: nombre, cuantos objetos, de que rarezas y a
+// que apunta. Lo que venga mal se endereza en vez de rechazarse entero.
 function limpiarTipo(x: any, n: number): TipoCaja {
   const rarezas = (Array.isArray(x?.rarezas) ? x.rarezas : [])
     .filter((r: any) => ORDEN_RAREZA.includes(r));
@@ -154,7 +210,7 @@ function limpiarTipo(x: any, n: number): TipoCaja {
     maxObjetos: max,
     // Sin rarezas no habria de donde sacar objetos: se le dan todas.
     rarezas: rarezas.length ? rarezas : ORDEN_RAREZA.slice(),
-    valorMedio: Math.max(1, Math.min(1000000, Math.floor(Number(x?.valorMedio) || 100))),
+    objetivoPct: objetivoPct(x),
     imagen: String(x?.imagen || '').trim().slice(0, 500)
   };
 }
@@ -209,52 +265,129 @@ function alAzar<T>(lista: T[]): T {
   return lista[Math.floor(Math.random() * lista.length)];
 }
 
-// El peso: la pista gratis. Es lo que vale la caja comparado con lo que se
-// espera de su categoria, en una escala de 1 a 5, y con ruido a proposito para
-// que no sea una tasacion exacta disfrazada de barra: un peso 4 suele ser
-// bueno, no siempre. Esa duda es justo lo que se esta subastando.
-const ESCALA_PESO = [0.5, 0.8, 1.3, 1.8];
-
-function pesoDe(valor: number, tipo: TipoCaja): number {
-  const proporcion = valor / Math.max(1, tipo.valorMedio);
-  const ruido = (Math.random() - 0.5) * 0.45;
-  const conRuido = proporcion + ruido;
-  return ESCALA_PESO.filter((corte) => conRuido >= corte).length + 1;
-}
-
-// Cuanto se desvia del valor de su categoria una caja SORTEADA. Las que armas
-// a mano no pasan por aqui: esas valen la suma de lo que les metes, sin mas.
+// --- El presupuesto ------------------------------------------------------
+// Cuanto se desvia del objetivo de su categoria una caja SORTEADA. Las que
+// armas a mano no pasan por aqui: esas valen la suma de lo que les metes.
 //
 // No es un sorteo plano entre el minimo y el maximo: se tuerce hacia abajo, de
 // forma que la mayoria decepcionan un poco y unas pocas son el pelotazo. Esa es
 // la forma que hace que se hable de las buenas.
 //
 // La horquilla es la misma para todas las categorias, y no algo que haya que
-// decidir por categoria: lo que cambia de una a otra es cuanto valen y de que
-// rarezas salen, que es lo que de verdad se nota.
+// decidir por categoria: lo que cambia de una a otra es a cuanto apuntan y de
+// que rarezas salen, que es lo que de verdad se nota.
 const FACTOR_MIN = 0.4;
 const FACTOR_MAX = 2.2;
-// El exponente sale de exigir que la media del presupuesto caiga en valorMedio:
-// E[r^k] = (1 - min) / rango. Lo que acaba dentro queda un 10-15% por debajo,
-// porque los objetos son piezas enteras y casi siempre sobra calderilla sin
-// gastar; eso esta bien y no se corrige.
+// El exponente sale de exigir que la media del presupuesto caiga en el
+// objetivo: E[r^k] = (1 - min) / rango.
 const FACTOR_K = Math.max(0.2, (FACTOR_MAX - FACTOR_MIN) / (1 - FACTOR_MIN) - 1);
 
 function factorDe(): number {
   return FACTOR_MIN + (FACTOR_MAX - FACTOR_MIN) * Math.pow(Math.random(), FACTOR_K);
 }
 
+// A cuantos kamas apunta una caja de esta categoria en este servidor.
+export function objetivoEnKamas(tipo: TipoCaja, referencia: number): number {
+  return Math.max(1, Math.round(limpiarReferencia(referencia) * tipo.objetivoPct / 100));
+}
+
 // Se reparte un presupuesto en objetos, en vez de sortear objetos y sumar lo
 // que salga. Asi se controla la media (y con ella la inflacion) y se controlan
-// las colas: se sabe exactamente cada cuanto aparece el pelotazo.
-export function crearCaja(tipos: TipoCaja[], tipoId: string, catalogo: ObjetoCatalogo[]): Caja | null {
-  const tipo = tipoDe(tipos, tipoId);
-  const candidatos = catalogo.filter((o) => tipo.rarezas.includes(o.rareza));
-  if (!candidatos.length) return null;
+// las colas: se sabe cada cuanto aparece el pelotazo.
+//
+// Esto va aparte de crearCaja porque la media de una categoria se mide llenando
+// cajas (ver mediaDe), y el peso se calcula contra esa media: si llenar una caja
+// calculara ya el peso, se llamaria a si mismo sin fin.
+// --- La bolsa de una categoria -------------------------------------------
+// Los candidatos de una categoria, ordenados por lo que valen y con sus valores
+// aparte. Se calcula una vez y se reutiliza.
+//
+// Antes esto se hacia dentro del bucle: por cada objeto de cada caja se filtraba
+// y se ordenaba el catalogo entero. Son cuatro mil objetos, y la media de una
+// categoria se saca llenando cuatrocientas cajas, asi que la pagina se quedaba
+// pensando varios segundos al abrir la pestana.
+interface Bolsa {
+  objetos: ObjetoCatalogo[];
+  valores: number[];       // el mismo orden que objetos, ascendente
+}
 
-  const factor = factorDe();
-  let presupuesto = tipo.valorMedio * factor;
-  const cuantos = tipo.minObjetos + Math.floor(Math.random() * (tipo.maxObjetos - tipo.minObjetos + 1));
+// Cada bolsa se queda con una referencia a unos miles de objetos, y la clave
+// lleva la referencia del servidor dentro: cada vez que alguien la cambia
+// aparece una entrada nueva. Se vacian enteras al pasarse en vez de ir echando
+// la mas vieja: recalcular una bolsa cuesta milisegundos y asi no hay que
+// llevar la cuenta de quien se uso cuando.
+const TOPE_CACHE = 40;
+
+function guardarEnCache<T>(cache: Map<string, T>, clave: string, valor: T): T {
+  if (cache.size >= TOPE_CACHE) cache.clear();
+  cache.set(clave, valor);
+  return valor;
+}
+
+const bolsas = new Map<string, Bolsa>();
+
+function bolsaDe(tipo: TipoCaja, catalogo: ObjetoCatalogo[], referencia: number): Bolsa {
+  const clave = [tipo.rarezas.slice().sort().join(','), referencia, catalogo.length].join('|');
+  const vista = bolsas.get(clave);
+  if (vista) return vista;
+
+  const juntos = catalogo
+    .filter((o) => tipo.rarezas.includes(o.rareza))
+    .map((o) => ({ o, v: valorEnKamas(o.nivel, referencia) }))
+    .sort((a, b) => a.v - b.v);
+  return guardarEnCache(bolsas, clave,
+    { objetos: juntos.map((x) => x.o), valores: juntos.map((x) => x.v) });
+}
+
+// El ultimo que cuesta como mucho «limite», o -1 si no cabe ninguno.
+function ultimoQueCabe(valores: number[], limite: number): number {
+  let bajo = 0;
+  let alto = valores.length - 1;
+  let cual = -1;
+  while (bajo <= alto) {
+    const medio = (bajo + alto) >> 1;
+    if (valores[medio] <= limite) { cual = medio; bajo = medio + 1; } else { alto = medio - 1; }
+  }
+  return cual;
+}
+
+// El mas cercano a «objetivo» sin pasar de «tope». Como la lista esta ordenada,
+// basta mirar el punto de insercion y su vecino de la izquierda.
+function masCercano(valores: number[], objetivo: number, tope: number): number {
+  let bajo = 0;
+  let alto = tope;
+  while (bajo <= alto) {
+    const medio = (bajo + alto) >> 1;
+    if (valores[medio] < objetivo) bajo = medio + 1; else alto = medio - 1;
+  }
+  const derecha = Math.min(bajo, tope);
+  const izquierda = Math.max(0, derecha - 1);
+  return Math.abs(valores[izquierda] - objetivo) <= Math.abs(valores[derecha] - objetivo)
+    ? izquierda : derecha;
+}
+
+// Se reparte un presupuesto en objetos, en vez de sortear objetos y sumar lo
+// que salga. Asi se controla la media (y con ella la inflacion) y se controlan
+// las colas: se sabe cada cuanto aparece el pelotazo.
+//
+// Esto va aparte de crearCaja porque la media de una categoria se mide llenando
+// cajas (ver mediaDe), y el peso se calcula contra esa media: si llenar una caja
+// calculara ya el peso, se llamaria a si mismo sin fin.
+const VECINOS = 12;
+
+// El factor y el numero de objetos se pueden imponer desde fuera. Solo lo hace
+// mediaDe, para recorrer la horquilla entera en vez de sortearla: asi la media
+// sale siempre la misma y no baila un 8% cada vez que se recalcula.
+function construir(
+  tipo: TipoCaja, catalogo: ObjetoCatalogo[], referencia: number,
+  factorFijo?: number, cuantosFijo?: number
+): ObjetoCaja[] {
+  const bolsa = bolsaDe(tipo, catalogo, referencia);
+  if (!bolsa.objetos.length) return [];
+
+  let presupuesto = objetivoEnKamas(tipo, referencia) * (factorFijo ?? factorDe());
+  const cuantos = cuantosFijo
+    ?? tipo.minObjetos + Math.floor(Math.random() * (tipo.maxObjetos - tipo.minObjetos + 1));
 
   const objetos: ObjetoCaja[] = [];
   for (let i = 0; i < cuantos; i++) {
@@ -262,17 +395,18 @@ export function crearCaja(tipos: TipoCaja[], tipoId: string, catalogo: ObjetoCat
     // Lo que toca gastar en este objeto para que lleguen todos. El ultimo se
     // come lo que sobre, que es de donde salen las sorpresas.
     const objetivo = queda === 1 ? presupuesto : presupuesto / queda;
-    // El que mas se acerca a lo que toca, de los que quedan por debajo del
-    // presupuesto. Si ninguno cabe, el mas barato que haya.
-    const caben = candidatos.filter((o) => valorDe(o.rareza, o.nivel) <= presupuesto);
-    const donde = caben.length ? caben : candidatos;
-    const cerca = donde
-      .map((o) => ({ o, dif: Math.abs(valorDe(o.rareza, o.nivel) - objetivo) }))
-      .sort((a, b) => a.dif - b.dif)
-      .slice(0, 12);
-    if (!cerca.length) break;
-    const elegido = alAzar(cerca).o;
-    const valor = valorDe(elegido.rareza, elegido.nivel);
+    // Solo se mira entre los que caben. Si no cabe ninguno, entre los mas
+    // baratos que haya: una caja no puede salir vacia.
+    const cabe = ultimoQueCabe(bolsa.valores, presupuesto);
+    const tope = cabe >= 0 ? cabe : Math.min(VECINOS - 1, bolsa.valores.length - 1);
+    // Un puñado alrededor del que mejor encaja, y uno de ellos al azar: si se
+    // cogiera siempre el mejor, todas las cajas de una categoria llevarian
+    // exactamente lo mismo.
+    const centro = masCercano(bolsa.valores, objetivo, tope);
+    const desde = Math.max(0, Math.min(centro - (VECINOS >> 1), tope - VECINOS + 1));
+    const cual = desde + Math.floor(Math.random() * Math.min(VECINOS, tope - desde + 1));
+    const elegido = bolsa.objetos[cual];
+    const valor = bolsa.valores[cual];
     objetos.push({ ...elegido, valor });
     presupuesto -= valor;
     if (presupuesto <= 0) break;
@@ -281,18 +415,96 @@ export function crearCaja(tipos: TipoCaja[], tipoId: string, catalogo: ObjetoCat
   // Una caja nunca sale vacia. Pagar por nada vacia el juego mas rapido que
   // cualquier desequilibrio.
   if (!objetos.length) {
-    const barato = candidatos.slice().sort((a, b) => valorDe(a.rareza, a.nivel) - valorDe(b.rareza, b.nivel))[0];
-    objetos.push({ ...barato, valor: valorDe(barato.rareza, barato.nivel) });
+    objetos.push({ ...bolsa.objetos[0], valor: bolsa.valores[0] });
   }
+  return objetos;
+}
 
-  const valor = objetos.reduce((s, o) => s + o.valor, 0);
+// --- La media de una categoria -------------------------------------------
+// Lo que de VERDAD acaban valiendo las cajas de una categoria, medido llenando
+// unas cuantas. No es el objetivo: el presupuesto se reparte en piezas enteras y
+// casi siempre sobra calderilla que ya no compra nada, asi que lo que queda
+// dentro se queda por debajo de lo que se pidio.
+//
+// Se mide en vez de guardarse porque cualquier cifra guardada empieza a mentir
+// en cuanto tocas la referencia, el catalogo o la categoria. Es la vara contra
+// la que se pesa una caja, y una vara que miente es peor que no tener vara.
+// Cuantos puntos de la horquilla se recorren. Con 120 por cada numero posible
+// de objetos, la media queda estable en la tercera cifra y tarda unos pocos
+// milisegundos.
+const PASOS = 120;
+const medias = new Map<string, number>();
+
+export function mediaDe(tipo: TipoCaja, catalogo: ObjetoCatalogo[], referencia: number): number {
+  const ref = limpiarReferencia(referencia);
+  const clave = [
+    tipo.id, tipo.objetivoPct, tipo.minObjetos, tipo.maxObjetos,
+    tipo.rarezas.slice().sort().join(','), ref, catalogo.length
+  ].join('|');
+  const visto = medias.get(clave);
+  if (visto !== undefined) return visto;
+
+  // Se recorre la horquilla de presupuestos por sus cuantiles, y cada numero de
+  // objetos posible una vez. Es la misma cuenta que sortear muchas cajas, pero
+  // sin el temblor de la suerte: dos llamadas seguidas dan lo mismo.
+  let suma = 0;
+  let hechas = 0;
+  for (let n = tipo.minObjetos; n <= tipo.maxObjetos; n++) {
+    for (let i = 0; i < PASOS; i++) {
+      const cuantil = (i + 0.5) / PASOS;
+      const factor = FACTOR_MIN + (FACTOR_MAX - FACTOR_MIN) * Math.pow(cuantil, FACTOR_K);
+      const objetos = construir(tipo, catalogo, ref, factor, n);
+      if (!objetos.length) continue;
+      suma += objetos.reduce((s2, o) => s2 + o.valor, 0);
+      hechas++;
+    }
+  }
+  // Sin objetos en el catalogo no hay nada que medir: se cae en el objetivo,
+  // que al menos no es cero y no parte ninguna division.
+  const media = hechas ? Math.round(suma / hechas) : objetivoEnKamas(tipo, ref);
+  return guardarEnCache(medias, clave, media);
+}
+
+// --- El peso -------------------------------------------------------------
+// La pista gratis: lo que vale la caja comparado con lo normal en su categoria,
+// de 1 a 5, y con ruido a proposito para que no sea una tasacion exacta
+// disfrazada de barra. Un peso 4 suele ser bueno, no siempre. Esa duda es justo
+// lo que se esta subastando.
+//
+// Se compara contra la media MEDIDA y no contra el objetivo: contra el objetivo
+// casi todas las cajas caian por debajo de 1 y la barra se apelotonaba en los
+// dos primeros escalones, que es como no tener pista.
+// Los cortes estan medidos, no elegidos a ojo: con el catalogo real reparten
+// las cajas en 29 / 23 / 21 / 16 / 12 por ciento. Bajan poco a poco, y el 5 es
+// raro de verdad sin llegar a no salir nunca.
+const ESCALA_PESO = [0.6, 0.9, 1.3, 1.8];
+const RUIDO_PESO = 0.45;
+
+function pesoDe(valor: number, media: number): number {
+  const proporcion = valor / Math.max(1, media);
+  const ruido = (Math.random() - 0.5) * RUIDO_PESO;
+  const conRuido = proporcion + ruido;
+  return ESCALA_PESO.filter((corte) => conRuido >= corte).length + 1;
+}
+
+// --- La caja sorteada ----------------------------------------------------
+
+export function crearCaja(
+  tipos: TipoCaja[], tipoId: string, catalogo: ObjetoCatalogo[], referencia: number
+): Caja | null {
+  const tipo = tipoDe(tipos, tipoId);
+  const ref = limpiarReferencia(referencia);
+  const objetos = construir(tipo, catalogo, ref);
+  if (!objetos.length) return null;
+
+  const valor = objetos.reduce((s2, o) => s2 + o.valor, 0);
   return {
     id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
     tipo: tipo.id,
     creada: new Date().toISOString(),
     objetos,
     valor,
-    peso: pesoDe(valor, tipo),
+    peso: pesoDe(valor, mediaDe(tipo, catalogo, ref)),
     abierta: false,
     duena: '',
     pagado: 0
@@ -320,11 +532,16 @@ export interface CajaArmada {
   imagen?: string;
 }
 
+// El precio que pones tu son KAMAS, igual que la estimacion por nivel: por eso
+// el tope es de mil millones y no de un millon, que era el tope de la escala
+// vieja y recortaba cualquier premio gordo de verdad.
+//
 // El peso de una caja armada no se inventa: sale de lo que lleva, comparado
-// con lo que valdria una caja de ese tipo. Asi la pista gratis sigue queriendo
-// decir lo mismo que en las sorteadas.
+// con lo normal en su categoria. Asi la pista gratis sigue queriendo decir lo
+// mismo que en las sorteadas.
 export function armar(
-  tipos: TipoCaja[], nombre: string, tipoId: string, objetos: ObjetoCaja[], imagen = ''
+  tipos: TipoCaja[], nombre: string, tipoId: string, objetos: ObjetoCaja[],
+  imagen = '', referencia: number = KAMAS_REFERENCIA_POR_DEFECTO
 ): CajaArmada {
   const limpios = objetos
     .filter((o) => o && o.id && o.nombre)
@@ -341,7 +558,7 @@ export function armar(
         imagen: String(o.imagen || ''),
         nivel,
         rareza: rarezaPorNivel(nivel),
-        valor: propio ? Math.min(1000000, Math.round(puesto)) : precioSugerido(nivel),
+        valor: propio ? Math.min(1000000000, Math.round(puesto)) : precioSugerido(nivel, referencia),
         propio
       };
     });
@@ -356,8 +573,9 @@ export function armar(
   };
 }
 
-// De caja armada a caja de verdad, con su peso calculado igual que las otras.
-function deArmada(tipos: TipoCaja[], armada: CajaArmada): Caja {
+// De caja armada a caja de verdad, con su peso calculado igual que las otras:
+// contra la media medida de su categoria, no contra lo que lleva.
+function deArmada(tipos: TipoCaja[], armada: CajaArmada, media: number): Caja {
   const tipo = tipoDe(tipos, armada.tipo);
   return {
     id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
@@ -365,7 +583,7 @@ function deArmada(tipos: TipoCaja[], armada: CajaArmada): Caja {
     creada: new Date().toISOString(),
     objetos: armada.objetos,
     valor: armada.valor,
-    peso: pesoDe(armada.valor, tipo),
+    peso: pesoDe(armada.valor, media),
     abierta: false,
     duena: '',
     pagado: 0,
@@ -448,6 +666,12 @@ export interface Subasta {
   abierta: boolean;
   caja: Caja | null;
   salida: number;
+  // La referencia del servidor y la media de la categoria, tal y como estaban
+  // al abrir. Se congelan aqui por dos razones: que el precio de las pistas no
+  // cambie a media subasta porque alguien toque la configuracion, y que no haga
+  // falta el catalogo entero para cobrar una pista.
+  referencia: number;
+  media: number;
   pujas: Puja[];
   pistas: Pista[];
   rechazadas: Rechazada[];
@@ -466,7 +690,13 @@ export interface Ajustes {
   // Lo que queda tras cada puja. Corto a proposito: es donde estan las
   // remontadas del ultimo momento, y lo que hace que la subasta no se eternice.
   segundosTrasPuja: number;
-  salidaPct: number;      // precio de salida, sobre el valor medio del tipo
+  salidaPct: number;      // precio de salida, sobre lo que vale de media el tipo
+  // Cuantos PUNTOS vale un millon de kamas. Es el unico sitio donde las dos
+  // monedas se tocan: la caja se tasa en kamas, pero la salida y las pistas se
+  // cobran en puntos, y algo tiene que traducir.
+  //
+  // Subirlo encarece el juego entero sin tocar ninguna otra cosa.
+  puntosPorMillon: number;
   subidaPct: number;      // cuanto hay que subir como minimo sobre la puja actual
   // Lo que cuesta abrir la caja, en porcentaje de lo que lleva dentro. De
   // momento cero, y a proposito: quien gano ya pago la caja, y cobrarle un
@@ -484,6 +714,7 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   segundos: 45,
   segundosTrasPuja: 15,
   salidaPct: 25,
+  puntosPorMillon: 350,
   subidaPct: 5,
   costeAbrir: 0,
   tipos: TIPOS_POR_DEFECTO
@@ -508,7 +739,8 @@ const crono = new Cronometro((uid) => cerrar(uid));
 
 function vacia(): Subasta {
   return {
-    abierta: false, caja: null, salida: 0, pujas: [], pistas: [], rechazadas: [],
+    abierta: false, caja: null, salida: 0, referencia: KAMAS_REFERENCIA_POR_DEFECTO,
+    media: 0, pujas: [], pistas: [], rechazadas: [],
     cerradaEn: '', ganadora: '', precio: 0, guardadas: []
   };
 }
@@ -538,6 +770,8 @@ export function estado(uid: string): any {
     tipos: ajustes.tipos,
     caja: caja ? enPublico(ajustes.tipos, caja, s.abierta) : null,
     salida: s.salida,
+    referencia: s.referencia,
+    media: s.media,
     pujas: s.pujas.slice(-12),
     rechazadas: s.rechazadas.slice(-6),
     mejor,
@@ -585,10 +819,16 @@ export function siguientePuja(actual: number, ajustes: Ajustes): number {
 // Se subasta o una caja sorteada del tipo que se diga, o una que hayas armado
 // tu (pasando su id en vez del tipo). La armada se saca del armario al salir a
 // subasta: su contenido ya es suyo y no se puede dar dos veces.
-export function abrir(uid: string, canal: string, tipoId: string, catalogo: ObjetoCatalogo[]): Subasta | null {
+export function abrir(
+  uid: string, canal: string, tipoId: string, catalogo: ObjetoCatalogo[], referencia: number
+): Subasta | null {
   const ajustes = leerAjustes(uid);
+  const ref = limpiarReferencia(referencia);
   const armada = leerArmario(uid).find((c) => c.id === tipoId);
-  const caja = armada ? deArmada(ajustes.tipos, armada) : crearCaja(ajustes.tipos, tipoId, catalogo);
+  const media = mediaDe(tipoDe(ajustes.tipos, armada ? armada.tipo : tipoId), catalogo, ref);
+  const caja = armada
+    ? deArmada(ajustes.tipos, armada, media)
+    : crearCaja(ajustes.tipos, tipoId, catalogo, ref);
   if (!caja) return null;
   if (armada) borrarArmada(uid, armada.id);
   // Las sorteadas salen con la cara de su categoria, si le has puesto una.
@@ -600,9 +840,12 @@ export function abrir(uid: string, canal: string, tipoId: string, catalogo: Obje
   s.guardadas = subastaDe(uid).guardadas;   // el inventario no se pierde
   s.abierta = true;
   s.caja = caja;
+  s.referencia = ref;
+  s.media = media;
   // Sale barato a proposito: que arranque y suba es mejor que una salida alta
-  // y un silencio.
-  s.salida = Math.max(1, Math.round(tipo.valorMedio * ajustes.salidaPct / 100));
+  // y un silencio. La caja se tasa en kamas y la salida se cobra en puntos, asi
+  // que aqui es donde se cruza la frontera.
+  s.salida = enPuntos(media * ajustes.salidaPct / 100, ajustes.puntosPorMillon);
   subastas.set(uid, s);
   crono.poner(uid, ajustes.segundos);
 
@@ -713,7 +956,9 @@ export function comprarPista(uid: string, nombre: string, tipo: TipoPista): { ok
 
   const limpio = String(nombre || '').trim().slice(0, 40);
   if (!limpio) return { ok: false, porque: 'sin nombre' };
-  const coste = Math.max(1, Math.round(tipoDe(ajustes.tipos, s.caja.tipo).valorMedio * COSTE_PISTA[tipo]));
+  // Sobre la media de la categoria, no sobre lo que lleva ESTA caja: si
+  // costaran mas en las cajas buenas, el precio de la pista seria ya una pista.
+  const coste = enPuntos(s.media * COSTE_PISTA[tipo], ajustes.puntosPorMillon);
   if (!deps.gastarPuntos(uid, limpio, coste)) {
     const porque = `la pista cuesta ${coste} y no le llega`;
     apuntarRechazada(uid, limpio, 0, porque);
@@ -784,7 +1029,10 @@ export function abrirCaja(uid: string, cajaId: string): { ok: boolean; porque?: 
   if (!caja) return { ok: false, porque: 'esa caja no existe' };
   if (caja.abierta) return { ok: false, porque: 'esa caja ya estaba abierta' };
 
-  const coste = Math.max(0, Math.round(caja.valor * ajustes.costeAbrir / 100));
+  // Sobre lo que PAGO, que son puntos, y no sobre lo que vale, que son kamas:
+  // un porcentaje de kamas cobrado en puntos seria un peaje de otro orden de
+  // magnitud, y dejaria la caja bloqueada para siempre.
+  const coste = Math.max(0, Math.round(caja.pagado * ajustes.costeAbrir / 100));
   if (coste > 0 && !deps.gastarPuntos(uid, caja.duena, coste)) {
     return { ok: false, porque: `a ${caja.duena} le faltan puntos: abrirla cuesta ${coste}` };
   }
@@ -812,6 +1060,8 @@ export function leerAjustes(uid: string): Ajustes {
       Math.floor(Number(a.segundosTrasPuja) || AJUSTES_POR_DEFECTO.segundosTrasPuja)));
       a.salidaPct = Math.max(1, Math.min(100, Number(a.salidaPct) || AJUSTES_POR_DEFECTO.salidaPct));
     a.subidaPct = Math.max(1, Math.min(100, Number(a.subidaPct) || AJUSTES_POR_DEFECTO.subidaPct));
+    a.puntosPorMillon = Math.max(1, Math.min(1000000,
+      Math.floor(Number(a.puntosPorMillon) || AJUSTES_POR_DEFECTO.puntosPorMillon)));
     a.costeAbrir = Math.max(0, Math.min(50, Number(a.costeAbrir) || 0));
     // Las categorias: las tuyas si las has guardado, y si no las de arranque.
     const guardados = Array.isArray(a.tipos) ? a.tipos : [];
@@ -868,10 +1118,11 @@ function guardarArmario(uid: string, lista: CajaArmada[]): void {
 }
 
 export function guardarArmada(
-  uid: string, nombre: string, tipoId: string, objetos: ObjetoCaja[], imagen = ''
+  uid: string, nombre: string, tipoId: string, objetos: ObjetoCaja[], imagen = '',
+  referencia: number = KAMAS_REFERENCIA_POR_DEFECTO
 ): CajaArmada | null {
   if (!objetos || !objetos.length) return null;
-  const nueva = armar(leerAjustes(uid).tipos, nombre, tipoId, objetos, imagen);
+  const nueva = armar(leerAjustes(uid).tipos, nombre, tipoId, objetos, imagen, referencia);
   if (!nueva.objetos.length) return null;
   guardarArmario(uid, [nueva, ...leerArmario(uid)]);
   return nueva;

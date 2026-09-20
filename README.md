@@ -182,6 +182,7 @@ Todo se guarda como JSON plano en `data/`, que se crea al arrancar si no existe:
 | `users/<u>/servers.json` | Servidores de Dofus de ese usuario |
 | `users/<u>/servers/<id>/exclusions.json` | IDs excluidos del sorteo en ese servidor |
 | `users/<u>/servers/<id>/tags.json` | Rarezas (raro/épico/mítico) en ese servidor |
+| `users/<u>/servers/<id>/kamas.json` | Lo que cuesta ahí un equipable de nivel 200 |
 | `users/<u>/servers/<id>/winners.json` | Ganadores pendientes de entregar |
 | `users/<u>/servers/<id>/ranking.json` | Histórico de lo ya entregado |
 | `users/<u>/servers/<id>/stream.json` | Top del stream en curso |
@@ -321,7 +322,7 @@ No subas ahí nada que no quieras enseñar.
 ### Servidores
 
 Los precios de los recursos cambian de un servidor de Dofus a otro, así que **rarezas,
-exclusiones, ganadores y ranking se guardan por servidor**. El selector está en la
+referencia de precios, exclusiones, ganadores y ranking se guardan por servidor**. El selector está en la
 cabecera, junto al título: `＋` crea uno, `✎` lo renombra y `🗑` lo borra con sus datos.
 El catálogo de objetos es común a todos los usuarios; el aspecto es de cada cuenta.
 

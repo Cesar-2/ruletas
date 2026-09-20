@@ -62,7 +62,7 @@ const ASSETS_REPO = path.join(process.cwd(), 'public', 'assets');
 // sortear no lo quieres en ningun servidor, asi que hay una sola lista por
 // usuario. Lo unico comun a todos es el catalogo de objetos, que es una copia
 // de la API de Dofus.
-const SERVER_FILES = ['tags', 'winners', 'ranking', 'stream', 'ratios'] as const;
+const SERVER_FILES = ['tags', 'winners', 'ranking', 'stream', 'ratios', 'kamas'] as const;
 type ServerFile = typeof SERVER_FILES[number];
 
 interface GameServer {
@@ -628,6 +628,36 @@ function readRatios(ambito: string): Ratios {
 function writeRatios(ambito: string, ratios: Ratios): void {
   ensureServerDir(ambito);
   writeJson(serverFile(ambito, 'ratios'), ratios);
+}
+
+// --- La referencia en kamas del servidor ---------------------------------
+// Lo que cuesta AQUI un equipable de nivel 200 corriente. De este unico numero
+// sale el precio de todo el catalogo para las cajas misteriosas (ver
+// valorEnKamas en cajas.ts).
+//
+// Va por servidor, como las rarezas y por el mismo motivo: los precios de Dofus
+// no se parecen de un servidor a otro. Y es un solo numero y no una tabla
+// porque los kamas se mueven: cuando el mercado cambia se toca esto y se
+// recalcula todo, en vez de retasar cuatro mil objetos a mano.
+function readReferencia(ambito: string): number {
+  ensureServerDir(ambito);
+  try {
+    const f = serverFile(ambito, 'kamas');
+    if (fs.existsSync(f)) {
+      const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (parsed && typeof parsed === 'object') return cajas.limpiarReferencia(parsed.nivel200);
+    }
+  } catch (err) {
+    console.error('Failed to read kamas reference:', err);
+  }
+  return cajas.KAMAS_REFERENCIA_POR_DEFECTO;
+}
+
+function writeReferencia(ambito: string, nivel200: number): number {
+  ensureServerDir(ambito);
+  const limpio = cajas.limpiarReferencia(nivel200);
+  writeJson(serverFile(ambito, 'kamas'), { nivel200: limpio });
+  return limpio;
 }
 
 function readTags(sid: string): Tags {
@@ -1817,6 +1847,21 @@ app.put('/api/ratios', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/kamas -> { nivel200 } la referencia de precios de este servidor
+app.get('/api/kamas', (req: Request, res: Response) => {
+  res.json({ nivel200: readReferencia(resolveServer(req)) });
+});
+
+// PUT /api/kamas  Body: { nivel200 }
+app.put('/api/kamas', (req: Request, res: Response) => {
+  try {
+    res.json({ nivel200: writeReferencia(resolveServer(req), req.body?.nivel200) });
+  } catch (err) {
+    console.error('Failed to write kamas reference:', err);
+    res.status(500).json({ error: 'failed to save kamas reference' });
+  }
+});
+
 // GET /api/tags -> { tags: { [itemId]: 'rare' | 'epic' | 'mythic' } }
 app.get('/api/tags', (req: Request, res: Response) => {
   res.json({ tags: readTags(resolveServer(req)) });
@@ -2460,12 +2505,20 @@ app.get('/api/cajas/rarezas', async (req: Request, res: Response) => {
     const catalogo = await catalogoParaCajas(req);
     const cuenta: Record<string, number> = { common: 0, rare: 0, epic: 0, mythic: 0 };
     for (const o of catalogo) cuenta[o.rareza] = (cuenta[o.rareza] || 0) + 1;
-    // Que categorias se pueden montar con lo que hay en el catalogo.
-    const tipos = cajas.leerAjustes(requireUid(req)).tipos.map((t) => ({
-      id: t.id,
-      hay: t.rarezas.reduce((s2: number, r) => s2 + (cuenta[r] || 0), 0)
-    }));
-    res.json({ cuenta, total: catalogo.length, tipos });
+    // Que categorias se pueden montar con lo que hay en el catalogo, y cuanto
+    // valen de verdad las cajas de cada una: eso no se guarda en ningun sitio,
+    // se mide aqui llenando cajas con el catalogo y la referencia de ahora.
+    const referencia = readReferencia(resolveServer(req));
+    const tipos = cajas.leerAjustes(requireUid(req)).tipos.map((t) => {
+      const hay = t.rarezas.reduce((s2: number, r) => s2 + (cuenta[r] || 0), 0);
+      return {
+        id: t.id,
+        hay,
+        objetivo: cajas.objetivoEnKamas(t, referencia),
+        media: hay ? cajas.mediaDe(t, catalogo, referencia) : 0
+      };
+    });
+    res.json({ cuenta, total: catalogo.length, tipos, referencia });
   } catch (err) {
     console.error('Failed to count rarities:', err);
     res.status(500).json({ error: 'failed to count rarities' });
@@ -2487,7 +2540,8 @@ app.post('/api/cajas/abrir', async (req: Request, res: Response) => {
   try {
     const catalogo = await catalogoParaCajas(req);
     if (!catalogo.length) return res.status(409).json({ error: 'no hay objetos en el catalogo' });
-    const hecha = cajas.abrir(uid, canal, String(req.body?.tipo || ''), catalogo);
+    const hecha = cajas.abrir(
+      uid, canal, String(req.body?.tipo || ''), catalogo, readReferencia(resolveServer(req)));
     if (!hecha) {
       const tipo = cajas.tipoDe(cajas.leerAjustes(uid).tipos, String(req.body?.tipo || ''));
       const nombres: Record<string, string> = {
@@ -2543,8 +2597,11 @@ app.post('/api/cajas/imagen', (req: Request, res: Response) => {
 app.post('/api/cajas/armar', (req: Request, res: Response) => {
   const uid = requireUid(req);
   const objetos = Array.isArray(req.body?.objetos) ? req.body.objetos : [];
+  // La referencia del servidor: los objetos que no traigan precio tuyo se tasan
+  // con ella, igual que en las cajas sorteadas.
   const hecha = cajas.guardarArmada(
-    uid, String(req.body?.nombre || ''), String(req.body?.tipo || ''), objetos, String(req.body?.imagen || '')
+    uid, String(req.body?.nombre || ''), String(req.body?.tipo || ''), objetos,
+    String(req.body?.imagen || ''), readReferencia(resolveServer(req))
   );
   if (!hecha) return res.status(400).json({ error: 'hace falta al menos un objeto' });
   res.json(cajas.estado(uid));
@@ -2781,6 +2838,7 @@ app.listen(PORT, () => {
   console.log('Endpoints: GET /api/items  GET /api/random-items?n=1  POST /api/draw');
   console.log('           GET /api/exclusions  PUT /api/exclusions');
   console.log('           GET /api/tags  PUT /api/tags');
+  console.log('           GET /api/kamas  PUT /api/kamas');
   console.log('           POST /api/auth/register  POST /api/auth/login  POST /api/auth/logout  GET /api/auth/me');
   console.log('           PATCH /api/auth/profile  POST /api/auth/password');
   console.log('           GET /api/servers  POST /api/servers  PATCH/DELETE /api/servers/:id');

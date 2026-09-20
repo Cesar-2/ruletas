@@ -817,6 +817,10 @@
     .cat-campo label{font-size:12px;color:var(--muted)}
     .cat-campo input,.cat-campo select{width:100%;box-sizing:border-box;height:32px;font-size:13px;margin:0}
     .cat-campo.ancho{grid-column:1/-1}
+    /* Lo que valen de verdad las cajas de la categoría: no es un campo que se
+       edite, es la respuesta a lo que has escrito encima. */
+    .cat-media{grid-column:1/-1;font-size:12px;color:var(--muted);line-height:1.45}
+    .cat-media b{color:#e6eef8}
     .cat-rarezas{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
     .cat-rarezas .titulo{font-size:12px;color:var(--muted)}
     .cat-rarezas label{display:flex;align-items:center;gap:.25rem;font-size:12px;cursor:pointer}
@@ -2474,7 +2478,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 <div class="config-field">
                   <label for="cajasPalabraPista">Se pide pista escribiendo</label>
                   <input id="cajasPalabraPista" type="text" value="!pista" />
-                  <span class="meta">Hay tres: «rareza» (5%), «objeto» (15%) y «tasacion» (20%), sobre el valor de la categoría. Cada una se vende una vez y la ve todo el chat.</span>
+                  <span class="meta">Hay tres: «rareza» (5%), «objeto» (15%) y «tasacion» (20%), sobre lo que vale de media la categoría. Cada una se vende una vez y la ve todo el chat.</span>
                 </div>
               </div>
 
@@ -2492,12 +2496,27 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 </div>
               </div>
 
+              <h4>Lo que valen las cosas</h4>
+              <p class="meta">Las cajas se <strong>tasan en kamas</strong> y se <strong>pujan en puntos</strong>. Estos dos números son todo lo que hace falta para pasar de una cosa a la otra: no hay ninguna tabla de precios que mantener.</p>
+              <div class="config-grid">
+                <div class="config-field">
+                  <label for="cajasKamas">Aquí un nivel 200 cuesta (kamas)</label>
+                  <input id="cajasKamas" type="number" min="1000" step="10000" value="1000000" />
+                  <span class="meta">De este único precio sale el de los 4.000 objetos del catálogo. <strong>Es de este servidor</strong>, como las rarezas. Cuando el mercado se mueva, cambias esto y se recalcula todo solo.</span>
+                </div>
+                <div class="config-field">
+                  <label for="cajasPuntosMillon">Un millón de kamas son (puntos)</label>
+                  <input id="cajasPuntosMillon" type="number" min="1" max="1000000" value="350" />
+                  <span class="meta">Lo único que une las dos monedas. Súbelo y encarece el juego entero sin tocar nada más.</span>
+                </div>
+              </div>
+
               <h4>El dinero</h4>
               <div class="config-grid">
                 <div class="config-field">
                   <label for="cajasSalida">Precio de salida (%)</label>
                   <input id="cajasSalida" type="number" min="1" max="100" value="25" />
-                  <span class="meta">Por cuánto empieza, sobre el valor de su categoría.</span>
+                  <span class="meta">Por cuánto empieza, sobre lo que valen <em>de media</em> las cajas de su categoría.</span>
                 </div>
                 <div class="config-field">
                   <label for="cajasSubida">Subida mínima por puja (%)</label>
@@ -2507,7 +2526,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 <div class="config-field">
                   <label for="cajasCosteAbrir">Cuesta abrir la caja (%)</label>
                   <input id="cajasCosteAbrir" type="number" min="0" max="50" value="0" />
-                  <span class="meta">Lo que paga el ganador por abrirla. <strong>Déjalo en 0:</strong> si se quedó sin puntos, no podría abrirla.</span>
+                  <span class="meta">Lo que paga el ganador por abrirla, sobre <em>lo que pujó</em>. <strong>Déjalo en 0:</strong> si se quedó sin puntos, no podría abrirla.</span>
                 </div>
               </div>
               <p class="meta">Los puntos se retienen al pujar y se devuelven en cuanto alguien te supera. Nadie puede pujar más de lo que tiene.</p>
@@ -2517,7 +2536,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               </div>
 
               <h4>Armar una caja a mano</h4>
-              <p class="meta">Eliges tú lo que lleva dentro: <strong>objetos, recursos o cosméticos</strong>. Tú les pones precio y la caja vale la suma. Se guarda en el armario y la subastas cuando quieras.</p>
+              <p class="meta">Eliges tú lo que lleva dentro: <strong>objetos, recursos o cosméticos</strong>. Tú les pones precio <strong>en kamas</strong> y la caja vale la suma. Se guarda en el armario y la subastas cuando quieras.</p>
               <div class="armar-caja">
                 <div class="config-grid">
                   <div class="config-field">
@@ -2552,7 +2571,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               </div>
 
               <h4>Categorías de caja</h4>
-              <p class="meta">Las clases de caja que puedes subastar. Cada una es <strong>un tipo de riesgo distinto</strong>, no solo un precio distinto: de ahí sale cuántos objetos lleva, de qué rarezas salen y cuánto vale de media. Las cajas que armas a mano se presentan como una de estas.</p>
+              <p class="meta">Las clases de caja que puedes subastar. Cada una es <strong>un tipo de riesgo distinto</strong>, no solo un precio distinto: de ahí sale cuántos objetos lleva, de qué rarezas salen y a cuánto apunta. Lo que apuntas es un <strong>porcentaje de la referencia</strong>, no una cifra en kamas, para que siga queriendo decir lo mismo cuando el mercado se mueva.</p>
               <div class="cat-lista" id="catLista"></div>
               <div class="config-actions">
                 <button type="button" id="catAnadir">＋ Nueva categoría</button>
@@ -6857,7 +6876,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // aqui y no solo al pulsar la pestaña de arriba.
         if (cual === 'carrera') cargarCarrera();
         if (cual === 'plinko') cargarPlinko();
-        if (cual === 'cajas') { cargarCajas(); cargarRarezasCajas(); }
+        if (cual === 'cajas') { cargarKamas(); cargarCajas(); cargarRarezasCajas(); }
         if (cual === 'colina') cargarColina();
         ajustarAcciones();
       });
@@ -7852,13 +7871,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     let armarObjetos = [];
 
-    // El valor de un equipable sale de su nivel, igual que en el servidor: el
-    // color es la banda de nivel y el valor, la base de esa banda por el nivel.
+    // El color de un equipable sale de su nivel, igual que en el servidor
+    // (BANDAS en cajas.ts). Es SOLO un color: lo que vale lo dice la curva de
+    // aquí abajo, no la banda.
     const BANDAS_CAJA = [
-      { hasta: 50, rareza: 'common', base: 10 },
-      { hasta: 120, rareza: 'rare', base: 40 },
-      { hasta: 190, rareza: 'epic', base: 150 },
-      { hasta: Infinity, rareza: 'mythic', base: 600 }
+      { hasta: 50, rareza: 'common' },
+      { hasta: 120, rareza: 'rare' },
+      { hasta: 190, rareza: 'epic' },
+      { hasta: Infinity, rareza: 'mythic' }
     ];
 
     function bandaDe(nivel) {
@@ -7866,10 +7886,25 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       return BANDAS_CAJA.find((b) => n <= b.hasta) || BANDAS_CAJA[BANDAS_CAJA.length - 1];
     }
 
+    // Lo que cuesta aquí un nivel 200. Lo dice el servidor; mientras no conteste
+    // se usa el mismo valor por defecto que él, para no pintar precios raros.
+    let cajasReferencia = 1000000;
+
+    // La misma curva que valorEnKamas en cajas.ts. Si tocas una, toca la otra:
+    // esta solo sirve para que el armador pueda proponer un precio sin ir y
+    // volver al servidor por cada objeto que metes.
     function valorDeObjetoCaja(nivel) {
-      const b = bandaDe(nivel);
       const n = Math.max(0, Math.min(200, Number(nivel) || 0));
-      return Math.round(b.base * (1 + n / 200));
+      const proporcion = Math.max(1 / 4000, Math.pow(n / 200, 3));
+      return Math.max(10, Math.round(cajasReferencia * proporcion / 10) * 10);
+    }
+
+    // Kamas como se leen de un vistazo: 1.2M, 340k, 900.
+    function kamasCorto(n) {
+      const x = Math.round(Number(n) || 0);
+      if (x >= 1000000) return (x / 1000000).toFixed(x >= 10000000 ? 0 : 1).replace('.0', '') + 'M';
+      if (x >= 1000) return Math.round(x / 1000) + 'k';
+      return String(x);
     }
 
     function pintarArmador() {
@@ -7897,7 +7932,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               + (o.imagen ? '<img src="' + escapeHtml(o.imagen) + '" alt="" loading="lazy" />' : '')
               + '<span class="nombre">' + escapeHtml(o.nombre) + '</span>'
               + '<span class="nivel">nv ' + o.nivel + '</span>'
-              + '<input type="number" min="0" max="1000000" step="1" data-precio="' + i + '"'
+              + '<input type="number" min="0" max="1000000000" step="1000" data-precio="' + i + '"'
               + ' class="' + (o.propio ? '' : 'sugerido') + '" value="' + o.valor + '"'
               + ' aria-label="Precio de ' + escapeHtml(o.nombre) + '" />'
               + '<button type="button" class="quitar" data-quitar="' + i + '" title="Quitar">✕</button>'
@@ -7912,8 +7947,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const suma = armarObjetos.reduce((s2, o) => s2 + (Number(o.valor) || 0), 0);
         const aOjo = armarObjetos.filter((o) => !o.propio).length;
         total.innerHTML = armarObjetos.length
-          ? 'Lleva <b>' + armarObjetos.length + '</b> objeto(s) y vale <b>' + suma.toLocaleString('es-ES')
-            + '</b> puntos, que es la suma de sus precios. De ahí sale su peso, la pista gratis que ve el chat.'
+          ? 'Lleva <b>' + armarObjetos.length + '</b> objeto(s) y vale <b>' + kamasHtml(suma)
+            + '</b>, que es la suma de sus precios. De ahí sale su peso, la pista gratis que ve el chat.'
             + (aOjo ? ' <span class="meta">(' + aOjo + ' sigue(n) con el precio estimado por nivel: cámbialo si no te cuadra.)</span>' : '')
           : '';
       }
@@ -7955,7 +7990,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (!campo) return;
       const o = armarObjetos[Number(campo.dataset.precio)];
       if (!o) return;
-      o.valor = Math.max(0, Math.min(1000000, Math.floor(Number(campo.value) || 0)));
+      o.valor = Math.max(0, Math.min(1000000000, Math.floor(Number(campo.value) || 0)));
       o.propio = true;
       campo.classList.remove('sugerido');
       // Solo se actualiza el total: repintar la lista entera te sacaría del
@@ -7964,7 +7999,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const suma = armarObjetos.reduce((s2, x) => s2 + (Number(x.valor) || 0), 0);
       const aOjo = armarObjetos.filter((x) => !x.propio).length;
       total.innerHTML = 'Lleva <b>' + armarObjetos.length + '</b> objeto(s) y vale <b>'
-        + suma.toLocaleString('es-ES') + '</b> puntos, que es la suma de sus precios.'
+        + kamasHtml(suma) + '</b>, que es la suma de sus precios.'
         + ' De ahí sale su peso, la pista gratis que ve el chat.'
         + (aOjo ? ' <span class="meta">(' + aOjo + ' sigue(n) con el precio estimado por nivel: cámbialo si no te cuadra.)</span>' : '');
     });
@@ -8133,8 +8168,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // --- Categorías de caja -------------------------------------------------
     // Las pone el dueño: cuántos objetos lleva cada clase de caja, de qué
-    // rarezas salen, cuánto vale de media y cuánto se desvía. Aquí solo se
-    // editan; quien las valida es el servidor.
+    // rarezas salen y a cuánto apunta. Aquí solo se editan; quien las valida es
+    // el servidor, y quien mide lo que acaban valiendo también.
 
     let catEditor = null;
 
@@ -8167,7 +8202,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           + campo('descripcion', 'Descripción (sale al pasar por encima)', 'text', ' maxlength="200"')
           + campo('minObjetos', 'Objetos, mínimo', 'number', ' min="1" max="12"')
           + campo('maxObjetos', 'Objetos, máximo', 'number', ' min="1" max="12"')
-          + campo('valorMedio', 'Vale de media', 'number', ' min="1" max="1000000"')
+          + campo('objetivoPct', 'Apunta a (% de un nivel 200)', 'number', ' min="1" max="2000"')
+          + '<span class="cat-media">' + mediaDeCategoria(t) + '</span>'
           
           + '<div class="cat-rarezas"><span class="titulo">De qué rarezas salen:</span>'
           + rareza('common', 'gris') + rareza('rare', 'azul')
@@ -8236,7 +8272,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         nombre: '', descripcion: '',
         minObjetos: 2, maxObjetos: 4,
         rarezas: ['common', 'rare'],
-        valorMedio: 300, imagen: ''
+        objetivoPct: 30, imagen: ''
       });
       pintarCategorias();
     });
@@ -8299,7 +8335,39 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         cajasRarezas = null;
         return;
       }
+      // La misma respuesta trae la referencia del servidor: así el armador puede
+      // proponer precios sin una segunda llamada.
+      if (cajasRarezas.referencia) cajasReferencia = cajasRarezas.referencia;
       pintarRarezasCajas();
+      pintarCategorias();
+    }
+
+    // Lo que valen DE VERDAD las cajas de una categoría. No se guarda en ningún
+    // sitio: lo mide el servidor con el catálogo y la referencia de ahora
+    // mismo, y por eso cambia solo cuando cambias cualquiera de las dos.
+    function mediaMedida(id) {
+      const t = ((cajasRarezas && cajasRarezas.tipos) || []).find((x) => x.id === id);
+      return t ? (t.media || 0) : 0;
+    }
+
+    function mediaDeCategoria(t) {
+      if (!cajasRarezas) return '';
+      const media = mediaMedida(t.id);
+      if (!media) return 'No hay objetos de esas rarezas en el catálogo.';
+      const objetivo = Math.round(cajasReferencia * (Number(t.objetivoPct) || 0) / 100);
+      return 'Apunta a ' + kamasCorto(objetivo) + ' y las cajas acaban valiendo <b>'
+        + kamasCorto(media) + '</b> de media. '
+        + '<span class="meta">Sale menos porque los objetos son piezas enteras y siempre sobra suelto.</span>';
+    }
+
+    async function cargarKamas() {
+      try {
+        const r = await api('/api/kamas');
+        cajasReferencia = Number(r.nivel200) || cajasReferencia;
+        ponerSiNoLoTocas('cajasKamas', cajasReferencia);
+      } catch (e) {
+        // Se queda la de por defecto: mejor precios aproximados que ninguno.
+      }
     }
 
     function pintarRarezasCajas() {
@@ -8335,6 +8403,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         ponerSiNoLoTocas('cajasSalida', cajas.ajustes.salidaPct);
         ponerSiNoLoTocas('cajasSubida', cajas.ajustes.subidaPct);
         ponerSiNoLoTocas('cajasCosteAbrir', cajas.ajustes.costeAbrir);
+        ponerSiNoLoTocas('cajasPuntosMillon', cajas.ajustes.puntosPorMillon);
       }
       pintarCajas();
     }
@@ -8390,7 +8459,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           t.nombre,
           sinObjetos
             ? 'sin objetos'
-            : t.minObjetos + '–' + t.maxObjetos + ' obj · ~' + t.valorMedio.toLocaleString('es-ES'),
+            // Lo que valen MEDIDO, no a lo que apuntan: el objetivo casi nunca
+            // se gasta entero y enseñarlo sería mentirle al que subasta.
+            : t.minObjetos + '–' + t.maxObjetos + ' obj · ~' + kamasCorto(mediaMedida(t.id)),
           sinObjetos,
           t.descripcion
         );
@@ -8596,11 +8667,24 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             segundosTrasPuja: Number(document.getElementById('cajasSegundosPuja').value),
             salidaPct: Number(document.getElementById('cajasSalida').value),
             subidaPct: Number(document.getElementById('cajasSubida').value),
-            costeAbrir: Number(document.getElementById('cajasCosteAbrir').value)
+            costeAbrir: Number(document.getElementById('cajasCosteAbrir').value),
+            puntosPorMillon: Number(document.getElementById('cajasPuntosMillon').value)
           })
         });
-        ['cajasPalabra', 'cajasPalabraPista', 'cajasSegundos', 'cajasSegundosPuja', 'cajasSalida', 'cajasSubida', 'cajasCosteAbrir']
+        // La referencia no va con los ajustes: es del SERVIDOR, no del usuario,
+        // y se guarda donde las rarezas.
+        const ref = await api('/api/kamas', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nivel200: Number(document.getElementById('cajasKamas').value) })
+        });
+        cajasReferencia = Number(ref.nivel200) || cajasReferencia;
+        ['cajasPalabra', 'cajasPalabraPista', 'cajasSegundos', 'cajasSegundosPuja', 'cajasSalida',
+          'cajasSubida', 'cajasCosteAbrir', 'cajasPuntosMillon', 'cajasKamas']
           .forEach((id) => { const c = document.getElementById(id); if (c) delete c.dataset.tocado; });
+        // Cambiar la referencia cambia lo que vale todo, así que las medias de
+        // las categorías hay que volver a pedirlas.
+        await cargarRarezasCajas();
         pintarCajas();
         aviso.textContent = 'Guardado';
         setTimeout(() => { aviso.textContent = ''; }, 2000);
