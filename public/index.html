@@ -6305,6 +6305,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         + '<span class="turno">' + (i + 1) + '.</span>' + escapeHtml(r.nombre) + '</span>').join('');
     }
 
+    // Aqui todos los combates se pelean en el mismo sitio del cuadro, asi que
+    // el escenario no puede salir de la posicion como en el torneo: se va
+    // pasando al siguiente con cada combate peleado. Sale de la cuenta que
+    // lleva el servidor, no de un contador de la pagina, para que al repintar
+    // el ultimo combate se siga viendo en el escenario donde se peleo.
+    function escenarioColina() {
+      return Math.max(0, (colina.peleados || 1) - 1);
+    }
+
     // El mismo recuadro de combate que el torneo, con la diferencia de que
     // aqui no hay boton de pelear dentro: el combate lo lanza el de abajo.
     // Con «conGanador» se pinta ya resuelto; sin ello, con las barras llenas,
@@ -6330,7 +6339,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         + '<div class="' + clase(d.b) + '"><span class="quien">' + escapeHtml(d.b) + '</span>'
         + etiquetaClase(d.b) + '</div></div>'
         + '</div>'
-        + abrirRing(0, 0) + muneco('a', caido(d.a), d.a) + muneco('b', caido(d.b), d.b)
+        + abrirRing(0, escenarioColina()) + muneco('a', caido(d.a), d.a) + muneco('b', caido(d.b), d.b)
         + '<div class="fx"></div></div>'
         + '<div class="golpe"></div><div class="lineas"></div></div>';
     }
@@ -6836,14 +6845,24 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // centra dentro. Si la caja cambiara de ancho con cada fotograma, la
       // ficha entera daría un tirón a cada paso, porque el nombre y el puesto
       // van al lado y se recolocarían.
+      //
+      // Pero el dibujo no puede ocupar esa caja entera: casi todas las poses
+      // son más estrechas que la más ancha, y el hueco que sobraba a los lados
+      // enseñaba el trozo del bicho de al lado en el pliego (los caballos van
+      // pegados por las colas). Asi que el elemento mide justo su columna, y
+      // lo que falta hasta la caja lo ponen los margenes: se recorta el vecino
+      // y la ficha sigue ocupando lo mismo en todas las poses.
       const caja = Math.round(PLIEGO.anchoMaximo * escala);
-      el.style.width = caja + 'px';
+      const ancho = Math.round(anchoCol * escala);
+      const centrado = Math.round((caja - ancho) / 2);
+      el.style.width = ancho + 'px';
+      el.style.marginLeft = centrado + 'px';
+      el.style.marginRight = (caja - ancho - centrado) + 'px';
       el.style.height = Math.round(altoDestino) + 'px';
       el.style.backgroundSize =
         Math.round(PLIEGO.ancho * escala) + 'px ' + Math.round(PLIEGO.alto * escala) + 'px';
-      const centrado = Math.round((caja - anchoCol * escala) / 2);
       el.style.backgroundPosition =
-        (centrado - Math.round(x0 * escala)) + 'px -' + Math.round(fila[0] * escala) + 'px';
+        '-' + Math.round(x0 * escala) + 'px -' + Math.round(fila[0] * escala) + 'px';
     }
     const COLORES_BOLA = ['#fbbf24', '#f43f5e', '#a3e635', '#e879f9', '#22d3ee',
       '#fb923c', '#4ade80', '#f472b6', '#facc15', '#38bdf8'];
