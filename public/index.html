@@ -124,6 +124,11 @@
     .ganador-grande.pierde{color:#fff5f5;
       background:linear-gradient(90deg,#b91c1c,#7f1d1d);box-shadow:0 14px 44px rgba(185,28,28,0.35)}
     .ganador-grande.pierde .quien-gana{text-decoration:line-through;opacity:.85}
+    /* El cartel de «este se va» en eliminación. Es el de perder, pero sin
+       tanto luto: aquí no se ha perdido ningún premio, solo toca salir. */
+    .ganador-grande.fuera{color:#fff5f5;
+      background:linear-gradient(90deg,#9a3412,#7c2d12);box-shadow:0 14px 44px rgba(154,52,18,0.3)}
+    .ganador-grande.fuera .quien-gana{text-decoration:line-through;opacity:.9}
     .ganador-grande .corona{display:block;font-size:46px;line-height:1}
     .ganador-grande .quien-gana{display:block;font-size:52px;font-weight:800;line-height:1.1;
       word-break:break-word;margin-top:.2rem}
@@ -247,6 +252,7 @@
     .names-side{flex:1;min-width:240px;display:flex;flex-direction:column;gap:.6rem}
     .names-side textarea{width:100%;resize:vertical;font-family:inherit;font-size:15px;padding:.6rem;border-radius:10px;background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14)}
     .names-check{display:flex;align-items:center;gap:.4rem;font-size:14px;color:var(--muted);cursor:pointer}
+    .names-check[hidden]{display:none}
     /* --- El rodillo de nombres ------------------------------------------
        Antes esto era una tarta que giraba. Con cuatro nombres se leia, pero
        con los ciento y pico que deja el chat las porciones eran rayas sin
@@ -292,6 +298,10 @@
     /* Al parar, el ganador se enciende dentro de la banda. */
     .names-reel .fila.gana{color:#021018;background:var(--accent);
       border-bottom-color:transparent;text-shadow:none}
+    /* Y en eliminación, el que se va: mismo sitio, color contrario, y tachado
+       para que se entienda sin leer el cartel. */
+    .names-reel .fila.fuera{color:#fff5f5;background:#b91c1c;
+      border-bottom-color:transparent;text-decoration:line-through}
     .tab-panel{display:none}
     .tab-panel.active{display:block}
     #items,#equipItems,#randomResult{display:flex;flex-wrap:wrap;gap:12px;padding-top:8px}
@@ -2056,7 +2066,8 @@
               <div class="names-side">
                 <textarea id="nameList" rows="10" placeholder="Un nombre por línea&#10;Lucy&#10;Chimbita&#10;Suix&#10;Anna"></textarea>
                 <div class="meta" id="nameCount">0 participantes</div>
-                <label class="names-check"><input type="checkbox" id="nameRemoveWinner" /> Quitar al ganador de la lista al terminar</label>
+                <label class="names-check"><input type="checkbox" id="nameElimina" /> <span>Eliminación: cada giro echa a uno y gana el último que quede</span></label>
+                <label class="names-check" id="nameRemoveWinnerFila"><input type="checkbox" id="nameRemoveWinner" /> Quitar al ganador de la lista al terminar</label>
                 <div class="controls">
                   <button type="button" id="spinNames">Girar</button>
                   <button type="button" class="btn-cancel" id="clearNames">Vaciar lista</button>
@@ -11324,6 +11335,17 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('nameCount').textContent = `${nombres.length} participante(s)`;
       document.getElementById('spinNames').disabled =
         nombres.length < 2 || girandoNombres || jugandoDoble;
+
+      // En eliminación el botón no gira a por un ganador: echa a uno. Y la
+      // casilla de quitar al ganador sobra, porque ahí se quita siempre al que
+      // sale; dejarla a la vista solo invita a marcarla y no entender nada.
+      const elimina = modoEliminaNombres();
+      document.getElementById('nameRemoveWinnerFila').hidden = elimina;
+      document.getElementById('spinNames').textContent = !elimina
+        ? 'Girar'
+        : (nombres.length > 2
+          ? 'Eliminar a uno (quedan ' + nombres.length + ')'
+          : 'Eliminar: el último gana');
       // Mientras gira no se toca: repintar dejaría la cinta a medias.
       if (girandoNombres) return;
 
@@ -11344,6 +11366,33 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const salida = [];
       for (let i = 0; i < veces; i++) salida.push(...lista);
       return salida;
+    }
+
+    // ¿Está puesta la casilla de eliminación?
+    function modoEliminaNombres() {
+      const casilla = document.getElementById('nameElimina');
+      return !!(casilla && casilla.checked);
+    }
+
+    // Guarda la lista que quede, en la caja de texto y en el navegador.
+    function guardarListaNombres(lista) {
+      document.getElementById('nameList').value = lista.join(String.fromCharCode(10));
+      guardarNombres();
+    }
+
+    // El cartel, con tres caras: quien gana, quien lo pierde todo en el doble o
+    // nada, y quien se va en eliminación. Siempre el mismo sitio de la pantalla,
+    // que es lo que hace que no haya que buscar dónde mirar.
+    function pintarEchadoNombres(quien, quedan) {
+      const banner = document.getElementById('nameWinnerBanner');
+      banner.className = 'ganador-grande fuera';
+      banner.innerHTML = '<span class="corona">💀</span>'
+        + '<span class="quien-gana">' + escapeHtml(quien) + '</span>'
+        + '<span class="premio">Eliminado · '
+        + (quedan === 1 ? 'queda 1' : 'quedan ' + quedan) + '</span>';
+      banner.hidden = false;
+      // Sin ganador todavía no hay premio que jugarse.
+      document.getElementById('nameWinnerActions').hidden = true;
     }
 
     // El cartel del ganador, con el multiplicador si se ha doblado alguna vez.
@@ -11475,21 +11524,33 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       await new Promise((resolve) => setTimeout(resolve, GIRO_NOMBRES + 200));
 
-      // El que ha parado en la banda se enciende.
-      const ganadora = tira.children[cual];
-      if (ganadora) ganadora.classList.add('gana');
-
-      nombreGanador = nombres[elegido];
       // Cada giro empieza con el premio sin doblar.
       premioNombres = 1;
-      pintarGanadorNombres('gana');
-      mandosNombres(true);
-      makeConfetti(30);
+      const resto = nombres.filter((_, i) => i !== elegido);
+      const elimina = modoEliminaNombres();
+      // El que ha parado en la banda: se enciende si gana, se tacha si se va.
+      const fila = tira.children[cual];
+      if (fila) fila.classList.add(elimina ? 'fuera' : 'gana');
 
-      if (document.getElementById('nameRemoveWinner').checked) {
-        const resto = nombres.filter((_, i) => i !== elegido);
-        document.getElementById('nameList').value = resto.join('\n');
-        guardarNombres();
+      if (elimina) {
+        // Aquí el de la banda no gana: se va. Y gana quien aguante hasta
+        // quedarse solo, sin ningún giro más: cuando queda uno, ya está.
+        guardarListaNombres(resto);
+        if (resto.length === 1) {
+          nombreGanador = resto[0];
+          pintarGanadorNombres('gana');
+          mandosNombres(true);
+          makeConfetti(50);
+        } else {
+          nombreGanador = '';
+          pintarEchadoNombres(nombres[elegido], resto.length);
+        }
+      } else {
+        nombreGanador = nombres[elegido];
+        pintarGanadorNombres('gana');
+        mandosNombres(true);
+        makeConfetti(30);
+        if (document.getElementById('nameRemoveWinner').checked) guardarListaNombres(resto);
       }
 
       girandoNombres = false;
@@ -11500,6 +11561,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     document.getElementById('nameList').addEventListener('input', () => {
       guardarNombres();
+      if (!girandoNombres) renderNameWheel();
+    });
+
+    document.getElementById('nameElimina').addEventListener('change', () => {
       if (!girandoNombres) renderNameWheel();
     });
 
