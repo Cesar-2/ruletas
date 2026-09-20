@@ -2257,6 +2257,9 @@
             <p class="meta">Sin código, nadie puede crear una cuenta nueva: los registros quedan
 cerrados y solo entra quien ya la tenga. Pon uno mientras das de alta a la
 gente y bórralo cuando termines.</p>
+            <p class="meta"><strong>Generar uno nuevo</strong> lo guarda en el momento, listo para
+dictarlo. <strong>Cerrar registros</strong> lo borra, también en el momento. Si lo escribes tú a
+mano, se guarda con el botón de abajo.</p>
             <div class="config-grid">
               <div class="config-field">
                 <label for="cfgInvite">Código de invitación</label>
@@ -10307,13 +10310,32 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
     document.getElementById('accesoRefrescar').addEventListener('click', cargarAcceso);
     document.getElementById('cfgInviteClear').addEventListener('click', () => guardarInvite(''));
-    document.getElementById('cfgInviteGen').addEventListener('click', () => {
+    // Generar un código lo guarda ya, sin pasar por el Guardar de abajo: el
+    // código se genera para dictárselo a alguien, y uno que se ve en pantalla
+    // pero que todavía no vale es justo el que va a fallar cuando lo escriban.
+    // Escribirlo a mano sí sigue necesitando Guardar: mientras tecleas, el
+    // código está a medias y no tendría sentido ir guardando cada letra.
+    document.getElementById('cfgInviteGen').addEventListener('click', async () => {
+      const boton = document.getElementById('cfgInviteGen');
+      const caja = document.getElementById('cfgInvite');
+      const antes = caja.value;
       // Sin vocales ni caracteres que se confundan al dictarlo en voz alta.
       const abc = '23456789BCDFGHJKMNPQRSTVWXYZ';
       const azar = crypto.getRandomValues(new Uint32Array(10));
-      document.getElementById('cfgInvite').value =
-        Array.from(azar, (n) => abc[n % abc.length]).join('');
-      document.getElementById('cfgInviteStatus').textContent = 'Sin guardar todavía.';
+      const codigo = Array.from(azar, (n) => abc[n % abc.length]).join('');
+      caja.value = codigo;
+      document.getElementById('cfgInviteStatus').textContent = 'Guardando…';
+      // Mientras va y viene no se puede volver a pulsar: dos códigos en vuelo
+      // dejarían en pantalla uno distinto del que quedó guardado.
+      boton.disabled = true;
+      try {
+        // Si no se pudo guardar, la casilla vuelve a lo que había. Dejar a la
+        // vista un código que no vale es lo que hace que se lo dictes a alguien
+        // y no le funcione; el aviso del error lo pone guardarInvite.
+        if (!await guardarInvite(codigo)) caja.value = antes;
+      } finally {
+        boton.disabled = false;
+      }
     });
 
     // --- El Guardar de Configuracion --------------------------------------
