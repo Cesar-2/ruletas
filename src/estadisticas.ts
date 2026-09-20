@@ -22,7 +22,7 @@
 
 import fs from 'fs';
 
-export const JUEGOS = ['sorteo', 'nombres', 'carrera', 'batalla', 'plinko', 'cajas', 'colina'] as const;
+export const JUEGOS = ['sorteo', 'nombres', 'carrera', 'batalla', 'plinko', 'colina'] as const;
 export type Juego = typeof JUEGOS[number];
 
 export const NOMBRES: Record<Juego, string> = {
@@ -31,7 +31,6 @@ export const NOMBRES: Record<Juego, string> = {
   carrera: 'Carrera de balineras',
   batalla: 'Batalla Dofus',
   plinko: 'Tablero de clavijas',
-  cajas: 'Cajas misteriosas',
   colina: 'Rey de la colina'
 };
 
