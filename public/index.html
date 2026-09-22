@@ -3044,10 +3044,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             title: 'Contraseña temporal',
             messageHtml: `<p class="meta">Pásasela y dile que la cambie en Configuración &gt; Mi cuenta.</p>
               <p class="codigo-invitacion" style="font-size:20px;margin-top:.8rem;user-select:all">${escapeHtml(r.password)}</p>`,
-            okText: 'Ya la he copiado',
+            okText: 'Copiar y cerrar',
             confirm: false
           });
-          estado.textContent = 'Contraseña restablecida.';
+          // El botón la copia él solo: si no, hay que seleccionarla a mano antes
+          // de cerrar, y una vez cerrado ya no hay forma de volver a verla.
+          const copiada = await copyToClipboard(r.password);
+          estado.textContent = copiada
+            ? 'Contraseña restablecida y copiada al portapapeles.'
+            : 'Contraseña restablecida, pero no se pudo copiar: ' + r.password;
         } else if (accion === 'cerrar') {
           await api(`/api/admin/users/${encodeURIComponent(id)}/logout`, { method: 'POST' });
           estado.textContent = 'Sesión cerrada.';
