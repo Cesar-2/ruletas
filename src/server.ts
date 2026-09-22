@@ -2295,10 +2295,12 @@ app.post('/api/carrera/config', (req: Request, res: Response) => {
 // una imagen vieja si se cambia.
 const CLASE_DE_ARCHIVO: Record<string, string> = {
   yopuka: 'Yopuka', iop: 'Yopuka', ocra: 'Ocra', cra: 'Ocra', xelor: 'Xelor',
-  anutrof: 'Anutrof', enutrof: 'Anutrof', zurcarak: 'Zurcarák', ecaflip: 'Zurcarák',
-  feca: 'Feca', sram: 'Sram', sadida: 'Sadida', osamodas: 'Osamodas',
-  aniripsa: 'Aniripsa', eniripsa: 'Aniripsa', sacrogrito: 'Sacrógrito', sacrieur: 'Sacrógrito',
-  pandawa: 'Pandawa', uginak: 'Uginak', ouginak: 'Uginak'
+  anutrof: 'Anutrof', enutrof: 'Anutrof', anu: 'Anutrof',
+  zurcarak: 'Zurcarák', ecaflip: 'Zurcarák', zurca: 'Zurcarák',
+  feca: 'Feca', sram: 'Sram', sadida: 'Sadida', sadi: 'Sadida', osamodas: 'Osamodas',
+  aniripsa: 'Aniripsa', eniripsa: 'Aniripsa', ani: 'Aniripsa', sacrogrito: 'Sacrógrito', sacrieur: 'Sacrógrito',
+  pandawa: 'Pandawa', panda: 'Pandawa', uginak: 'Uginak', ouginak: 'Uginak',
+  zobal: 'Zobal', selotrop: 'Selotrop', steamer: 'Selotrop'
 };
 
 // El arte sale de dos sitios, en este orden: el que viene con la aplicacion

@@ -192,7 +192,8 @@ function barajar<T>(lista: T[]): T[] {
 // pagina para que todo el que mire vea la misma clase en cada luchador.
 const CLASES_DOFUS = [
   'Yopuka', 'Ocra', 'Xelor', 'Anutrof', 'Zurcarák', 'Feca',
-  'Sram', 'Sadida', 'Osamodas', 'Aniripsa', 'Sacrógrito', 'Pandawa', 'Uginak'
+  'Sram', 'Sadida', 'Osamodas', 'Aniripsa', 'Sacrógrito', 'Pandawa', 'Uginak',
+  'Zobal', 'Selotrop'
 ];
 
 // Las que se sortean de verdad: las que tienen imagen puesta por el dueño en su
