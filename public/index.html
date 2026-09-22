@@ -500,20 +500,20 @@
     /* El cartel del rey, para el rato en que no se pelea. Va en grande a
        proposito: es lo que se queda en pantalla durante el directo. */
     .colina-cartel{display:flex;align-items:center;gap:1.2rem;margin:1rem auto 0;
-      max-width:520px;padding:1.1rem 1.3rem;border-radius:14px;
+      max-width:620px;padding:1.4rem 1.6rem;border-radius:14px;
       border:1px solid rgba(251,191,36,0.45);
       background:linear-gradient(180deg,rgba(251,191,36,0.16),rgba(251,191,36,0.04))}
-    .colina-cartel .dibujo{flex:none;width:92px;height:118px;display:flex;
+    .colina-cartel .dibujo{flex:none;width:118px;height:150px;display:flex;
       align-items:flex-end;justify-content:center}
     .colina-cartel .dibujo svg,.colina-cartel .dibujo img{width:100%;height:auto;display:block}
     .colina-cartel .texto{min-width:0;flex:1}
     .colina-cartel .titulo{font-size:12px;color:var(--muted);text-transform:uppercase;
       letter-spacing:.05em}
-    .colina-cartel .quien{display:block;font-size:1.7rem;font-weight:800;line-height:1.15;
+    .colina-cartel .quien{display:block;font-size:2.1rem;font-weight:800;line-height:1.15;
       overflow-wrap:anywhere}
     .colina-cartel .clase{font-size:12px;color:var(--muted)}
     .colina-cartel .racha{display:flex;align-items:baseline;gap:.4rem;margin-top:.35rem}
-    .colina-cartel .racha b{font-size:2.6rem;line-height:1;color:#fbbf24}
+    .colina-cartel .racha b{font-size:3.2rem;line-height:1;color:#fbbf24}
     .colina-cartel .reta{margin-top:.5rem;font-size:14px}
     .colina-cartel .reta code{background:rgba(255,255,255,0.1);padding:.1rem .4rem;
       border-radius:5px;font-size:14px}
@@ -574,6 +574,14 @@
     /* En una pantalla baja manda el alto: con el combate a tamaño completo no
        cabrian ni el trono ni la cola. */
     @media (max-height:760px){ .escena:fullscreen #colinaCuadro{zoom:2} }
+    /* Y cuando no se pelea, lo que se queda en pantalla es el cartel del rey,
+       asi que crece igual que el combate: entre duelo y duelo la pantalla no
+       se queda con un recuadro pequeño en medio del vacio. Mismos saltos y el
+       mismo recurso (zoom), que el dibujo del muñeco tambien va en pixeles. */
+    .escena:fullscreen .colina-cartel{zoom:2.2}
+    @media (min-width:1500px){ .escena:fullscreen .colina-cartel{zoom:2.9} }
+    @media (min-width:1900px){ .escena:fullscreen .colina-cartel{zoom:3.4} }
+    @media (max-height:760px){ .escena:fullscreen .colina-cartel{zoom:2} }
     /* El cursor de lupa es de la Batalla, donde pulsando un combate se amplia.
        Aqui no hay nada que pulsar: solo se pelea uno cada vez y ya sale grande. */
     #colinaCuadro .duelo[data-ronda]{cursor:default}
