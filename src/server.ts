@@ -1343,6 +1343,50 @@ app.post('/api/auth/password', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/img/touch/<tamano>/<id>.png -> la imagen de un objeto de Touch
+//
+// No se enlaza al CDN de Ankama desde la pagina porque CloudFront contesta 403
+// en cuanto la peticion lleva pinta de navegador, y entonces Chrome la bloquea.
+// Desde aqui si se puede: se pide como servidor, se guarda en disco y se sirve
+// del propio Ruleton. La primera vez que se ve un objeto cuesta una descarga;
+// a partir de ahi sale del disco.
+const IMG_TOUCH_DIR = path.join(DATA_DIR, 'img-touch');
+
+app.get('/api/img/touch/:tamano/:archivo', async (req: Request, res: Response) => {
+  // Solo numeros, y nada mas: asi este endpoint no se puede usar para pedirle
+  // al servidor que baje cualquier otra cosa ni para salirse de la carpeta.
+  const tamano = String(req.params.tamano || '');
+  const id = String(req.params.archivo || '').replace(/\.png$/, '');
+  if (!/^\d+$/.test(tamano) || !/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'imagen no valida' });
+  }
+
+  const dir = path.join(IMG_TOUCH_DIR, tamano);
+  const file = path.join(dir, `${id}.png`);
+  // Un mes: son imagenes de un catalogo congelado en 2019, no cambian.
+  res.setHeader('Cache-Control', 'public, max-age=2592000');
+  res.setHeader('Content-Type', 'image/png');
+  if (fs.existsSync(file)) return res.sendFile(file);
+
+  try {
+    const r = await axios.get(`${juegos.CDN_TOUCH}/${tamano}/${id}.png`, {
+      responseType: 'arraybuffer',
+      timeout: 20000
+    });
+    const datos = Buffer.from(r.data);
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(file, datos);
+    } catch (err) {
+      console.warn('Failed to cache Touch image:', err);
+    }
+    res.end(datos);
+  } catch (err) {
+    // Que falte una imagen no es motivo para romper la ficha del objeto.
+    res.status(404).end();
+  }
+});
+
 // GET /api/items?juego=  -> el catalogo que se sortea, del juego que se pida
 app.get('/api/items', async (req: Request, res: Response) => {
   try {
