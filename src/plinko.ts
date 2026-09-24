@@ -381,37 +381,46 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
   if (typeof ajustes.palabra === 'string') {
     actual.palabra = ajustes.palabra.trim().slice(0, 30) || AJUSTES_POR_DEFECTO.palabra;
   }
+  // Las filas primero, que son las que mandan: cambiarlas cambia cuantas
+  // casillas hay, y entonces lo que venga para las casillas de antes ya no
+  // vale para las de ahora.
+  let cambioFilas = false;
   if (ajustes.filas != null) {
     const antes = actual.filas;
     actual.filas = Math.max(FILAS_MIN, Math.min(FILAS_MAX, Math.floor(Number(ajustes.filas) || antes)));
-    // Cambiar las filas cambia cuantas casillas hay: los premios se rehacen,
-    // salvo que en esta misma llamada vengan unos nuevos.
-    if (actual.filas !== antes && !Array.isArray(ajustes.multiplicadores)) {
-      actual.multiplicadores = multiplicadoresPorDefecto(casillasDe(actual.filas));
-    }
-    // Los premios tambien son por casilla: al cambiar las filas hay que
-    // reajustarlos, pero conservando los que ya estuvieran puestos.
-    if (actual.filas !== antes && !Array.isArray(ajustes.premios)) {
-      const antesPremios = actual.premios;
-      actual.premios = premiosVacios(casillasDe(actual.filas))
-        .map((p, i) => (i < antesPremios.length ? antesPremios[i] : p));
-    }
+    cambioFilas = actual.filas !== antes;
   }
-  if (Array.isArray(ajustes.multiplicadores)) {
-    const casillas = casillasDe(actual.filas);
-    const dados = ajustes.multiplicadores.slice(0, casillas).map(limpiarMultiplicador);
+  const casillas = casillasDe(actual.filas);
+
+  // Todo en la misma llamada: el panel guarda las filas y las casillas de una
+  // vez. Lo que llega solo se hace caso si cuadra con las casillas que quedan;
+  // si las filas cambiaron y viene la lista vieja, se descarta y se rehace,
+  // que es lo que el panel avisa que pasa.
+  const multisValen = Array.isArray(ajustes.multiplicadores)
+    && (!cambioFilas || ajustes.multiplicadores.length === casillas);
+  if (multisValen) {
+    const dados = (ajustes.multiplicadores as unknown[]).slice(0, casillas).map(limpiarMultiplicador);
     // Si vienen de menos se completan con los de por defecto: mejor eso que
     // dejar casillas sin premio.
     const relleno = multiplicadoresPorDefecto(casillas);
     actual.multiplicadores = relleno.map((m, i) => (i < dados.length ? dados[i] : m));
+  } else if (cambioFilas) {
+    actual.multiplicadores = multiplicadoresPorDefecto(casillas);
   }
   if (ajustes.modo === 'puntos' || ajustes.modo === 'premios') {
     actual.modo = ajustes.modo;
   }
-  if (Array.isArray(ajustes.premios)) {
-    const casillas = casillasDe(actual.filas);
-    const dados = ajustes.premios.slice(0, casillas).map(limpiarPremio);
+  // Los premios, igual, pero al rehacerlos se conservan los que ya hubiera:
+  // una casilla con su nombre y su imagen cuesta de poner, y perderla por
+  // quitar una fila seria una faena.
+  const premiosValen = Array.isArray(ajustes.premios)
+    && (!cambioFilas || ajustes.premios.length === casillas);
+  if (premiosValen) {
+    const dados = (ajustes.premios as unknown[]).slice(0, casillas).map(limpiarPremio);
     actual.premios = premiosVacios(casillas).map((p, i) => (i < dados.length ? dados[i] : p));
+  } else if (cambioFilas) {
+    const antesPremios = actual.premios;
+    actual.premios = premiosVacios(casillas).map((p, i) => (i < antesPremios.length ? antesPremios[i] : p));
   }
 
   deps.ensureUserDir(uid);

@@ -29,7 +29,7 @@ export const NOMBRES: Record<Juego, string> = {
 // tiene alguna pega que convenga saber antes de mirarlo.
 export const AVISOS: Record<Juego, string> = {
   dofus3: '',
-  touch: 'Catalogo de 2019 y en frances: es el ultimo volcado publico de Touch que existe. Solo recursos.'
+  touch: 'Solo recursos. Los nombres y las descripciones se toman de Dofus cuando el objeto existe en los dos; lo que no tiene pareja se queda en frances, como vino.'
 };
 
 // Las familias del catalogo: lo que se sortea (recursos), lo que se lleva
@@ -125,6 +125,48 @@ const FUENTES: Record<Juego, Record<Familia, Fuente>> = {
 
 export function fuente(juego: Juego, familia: Familia): Fuente {
   return FUENTES[juego][familia];
+}
+
+// --- Touch en espanol ---------------------------------------------------
+// El volcado de Touch esta en frances y no hay ninguna fuente de Touch en
+// espanol: la oficial contesta 403 y Dofapi esta muerta. Pero los ankama_id
+// son los mismos en los dos juegos, asi que a un recurso de Touch se le puede
+// poner el nombre y la descripcion que ese mismo id tiene en Dofus.
+//
+// Solo el nombre y la descripcion. El nivel, el tipo y la imagen son los de
+// Touch de verdad y pueden no coincidir con los de Dofus de hoy: pisarlos
+// seria enseñar datos falsos con cara de ciertos.
+//
+// Lo que no tenga pareja se queda en frances, tal cual vino. Es mejor un
+// catalogo a medio traducir que uno con nombres inventados.
+export function traducirRecursos(deTouch: any[], deDofus: any[]): any[] {
+  if (!Array.isArray(deTouch) || !Array.isArray(deDofus) || !deDofus.length) return deTouch;
+  const porId = new Map<number, any>();
+  for (const x of deDofus) {
+    const id = Number(x?.ankama_id);
+    if (Number.isFinite(id)) porId.set(id, x);
+  }
+  return deTouch.map((item) => {
+    const par = porId.get(Number(item?.ankama_id));
+    if (!par) return item;
+    const nombre = String(par.name ?? '').trim();
+    if (!nombre) return item;
+    const desc = String(par.description ?? '').trim();
+    return {
+      ...item,
+      name: nombre,
+      // Una descripcion vacia en Dofus no borra la que traia Touch.
+      description: desc || item.description,
+      // De donde salio el nombre, por si alguna vez hay que distinguirlo.
+      traducido: true
+    };
+  });
+}
+
+// Cuantos de una lista quedaron traducidos: para poder contarlo en el aviso
+// del catalogo sin volver a recorrerlo por fuera.
+export function cuantosTraducidos(items: any[]): number {
+  return Array.isArray(items) ? items.filter((x) => x?.traducido).length : 0;
 }
 
 // El archivo de cache de un catalogo. Cada juego y familia tiene el suyo: son

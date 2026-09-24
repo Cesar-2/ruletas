@@ -34,7 +34,7 @@
     .nav-links{display:flex;gap:.5rem;flex-wrap:wrap;margin-left:auto}
     input.locked{opacity:.75;cursor:not-allowed;border-style:dashed}
     .server-tab{display:inline-flex;align-items:center;gap:.4rem}
-    .user-tab{display:inline-flex;align-items:center;gap:.5rem;margin-left:auto}
+    .user-tab{position:relative;display:inline-flex;align-items:center;gap:.5rem;margin-left:auto}
     .user-tab .user-name{font-weight:600}
     .avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;flex:none;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.20)}
     .avatar.iniciales{display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--accent);text-transform:uppercase}
@@ -103,6 +103,34 @@
       border-color:transparent;box-shadow:0 0 0 2px rgba(110,231,183,.5),0 8px 26px rgba(110,231,183,0.28)}
     /* Con el teclado tambien se ve por donde se va. */
     .tab:focus-visible,.server-tab:focus-visible,.subtab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+    /* El menu de la sesion: el avatar de la derecha se abre y debajo cuelgan
+       Configuracion y Salir. Va aqui, despues de .tab, porque Configuracion
+       sigue siendo una .tab de verdad (asi no hay que tocar el cambio de
+       pestanas) y hay que quitarle el aspecto de boton de la barra. */
+    .user-boton{display:inline-flex;align-items:center;gap:.5rem;padding:.3rem .55rem;border-radius:999px;
+      background:rgba(9,15,28,0.78);color:#e6eef8;border:1px solid rgba(255,255,255,0.22);
+      cursor:pointer;font-size:15px;box-shadow:none;transition:background .15s ease,border-color .15s ease}
+    .user-boton:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.38)}
+    .user-boton:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    /* Abierto se queda marcado, que si no no se sabe de donde sale el menu. */
+    .user-boton[aria-expanded="true"]{background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.45)}
+    .user-flecha{font-size:11px;color:var(--muted);line-height:1}
+    .user-menu{position:absolute;top:calc(100% + .45rem);right:0;min-width:210px;padding:.35rem;
+      display:flex;flex-direction:column;gap:.2rem;background:rgba(9,15,28,0.98);
+      border:1px solid rgba(255,255,255,0.16);border-radius:12px;
+      box-shadow:0 14px 34px rgba(2,6,23,0.65);z-index:70}
+    .user-menu[hidden]{display:none}
+    .user-menu .menu-item{display:block;width:100%;text-align:left;padding:.55rem .7rem;border-radius:8px;
+      background:transparent;border:0;color:#e6eef8;font-size:15px;box-shadow:none;cursor:pointer}
+    .user-menu .menu-item:hover{background:rgba(255,255,255,0.10)}
+    .user-menu .menu-item:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+    /* Estando dentro de Configuracion se marca, pero sin el degradado de la
+       barra: aqui basta con el acento y un fondo suave. */
+    .user-menu .menu-item.active{background:rgba(110,231,183,0.14);color:var(--accent);box-shadow:none}
+    .user-menu .menu-sep{height:1px;margin:.2rem .25rem;background:rgba(255,255,255,0.12)}
+    .user-menu .menu-salir{color:#fca5a5}
+    .user-menu .menu-salir:hover{background:rgba(248,113,113,0.14)}
     button{background:linear-gradient(90deg,var(--accent),var(--accent-2));border:none;color:#021018;padding:0.7rem 1rem;border-radius:10px;cursor:pointer;font-size:16px;box-shadow:0 8px 26px rgba(110,231,183,0.14);transition:transform .18s ease, box-shadow .18s ease}
     button:active{transform:translateY(1px)}
     button:disabled{opacity:.5;cursor:not-allowed}
@@ -163,6 +191,29 @@
     .modal-actions .btn-cancel{background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.16);box-shadow:none}
     .modal-actions .btn-cancel:hover{background:rgba(255,255,255,0.15)}
     .modal-actions .btn-danger{background:linear-gradient(90deg,#ef4444,#f87171);color:#fff;box-shadow:none}
+
+    /* Retocar el catalogo: el lapiz de cada tarjeta y las marcas de lo que no
+       vino tal cual de la descarga. */
+    .item .editar-item{width:100%;margin-top:.35rem;padding:.35rem .5rem;font-size:13px;
+      background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.16);
+      border-radius:8px;box-shadow:none}
+    .item .editar-item:hover{background:rgba(255,255,255,0.16)}
+    /* Una esquina marcada basta: lo propio en verde, lo cambiado en ambar. No
+       se pone texto, que las tarjetas ya van apretadas. */
+    .item.propio::after,.item.retocado::after{content:'';position:absolute;top:0;right:0;
+      border-width:0 16px 16px 0;border-style:solid;border-radius:0 12px 0 0}
+    .item.propio::after{border-color:transparent var(--accent) transparent transparent}
+    .item.retocado::after{border-color:transparent #fbbf24 transparent transparent}
+    /* El editor: la imagen se ve antes de guardarla. */
+    .recurso-form{display:flex;flex-direction:column;gap:.7rem;margin-top:.9rem}
+    .recurso-form label{display:flex;flex-direction:column;gap:.25rem;font-size:13px;color:var(--muted)}
+    .recurso-form input[type=text],.recurso-form input[type=number]{padding:.5rem .6rem;font-size:15px}
+    .recurso-imagen{display:flex;align-items:center;gap:.8rem}
+    .recurso-imagen .lienzo{width:64px;height:64px;flex:none;display:flex;align-items:center;justify-content:center;
+      background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;overflow:hidden}
+    .recurso-imagen .lienzo img{max-width:100%;max-height:100%}
+    .recurso-imagen .lienzo .sin{font-size:11px;color:var(--muted);text-align:center;padding:.2rem}
+    .recurso-form input[type=file]{font-size:13px}
     @keyframes modalIn{from{opacity:0;transform:translateY(-12px) scale(.97)}to{opacity:1;transform:none}}
     .winners-total{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:1rem;padding:.9rem 1rem;border-radius:10px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.16)}
     .winners-total[hidden]{display:none}
@@ -1606,12 +1657,21 @@
       <button type="button" class="tab" data-tab="winners">Ganadores (0)</button>
       <button type="button" class="tab" data-tab="history">📜 Historial</button>
       <button type="button" class="tab" data-tab="uso" id="tabUso" hidden>📊 Estadísticas</button>
-      <button type="button" class="tab" data-tab="config">⚙ Configuración</button>
     </nav>
-    <div class="user-tab">
-      <span class="avatar iniciales" id="userAvatar" aria-hidden="true"></span>
-      <span class="user-name" id="userName"></span>
-      <button type="button" id="logout" class="btn-cancel">Salir</button>
+    <!-- La sesion: el avatar abre un menu con Configuracion y Salir. El de
+         Configuracion sigue siendo una .tab con su data-tab, asi que el cambio
+         de pestana lo lleva el mismo codigo de siempre. -->
+    <div class="user-tab" id="userTab">
+      <button type="button" class="user-boton" id="userMenuBoton" aria-haspopup="true" aria-expanded="false" aria-controls="userMenu" title="Tu sesión">
+        <span class="avatar iniciales" id="userAvatar" aria-hidden="true"></span>
+        <span class="user-name" id="userName"></span>
+        <span class="user-flecha" aria-hidden="true">▾</span>
+      </button>
+      <div class="user-menu" id="userMenu" role="menu" aria-labelledby="userMenuBoton" hidden>
+        <button type="button" class="tab menu-item" role="menuitem" data-tab="config">⚙ Configuración</button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-item menu-salir" role="menuitem" id="logout">Salir</button>
+      </div>
     </div>
   </header>
 
@@ -1965,6 +2025,7 @@
             <div id="catalog-panel">
             <div class="controls">
               <button id="load">Recargar items</button>
+              <button id="nuevoRecurso" type="button" title="Añadir al catálogo un recurso que no está">➕ Nuevo recurso</button>
               <div id="count">Cargando items…</div>
             </div>
             <div class="subtabs">
@@ -2443,11 +2504,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                   <input id="plinkoFilas" type="number" min="6" max="16" value="10" />
                 </div>
               </div>
-              <p class="meta">Más filas es más difícil llegar a las puntas, así que las puntas pagan más. Cambiar las filas cambia cuántas casillas hay, y los premios se rehacen.</p>
-              <div class="config-actions">
-                <button type="button" id="plinkoFilasGuardar">Guardar tablero</button>
-                <span class="meta" id="plinkoFilasGuardado"></span>
-              </div>
+              <p class="meta">Más filas es más difícil llegar a las puntas, así que las puntas pagan más. Cambiar las filas cambia cuántas casillas hay: al guardar, lo de cada casilla se rehace y las de abajo vuelven a los premios de siempre.</p>
 
               <h4>Qué reparte el tablero</h4>
               <p class="meta">O puntos al marcador, como siempre, o premios de verdad: cada casilla con su nombre y su imagen. Con premios el tablero <strong>no toca el marcador</strong>: solo dice a quién le ha tocado qué, y ya lo entregas tú.</p>
@@ -2466,7 +2523,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               <div id="plinkoPremios" class="premios-lista"></div>
               <div id="plinkoPremiosCosas" class="premios-cosas" hidden></div>
               <div class="config-actions">
-                <button type="button" id="plinkoPremiosGuardar">Guardar premios</button>
+                <button type="button" id="plinkoPremiosGuardar">Guardar tablero</button>
                 <button type="button" id="plinkoPremiosDefecto" class="btn-cancel">Volver a los de siempre</button>
                 <span class="meta" id="plinkoPremiosEstado"></span>
               </div>
@@ -2616,6 +2673,39 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="premioPickerCerrar">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Anadir un recurso o retocar uno que ya esta. Lo mismo sirve para las dos
+       cosas: lo unico que cambia es si hay un objeto detras. -->
+  <div class="modal-backdrop" id="recursoBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="recursoTitulo">
+      <h4 id="recursoTitulo">Nuevo recurso</h4>
+      <p class="meta" id="recursoAyuda">Se añade a tu catálogo de este juego. No toca el catálogo descargado: puedes volver a actualizarlo y esto sigue aquí.</p>
+      <div class="recurso-form">
+        <label>Nombre
+          <input type="text" id="recursoNombre" maxlength="120" placeholder="Nombre del recurso" />
+        </label>
+        <label>Imagen
+          <span class="recurso-imagen">
+            <span class="lienzo" id="recursoLienzo"><span class="sin">Sin imagen</span></span>
+            <input type="file" id="recursoArchivo" accept="image/*" />
+          </span>
+        </label>
+        <label id="recursoNivelCampo">Nivel
+          <input type="number" id="recursoNivel" min="0" max="1000" placeholder="0" />
+        </label>
+        <label id="recursoTipoCampo">Tipo
+          <input type="text" id="recursoTipo" maxlength="60" placeholder="Propio" />
+        </label>
+      </div>
+      <p class="meta" id="recursoEstado"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="recursoCancelar">Cancelar</button>
+        <button type="button" class="btn-cancel" id="recursoRestaurar" hidden title="Deshacer los cambios y dejarlo como vino del catálogo">Restaurar</button>
+        <button type="button" class="btn-danger" id="recursoBorrar" hidden>Borrar del catálogo</button>
+        <button type="button" id="recursoGuardar">Guardar</button>
       </div>
     </div>
   </div>
@@ -4390,7 +4480,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         container.innerHTML = `<div class="meta">${emptyMsg && !searchInput.value.trim() ? emptyMsg : 'No se encontraron resultados.'}</div>`;
       } else {
         pageItems.forEach((it, i) => {
-          const card = createItemCard(it, { tags: true, exclude: true, select: true });
+          const card = createItemCard(it, { tags: true, exclude: true, select: true, edit: true });
           container.appendChild(card);
           setTimeout(() => card.classList.add('show'), i * 50);
         });
@@ -4453,7 +4543,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         </div>` : ''}
         <button class="copy-name" type="button">Copiar nombre</button>
         ${allowExclude ? '<button class="exclude-toggle" type="button"></button>' : ''}
+        ${opts.edit === true ? '<button class="editar-item" type="button">✏️ Editar o borrar</button>' : ''}
       `;
+      // Lo que no vino tal cual de la descarga se marca en la esquina: verde si
+      // lo pusiste tu, ambar si es del catalogo pero con algo cambiado.
+      if (it.propio) el.classList.add('propio');
+      else if (it.retocado) el.classList.add('retocado');
 
       const cardId = el.dataset.itemId;
 
@@ -4574,6 +4669,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           // Si el objeto está en el sorteo en curso ya no puede salir premiado:
           // se sustituye por otro. Fuera del sorteo, replaceDrawnItem no hace nada.
           if (excludedIds.has(itemId)) replaceDrawnItem(itemId);
+        });
+      }
+
+      if (opts.edit === true) {
+        el.querySelector('.editar-item').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          abrirEditorRecurso(it);
         });
       }
 
@@ -4790,6 +4892,168 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         showAlert('Error al cargar', e.message);
       }
     }
+
+    // --- Retocar el catálogo ----------------------------------------------
+    // Añadir un recurso que no está, cambiarle el nombre o la imagen a
+    // cualquiera, y borrarlo del catálogo. Nada de esto toca el catálogo
+    // descargado: el servidor lo guarda aparte, por usuario y juego, y lo
+    // aplica encima al servir. Por eso se puede recargar el catálogo sin
+    // perder nada.
+    //
+    // Borrar no es excluir: excluido sigue viéndose y sale en su pestaña;
+    // borrado desaparece del catálogo entero.
+
+    // El recurso que se está editando, o null si es uno nuevo.
+    let recursoEditando = null;
+    // La imagen elegida en el editor, todavía sin guardar.
+    let recursoImagen = '';
+
+    function pintarLienzoRecurso() {
+      const lienzo = document.getElementById('recursoLienzo');
+      lienzo.innerHTML = recursoImagen
+        ? '<img src="' + escapeHtml(recursoImagen) + '" alt="" />'
+        : '<span class="sin">Sin imagen</span>';
+    }
+
+    function nombreDeItem(it) {
+      return it?.name?.es ?? it?.name ?? String(it?.ankama_id ?? '');
+    }
+
+    function abrirEditorRecurso(item) {
+      recursoEditando = item || null;
+      const nuevo = !item;
+      recursoImagen = item ? (item.image_urls?.icon || item.image_urls?.sd || '') : '';
+
+      document.getElementById('recursoTitulo').textContent = nuevo
+        ? 'Nuevo recurso'
+        : 'Editar «' + nombreDeItem(item) + '»';
+      document.getElementById('recursoAyuda').textContent = nuevo
+        ? 'Se añade a tu catálogo de este juego. No toca el catálogo descargado: puedes volver a actualizarlo y esto sigue aquí.'
+        : item.propio
+          ? 'Lo pusiste tú, así que se puede borrar del todo.'
+          : 'Viene del catálogo descargado. Lo que cambies se guarda aparte, y con Restaurar vuelve a ser el que vino.';
+      document.getElementById('recursoNombre').value = nuevo ? '' : nombreDeItem(item);
+      document.getElementById('recursoNivel').value = nuevo ? '' : (item.level ?? '');
+      document.getElementById('recursoTipo').value = nuevo ? '' : (item.type?.name ?? '');
+      // El nivel y el tipo solo se tocan en los propios: en uno descargado son
+      // los que trae el juego, y dejar cambiarlos sería enseñar datos falsos.
+      document.getElementById('recursoNivelCampo').hidden = !nuevo && !item.propio;
+      document.getElementById('recursoTipoCampo').hidden = !nuevo && !item.propio;
+      document.getElementById('recursoBorrar').hidden = nuevo;
+      document.getElementById('recursoRestaurar').hidden = nuevo || !!item.propio || !item.retocado;
+      document.getElementById('recursoEstado').textContent = '';
+      document.getElementById('recursoArchivo').value = '';
+      pintarLienzoRecurso();
+      document.getElementById('recursoBackdrop').hidden = false;
+      document.getElementById('recursoNombre').focus();
+    }
+
+    function cerrarEditorRecurso() {
+      document.getElementById('recursoBackdrop').hidden = true;
+      recursoEditando = null;
+      recursoImagen = '';
+    }
+
+    document.getElementById('nuevoRecurso').addEventListener('click', () => abrirEditorRecurso(null));
+    document.getElementById('recursoCancelar').addEventListener('click', cerrarEditorRecurso);
+
+    // La imagen se manda como data: y el servidor devuelve su ruta; lo que se
+    // guarda en el catálogo es la ruta, no la imagen.
+    document.getElementById('recursoArchivo').addEventListener('change', async (ev) => {
+      const archivo = ev.target.files && ev.target.files[0];
+      ev.target.value = '';
+      if (!archivo) return;
+      const estado = document.getElementById('recursoEstado');
+      try {
+        recursoImagen = await new Promise((resolver, fallar) => {
+          const lector = new FileReader();
+          lector.onload = () => resolver(lector.result);
+          lector.onerror = () => fallar(new Error('no se pudo leer el archivo'));
+          lector.readAsDataURL(archivo);
+        });
+        pintarLienzoRecurso();
+        // Sin nombre puesto, el del archivo sirve de punto de partida.
+        const campo = document.getElementById('recursoNombre');
+        if (!campo.value.trim()) campo.value = archivo.name.replace(/\.[^.]+$/, '').slice(0, 120);
+        estado.textContent = 'Imagen elegida. Dale a Guardar.';
+      } catch (e) {
+        estado.textContent = 'Error: ' + e.message;
+      }
+    });
+
+    document.getElementById('recursoGuardar').addEventListener('click', async () => {
+      const estado = document.getElementById('recursoEstado');
+      const nombre = document.getElementById('recursoNombre').value.trim();
+      if (!nombre) { estado.textContent = 'Hace falta un nombre.'; return; }
+      // Solo se manda la imagen si es nueva: una que ya estaba guardada llega
+      // como ruta, y volver a subirla dejaría una copia suelta en el disco.
+      const cuerpo = { nombre };
+      if (recursoImagen.startsWith('data:')) cuerpo.imagenDataUrl = recursoImagen;
+      const editando = recursoEditando;
+      if (!editando || editando.propio) {
+        cuerpo.nivel = document.getElementById('recursoNivel').value;
+        cuerpo.tipo = document.getElementById('recursoTipo').value;
+      }
+
+      try {
+        estado.textContent = 'Guardando…';
+        if (editando) {
+          await api('/api/catalogo/recurso/' + encodeURIComponent(editando.ankama_id), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cuerpo)
+          });
+        } else {
+          await api('/api/catalogo/recurso', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cuerpo)
+          });
+        }
+        cerrarEditorRecurso();
+        await loadItems();
+      } catch (e) {
+        estado.textContent = 'Error: ' + e.message;
+      }
+    });
+
+    document.getElementById('recursoBorrar').addEventListener('click', async () => {
+      if (!recursoEditando) return;
+      const item = recursoEditando;
+      const ok = await showConfirm(
+        'Borrar del catálogo',
+        '«' + nombreDeItem(item) + '» desaparece del catálogo: de la lista, del buscador y de los sorteos.'
+          + (item.propio
+            ? ' Lo pusiste tú, así que esto no se puede deshacer.'
+            : ' Viene del catálogo descargado, así que volverá si recargas el catálogo y lo restauras.'),
+        'Borrar',
+        true
+      );
+      if (!ok) return;
+      try {
+        await api('/api/catalogo/recurso/' + encodeURIComponent(item.ankama_id), { method: 'DELETE' });
+        cerrarEditorRecurso();
+        await loadItems();
+      } catch (e) {
+        document.getElementById('recursoEstado').textContent = 'Error: ' + e.message;
+      }
+    });
+
+    document.getElementById('recursoRestaurar').addEventListener('click', async () => {
+      if (!recursoEditando) return;
+      try {
+        await api('/api/catalogo/recurso/' + encodeURIComponent(recursoEditando.ankama_id) + '/restaurar', { method: 'POST' });
+        cerrarEditorRecurso();
+        await loadItems();
+      } catch (e) {
+        document.getElementById('recursoEstado').textContent = 'Error: ' + e.message;
+      }
+    });
+
+    // Escape lo cierra, como los demás cuadros.
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && !document.getElementById('recursoBackdrop').hidden) cerrarEditorRecurso();
+    });
 
     // --- Catálogo de objetos (equipables) --------------------------------
     // Vive aparte del de recursos a propósito: no se sortea, no se excluye y
@@ -8582,8 +8846,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     let premiosEditor = null;
     let premioEditando = -1;   // la casilla para la que se abrió el buscador
 
+    // Los multiplicadores que valen para editar son siempre los de los
+    // ajustes: plinko.multiplicadores se queda congelado con la ronda en
+    // cuanto hay tiradas, y entonces diria las casillas de antes.
+    function multiplicadoresVigentes() {
+      return plinko?.ajustes?.multiplicadores || plinko.multiplicadores || [];
+    }
+
     function premiosDeAjustes() {
-      const casillas = (plinko.multiplicadores || []).length;
+      const casillas = multiplicadoresVigentes().length;
       const guardados = plinko?.ajustes?.premios || [];
       return Array.from({ length: casillas }, (_, i) => ({
         nombre: guardados[i]?.nombre || '',
@@ -8618,7 +8889,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // se borraría lo tecleado en cada refresco.
       if (caja.contains(document.activeElement)) return;
       if (!premiosEditor) premiosEditor = premiosDeAjustes();
-      const casillas = (plinko.multiplicadores || []).length;
+      const casillas = multiplicadoresVigentes().length;
       if (premiosEditor.length !== casillas) premiosEditor = premiosDeAjustes();
 
       caja.innerHTML = '';
@@ -8774,7 +9045,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     function pintarPremiosEditor() {
       const caja = document.getElementById('plinkoPremios');
       if (!caja) return;
-      const multis = plinko.multiplicadores || [];
+      const multis = multiplicadoresVigentes();
       const editando = caja.contains(document.activeElement);
       if (editando) return;
       if (caja.childElementCount === multis.length
@@ -8840,32 +9111,32 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }, 'plinkoGuardado');
     });
 
-    // Y el tablero, desde Configuración: cambiar las filas rehace los premios.
-    document.getElementById('plinkoFilasGuardar').addEventListener('click', () => {
-      guardarAjustesPlinko({
-        filas: Number(document.getElementById('plinkoFilas').value) || 10
-      }, 'plinkoFilasGuardado');
-    });
-
+    // Y el tablero entero, desde Configuración, de un botón: las filas y lo
+    // que paga cada casilla van juntas. Si se han cambiado las filas, el
+    // servidor descarta las casillas de antes (ya no son las mismas) y las
+    // rehace; el editor se repinta después con lo que de verdad quedó.
     document.getElementById('plinkoPremiosGuardar').addEventListener('click', () => {
+      const cuerpo = { filas: Number(document.getElementById('plinkoFilas').value) || 10 };
       if (modoPlinko() === 'premios') {
         // Se manda lo que hay en el editor, que es lo que se ve.
-        guardarAjustesPlinko({ premios: premiosEditor || premiosDeAjustes() }, 'plinkoPremiosEstado');
+        cuerpo.premios = premiosEditor || premiosDeAjustes();
       } else {
-        guardarAjustesPlinko({ multiplicadores: multiplicadoresDelEditor() }, 'plinkoPremiosEstado');
+        cuerpo.multiplicadores = multiplicadoresDelEditor();
       }
+      guardarAjustesPlinko(cuerpo, 'plinkoPremiosEstado');
     });
 
     document.getElementById('plinkoPremiosDefecto').addEventListener('click', () => {
       if (modoPlinko() === 'premios') {
         // Vaciar las casillas, no rehacer multiplicadores: aqui «los de
         // siempre» no significa nada, porque los premios los pones tu.
-        premiosEditor = (plinko.multiplicadores || []).map(() => ({ nombre: '', imagen: '' }));
+        premiosEditor = multiplicadoresVigentes().map(() => ({ nombre: '', imagen: '' }));
         guardarAjustesPlinko({ premios: premiosEditor }, 'plinkoPremiosEstado');
         return;
       }
       // Una lista vacía: el servidor la completa con los de siempre para las
-      // filas que haya puestas.
+      // filas que haya guardadas. Aquí no se mandan las filas del formulario:
+      // esto es volver a los premios de siempre, no guardar el tablero.
       guardarAjustesPlinko({ multiplicadores: [] }, 'plinkoPremiosEstado');
     });
 
@@ -9525,10 +9796,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     function marcarCfgTocado(ev) {
       const campo = ev.target.closest('input, select, textarea');
       if (!campo || CFG_NO_CUENTAN.has(campo.id)) return;
-      // Qué reparte el tablero se guarda solo al elegirlo, y los premios tienen
-      // su propio botón: el Guardar de abajo no los toca, así que marcar la
-      // pestaña como pendiente por ellos sería mentir.
-      if (campo.id === 'plinkoModo' || campo.closest('#plinkoPremiosCosas')) return;
+      // El tablero de clavijas se guarda entero con su propio botón: las filas,
+      // lo que paga cada casilla y qué reparte. El Guardar de abajo no toca
+      // nada de eso (guarda la Carrera), así que marcar la pestaña como
+      // pendiente por el tablero sería mentir, y encendería el botón
+      // equivocado.
+      if (campo.closest('#mini-plinko-panel')) return;
       const panel = campo.closest('.cfg-tabpanel');
       const cual = panel && panel.id.replace('cfgtab-', '');
       if (!cual || !CFG_GUARDAR[cual]) return;
@@ -9538,6 +9811,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // La barra de abajo y el punto de cada pestana cuentan lo mismo: donde
     // queda algo sin guardar.
+    // Qué minijuego se está viendo dentro de Configuración › Minijuegos.
+    function subpanelMiniActivo() {
+      return document.querySelector('#cfgtab-minijuegos .cfg-mini-subtabs .subtab.active')?.dataset.mini || '';
+    }
+
     function pintarCfgGuardar() {
       const cual = cfgTabActiva();
       const fila = document.getElementById('cfgSaveRow');
@@ -9545,12 +9823,19 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const estado = document.getElementById('cfgStatus');
       const guardable = CFG_GUARDAR[cual];
       const sucia = cfgSucias.has(cual);
+      // En Minijuegos este Guardar es el de la Carrera: es lo único que
+      // guarda. Con el tablero de clavijas delante sobraba, porque el tablero
+      // tiene el suyo y verlos juntos confunde. Se queda si la Carrera tiene
+      // algo a medias, que entonces hay que poder guardarlo desde donde sea.
+      const estorba = cual === 'minijuegos' && subpanelMiniActivo() !== 'carrera' && !sucia;
 
-      boton.hidden = !guardable;
+      boton.hidden = !guardable || estorba;
       document.getElementById('cfgReset').hidden = cual !== 'aspecto';
       fila.classList.toggle('sucio', sucia);
       boton.disabled = !sucia;
-      if (!guardable) {
+      if (estorba) {
+        estado.textContent = '';
+      } else if (!guardable) {
         estado.textContent = cual === 'datos'
           ? 'Los ratios se guardan solos mientras los escribes.'
           : '';
@@ -9632,6 +9917,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           .forEach((panel) => {
             panel.classList.toggle('active', panel.id === `mini-${cual}-panel`);
           });
+        // La barra de abajo no sirve para todos: se repinta al cambiar.
+        pintarCfgGuardar();
       });
     });
 
@@ -10039,6 +10326,43 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // Al salir de Configuración se corta la animación de prueba.
         else cancelarPrevisualizacion();
       });
+    });
+
+    // --- El menu de la sesion -------------------------------------------
+    // Configuracion ya no esta en la barra: cuelga del avatar. El boton de
+    // Configuracion es una .tab normal, asi que su clic lo atiende el codigo
+    // de arriba; aqui solo se abre y se cierra el menu.
+    const menuSesion = document.getElementById('userMenu');
+    const menuSesionBoton = document.getElementById('userMenuBoton');
+
+    function cerrarMenuSesion(devolverFoco) {
+      if (menuSesion.hidden) return;
+      menuSesion.hidden = true;
+      menuSesionBoton.setAttribute('aria-expanded', 'false');
+      if (devolverFoco) menuSesionBoton.focus();
+    }
+
+    menuSesionBoton.addEventListener('click', () => {
+      const abierto = !menuSesion.hidden;
+      menuSesion.hidden = abierto;
+      menuSesionBoton.setAttribute('aria-expanded', String(!abierto));
+      // Abierto, el teclado entra directo en la primera opcion.
+      if (!abierto) menuSesion.querySelector('.menu-item')?.focus();
+    });
+
+    // Cualquier opcion cierra el menu. Va en captura porque el de
+    // Configuracion tiene su propio clic, que puede tardar (pregunta antes de
+    // dejar ajustes a medias) y no queremos el menu abierto mientras tanto.
+    menuSesion.addEventListener('click', (ev) => {
+      if (ev.target.closest('.menu-item')) cerrarMenuSesion(false);
+    }, true);
+
+    // Pulsar fuera o Escape lo cierra, como cualquier menu.
+    document.addEventListener('click', (ev) => {
+      if (!ev.target.closest('#userTab')) cerrarMenuSesion(false);
+    });
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') cerrarMenuSesion(true);
     });
 
     // Cerrar la pagina con ajustes a medias: el aviso del navegador. No se

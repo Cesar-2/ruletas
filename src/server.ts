@@ -10,6 +10,7 @@ import * as estadisticas from './estadisticas';
 import * as batalla from './batalla';
 import * as colina from './colina';
 import * as ruletachat from './ruletachat';
+import * as catalogo from './catalogo';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -133,6 +134,23 @@ function juegoDir(uid: string, juego: juegos.Juego): string {
 // Las exclusiones son del juego entero, no de un servidor suyo.
 function exclusionsFile(uid: string, juego: juegos.Juego): string {
   return path.join(juegoDir(uid, juego), 'exclusions.json');
+}
+
+// Los retoques del catalogo (anadidos, cambios y borrados) van al lado de las
+// exclusiones y por el mismo motivo: son del juego entero, porque un mismo
+// ankama_id no es el mismo objeto en un juego y en otro.
+function retoquesFile(uid: string, juego: juegos.Juego): string {
+  return path.join(juegoDir(uid, juego), 'catalogo.json');
+}
+
+function leerRetoques(uid: string, juego: juegos.Juego): catalogo.Retoques {
+  return catalogo.leer(retoquesFile(uid, juego));
+}
+
+function guardarRetoques(uid: string, juego: juegos.Juego, r: catalogo.Retoques): void {
+  const dir = juegoDir(uid, juego);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  writeJson(retoquesFile(uid, juego), r);
 }
 
 // Todo lo que habia antes (servers.json, servers/, exclusions.json) era de un
@@ -485,7 +503,7 @@ function juegoDe(req: Request): juegos.Juego {
 // Un catalogo de objetos: se baja una vez y se deja en disco, que son varios
 // miles y no cambian de un dia para otro. De donde se baja y como se traduce al
 // formato comun lo decide juegos.ts, asi que aqui da igual de que juego sea.
-async function fetchCatalogCached(juego: juegos.Juego, familia: juegos.Familia): Promise<any[]> {
+async function fetchCatalogBruto(juego: juegos.Juego, familia: juegos.Familia): Promise<any[]> {
   ensureDataDir();
   const file = catalogoFile(juego, familia);
   const que = `${familia} de ${juego}`;
@@ -531,9 +549,65 @@ async function fetchCatalogCached(juego: juegos.Juego, familia: juegos.Familia):
   }
 }
 
+// El catalogo de un juego tal como esta en disco, sin bajar nada. Se usa para
+// traducir Touch: pedir el catalogo de Dofus de verdad obligaria a una
+// descarga en una peticion que no es suya, y si no esta bajado, no se traduce
+// y ya esta.
+function catalogoDeDisco(juego: juegos.Juego, familia: juegos.Familia): any[] {
+  try {
+    const f = catalogoFile(juego, familia);
+    if (!fs.existsSync(f)) return [];
+    const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.error('Failed to read catalog from disk:', err);
+    return [];
+  }
+}
+
+// Los recursos de Touch, ya traducidos, guardados en memoria. Recorrer los
+// 3639 de Dofus en cada peticion seria tonto: se rehace solo si alguno de los
+// dos archivos ha cambiado en disco.
+let touchTraducido: { sello: string; items: any[] } | null = null;
+
+function selloDe(juego: juegos.Juego, familia: juegos.Familia): string {
+  try {
+    return String(fs.statSync(catalogoFile(juego, familia)).mtimeMs);
+  } catch {
+    return '0';
+  }
+}
+
+// Touch se sirve en espanol siempre que se pueda, emparejando por ankama_id
+// con el catalogo de Dofus. Lo de fuera no se entera: le llega el mismo
+// formato de siempre, con los nombres ya cambiados.
+async function fetchCatalogCached(juego: juegos.Juego, familia: juegos.Familia): Promise<any[]> {
+  const items = await fetchCatalogBruto(juego, familia);
+  if (juego !== 'touch' || familia !== 'resources' || !items.length) return items;
+
+  const sello = selloDe('touch', 'resources') + '|' + selloDe(juegos.JUEGO_POR_DEFECTO, 'resources');
+  if (touchTraducido?.sello === sello) return touchTraducido.items;
+
+  const deDofus = catalogoDeDisco(juegos.JUEGO_POR_DEFECTO, 'resources');
+  const traducidos = juegos.traducirRecursos(items, deDofus);
+  touchTraducido = { sello, items: traducidos };
+  if (deDofus.length) {
+    console.log(`Touch en espanol: ${juegos.cuantosTraducidos(traducidos)} de ${traducidos.length} recursos`);
+  }
+  return traducidos;
+}
+
 // Lo que se sortea.
 async function fetchItemsCached(juego: juegos.Juego): Promise<any[]> {
   return fetchCatalogCached(juego, 'resources');
+}
+
+// Lo que se sortea, tal como lo ve UN usuario: el catalogo descargado con sus
+// retoques encima. Todo lo que mire recursos pasa por aqui (la pagina, el
+// sorteo y los canjes de Twitch), que si no se podria sortear un objeto que el
+// usuario habia borrado.
+async function itemsDe(uid: string, juego: juegos.Juego): Promise<any[]> {
+  return catalogo.aplicar(await fetchItemsCached(juego), leerRetoques(uid, juego));
 }
 
 // Los equipables: catalogo aparte, que no toca al sorteo.
@@ -1391,11 +1465,135 @@ app.get('/api/img/touch/:tamano/:archivo', async (req: Request, res: Response) =
 app.get('/api/items', async (req: Request, res: Response) => {
   try {
     const juego = juegoDe(req);
-    const items = await fetchItemsCached(juego);
+    const items = await itemsDe(requireUid(req), juego);
     res.json({ count: items.length, items, juego, aviso: juegos.AVISOS[juego] });
   } catch (err) {
     res.status(500).json({ error: 'failed to get items' });
   }
+});
+
+// --- Retocar el catalogo -------------------------------------------------
+// Anadir, renombrar, cambiar la imagen y borrar recursos. Nada de esto toca el
+// catalogo descargado: se guarda aparte, por usuario y juego, y se aplica
+// encima al servir. Ver catalogo.ts.
+
+// POST /api/catalogo/recurso  Body: { nombre, imagenDataUrl?, imagen?, nivel?, tipo?, descripcion? }
+app.post('/api/catalogo/recurso', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const juego = juegoDe(req);
+  const body = req.body || {};
+  const nombre = String(body.nombre ?? '').trim();
+  if (!nombre) return res.status(400).json({ error: 'hace falta un nombre' });
+
+  let imagen = String(body.imagen ?? '').trim();
+  if (body.imagenDataUrl) {
+    const guardada = guardarImagen(body.imagenDataUrl, 'recurso');
+    if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
+    imagen = guardada.url || '';
+  }
+
+  try {
+    const r = leerRetoques(uid, juego);
+    const item = catalogo.nuevoRecurso(catalogo.siguienteId(r), {
+      nombre, imagen, nivel: body.nivel, tipo: body.tipo, descripcion: body.descripcion
+    });
+    r.nuevos.push(item);
+    guardarRetoques(uid, juego, r);
+    res.json({ item });
+  } catch (err) {
+    console.error('Failed to add resource:', err);
+    res.status(500).json({ error: 'failed to add resource' });
+  }
+});
+
+// PATCH /api/catalogo/recurso/:id  Body: { nombre?, imagenDataUrl?, imagen? }
+// Vale para los descargados y para los propios. En un descargado el cambio se
+// guarda aparte, asi que se puede deshacer sin volver a bajar nada.
+app.patch('/api/catalogo/recurso/:id', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const juego = juegoDe(req);
+  const id = String(req.params.id || '').trim();
+  if (!id) return res.status(400).json({ error: 'falta el objeto' });
+  const body = req.body || {};
+
+  let imagen = typeof body.imagen === 'string' ? body.imagen.trim() : undefined;
+  if (body.imagenDataUrl) {
+    const guardada = guardarImagen(body.imagenDataUrl, 'recurso');
+    if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
+    imagen = guardada.url || '';
+  }
+
+  try {
+    const r = leerRetoques(uid, juego);
+    // Un objeto propio se cambia en su sitio: no tiene original al que volver,
+    // asi que guardar el cambio aparte solo seria un rodeo.
+    const propio = r.nuevos.find((n: any) => String(n?.ankama_id) === id);
+    if (propio) {
+      if (typeof body.nombre === 'string' && body.nombre.trim()) propio.name = body.nombre.trim().slice(0, 120);
+      if (imagen) propio.image_urls = { icon: imagen, sd: imagen, hq: imagen, hd: imagen };
+    } else {
+      const cambio = { ...(r.cambios[id] || {}) };
+      if (typeof body.nombre === 'string' && body.nombre.trim()) cambio.name = body.nombre.trim().slice(0, 120);
+      if (imagen) cambio.imagen = imagen.slice(0, 500);
+      // Sin nada dentro no se guarda: un cambio vacio es no haber cambiado nada.
+      if (Object.keys(cambio).length) r.cambios[id] = cambio;
+      else delete r.cambios[id];
+    }
+    guardarRetoques(uid, juego, r);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to edit resource:', err);
+    res.status(500).json({ error: 'failed to edit resource' });
+  }
+});
+
+// DELETE /api/catalogo/recurso/:id -> fuera del catalogo entero
+// No es lo mismo que excluir: excluido se sigue viendo y sale en su pestana;
+// borrado desaparece. Lo propio se borra de verdad; lo descargado se apunta en
+// la lista de borrados, porque el catalogo vuelve a traerlo al actualizar.
+app.delete('/api/catalogo/recurso/:id', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const juego = juegoDe(req);
+  const id = String(req.params.id || '').trim();
+  if (!id) return res.status(400).json({ error: 'falta el objeto' });
+
+  try {
+    const r = leerRetoques(uid, juego);
+    const antes = r.nuevos.length;
+    r.nuevos = r.nuevos.filter((n: any) => String(n?.ankama_id) !== id);
+    const eraPropio = r.nuevos.length !== antes;
+    if (!eraPropio && !r.borrados.includes(id)) r.borrados.push(id);
+    // Un objeto que ya no esta no necesita que le guarden cambios.
+    delete r.cambios[id];
+    guardarRetoques(uid, juego, r);
+    res.json({ ok: true, propio: eraPropio });
+  } catch (err) {
+    console.error('Failed to delete resource:', err);
+    res.status(500).json({ error: 'failed to delete resource' });
+  }
+});
+
+// POST /api/catalogo/recurso/:id/restaurar -> deshacer el borrado o los cambios
+// de un objeto descargado, que vuelve a ser el que trajo la descarga.
+app.post('/api/catalogo/recurso/:id/restaurar', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const juego = juegoDe(req);
+  const id = String(req.params.id || '').trim();
+  try {
+    const r = leerRetoques(uid, juego);
+    r.borrados = r.borrados.filter((x) => x !== id);
+    delete r.cambios[id];
+    guardarRetoques(uid, juego, r);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to restore resource:', err);
+    res.status(500).json({ error: 'failed to restore resource' });
+  }
+});
+
+// GET /api/catalogo/retoques -> que hay retocado en este juego
+app.get('/api/catalogo/retoques', (req: Request, res: Response) => {
+  res.json(leerRetoques(requireUid(req), juegoDe(req)));
 });
 
 // Los cosmeticos: lo que solo cambia la pinta. Como los equipables, son de
@@ -1889,7 +2087,7 @@ app.get('/api/random-items', async (req: Request, res: Response) => {
   try {
     // El juego lo dice la peticion, y el ambito de mas abajo sale del mismo
     // juego, asi que exclusiones y rarezas son siempre las de este catalogo.
-    const all = await fetchItemsCached(juegoDe(req));
+    const all = await itemsDe(requireUid(req), juegoDe(req));
     if (all.length === 0) return res.status(500).json({ error: 'no items available' });
 
     // Participan todos menos los excluidos.
@@ -1953,7 +2151,7 @@ app.post('/api/draw', async (req: Request, res: Response) => {
   const itemsCount = typeof body.itemsCount === 'number' && body.itemsCount > 0 ? Math.floor(body.itemsCount) : 1;
 
   try {
-    const items = await fetchItemsCached(juegoDe(req));
+    const items = await itemsDe(requireUid(req), juegoDe(req));
     if (items.length === 0) return res.status(500).json({ error: 'no items available for draw' });
     const selectedItems = shuffle(items).slice(0, Math.min(itemsCount, items.length));
 
@@ -1980,7 +2178,7 @@ async function sortearParaTwitch(uid: string, sid: string, nombre: string, n: nu
   // Los canjes se configuran por servidor, no por juego, asi que sortean del de
   // siempre. Para sortear de otro juego harian falta canjes por juego.
   const ambito = `${uid}/${juegos.JUEGO_POR_DEFECTO}/${sid}`;
-  const todos = await fetchItemsCached(juegos.JUEGO_POR_DEFECTO);
+  const todos = await itemsDe(uid, juegos.JUEGO_POR_DEFECTO);
   const excluidos = new Set(readExclusions(ambito));
   const disponibles = todos.filter((it) => !excluidos.has(getItemId(it)));
   if (!disponibles.length) throw new Error('no quedan objetos que sortear');
