@@ -403,3 +403,42 @@ test('el vídeo del doble o nada también sale de un solo sitio', () => {
     assert.ok(texto.includes('CintaNombres.animacion'), p + ' usa el compartido');
   }
 });
+
+test('doblar dos veces vuelve a poner el vídeo desde cero', async () => {
+  // Doblar dos veces seguidas pide el MISMO archivo las dos veces (ganar.mp4 si
+  // se gana). Reasignar src con el mismo valor no garantiza que el vídeo vuelva a
+  // empezar: el elemento se quedó en «acabado». Por eso se llama a load().
+  const veces = [];
+  const caja = { hidden: true };
+  const video = {
+    src: '',
+    onplaying: null, onended: null, onerror: null,
+    load() { veces.push(this.src); },
+    play() { return { catch: () => {} }; },
+    pause() {}
+  };
+
+  const una = Cinta.animacion(caja, video, 'ganar');
+  video.onplaying();
+  video.onended();
+  await una;
+
+  const dos = Cinta.animacion(caja, video, 'ganar');
+  video.onplaying();
+  assert.strictEqual(caja.hidden, false, 'la segunda vez también tapa');
+  video.onended();
+  await dos;
+
+  assert.deepStrictEqual(veces, ['/assets/ganar.mp4', '/assets/ganar.mp4'],
+    'se reinicia el vídeo las DOS veces, no solo la primera');
+});
+
+test('sin load() en el elemento no revienta', async () => {
+  // Por si algún día se le pasa algo que no es un <video> de verdad.
+  const caja = { hidden: true };
+  const video = { src: '', onplaying: null, onended: null, onerror: null,
+    play: () => ({ catch: () => {} }), pause: () => {} };
+  const fin = Cinta.animacion(caja, video, 'ganar');
+  video.onended();
+  await fin;
+});

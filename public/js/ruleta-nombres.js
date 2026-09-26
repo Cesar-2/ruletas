@@ -187,6 +187,12 @@
       // el sorteo colgado en mitad del directo.
       const seguro = setTimeout(fin, SEGURO_VIDEO);
       video.src = '/assets/' + (cual === 'perder' ? 'perder' : 'ganar') + '.mp4';
+      // load() a mano, y aquí está el porqué: doblar dos veces seguidas pide el
+      // MISMO archivo las dos veces (ganar.mp4 si se gana). Reasignar src con el
+      // mismo valor no garantiza que el vídeo vuelva a empezar: el elemento se
+      // quedó en «acabado», y según el navegador puede no recargar nada, así que
+      // la segunda vez no se veía. load() lo deja a cero siempre.
+      if (typeof video.load === 'function') video.load();
       const promesa = video.play();
       if (promesa && promesa.catch) promesa.catch(fin);
     });
