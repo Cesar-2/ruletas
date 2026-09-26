@@ -13,6 +13,7 @@ import * as ruletachat from './ruletachat';
 import * as catalogo from './catalogo';
 import * as widget from './widget';
 import * as avisos from './avisos';
+import * as json from './json';
 import * as arte from './arte';
 import * as minijuegos from './rutas/minijuegos';
 import fs from 'fs';
@@ -109,11 +110,13 @@ function ensureDataDir() {
 // Guardar un JSON sin poder dejarlo a medias: se escribe entero en un archivo
 // temporal y se renombra encima, que es una operacion atomica. Si el proceso
 // muere en mitad de la escritura, el archivo bueno sigue intacto.
+// Toda escritura de datos pasa por aqui, tambien la de los minijuegos, que la
+// reciben como dependencia. Por eso json.ts puede dar por hecho que lo que
+// guarda deja de valer en cuanto alguien escribe. Ver json.ts.
 function writeJson(file: string, data: unknown): void {
-  const temporal = `${file}.tmp`;
-  fs.writeFileSync(temporal, JSON.stringify(data, null, 2), 'utf8');
-  fs.renameSync(temporal, file);
+  json.escribir(file, data);
 }
+
 
 function userDir(uid: string): string {
   return path.join(USERS_DIR, uid);
@@ -372,12 +375,22 @@ function leerCookie(req: Request, nombre: string): string {
 }
 
 // Usuario de la peticion, o cadena vacia si no hay sesion valida.
+// Quien pregunta. Se llama en cada peticion (el middleware) y otra vez dentro
+// del handler (requireUid), asi que va por el cachito y no al disco: lo que
+// devuelve es de solo mirar y esta congelado. Ver json.ts.
 function usuarioDe(req: Request): User | null {
   const token = leerCookie(req, COOKIE_NAME);
   if (!token) return null;
-  const ses = readSessions()[token];
+  ensureDataDir();
+  const sesiones = json.leer<Record<string, Session>>(SESSIONS_FILE);
+  const ses = sesiones && !Array.isArray(sesiones) ? sesiones[token] : undefined;
   if (!ses || ses.expiresAt < Date.now()) return null;
-  const user = readUsers().find((u) => u.id === ses.uid) || null;
+  const guardados = json.leer<{ users?: User[] } | User[]>(USERS_FILE);
+  const lista = Array.isArray(guardados) ? guardados : (guardados?.users || []);
+  // La misma comprobacion que hace readUsers: una linea a medias en el archivo
+  // no puede colarse como una cuenta, que de ahi salen usuarios sin nombre.
+  const user = lista.find((u) =>
+    u && typeof u.id === 'string' && typeof u.username === 'string' && u.id === ses.uid) || null;
   // Quitar el acceso surte efecto ya: la sesion que tuviera abierta deja de
   // valer sin esperar a que caduque la cookie.
   return user && !user.bloqueado ? user : null;
