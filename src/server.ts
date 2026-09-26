@@ -15,6 +15,7 @@ import * as widget from './widget';
 import * as avisos from './avisos';
 import * as json from './json';
 import * as arte from './arte';
+import * as sorteo from './sorteo';
 import * as minijuegos from './rutas/minijuegos';
 import fs from 'fs';
 import path from 'path';
@@ -1704,6 +1705,28 @@ app.get('/api/widget/colina', (req: Request, res: Response) => {
   }
 });
 
+// POST /api/sorteo/olvidar -> tira el ultimo sorteo
+// La pagina lo llama al descartar el resultado: si no, el widget seguiria
+// ensenando un premio que ya no esta en pantalla.
+app.post('/api/sorteo/olvidar', (req: Request, res: Response) => {
+  sorteo.olvidar(requireUid(req));
+  res.json({ ok: true });
+});
+
+// GET /api/widget/sorteo?clave= -> el ultimo sorteo de la ruleta de objetos
+app.get('/api/widget/sorteo', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  try {
+    // null cuando no hay ninguno: el widget no ensena nada y se queda
+    // transparente, que es lo que se quiere encima del directo.
+    res.json({ sorteo: sorteo.estado(uid), ahora: Date.now() });
+  } catch (err) {
+    console.error('Failed to serve sorteo widget:', err);
+    res.status(500).json({ error: 'failed to get widget state' });
+  }
+});
+
 // GET /api/widget/nombres?clave=
 app.get('/api/widget/nombres', (req: Request, res: Response) => {
   const uid = widget.uidDe(req.query?.clave);
@@ -2370,13 +2393,40 @@ app.get('/api/random-items', async (req: Request, res: Response) => {
     for (const it of items) montones[(tags[getItemId(it)] as Rarity) || 'common'].push(it);
     for (const r of RARITIES) montones[r] = shuffle(montones[r]);
 
+    // Lo que se hace en los dos caminos (con ratios y sin ellos): apuntar la
+    // partida, quedarse con el resultado para el widget de OBS, y contestar.
+    //
+    // La ruleta de objetos no dejaba rastro: se sorteaba y se acababa, asi que la
+    // superposicion no tenia nada que ensenar. Ahora se guarda. Con `quien` y
+    // `duracion` la pagina dice a nombre de quien va y cuanto va a estar
+    // girando; sin ellos se guarda igual, solo que sale al momento.
+    const contestar = (selected: any[]) => {
+      const uid = requireUid(req);
+      estadisticas.apuntar('sorteo', uid);
+      const aCosa = (it: any) => ({
+        id: getItemId(it),
+        nombre: it?.name?.es ?? it?.name ?? '',
+        imagen: it?.image_urls?.icon || it?.image_urls?.sd || '',
+        rareza: tags[getItemId(it)] || 'common'
+      });
+      const salen = new Set(selected.map((it) => getItemId(it)));
+      sorteo.guardar(uid, {
+        quien: req.query?.quien,
+        duracion: req.query?.duracion,
+        cosas: selected.map(aCosa),
+        // El relleno de la tragaperras: otros objetos del mismo catalogo, para
+        // que dando vueltas no se vean solo los premios y se adivine el
+        // resultado antes de parar.
+        relleno: shuffle(items.filter((it) => !salen.has(getItemId(it)))).slice(0, 24).map(aCosa)
+      });
+      res.json({ count: selected.length, items: selected });
+    };
+
     // Con todos los ratios a cero no hay nada que respetar: se sortea plano,
     // como se hacia antes de que los colores contaran.
     const sumaRatios = RARITIES.reduce((s, r) => s + ratios[r], 0);
     if (sumaRatios <= 0) {
-      const selected = shuffle(items).slice(0, cuantos);
-      estadisticas.apuntar('sorteo', requireUid(req));
-      return res.json({ count: selected.length, items: selected });
+      return contestar(shuffle(items).slice(0, cuantos));
     }
 
     const selected: any[] = [];
@@ -2400,8 +2450,7 @@ app.get('/api/random-items', async (req: Request, res: Response) => {
         selected.push(montones[resto[Math.floor(Math.random() * resto.length)]].pop());
       }
     }
-    estadisticas.apuntar('sorteo', requireUid(req));
-    res.json({ count: selected.length, items: selected });
+    contestar(selected);
   } catch (err) {
     res.status(500).json({ error: 'failed to select random items' });
   }
@@ -2547,6 +2596,11 @@ estadisticas.iniciar({ archivo: () => path.join(DATA_DIR, 'estadisticas.json'), 
 widget.iniciar({ archivo: () => path.join(DATA_DIR, 'widgets.json'), writeJson });
 // El arte de Dofus sale de la carpeta de datos de cada instalacion.
 arte.iniciar({ assetsDir: () => ASSETS_DIR });
+// La ruleta de objetos guarda su ultimo sorteo para el widget de OBS.
+sorteo.iniciar({
+  userDir, ensureUserDir, writeJson,
+  alCambiar: (uid) => avisos.cambio(uid, 'sorteo')
+});
 // Y lo que las rutas de los minijuegos necesitan de aqui y no se pudo llevar.
 minijuegos.iniciar({ requireUid, canalDe, guardarImagen });
 // El rey de la colina no reparte nada: solo guarda su palabra y su record.
@@ -2575,7 +2629,8 @@ function rehacerRondasVivas(): void {
     ['plinko', plinko.rehacer],
     ['batalla', batalla.rehacer],
     ['colina', colina.rehacer],
-    ['nombres', ruletachat.rehacer]
+    ['nombres', ruletachat.rehacer],
+    ['sorteo', sorteo.rehacer]
   ];
   for (const u of readUsers()) {
     for (const [nombre, rehacer] of cuales) {

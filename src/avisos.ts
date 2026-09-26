@@ -13,9 +13,9 @@
 // armar la misma respuesta, que es como se acaba enseñando una cosa en la
 // pagina y otra en el widget.
 
-export type Juego = 'carrera' | 'plinko' | 'batalla' | 'colina' | 'nombres';
+export type Juego = 'carrera' | 'plinko' | 'batalla' | 'colina' | 'nombres' | 'sorteo';
 
-export const JUEGOS: Juego[] = ['carrera', 'plinko', 'batalla', 'colina', 'nombres'];
+export const JUEGOS: Juego[] = ['carrera', 'plinko', 'batalla', 'colina', 'nombres', 'sorteo'];
 
 type Oyente = (juego: Juego) => void;
 

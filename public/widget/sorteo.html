@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ruleta de objetos · widget</title>
+<link rel="icon" href="data:," />
+<!--
+  El widget de la ruleta de siempre, la de objetos.  /widget/sorteo.html?clave=XXXX
+
+  Aquí decide el servidor: el sorteo lo hace /api/random-items con sus rarezas y
+  sus exclusiones, y esto solo enseña lo que salió. Antes se sorteaba y se
+  acababa sin dejar rastro, así que la superposición no tenía nada que contar.
+
+  Mientras gira se ve la tragaperras dando vueltas con objetos del catálogo, y al
+  parar salen los premios y a quién le tocan.
+
+  Lo que da vueltas mientras gira es RELLENO: otros objetos del mismo catálogo
+  que el servidor manda aparte. Los premios de verdad no se mandan hasta que la
+  animación termina, así que tener esta dirección no destripa el resultado.
+-->
+<link rel="stylesheet" href="/css/widget.css" />
+<style>
+  .premios {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .7rem;
+    justify-content: center;
+    max-width: 46rem;
+  }
+  .premio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    width: 8.6rem;
+    padding: .6rem .4rem;
+    border-radius: 12px;
+    background: rgba(9, 15, 28, 0.55);
+    border: 2px solid rgba(255, 255, 255, 0.18);
+  }
+  /* Los mismos colores de rareza que la página, para que el premio se vea igual
+     en el panel y en la superposición. */
+  .premio.common { border-color: #a8b8cc }
+  .premio.rare   { border-color: #3b82f6 }
+  .premio.epic   { border-color: #a855f7 }
+  .premio.mythic { border-color: #ef4444 }
+  .premio img { width: 4.4rem; height: 4.4rem; object-fit: contain }
+  .premio .nombre { font-size: .85rem; text-align: center; line-height: 1.2 }
+
+  /* La tragaperras. Un solo rodillo con las imágenes cambiando: no se intenta
+     copiar la de la página (varios rodillos, con su pool y sus tiempos), porque
+     para eso el widget necesitaría el catálogo entero. Lo que se busca es que se
+     vea que está girando. */
+  .tragaperras {
+    display: flex;
+    gap: .7rem;
+    justify-content: center;
+  }
+  .rodillo {
+    width: 6rem;
+    height: 6rem;
+    border-radius: 12px;
+    background: rgba(9, 15, 28, 0.55);
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .rodillo img {
+    width: 4.4rem;
+    height: 4.4rem;
+    object-fit: contain;
+    transition: opacity .09s linear;
+  }
+  .girando-texto { margin-top: .6rem; text-align: center; font-size: 1.1rem; opacity: .85 }
+</style>
+</head>
+<body>
+  <div id="todo">
+    <div class="panel" id="panelGira" hidden>
+      <div class="tragaperras" id="rodillos"></div>
+      <div class="girando-texto">Sorteando…</div>
+    </div>
+    <div class="panel" id="panelPremio" hidden>
+      <div class="cifra" id="quien"></div>
+      <div class="rotulo" id="rotulo"></div>
+      <div class="premios" id="premios"></div>
+    </div>
+  </div>
+  <div id="espera" hidden>Widget conectado · esperando a que sortees</div>
+  <div id="fallo" hidden></div>
+
+  <script src="/js/eventos.js"></script>
+  <script src="/js/widget-base.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const q = Widget.caja;
+
+    // Cada cuánto cambia la imagen de un rodillo. Lo mismo que la página.
+    const RITMO = 220;
+    // Cuántos rodillos se ven girando. Ni uno (soso) ni tantos que no quepan.
+    const RODILLOS = 3;
+
+    // De qué sorteo es la tragaperras que está puesta, para no volver a montarla
+    // en cada aviso. «cuando» es distinto en cada sorteo, así que sirve de nombre.
+    let giraDe = '';
+    let reloj = null;
+
+    function pararRodillos() {
+      if (reloj) { clearInterval(reloj); reloj = null; }
+      giraDe = '';
+    }
+
+    function montarRodillos(s) {
+      const pool = (s.relleno || []).filter((c) => c.imagen);
+      const caja = q('rodillos');
+      caja.innerHTML = '';
+      if (!pool.length) return false;
+
+      const imgs = [];
+      for (let i = 0; i < RODILLOS; i++) {
+        const d = document.createElement('div');
+        d.className = 'rodillo';
+        const img = document.createElement('img');
+        img.alt = '';
+        img.src = pool[Math.floor(Math.random() * pool.length)].imagen;
+        d.appendChild(img);
+        caja.appendChild(d);
+        imgs.push(img);
+      }
+
+      if (reloj) clearInterval(reloj);
+      reloj = setInterval(() => {
+        // Uno cada vez, no todos a la vez: así parece que giran a su ritmo.
+        const img = imgs[Math.floor(Math.random() * imgs.length)];
+        const cosa = pool[Math.floor(Math.random() * pool.length)];
+        img.style.opacity = '0';
+        setTimeout(() => {
+          img.src = cosa.imagen;
+          img.style.opacity = '1';
+        }, 90);
+      }, RITMO);
+      return true;
+    }
+
+    function pintarPremios(s) {
+      const caja = q('premios');
+      caja.innerHTML = '';
+      for (const c of s.cosas || []) {
+        const d = document.createElement('div');
+        d.className = 'premio ' + (c.rareza || 'common');
+        if (c.imagen) {
+          const img = document.createElement('img');
+          img.src = c.imagen;
+          img.alt = '';
+          d.appendChild(img);
+        }
+        const n = document.createElement('div');
+        n.className = 'nombre';
+        n.textContent = c.nombre;
+        d.appendChild(n);
+        caja.appendChild(d);
+      }
+    }
+
+    Widget.arranca({
+      ruta: 'sorteo',
+      pinta(e) {
+        const s = e.sorteo;
+        if (!s) {
+          pararRodillos();
+          q('panelGira').hidden = true;
+          q('panelPremio').hidden = true;
+          return false;
+        }
+
+        if (s.girando) {
+          q('panelPremio').hidden = true;
+          if (giraDe !== s.cuando) {
+            if (montarRodillos(s)) giraDe = s.cuando;
+          }
+          q('panelGira').hidden = false;
+          return true;
+        }
+
+        // Ha parado: fuera la tragaperras y salen los premios.
+        pararRodillos();
+        q('panelGira').hidden = true;
+        if (!s.cosas || !s.cosas.length) { q('panelPremio').hidden = true; return false; }
+
+        // Sin nombre escrito se anuncia el sorteo sin dueño, que es lo que hace
+        // la página: «3 recurso(s) sorteado(s)».
+        q('quien').textContent = s.quien || (s.cosas.length + (s.cosas.length === 1 ? ' recurso' : ' recursos'));
+        q('rotulo').textContent = s.quien
+          ? (s.cosas.length === 1 ? 'se lleva' : 'se lleva ' + s.cosas.length)
+          : 'sorteados';
+        pintarPremios(s);
+        q('panelPremio').hidden = false;
+        return true;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

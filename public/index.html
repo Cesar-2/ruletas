@@ -4993,11 +4993,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // partida en el servidor (se resuelve y se acabó), así que no hay nada
     // vivo que mirar desde fuera.
     const WIDGETS = [
+      { id: 'sorteo', nombre: '🎡 Ruleta de objetos' },
       { id: 'plinko', nombre: '🎯 Tablero de clavijas' },
       { id: 'carrera', nombre: '🏁 Carrera de balineras' },
       { id: 'batalla', nombre: '⚔️ Batalla Dofus' },
       { id: 'colina', nombre: '👑 Rey de la colina' },
-      { id: 'nombres', nombre: '🎡 Ruleta de nombres', aviso: 'Enseña quién se va apuntando; el resultado del sorteo no se guarda en el servidor, así que no se puede pintar aquí.' }
+      { id: 'nombres', nombre: '🎰 Ruleta de nombres' }
     ];
 
     function urlWidget(cual) {
@@ -5643,6 +5644,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     function descartarSorteo() {
       lastDrawItems = [];
       itemValues = {};
+      // El widget de OBS también deja de enseñarlo: si no, se quedaría con un
+      // premio que ya no está en pantalla.
+      api('/api/sorteo/olvidar', { method: 'POST' }).catch(() => {});
       sorteoGuardado = true;   // ya no hay nada pendiente que avisar
       bloquearNombreGanador(false);
       document.getElementById('randomResult').innerHTML = '';
@@ -8952,7 +8956,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       try {
         // El servidor ya descarta los excluidos guardados en /api/exclusions.
-        const dataPromise = api('/api/random-items?n=' + n)
+        //
+        // Se le dice a nombre de quién va y cuánto va a estar girando, para que
+        // el widget de OBS pueda contarlo: mientras gira enseña la tragaperras y
+        // al parar saca el premio. El servidor no suelta lo que ha salido hasta
+        // que pasa ese tiempo, así que el widget no lo destripa.
+        const giro = settings.animation !== 'none' ? 5000 : 0;
+        const dataPromise = api('/api/random-items?n=' + n
+            + '&quien=' + encodeURIComponent(winner)
+            + '&duracion=' + giro)
           .then((data) => { revealDrawWinners(data.items || []); return data; });
         // Sin animación no hay nada que mirar: se salta la espera.
         if (settings.animation !== 'none') {
@@ -9377,7 +9389,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           seVa,
           ganador: seVa ? (resta.length === 1 ? resta[0] : '') : nombres[elegido],
           quedan: resta.length,
-          duracion: GIRO_NOMBRES + 200
+          duracion: GIRO_NOMBRES + 200,
+          // La lista y el sitio donde para, para que el widget pinte la misma
+          // cinta girando y no un cartel de «girando». Va con la lista de ESTE
+          // giro y no con la de ahora: eliminando, la lista cambia al acabar.
+          nombres,
+          elegido
         })
       }).catch(() => {});
 

@@ -193,3 +193,60 @@ test('un sorteo de hace media hora deja de salir', (t) => {
   j.nombres.rehacer(uid);
   assert.strictEqual(j.nombres.estado(uid).sorteo, null, 'ya no sale');
 });
+
+test('el sorteo lleva la lista y el sitio, para poder pintar la cinta', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+
+  nombres.guardarSorteo(uid, {
+    cuantos: 3, quien: 'Beto', ganador: 'Beto', quedan: 2, duracion: 0,
+    nombres: ['Ana', 'Beto', 'Caro'], elegido: 1
+  });
+  const s = nombres.estado(uid).sorteo;
+  assert.deepStrictEqual(s.nombres, ['Ana', 'Beto', 'Caro']);
+  assert.strictEqual(s.elegido, 1);
+  assert.strictEqual(s.nombres[s.elegido], 'Beto', 'el sitio apunta al que salio');
+});
+
+test('un sitio que no cuadra con la lista se arregla por nombre', (t) => {
+  // Si el sitio cayera fuera, la cinta pararia en un hueco vacio y no se veria
+  // ningun nombre en la banda: peor que no animar.
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+
+  for (const malo of [99, -1, 'x', null, undefined, 1.5]) {
+    nombres.guardarSorteo(uid, {
+      quien: 'Caro', duracion: 0, nombres: ['Ana', 'Beto', 'Caro'], elegido: malo
+    });
+    const s = nombres.estado(uid).sorteo;
+    assert.ok(s.elegido >= 0 && s.elegido < 3, 'cae dentro de la lista: ' + malo);
+    assert.strictEqual(s.nombres[s.elegido], 'Caro',
+      'y apunta al que salio, buscandolo por nombre: ' + malo);
+  }
+
+  // Y si el nombre tampoco esta, al menos apunta a una fila que existe.
+  nombres.guardarSorteo(uid, {
+    quien: 'Zoe', duracion: 0, nombres: ['Ana', 'Beto'], elegido: 77
+  });
+  assert.strictEqual(nombres.estado(uid).sorteo.elegido, 0);
+});
+
+test('la lista del sorteo se limpia como los apuntados', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+
+  nombres.guardarSorteo(uid, {
+    quien: 'Ana', duracion: 0,
+    nombres: ['Ana', '', '   ', null, 42, { x: 1 }, 'B'.repeat(80), '  Caro  '],
+    elegido: 0
+  });
+  const l = nombres.estado(uid).sorteo.nombres;
+  assert.deepStrictEqual(l, ['Ana', 'B'.repeat(40), 'Caro'],
+    'fuera lo vacio y lo que no es texto, y recortado a 40');
+});

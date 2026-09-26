@@ -83,6 +83,21 @@ export interface Sorteo {
   // Cuando termina de girar (reloj del servidor).
   terminaEn: number;
   cuando: string;
+  // La lista tal y como estaba al girar, y en que sitio de ella para la cinta.
+  // Es lo que hace falta para que el widget PINTE la ruleta girando en vez de
+  // poner un cartel de «girando».
+  //
+  // Hay que decir lo que esto cuesta, sin adornos: con la lista y el sitio, quien
+  // mire el JSON del widget sabe quien va a salir antes de que se vea en
+  // pantalla. No hay forma de evitarlo, porque no se puede animar una parada que
+  // no se conoce. Quien y ganador se siguen callando hasta que para, pero eso ya
+  // solo evita el vistazo perezoso, no a quien haga la cuenta.
+  //
+  // Se acepta porque la direccion del widget es del dueño del directo y la
+  // reparte el: es su propia superposicion de OBS. Y el rato en que se puede
+  // sacar es solo lo que dura el giro.
+  nombres: string[];
+  elegido: number;
 }
 
 // Lo que se manda afuera: igual, pero sin decir quien es mientras gira.
@@ -95,6 +110,9 @@ export interface SorteoVisible {
   girando: boolean;
   terminaEn: number;
   cuando: string;
+  // Para pintar la ruleta girando. Ver el comentario de Sorteo.
+  nombres: string[];
+  elegido: number;
 }
 
 export interface Estado {
@@ -140,7 +158,9 @@ function sorteoVisible(uid: string): SorteoVisible | null {
     quedan: s.quedan,
     girando,
     terminaEn: s.terminaEn,
-    cuando: s.cuando
+    cuando: s.cuando,
+    nombres: s.nombres,
+    elegido: s.elegido
   };
 }
 
@@ -170,6 +190,12 @@ export function guardarSorteo(uid: string, datos: unknown): Sorteo | null {
   // El tope es por si llega una duracion absurda: un cartel que no sale nunca
   // porque «sigue girando» seria peor que no tener cartel.
   const gira = Math.max(0, Math.min(30000, Math.floor(Number(d.duracion) || 0)));
+  // La lista con la que se giro, para poder pintar la cinta. Se limpia igual que
+  // los apuntados: nada de objetos raros ni nombres de mil caracteres.
+  const lista = (Array.isArray(d.nombres) ? d.nombres : [])
+    .filter((n): n is string => typeof n === 'string' && Boolean(n.trim()))
+    .slice(0, MAX_NOMBRES)
+    .map((n) => n.trim().slice(0, 40));
   const s: Sorteo = {
     cuantos: Math.max(0, Math.floor(Number(d.cuantos) || 0)),
     quien,
@@ -177,7 +203,19 @@ export function guardarSorteo(uid: string, datos: unknown): Sorteo | null {
     ganador: String(d.ganador ?? '').trim().slice(0, 40),
     quedan: Math.max(0, Math.floor(Number(d.quedan) || 0)),
     terminaEn: Date.now() + gira,
-    cuando: new Date().toISOString()
+    cuando: new Date().toISOString(),
+    nombres: lista,
+    // Si el sitio no cuadra con la lista, se busca por nombre; y si tampoco, 0.
+    // Una parada fuera de la lista dejaria la cinta parada en un hueco vacio.
+    elegido: (() => {
+      // Tiene que venir un entero de verdad. No vale pasarlo por Number(): de
+      // ahi, un `elegido` que no venga se convierte en 0 (Number(null) es 0) y
+      // la cinta pararia en la primera fila en vez de en el que salio.
+      const i = d.elegido;
+      if (typeof i === 'number' && Number.isInteger(i) && i >= 0 && i < lista.length) return i;
+      const porNombre = lista.indexOf(quien);
+      return porNombre >= 0 ? porNombre : 0;
+    })()
   };
   sorteos.set(uid, s);
   apuntarEnDisco(uid);
@@ -304,7 +342,9 @@ export function rehacer(uid: string): boolean {
       ganador: String(s.ganador || ''),
       quedan: Number(s.quedan) || 0,
       terminaEn: Number(s.terminaEn) || 0,
-      cuando: String(s.cuando || new Date().toISOString())
+      cuando: String(s.cuando || new Date().toISOString()),
+      nombres: Array.isArray(s.nombres) ? s.nombres.filter((n: unknown) => typeof n === 'string') : [],
+      elegido: Number(s.elegido) || 0
     });
   }
 
