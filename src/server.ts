@@ -1740,6 +1740,8 @@ app.get('/api/widget/nombres', (req: Request, res: Response) => {
       // El ultimo sorteo, para poder sacar el cartel del ganador. Mientras la
       // ruleta gira viene sin ganador: lo esconde ruletachat.
       sorteo: e.sorteo,
+      // Y el doble o nada, para ensenar el mismo video que la pagina.
+      doble: e.doble,
       cierraEn: e.cierraEn,
       ahora: e.ahora
     });

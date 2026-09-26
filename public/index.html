@@ -9179,36 +9179,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       banner.hidden = false;
     }
 
-    // Enseña ganar.mp4 o perder.mp4 encima del rodillo y espera a que acabe.
-    //
-    // Si no hay archivo puesto, no se enseña nada y se sigue: el juego tiene
-    // que funcionar sin las animaciones, que son de quien monta el Ruleton y
-    // puede no haberlas hecho todavia.
+    // El vídeo del doble o nada. El cómo se enseña es de CintaNombres, que es el
+    // mismo código que usa el widget de OBS: el mismo archivo, así que dura lo
+    // mismo y los dos acaban a la vez. Ver js/ruleta-nombres.js.
     function animacionNombres(cual) {
-      return new Promise((resolve) => {
-        const caja = document.getElementById('nameVideo');
-        const video = document.getElementById('nameVideoPlayer');
-        let acabado = false;
-        const fin = () => {
-          if (acabado) return;
-          acabado = true;
-          clearTimeout(seguro);
-          caja.hidden = true;
-          try { video.pause(); } catch (e) { /* ya estaba parado */ }
-          resolve();
-        };
-        // La caja solo se enseña cuando el video arranca de verdad: si el
-        // archivo no esta, no se ve un recuadro negro parpadear.
-        video.onplaying = () => { caja.hidden = false; };
-        video.onended = fin;
-        video.onerror = fin;
-        // Y un seguro: una animacion larga o un video que se atasca no puede
-        // dejar el sorteo colgado en mitad del directo.
-        const seguro = setTimeout(fin, 15000);
-        video.src = '/assets/' + cual + '.mp4';
-        const promesa = video.play();
-        if (promesa && promesa.catch) promesa.catch(fin);
-      });
+      return CintaNombres.animacion(
+        document.getElementById('nameVideo'),
+        document.getElementById('nameVideoPlayer'),
+        cual
+      );
     }
 
     // Los botones de después del giro. Retirarse y usar el nombre siguen
@@ -9232,6 +9211,23 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       mandosNombres(true);
 
       const gana = Math.random() * 100 < doblePct;
+
+      // Se avisa al servidor ANTES de la animación, para que el widget de OBS
+      // enseñe el mismo vídeo a la vez. Va con el resultado dentro porque el
+      // vídeo YA lo dice (ganar.mp4 o perder.mp4): aquí no hay nada que callar.
+      //
+      // El premio que se manda es el que quedará al acabar, que es lo que tiene
+      // que poner el cartel: el doble si sale bien, cero si sale mal.
+      api('/api/ruleta-chat/doble', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quien: nombreGanador,
+          gana,
+          premio: gana ? premioNombres * 2 : 0
+        })
+      }).catch(() => {});
+
       await animacionNombres(gana ? 'ganar' : 'perder');
 
       jugandoDoble = false;

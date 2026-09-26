@@ -16,6 +16,10 @@
   // que parezca que la cinta pesa.
   const CURVA = 'cubic-bezier(.12,.72,.18,1)';
 
+  // Lo que como mucho se espera a un vídeo del doble o nada. Es el seguro: uno
+  // que se atasque no puede dejar la pantalla tapada en mitad del directo.
+  const SEGURO_VIDEO = 15000;
+
   // Escapar sin tocar el DOM: la misma cuenta que escapeHtml en la pagina. Sin
   // DOM porque asi esto se puede probar sin navegador, y porque crear un elemento
   // por nombre para una lista de doscientos es tirar trabajo.
@@ -147,7 +151,52 @@
     if (fila) fila.classList.add(seVa ? 'fuera' : 'gana');
   }
 
+  // Enseña ganar.mp4 o perder.mp4 tapando la escena, y avisa cuando acaba.
+  //
+  // Si no hay archivo puesto, no se enseña nada y se sigue: el juego tiene que
+  // funcionar sin las animaciones, que son de quien monta el Ruleton y puede no
+  // haberlas hecho todavía.
+  //
+  // Está aquí y no en la página porque el widget de OBS tiene que enseñar el
+  // MISMO vídeo. Y como es el mismo archivo, dura lo mismo: los dos acaban a la
+  // vez sin tener que cuadrar relojes ni mandar duraciones.
+  //
+  //   caja   el .escena-video que tapa
+  //   video  el <video> de dentro
+  //   cual   'ganar' o 'perder'
+  //
+  // Devuelve una promesa que acaba cuando acaba el vídeo, o enseguida si no hay.
+  function animacion(caja, video, cual) {
+    return new Promise((resolve) => {
+      if (!caja || !video) { resolve(); return; }
+      let acabado = false;
+      const fin = () => {
+        if (acabado) return;
+        acabado = true;
+        clearTimeout(seguro);
+        caja.hidden = true;
+        try { video.pause(); } catch (e) { /* ya estaba parado */ }
+        resolve();
+      };
+      // La caja solo se enseña cuando el vídeo arranca de verdad: si el archivo
+      // no está, no se ve un recuadro negro parpadear.
+      video.onplaying = () => { caja.hidden = false; };
+      video.onended = fin;
+      video.onerror = fin;
+      // Y un seguro: una animación larga o un vídeo que se atasca no puede dejar
+      // el sorteo colgado en mitad del directo.
+      const seguro = setTimeout(fin, SEGURO_VIDEO);
+      video.src = '/assets/' + (cual === 'perder' ? 'perder' : 'ganar') + '.mp4';
+      const promesa = video.play();
+      if (promesa && promesa.catch) promesa.catch(fin);
+    });
+  }
+
   // globalThis y no window: en el navegador son lo mismo, y asi los tests pueden
   // cargar este archivo tal cual para comprobar la cuenta. Ver rutas.js.
-  globalThis.CintaNombres = { girar, quieta, marcar, filas, alto, parada, vueltas, repetir, cola, visibles, CURVA };
+  globalThis.CintaNombres = {
+    girar, quieta, marcar, animacion,
+    filas, alto, parada, vueltas, repetir, cola, visibles,
+    CURVA, SEGURO_VIDEO
+  };
 })();

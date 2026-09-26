@@ -102,6 +102,17 @@ router.post('/api/ruleta-chat/girada', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// POST /api/ruleta-chat/doble  Body: { quien, gana, premio }
+// El que ha ganado se juega el premio. Como el sorteo, lo tira la pagina; esto
+// solo lo guarda para que el widget de OBS ensene el mismo video y el mismo
+// cartel. No se calla el resultado: el video ya lo dice, porque ganar.mp4 y
+// perder.mp4 son dos archivos distintos.
+router.post('/api/ruleta-chat/doble', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  ruletachat.guardarDoble(uid, req.body);
+  res.json({ ok: true });
+});
+
 // POST /api/ruleta-chat/config  Body: { palabra }
 router.post('/api/ruleta-chat/config', (req: Request, res: Response) => {
   const uid = ctx.requireUid(req);

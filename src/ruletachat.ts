@@ -115,6 +115,31 @@ export interface SorteoVisible {
   elegido: number;
 }
 
+// El doble o nada: el que ha ganado se juega el premio.
+//
+// Como el sorteo, lo tira la PAGINA (una tirada contra doblePct) y esto solo
+// guarda lo que ha salido, para que el widget de OBS pueda ensenar el mismo
+// video y el mismo cartel.
+//
+// Aqui NO hay nada que callar mientras dura, al contrario que en el sorteo: el
+// video ya dice como acaba, porque son dos archivos distintos (ganar.mp4 y
+// perder.mp4). Esconder el resultado y ensenar el video seria absurdo.
+export interface Doble {
+  // Quien se la juega.
+  quien: string;
+  gana: boolean;
+  // Por cuanto queda multiplicado el premio al acabar: el doble si sale bien, 0
+  // si sale mal. Es lo que tiene que poner el cartel.
+  premio: number;
+  cuando: string;
+  // Hasta cuando se da por hecho que el video sigue. Es un SEGURO, no la
+  // duracion: el video es del dueno y esto no sabe lo que dura. Al widget le da
+  // igual, porque ensena el mismo archivo y se entera de que acaba por el propio
+  // video; esto solo evita que se quede tapado para siempre si el video no
+  // existe o se atasca.
+  terminaEn: number;
+}
+
 export interface Estado {
   abierta: boolean;
   nombres: string[];
@@ -127,9 +152,15 @@ export interface Estado {
   ahora: number;        // la hora del servidor, para que la pagina cuadre la cuenta atras
   // El ultimo sorteo, o null si no ha habido ninguno.
   sorteo: SorteoVisible | null;
+  // El doble o nada que se este jugando, o null. Ver Doble.
+  doble: Doble | null;
 }
 
 const sorteos = new Map<string, Sorteo>();
+const dobles = new Map<string, Doble>();
+
+// El mismo seguro que usa la pagina para no quedarse esperando a un video.
+const SEGURO_VIDEO_MS = 15000;
 
 // Mas viejo que esto, el sorteo deja de salir: lo que se quiere en pantalla es
 // el de ahora, no el de hace media hora. El cartel del ganador se queda puesto
@@ -218,6 +249,9 @@ export function guardarSorteo(uid: string, datos: unknown): Sorteo | null {
     })()
   };
   sorteos.set(uid, s);
+  // Girar otra vez cierra el doble o nada de antes: el premio de aquel ya no
+  // esta en pantalla.
+  dobles.delete(uid);
   apuntarEnDisco(uid);
   // Y otro aviso cuando pare de girar, que es cuando cambia lo que se ve: sin
   // esto el widget tendria que esperar al reloj de repuesto para sacar el cartel.
@@ -227,6 +261,36 @@ export function guardarSorteo(uid: string, datos: unknown): Sorteo | null {
     }, gira + 50).unref?.();
   }
   return s;
+}
+
+// El doble o nada de ahora, o null si no hay o si ya se le paso el seguro.
+function dobleVisible(uid: string): Doble | null {
+  const d = dobles.get(uid);
+  if (!d) return null;
+  if (Date.now() > d.terminaEn) { dobles.delete(uid); return null; }
+  return d;
+}
+
+// La pagina dice que se ha jugado el doble o nada y como ha salido.
+export function guardarDoble(uid: string, datos: unknown): Doble | null {
+  const d = (datos || {}) as Record<string, unknown>;
+  const quien = String(d.quien ?? '').trim().slice(0, 40);
+  if (!quien) return null;
+  const doble: Doble = {
+    quien,
+    gana: d.gana === true,
+    premio: Math.max(0, Math.min(1000000, Math.floor(Number(d.premio) || 0))),
+    cuando: new Date().toISOString(),
+    terminaEn: Date.now() + SEGURO_VIDEO_MS
+  };
+  dobles.set(uid, doble);
+  deps.alCambiar?.(uid);
+  // Y otro aviso al caerse el seguro, para que el widget quite el video si nunca
+  // llego a arrancar.
+  setTimeout(() => {
+    if (dobles.get(uid) === doble) { dobles.delete(uid); deps.alCambiar?.(uid); }
+  }, SEGURO_VIDEO_MS + 50).unref?.();
+  return doble;
 }
 
 export function estado(uid: string): Estado {
@@ -239,7 +303,8 @@ export function estado(uid: string): Estado {
     doblePct: leerAjustes(uid).doblePct,
     cierraEn: crono.cierraEn(uid),
     ahora: Date.now(),
-    sorteo: sorteoVisible(uid)
+    sorteo: sorteoVisible(uid),
+    doble: dobleVisible(uid)
   };
 }
 

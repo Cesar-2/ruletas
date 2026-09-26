@@ -313,3 +313,93 @@ test('el relleno sin imagen no cuenta', () => {
   const { mando } = montarFalsa({ cuantos: 2, relleno: [{ nombre: 'Sin foto' }] });
   assert.strictEqual(mando, null, 'un rodillo sin imagen no es un rodillo');
 });
+
+// --- El vídeo del doble o nada ----------------------------------------------
+//
+// La página y el widget enseñan el MISMO archivo. Eso no es solo para no
+// duplicar: como es el mismo, dura lo mismo, así que los dos acaban a la vez sin
+// tener que mandar duraciones ni cuadrar relojes.
+
+// Un <video> de mentira que se puede hacer arrancar, acabar o fallar a mano.
+function videoFalso() {
+  const caja = { hidden: false };
+  const video = {
+    src: '',
+    paused: false,
+    onplaying: null, onended: null, onerror: null,
+    play() { return { catch: () => {} }; },
+    pause() { this.paused = true; }
+  };
+  return { caja, video };
+}
+
+test('el vídeo se pide según cómo salga, y tapa solo cuando arranca', async () => {
+  const { caja, video } = videoFalso();
+  caja.hidden = true;
+  const fin = Cinta.animacion(caja, video, 'perder');
+
+  assert.strictEqual(video.src, '/assets/perder.mp4');
+  assert.strictEqual(caja.hidden, true, 'todavía no tapa: el vídeo no ha arrancado');
+
+  video.onplaying();
+  assert.strictEqual(caja.hidden, false, 'al arrancar, tapa');
+
+  video.onended();
+  await fin;
+  assert.strictEqual(caja.hidden, true, 'y al acabar se destapa');
+  assert.strictEqual(video.paused, true, 'y se para');
+});
+
+test('ganar pide el otro archivo', async () => {
+  const { caja, video } = videoFalso();
+  const fin = Cinta.animacion(caja, video, 'ganar');
+  assert.strictEqual(video.src, '/assets/ganar.mp4');
+  video.onended();
+  await fin;
+});
+
+test('cualquier cosa que no sea perder pide ganar', async () => {
+  for (const cual of ['ganar', '', null, undefined, 'loquesea']) {
+    const { caja, video } = videoFalso();
+    const fin = Cinta.animacion(caja, video, cual);
+    assert.strictEqual(video.src, '/assets/ganar.mp4', JSON.stringify(cual));
+    video.onended();
+    await fin;
+  }
+});
+
+test('si el archivo no está, no se tapa nada y se sigue', async () => {
+  // Las animaciones las pone quien monta el Ruleton y puede no haberlas hecho.
+  // Lo que no puede pasar es que se vea un recuadro negro, ni que el sorteo se
+  // quede colgado esperando un vídeo que no existe.
+  const { caja, video } = videoFalso();
+  caja.hidden = true;
+  const fin = Cinta.animacion(caja, video, 'ganar');
+  video.onerror();
+  await fin;
+  assert.strictEqual(caja.hidden, true, 'nunca tapó');
+});
+
+test('sin video no revienta: se sigue igual', async () => {
+  await Cinta.animacion(null, null, 'ganar');
+  await Cinta.animacion({ hidden: true }, null, 'perder');
+});
+
+test('el seguro del vídeo es el mismo que espera la página', () => {
+  // El servidor usa este mismo numero para no dejar al widget tapado si el vídeo
+  // se atasca. Si aquí cambia y allí no, el widget se destaparía antes o después
+  // que la página.
+  assert.strictEqual(Cinta.SEGURO_VIDEO, 15000);
+});
+
+test('el vídeo del doble o nada también sale de un solo sitio', () => {
+  const leer = (p) => fs.readFileSync(path.join(__dirname, '..', 'public', p), 'utf8');
+  // Ni la página ni el widget pueden pedir el archivo por su cuenta: eso es lo
+  // que hacía que se separaran.
+  for (const p of ['index.html', 'widget/nombres.html']) {
+    const texto = leer(p);
+    assert.ok(!/['"]\/assets\/(ganar|perder)\.mp4/.test(texto),
+      p + ' no pide el vídeo por su cuenta, lo pide CintaNombres');
+    assert.ok(texto.includes('CintaNombres.animacion'), p + ' usa el compartido');
+  }
+});

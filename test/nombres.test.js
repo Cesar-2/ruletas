@@ -250,3 +250,103 @@ test('la lista del sorteo se limpia como los apuntados', (t) => {
   assert.deepStrictEqual(l, ['Ana', 'B'.repeat(40), 'Caro'],
     'fuera lo vacio y lo que no es texto, y recortado a 40');
 });
+
+// --- El doble o nada --------------------------------------------------------
+//
+// El que ha ganado se juega el premio. Como el sorteo, lo tira la pagina; el
+// servidor solo guarda lo que ha salido para que el widget ensene el mismo video
+// y el mismo cartel.
+//
+// Aqui NO se calla el resultado, al contrario que en el sorteo, y es a proposito:
+// el video ya lo dice, porque ganar.mp4 y perder.mp4 son dos archivos distintos.
+// Callarlo y a la vez decir que video poner seria absurdo.
+
+test('sin doble o nada, no hay doble que contar', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  assert.strictEqual(minijuegos(c.raiz).nombres.estado('u1').doble, null);
+});
+
+test('el doble o nada se guarda con su resultado y su premio', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+
+  nombres.guardarDoble(uid, { quien: 'Ana', gana: true, premio: 4 });
+  const d = nombres.estado(uid).doble;
+  assert.strictEqual(d.quien, 'Ana');
+  assert.strictEqual(d.gana, true);
+  assert.strictEqual(d.premio, 4, 'por cuanto queda multiplicado');
+  assert.ok(d.terminaEn > Date.now(), 'y hasta cuando se da por hecho que suena');
+});
+
+test('perder deja el premio en cero', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  nombres.guardarDoble('u1', { quien: 'Ana', gana: false, premio: 0 });
+  const d = nombres.estado('u1').doble;
+  assert.strictEqual(d.gana, false);
+  assert.strictEqual(d.premio, 0);
+});
+
+test('sin nombre no hay doble que guardar', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  assert.strictEqual(nombres.guardarDoble('u1', { gana: true, premio: 2 }), null);
+  assert.strictEqual(nombres.guardarDoble('u1', { quien: '  ' }), null);
+  assert.strictEqual(nombres.guardarDoble('u1', null), null);
+  assert.strictEqual(nombres.estado('u1').doble, null);
+});
+
+test('girar otra vez cierra el doble o nada de antes', (t) => {
+  // El premio de aquel ya no esta en pantalla: si se quedara, el widget pondria
+  // «Premio x4» debajo de un sorteo nuevo.
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+
+  nombres.guardarDoble(uid, { quien: 'Ana', gana: true, premio: 4 });
+  assert.ok(nombres.estado(uid).doble);
+
+  nombres.guardarSorteo(uid, { quien: 'Beto', ganador: 'Beto', cuantos: 2, duracion: 0 });
+  assert.strictEqual(nombres.estado(uid).doble, null, 'el doble de antes se va');
+});
+
+test('un doble o nada al que se le paso el seguro deja de salir', (t) => {
+  // El video es del dueno y esto no sabe lo que dura. Si no existe o se atasca, el
+  // seguro evita que el widget se quede tapado para siempre.
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+
+  const d = nombres.guardarDoble(uid, { quien: 'Ana', gana: true, premio: 2 });
+  assert.ok(nombres.estado(uid).doble);
+  // Se le adelanta el seguro, para no esperar quince segundos en un test.
+  d.terminaEn = Date.now() - 1;
+  assert.strictEqual(nombres.estado(uid).doble, null);
+});
+
+test('cada doble o nada avisa, para que el widget lo enseñe al momento', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const avisados = [];
+  const { nombres } = minijuegos(c.raiz, avisados);
+  avisados.length = 0;
+  nombres.guardarDoble('u1', { quien: 'Ana', gana: true, premio: 2 });
+  assert.strictEqual(avisados.length, 1);
+});
+
+test('un premio absurdo se recorta', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  nombres.guardarDoble('u1', { quien: 'Ana', gana: true, premio: 1e12 });
+  assert.ok(nombres.estado('u1').doble.premio <= 1000000);
+  nombres.guardarDoble('u1', { quien: 'Ana', gana: true, premio: -5 });
+  assert.strictEqual(nombres.estado('u1').doble.premio, 0);
+});

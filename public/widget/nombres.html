@@ -59,6 +59,23 @@
   .resultado .que { margin-top: .3rem; font-size: 1rem; opacity: .85 }
   .resultado.gana .quien { color: #6ee7b7 }
   .resultado.fuera .quien { color: #fca5a5; text-decoration: line-through }
+  /* El premio que queda tras doblar. */
+  .resultado .premio { margin-top: .35rem; font-size: 1.5rem; font-weight: 800; color: #6ee7b7 }
+  .resultado.fuera .premio { color: #fca5a5 }
+
+  /* El vídeo del doble o nada tapa el widget ENTERO, igual que en la página tapa
+     la escena: cuando suena, es lo único que hay que mirar. */
+  .escena-video {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: #04121c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .escena-video[hidden] { display: none }
+  .escena-video video { width: 100%; height: 100%; object-fit: contain; display: block }
   /* El cartel del resultado. Va en grande porque es lo que se queda en pantalla
      cuando la ruleta para: es el momento que la gente mira. */
   .resultado { text-align: center; }
@@ -71,6 +88,23 @@
   .resultado .que { margin-top: .3rem; font-size: 1rem; opacity: .85 }
   .resultado.gana .quien { color: #6ee7b7 }
   .resultado.fuera .quien { color: #fca5a5; text-decoration: line-through }
+  /* El premio que queda tras doblar. */
+  .resultado .premio { margin-top: .35rem; font-size: 1.5rem; font-weight: 800; color: #6ee7b7 }
+  .resultado.fuera .premio { color: #fca5a5 }
+
+  /* El vídeo del doble o nada tapa el widget ENTERO, igual que en la página tapa
+     la escena: cuando suena, es lo único que hay que mirar. */
+  .escena-video {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: #04121c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .escena-video[hidden] { display: none }
+  .escena-video video { width: 100%; height: 100%; object-fit: contain; display: block }
 </style>
 </head>
 <body>
@@ -96,8 +130,13 @@
       <div class="resultado" id="resultado">
         <div class="quien" id="resQuien"></div>
         <div class="que" id="resQue"></div>
+        <div class="premio" id="resPremio" hidden></div>
       </div>
     </div>
+  </div>
+  <!-- El mismo marcado que en la página, para poder usar el mismo código. -->
+  <div class="escena-video" id="nameVideo" hidden>
+    <video id="nameVideoPlayer" playsinline preload="auto" muted></video>
   </div>
   <div id="espera" hidden>Widget conectado · esperando a que abras la ruleta</div>
   <div id="fallo" hidden></div>
@@ -127,6 +166,25 @@
     // Qué fila ha quedado en la banda, para poder encenderla al parar.
     let cintaFila = -1;
 
+    // De qué doble o nada es el vídeo que está puesto, para no volver a lanzarlo
+    // en cada aviso que llegue mientras suena.
+    let dobleDe = '';
+
+    // Enseña el mismo vídeo que la página. El archivo es el mismo, así que dura
+    // lo mismo y los dos acaban a la vez sin cuadrar relojes.
+    //
+    // Va MUTED a propósito: el sonido lo pone la página, que es la que está en el
+    // PC del dueño. Dos copias sonando a la vez se oiría como un eco. Y de paso,
+    // un vídeo con sonido no arranca solo en un navegador; muted sí.
+    function lanzarDoble(d) {
+      dobleDe = d.cuando;
+      CintaNombres.animacion(
+        q('nameVideo'),
+        q('nameVideoPlayer'),
+        d.gana ? 'ganar' : 'perder'
+      );
+    }
+
     function lanzarCinta(s, restanteMs) {
       cintaFila = CintaNombres.girar({
         // El panel va aquí a propósito: la cinta tiene que estar A LA VISTA antes
@@ -146,6 +204,11 @@
       ruta: 'nombres',
       pinta(e) {
         const s = e.sorteo;
+        const d = e.doble;
+
+        // El doble o nada manda sobre todo lo demás: mientras suena, tapa.
+        if (d && dobleDe !== d.cuando) lanzarDoble(d);
+        if (!d) { dobleDe = ''; q('nameVideo').hidden = true; }
 
         // Mientras gira, y después con el cartel puesto, manda el resultado: es
         // lo que se está mirando. La inscripción se aparta para no competir con
@@ -196,6 +259,17 @@
             q('resQue').textContent = s.cuantos > 1
               ? '¡gana la ruleta! · entre ' + s.cuantos
               : '¡gana la ruleta!';
+          }
+
+          // Y si se ha jugado el doble o nada, lo que le queda. Se dice igual que
+          // en la página: «Premio x4», o que se queda sin nada.
+          const premio = q('resPremio');
+          if (d && d.quien === (s.ganador || s.quien)) {
+            premio.hidden = false;
+            premio.textContent = d.gana ? 'Premio x' + d.premio : 'Se queda sin nada';
+            if (!d.gana) caja.className = 'resultado fuera';
+          } else {
+            premio.hidden = true;
           }
           return true;
         }
