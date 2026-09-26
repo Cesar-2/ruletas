@@ -100,6 +100,9 @@
     function montarRodillos(s, restanteMs) {
       pararRodillos();
       mando = Tragaperras.montar({
+        // El panel va aquí por lo mismo que en la cinta de nombres: la
+        // tragaperras se monta con los rodillos A LA VISTA.
+        panel: q('panelGira'),
         caja: q('rodillos'),
         cuantos: s.cuantos || 1,
         relleno: s.relleno || [],

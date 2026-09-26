@@ -34,13 +34,23 @@
   // cinta pararía entre dos nombres en cuanto la pantalla cambiara de tamaño.
   function alto(tira) {
     const fila = tira && tira.querySelector('.fila');
-    return fila ? fila.getBoundingClientRect().height : 46;
+    const medido = fila ? fila.getBoundingClientRect().height : 0;
+    // Un 0 no es una medida: es que no se ha podido medir, porque la fila está
+    // dentro de algo con display:none. Devolverlo tal cual deja la parada en 0 y
+    // la cinta no se mueve. Se cae al alto de por defecto, que es el que dice el
+    // CSS en --fila.
+    return medido || 46;
   }
 
   // Cuántas filas se ven de una vez. También se mide, por lo mismo.
   function visibles(caja, altoFila) {
     if (!caja || !altoFila) return 1;
-    return Math.max(1, Math.round(caja.getBoundingClientRect().height / altoFila));
+    const h = caja.getBoundingClientRect().height;
+    // Sin alto no se puede contar: pasa cuando la caja está oculta. Se supone la
+    // ventana de siete que dice el CSS, en vez de decir «se ve una» y dejar la
+    // parada donde no toca.
+    if (!h) return 7;
+    return Math.max(1, Math.round(h / altoFila));
   }
 
   // Cuánto hay que subir la cinta para dejar la fila «i» dentro de la banda del
@@ -89,6 +99,12 @@
     const tira = opciones.tira;
     const lista = opciones.lista || [];
     if (!caja || !tira || !lista.length) return -1;
+
+    // Se destapa AQUI, antes de medir. Lo que hay debajo mide 0 mientras esté
+    // oculto (display:none), y con 0 la parada sale 0 y la cinta no se mueve: es
+    // exactamente lo que pasaba, y por eso el widget no animaba. Destapando aquí
+    // el orden no se puede equivocar desde fuera.
+    if (opciones.panel) opciones.panel.hidden = false;
 
     const n = vueltas(lista.length);
     const altoCaja = caja.getBoundingClientRect().height || 0;

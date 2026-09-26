@@ -88,6 +88,12 @@
     const relleno = (opciones.relleno || []).filter((c) => c && c.imagen);
     if (!caja || !relleno.length) return null;
 
+    // Se destapa AQUI, por lo mismo que en la cinta de nombres: montarla oculta
+    // y destaparla despues deja medidas a cero y animaciones de CSS que arrancan
+    // sin que se vean. Destapando aqui el orden no se puede equivocar desde
+    // fuera.
+    if (opciones.panel) opciones.panel.hidden = false;
+
     const cuantos = Math.min(Math.max(Number(opciones.cuantos) || 1, 1), MAX);
     const espera = Math.max(600, Number(opciones.espera) || 0);
     let premios = (opciones.premios || []).slice();

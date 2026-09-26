@@ -169,3 +169,147 @@ test('la pagina y los widgets cargan los MISMOS archivos', () => {
     assert.ok(!/setInterval\([^)]*190|RITMO\s*=/.test(texto), nombre + ' no define su propio ritmo');
   }
 });
+
+// --- Medir lo que está oculto -----------------------------------------------
+//
+// Este es el fallo por el que los widgets no animaban, y no lo pilló ningún test:
+// la animación se lanzaba con su panel todavía oculto. Un elemento con
+// display:none mide 0 de alto, y con 0 la parada de la cinta sale 0, así que la
+// cinta se queda quieta. Se veía el panel aparecer, pero sin moverse.
+
+// Un DOM de mentira, lo justo para girar() y con la trampa de verdad: la fila
+// mide 0 mientras el panel esté oculto, igual que en el navegador.
+function domFalso() {
+  const panel = { hidden: true };
+  const alto = () => (panel.hidden ? 0 : 46);
+  // Se apunta si el panel estaba oculto CADA VEZ que se mide. Así el test puede
+  // decir si se midió antes de destapar, que es el fallo de verdad; mirar solo el
+  // resultado no sirve, porque el respaldo de alto() lo tapa.
+  const medidasOcultas = [];
+  const medir = () => { medidasOcultas.push(panel.hidden); return alto(); };
+  const tira = {
+    innerHTML: '',
+    style: {},
+    offsetHeight: 0,
+    querySelector: () => ({ getBoundingClientRect: () => ({ height: medir() }) })
+  };
+  const caja = { getBoundingClientRect: () => ({ height: medir() * 7 }) };
+  return { panel, caja, tira, medidasOcultas };
+}
+
+test('girar destapa el panel antes de medir, o la cinta no se movería', () => {
+  const d = domFalso();
+  const cual = Cinta.girar({
+    panel: d.panel, caja: d.caja, tira: d.tira,
+    lista: ['Ana', 'Beto', 'Caro'], elegido: 1, ms: 5000
+  });
+
+  assert.strictEqual(d.panel.hidden, false, 'el panel queda a la vista');
+  // Lo que de verdad se comprueba: que NINGUNA medida se tomó con el panel
+  // oculto. Sin esto el test pasaba igual con el fallo puesto, porque el respaldo
+  // de alto() lo disimula.
+  assert.ok(d.medidasOcultas.length > 0, 'se mide algo');
+  assert.ok(!d.medidasOcultas.some((oculto) => oculto),
+    'se destapó ANTES de medir (medidas con el panel oculto: '
+      + d.medidasOcultas.filter(Boolean).length + ')');
+  assert.ok(cual >= 0, 'y dice en qué fila para');
+  // Lo que importa: que la cinta se MUEVA. Con el panel oculto esto salía
+  // 'translateY(0px)' y no se veía girar nada.
+  const t = d.tira.style.transform;
+  assert.ok(/^translateY\(-?\d/.test(t), 'pone un transform: ' + t);
+  assert.notStrictEqual(t, 'translateY(0px)', 'y NO es cero, que es no moverse');
+  assert.ok(d.tira.style.transition.includes('5000ms'), 'con la duración que se le pasó');
+});
+
+test('girar sin panel también mide bien si la caja ya está a la vista', () => {
+  const d = domFalso();
+  d.panel.hidden = false;   // ya visible, como en la página
+  const cual = Cinta.girar({ caja: d.caja, tira: d.tira, lista: ['A', 'B'], elegido: 0, ms: 1000 });
+  assert.ok(cual >= 0);
+  assert.notStrictEqual(d.tira.style.transform, 'translateY(0px)');
+});
+
+test('una medida de cero se trata como «no se puede medir», no como cero', () => {
+  const nada = { getBoundingClientRect: () => ({ height: 0 }) };
+  const tiraNada = { querySelector: () => ({ getBoundingClientRect: () => ({ height: 0 }) }) };
+  // Antes: alto 0, visibles 1, parada 0. O sea, quieta.
+  assert.strictEqual(Cinta.alto(tiraNada), 46, 'cae al alto que dice el CSS');
+  assert.strictEqual(Cinta.visibles(nada, 46), 7, 'y a la ventana de siete');
+  assert.notStrictEqual(Cinta.parada(nada, 10, Cinta.alto(tiraNada)), 0, 'así la parada no es cero');
+});
+
+test('girar no hace nada si no hay a quién girar', () => {
+  const d = domFalso();
+  assert.strictEqual(Cinta.girar({ panel: d.panel, caja: d.caja, tira: d.tira, lista: [], ms: 1000 }), -1);
+  assert.strictEqual(d.panel.hidden, true, 'y no destapa un panel vacío');
+});
+
+// Un document de mentira, lo justo para que la tragaperras pueda crear rodillos.
+// Con esto el test prueba la funcion de verdad y no una copia.
+function conDocumento(fn) {
+  const antes = globalThis.document;
+  globalThis.document = {
+    createElement: () => ({
+      className: '',
+      innerHTML: '',
+      style: {},
+      hijos: [],
+      classList: {
+        clases: new Set(),
+        add(c) { this.clases.add(c); },
+        remove(c) { this.clases.delete(c); },
+        contains(c) { return this.clases.has(c); }
+      },
+      appendChild(h) { this.hijos.push(h); }
+    })
+  };
+  try { return fn(); } finally { globalThis.document = antes; }
+}
+
+function montarFalsa(opciones) {
+  const panel = { hidden: true };
+  const caja = { innerHTML: '', hijos: [], appendChild(h) { this.hijos.push(h); } };
+  const mando = conDocumento(() => Traga.montar(Object.assign({
+    panel, caja,
+    relleno: [{ nombre: 'Pan', imagen: '/p.png', rareza: 'common' }],
+    espera: 4500
+  }, opciones)));
+  return { panel, caja, mando };
+}
+
+test('la tragaperras también destapa su panel al montarse', () => {
+  const { panel, mando } = montarFalsa({ cuantos: 3 });
+  assert.strictEqual(panel.hidden, false, 'el panel queda a la vista');
+  if (mando) mando.quitar();
+});
+
+test('un rodillo por recurso, en filas de cinco como máximo', () => {
+  // Es la diferencia más gorda que tenía mi versión del widget: tres rodillos
+  // fijos en vez de uno por recurso.
+  const casos = [[1, 1, [1]], [3, 1, [3]], [5, 1, [5]], [6, 2, [3, 3]], [12, 3, [4, 4, 4]]];
+  for (const [cuantos, filas, reparto] of casos) {
+    const { caja, mando } = montarFalsa({ cuantos });
+    assert.strictEqual(caja.hijos.length, filas, cuantos + ' recursos -> ' + filas + ' fila(s)');
+    assert.deepStrictEqual(caja.hijos.map((f) => f.hijos.length), reparto,
+      cuantos + ' recursos se reparten ' + reparto.join('+'));
+    if (mando) mando.quitar();
+  }
+});
+
+test('no se montan más de veinte rodillos, que no caben', () => {
+  const { caja, mando } = montarFalsa({ cuantos: 50 });
+  const total = caja.hijos.reduce((n, f) => n + f.hijos.length, 0);
+  assert.strictEqual(total, 20);
+  if (mando) mando.quitar();
+});
+
+test('sin relleno no se monta nada: no hay con qué dar vueltas', () => {
+  const { panel, mando } = montarFalsa({ cuantos: 3, relleno: [] });
+  assert.strictEqual(mando, null);
+  assert.strictEqual(panel.hidden, true, 'y no se destapa un panel vacío');
+});
+
+test('el relleno sin imagen no cuenta', () => {
+  const { mando } = montarFalsa({ cuantos: 2, relleno: [{ nombre: 'Sin foto' }] });
+  assert.strictEqual(mando, null, 'un rodillo sin imagen no es un rodillo');
+});

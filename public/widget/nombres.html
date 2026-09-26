@@ -129,6 +129,10 @@
 
     function lanzarCinta(s, restanteMs) {
       cintaFila = CintaNombres.girar({
+        // El panel va aquí a propósito: la cinta tiene que estar A LA VISTA antes
+        // de medirla. Oculta mide 0 de alto, y con 0 la parada sale 0 y no se
+        // mueve nada. Era justo lo que pasaba.
+        panel: q('panelGira'),
         caja: q('cintaCaja'),
         tira: q('cinta'),
         lista: s.nombres || [],
