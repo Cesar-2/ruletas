@@ -2772,6 +2772,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
   <div class="confetti" id="confetti"></div>
 
   <script src="/js/eventos.js"></script>
+  <script src="/js/rutas.js"></script>
   <script src="/js/plinko-tablero.js"></script>
   <script>
     // Modal propio: confirm() y alert() del navegador anteponen el origen
@@ -5439,6 +5440,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       loadRatios();
       loadRanking();
       loadItems();
+      // Lo ultimo: las pestañas ya estan en su sitio (la de Estadisticas solo
+      // existe para el administrador), asi que ya se puede mirar la direccion y
+      // ponerse donde diga. Ver rutas.js.
+      Rutas.iniciar();
     }
 
     // Nada se carga hasta saber quién ha entrado.
