@@ -26,6 +26,8 @@
   que el de la banda ha ganado.
 -->
 <link rel="stylesheet" href="/css/widget.css" />
+<!-- La cinta es la MISMA que la de la página, no una copia parecida. -->
+<link rel="stylesheet" href="/css/ruleta-nombres.css" />
 <style>
   .lista-nombres {
     margin-top: .8rem;
@@ -57,41 +59,18 @@
   .resultado .que { margin-top: .3rem; font-size: 1rem; opacity: .85 }
   .resultado.gana .quien { color: #6ee7b7 }
   .resultado.fuera .quien { color: #fca5a5; text-decoration: line-through }
-  /* La cinta, igual que en la página: los nombres desfilan hacia arriba y el
-     que gana para en la banda del centro. La misma curva y el mismo alto de
-     fila, para que el widget y la página paren juntos y en el mismo sitio. */
-  .cinta-caja {
-    position: relative;
-    height: 13.8rem;          /* tres filas de 4.6rem */
-    overflow: hidden;
-    border-radius: 12px;
-    background: rgba(9, 15, 28, 0.55);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+  /* El cartel del resultado. Va en grande porque es lo que se queda en pantalla
+     cuando la ruleta para: es el momento que la gente mira. */
+  .resultado { text-align: center; }
+  .resultado .quien {
+    font-size: 2.6rem;
+    font-weight: 800;
+    line-height: 1.1;
+    word-break: break-word;
   }
-  .cinta { will-change: transform }
-  .cinta .fila {
-    height: 4.6rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.7rem;
-    font-weight: 700;
-    padding: 0 .8rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  /* La banda del centro: es la que dice donde para. */
-  .banda {
-    position: absolute;
-    left: 0; right: 0;
-    top: 4.6rem;
-    height: 4.6rem;
-    pointer-events: none;
-    border-top: 2px solid rgba(110, 231, 183, .75);
-    border-bottom: 2px solid rgba(110, 231, 183, .75);
-    background: rgba(110, 231, 183, .08);
-  }
+  .resultado .que { margin-top: .3rem; font-size: 1rem; opacity: .85 }
+  .resultado.gana .quien { color: #6ee7b7 }
+  .resultado.fuera .quien { color: #fca5a5; text-decoration: line-through }
 </style>
 </head>
 <body>
@@ -103,9 +82,14 @@
       <div class="cuenta" id="cuenta" hidden></div>
     </div>
     <div class="panel" id="panelGira" hidden>
-      <div class="cinta-caja">
-        <div class="cinta" id="cinta"></div>
-        <div class="banda"></div>
+      <!-- El mismo marcado que en la página: la caja recorta, la tira se mueve,
+           la marca es la banda del centro y el velo difumina arriba y abajo. -->
+      <div class="names-reel-box" style="width:34rem">
+        <div class="names-reel" id="cintaCaja" role="img" aria-label="Rodillo de nombres">
+          <div class="tira" id="cinta"></div>
+          <div class="marca"></div>
+          <div class="velo"></div>
+        </div>
       </div>
     </div>
     <div class="panel" id="panelResultado" hidden>
@@ -119,6 +103,7 @@
   <div id="fallo" hidden></div>
 
   <script src="/js/eventos.js"></script>
+  <script src="/js/ruleta-nombres.js"></script>
   <script src="/js/widget-base.js"></script>
   <script>
   (function () {
@@ -127,63 +112,30 @@
     // Cuántos de los últimos se marcan como recién llegados.
     const RECIENTES = 3;
 
-    // La misma curva que la página, para que la cinta frene igual.
-    const CURVA = 'cubic-bezier(.12,.72,.18,1)';
-    // Tres filas a la vista y la banda en la de en medio: la que para ahí es la
-    // que ha salido. Cuadra con el CSS de arriba.
-    const VISIBLES = 3;
-
-    // De qué giro es la cinta que está puesta ahora, para no volver a lanzarla
-    // en cada aviso que llegue. El servidor manda «cuando», que es distinto en
-    // cada giro y por tanto sirve de nombre.
+    // De qué giro es la cinta que está puesta, para no volver a lanzarla en cada
+    // aviso. El servidor manda «cuando», distinto en cada giro, así que sirve de
+    // nombre.
     let cintaDe = '';
 
-    function escapa(t) {
-      const d = document.createElement('div');
-      d.textContent = t;
-      return d.innerHTML;
-    }
+    // Lanza la cinta. Se le pasa lo que le QUEDA para parar, no lo que duraba el
+    // giro: si el widget se entera tarde (el aviso tarda, o se acaba de abrir a
+    // mitad de giro), el giro es más corto pero para en el mismo instante y en el
+    // mismo nombre que la página.
+    //
+    // El cómo lo hace es de CintaNombres, que es el mismo código que usa la
+    // página: así no hay dos cintas que se parezcan cada vez menos.
+    // Qué fila ha quedado en la banda, para poder encenderla al parar.
+    let cintaFila = -1;
 
-    // Lanza la cinta. Se le dice cuánto le queda para parar, no cuánto duraba: si
-    // el widget se entera tarde (el aviso tarda un poco, o se acaba de abrir a
-    // mitad de giro), el giro es más corto pero PARA en el mismo instante y en el
-    // mismo nombre que la página. Que pare a la vez importa más que que dure lo
-    // mismo.
     function lanzarCinta(s, restanteMs) {
-      const lista = s.nombres || [];
-      if (!lista.length) return false;
-      const cinta = q('cinta');
-
-      // Las vueltas se ajustan al tamaño de la lista, igual que en la página: con
-      // cuatro nombres un giro de cuatro filas no se vería, y con doscientos no
-      // hacen falta miles de filas.
-      const vueltas = Math.max(3, Math.min(12, Math.ceil(80 / lista.length)));
-      // Y detrás del ganador va una cola, que si no, cuando el que para es el
-      // último de la lista, queda media caja vacía debajo.
-      const cola = [];
-      for (let i = 0; i < VISIBLES + 1; i++) cola.push(lista[i % lista.length]);
-
-      const filas = [];
-      for (let v = 0; v < vueltas; v++) filas.push.apply(filas, lista);
-      filas.push.apply(filas, cola);
-      cinta.innerHTML = filas.map((n) => '<div class="fila">' + escapa(n) + '</div>').join('');
-
-      // El alto se mide, no se supone: lo pone el CSS en rem y cambia con el
-      // tamaño de la fuente. Calculándolo aquí, la cinta pararía entre dos
-      // nombres en cuanto el widget se escalara en OBS.
-      const primera = cinta.querySelector('.fila');
-      const alto = primera ? primera.getBoundingClientRect().height : 73.6;
-      const cual = (vueltas - 1) * lista.length + Math.min(s.elegido || 0, lista.length - 1);
-      const parada = -cual * alto + alto * (VISIBLES - 1) / 2;
-
-      // Se arranca desde arriba sin transición y se fuerza el recálculo: si no,
-      // el navegador junta las dos posiciones en una y no se ve girar nada.
-      cinta.style.transition = 'none';
-      cinta.style.transform = 'translateY(0px)';
-      void cinta.offsetHeight;
-      cinta.style.transition = 'transform ' + Math.max(200, restanteMs) + 'ms ' + CURVA;
-      cinta.style.transform = 'translateY(' + parada + 'px)';
-      return true;
+      cintaFila = CintaNombres.girar({
+        caja: q('cintaCaja'),
+        tira: q('cinta'),
+        lista: s.nombres || [],
+        elegido: s.elegido || 0,
+        ms: restanteMs
+      });
+      return cintaFila >= 0;
     }
 
     Widget.arranca({
@@ -209,10 +161,16 @@
           q('panelGira').hidden = false;
           return true;
         }
-        q('panelGira').hidden = true;
-
         if (s && s.quien) {
           q('panel').hidden = true;
+          // La cinta se QUEDA, con el que ha parado encendido: es lo que hace la
+          // página, y quitarla justo al parar es perderse el momento. El cartel
+          // sale debajo.
+          if (cintaDe === s.cuando && cintaFila >= 0) {
+            CintaNombres.marcar(q('cinta'), cintaFila, s.seVa);
+          } else {
+            q('panelGira').hidden = true;
+          }
           const caja = q('resultado');
           // Eliminando, el de la banda se va. Y si con eso queda uno, ese gana:
           // el cartel lo dice con su nombre, no con el del que se acaba de ir.
@@ -237,6 +195,11 @@
           }
           return true;
         }
+
+        // Sin nada del giro que enseñar, fuera la cinta.
+        q('panelGira').hidden = true;
+        cintaDe = '';
+        cintaFila = -1;
 
         // Abierta se enseña aunque no haya nadie: es cuando hay que decir qué
         // escribir en el chat.

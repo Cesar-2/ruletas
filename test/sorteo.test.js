@@ -39,22 +39,28 @@ test('sin sorteos no hay nada que enseñar', (t) => {
   assert.strictEqual(sorteo.estado('u1'), null);
 });
 
-test('mientras gira NO se dice que ha salido, pero si hay relleno', (t) => {
+test('mientras gira se callan los nombres, pero los premios van', (t) => {
+  // Los premios SI van mientras gira, y hay que saber por que: en la tragaperras
+  // cada rodillo para sobre SU premio. Sin ellos, los rodillos pararian sobre
+  // relleno, o sea ensenando objetos que nadie ha ganado. Eso no es «no
+  // destripar», es enganar. Lo que se sigue callando es a quien le toca, que para
+  // animar no hace falta.
   const { sorteo } = montar(t);
   sorteo.guardar('u1', { quien: 'Ana', cosas: COSAS, relleno: RELLENO, duracion: 5000 });
 
   const s = sorteo.estado('u1');
   assert.strictEqual(s.girando, true);
-  assert.deepStrictEqual(s.cosas, [], 'los premios no salen todavia');
-  assert.strictEqual(s.quien, '', 'ni a quien le tocan');
-  assert.strictEqual(s.relleno.length, 2, 'el relleno si, que es con lo que gira');
+  assert.strictEqual(s.quien, '', 'a quien le tocan no se dice todavia');
+  assert.strictEqual(s.cosas.length, 2, 'los premios si, que los rodillos paran sobre ellos');
+  assert.strictEqual(s.cuantos, 2, 'y cuantos rodillos hay que poner');
+  assert.strictEqual(s.relleno.length, 2, 'con el relleno dan vueltas');
   assert.ok(s.terminaEn > Date.now());
 });
 
-test('al parar salen los premios y el nombre', async (t) => {
+test('al parar se dice a quien le tocan', async (t) => {
   const { sorteo } = montar(t);
   sorteo.guardar('u1', { quien: 'Ana', cosas: COSAS, relleno: RELLENO, duracion: 60 });
-  assert.deepStrictEqual(sorteo.estado('u1').cosas, [], 'todavia gira');
+  assert.strictEqual(sorteo.estado('u1').quien, '', 'todavia gira');
 
   await espera(150);
   const s = sorteo.estado('u1');

@@ -1,0 +1,110 @@
+/* El rodillo de nombres, aparte para poder usarlo en dos sitios: la página del
+   Ruleton y el widget que se mete en OBS.
+
+   Por qué un rodillo y no una tarta que gira: con cuatro nombres la tarta se
+   leía, pero con los ciento y pico que deja el chat las porciones eran rayas sin
+   sitio para el nombre dentro, así que se veía girar algo pero no quién
+   participaba. Un rodillo los pasa a todos por delante con el nombre entero, y
+   lo que se mira es quién va cayendo.
+
+   Va en vertical y no en horizontal porque los nombres son anchos: así cada uno
+   tiene la línea entera para él y caben siete a la vez.
+
+   Estaba dentro del <style> de index.html y se sacó al ver que el widget se
+   había hecho su propia versión, con otro alto de fila y otra banda. O sea lo
+   que ya avisaba plinko-tablero.js: duplicarlo acaba con dos ruletas que se
+   parecen cada vez menos. Ahora es la misma.
+
+   Las variables del tema llevan valor de respaldo, porque los widgets no cargan
+   el CSS de la página: --accent lo elige el dueño en Configuración, y en la
+   superposición se usa el de por defecto. */
+
+.names-reel-box {
+  position: relative;
+  flex: none;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  /* El alto de fila manda en todo lo demas: el alto de la ventana, el cuerpo de
+     letra y donde para el ganador salen de aqui. Cambiarlo en pantalla completa
+     agranda el rodillo entero sin tocar nada mas. */
+  --fila: 46px;
+  --visibles: 7;
+}
+
+.names-reel {
+  position: relative;
+  height: calc(var(--fila) * var(--visibles));
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(9, 15, 28, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.6), inset 0 0 40px rgba(2, 6, 23, 0.55);
+}
+
+.names-reel .tira { will-change: transform }
+
+.names-reel .fila {
+  height: var(--fila);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 .9rem;
+  font-size: calc(var(--fila) * .4);
+  font-weight: 700;
+  color: #e6eef8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.names-reel .fila.vacio {
+  color: var(--muted, #9fb3c8);
+  font-weight: 600;
+  font-size: calc(var(--fila) * .3);
+}
+
+/* La banda del centro: donde para el que gana. Hace de flecha, pero sin tapar
+   el nombre. */
+.names-reel .marca {
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  height: var(--fila);
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 2;
+  border-top: 2px solid var(--accent, #6ee7b7);
+  border-bottom: 2px solid var(--accent, #6ee7b7);
+  background: linear-gradient(90deg, rgba(110, 231, 183, 0.16), rgba(110, 231, 183, 0.03) 45%,
+    rgba(110, 231, 183, 0.03) 55%, rgba(110, 231, 183, 0.16));
+}
+
+/* Arriba y abajo se difumina, para que se vea que la cinta sigue y no que se
+   corta. */
+.names-reel .velo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(180deg, rgba(9, 15, 28, 0.96), rgba(9, 15, 28, 0) 30%,
+    rgba(9, 15, 28, 0) 70%, rgba(9, 15, 28, 0.96));
+}
+
+/* Al parar, el ganador se enciende dentro de la banda. */
+.names-reel .fila.gana {
+  color: #021018;
+  background: var(--accent, #6ee7b7);
+  border-bottom-color: transparent;
+  text-shadow: none;
+}
+
+/* Y en eliminación, el que se va: mismo sitio, color contrario, y tachado para
+   que se entienda sin leer el cartel. */
+.names-reel .fila.fuera {
+  color: #fff5f5;
+  background: #b91c1c;
+  border-bottom-color: transparent;
+  text-decoration: line-through;
+}

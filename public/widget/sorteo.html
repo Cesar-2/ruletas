@@ -19,11 +19,17 @@
   Mientras gira se ve la tragaperras dando vueltas con recursos del catálogo, y al
   parar salen los premios y a quién le tocan.
 
-  Lo que da vueltas mientras gira es RELLENO: otros recursos del mismo catálogo
-  que el servidor manda aparte. Los premios de verdad no se mandan hasta que la
-  animación termina, así que tener esta dirección no destripa el resultado.
+  Los rodillos dan vueltas con RELLENO (otros recursos del mismo catálogo, que el
+  servidor manda aparte) y cada uno para sobre SU premio, como en la página.
+
+  Eso obliga a mandar los premios desde el principio: un rodillo que para sobre
+  relleno estaría enseñando un objeto que nadie ha ganado, y eso engaña más de lo
+  que protege. Así que con esta dirección se puede saber lo que va a salir durante
+  los segundos de la animación. Lo que sí se sigue callando es a quién le toca.
 -->
 <link rel="stylesheet" href="/css/widget.css" />
+<!-- La tragaperras es la MISMA que la de la página, no una copia parecida. -->
+<link rel="stylesheet" href="/css/tragaperras.css" />
 <style>
   .premios {
     display: flex;
@@ -52,32 +58,6 @@
   .premio img { width: 4.4rem; height: 4.4rem; object-fit: contain }
   .premio .nombre { font-size: .85rem; text-align: center; line-height: 1.2 }
 
-  /* La tragaperras. Un solo rodillo con las imágenes cambiando: no se intenta
-     copiar la de la página (varios rodillos, con su pool y sus tiempos), porque
-     para eso el widget necesitaría el catálogo entero. Lo que se busca es que se
-     vea que está girando. */
-  .tragaperras {
-    display: flex;
-    gap: .7rem;
-    justify-content: center;
-  }
-  .rodillo {
-    width: 6rem;
-    height: 6rem;
-    border-radius: 12px;
-    background: rgba(9, 15, 28, 0.55);
-    border: 2px solid rgba(255, 255, 255, 0.18);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-  .rodillo img {
-    width: 4.4rem;
-    height: 4.4rem;
-    object-fit: contain;
-    transition: opacity .09s linear;
-  }
   .girando-texto { margin-top: .6rem; text-align: center; font-size: 1.1rem; opacity: .85 }
 </style>
 </head>
@@ -97,57 +77,38 @@
   <div id="fallo" hidden></div>
 
   <script src="/js/eventos.js"></script>
+  <script src="/js/tragaperras.js"></script>
   <script src="/js/widget-base.js"></script>
   <script>
   (function () {
     'use strict';
     const q = Widget.caja;
 
-    // Cada cuánto cambia la imagen de un rodillo. Lo mismo que la página.
-    const RITMO = 220;
-    // Cuántos rodillos se ven girando. Ni uno (soso) ni tantos que no quepan.
-    const RODILLOS = 3;
-
     // De qué sorteo es la tragaperras que está puesta, para no volver a montarla
     // en cada aviso. «cuando» es distinto en cada sorteo, así que sirve de nombre.
     let giraDe = '';
-    let reloj = null;
+    let mando = null;
 
     function pararRodillos() {
-      if (reloj) { clearInterval(reloj); reloj = null; }
+      if (mando) { mando.quitar(); mando = null; }
       giraDe = '';
     }
 
-    function montarRodillos(s) {
-      const pool = (s.relleno || []).filter((c) => c.imagen);
-      const caja = q('rodillos');
-      caja.innerHTML = '';
-      if (!pool.length) return false;
-
-      const imgs = [];
-      for (let i = 0; i < RODILLOS; i++) {
-        const d = document.createElement('div');
-        d.className = 'rodillo';
-        const img = document.createElement('img');
-        img.alt = '';
-        img.src = pool[Math.floor(Math.random() * pool.length)].imagen;
-        d.appendChild(img);
-        caja.appendChild(d);
-        imgs.push(img);
-      }
-
-      if (reloj) clearInterval(reloj);
-      reloj = setInterval(() => {
-        // Uno cada vez, no todos a la vez: así parece que giran a su ritmo.
-        const img = imgs[Math.floor(Math.random() * imgs.length)];
-        const cosa = pool[Math.floor(Math.random() * pool.length)];
-        img.style.opacity = '0';
-        setTimeout(() => {
-          img.src = cosa.imagen;
-          img.style.opacity = '1';
-        }, 90);
-      }, RITMO);
-      return true;
+    // La monta Tragaperras, que es el mismo código que usa la página: un rodillo
+    // por recurso, todos cambiando cada 190 ms y parando de izquierda a derecha.
+    // Ver js/tragaperras.js.
+    function montarRodillos(s, restanteMs) {
+      pararRodillos();
+      mando = Tragaperras.montar({
+        caja: q('rodillos'),
+        cuantos: s.cuantos || 1,
+        relleno: s.relleno || [],
+        premios: s.cosas || [],
+        // Un cuarto de segundo de margen: así el último rodillo se ve aterrizar
+        // antes de que la tragaperras se cambie por las tarjetas del premio.
+        espera: restanteMs - 250
+      });
+      return Boolean(mando);
     }
 
     function pintarPremios(s) {
@@ -183,14 +144,18 @@
 
         if (s.girando) {
           q('panelPremio').hidden = true;
+          // Lo que le queda para parar, con el reloj DEL SERVIDOR: el del PC que
+          // corre OBS puede ir adelantado, y con su hora las paradas caerían mal.
+          const restante = s.terminaEn - e.ahora;
           if (giraDe !== s.cuando) {
-            if (montarRodillos(s)) giraDe = s.cuando;
+            if (montarRodillos(s, restante)) giraDe = s.cuando;
           }
           q('panelGira').hidden = false;
           return true;
         }
 
-        // Ha parado: fuera la tragaperras y salen los premios.
+        // Ha parado: fuera la tragaperras y salen las tarjetas, igual que en la
+        // página.
         pararRodillos();
         q('panelGira').hidden = true;
         if (!s.cosas || !s.cosas.length) { q('panelPremio').hidden = true; return false; }

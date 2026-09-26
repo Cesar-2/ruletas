@@ -4,6 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Sorteos - Demo</title>
+  <!-- El rodillo de nombres, que lo comparten esta pagina y el widget de OBS.
+       Estaba aqui dentro y el widget se habia hecho su propia version con otro
+       alto de fila y otra banda: no se parecian. Ver css/ruleta-nombres.css. -->
+  <link rel="stylesheet" href="/css/ruleta-nombres.css" />
+  <!-- Y la tragaperras de la ruleta de recursos, por lo mismo. -->
+  <link rel="stylesheet" href="/css/tragaperras.css" />
   <style>
     :root{
       --bg:#0f1724; --card:#0b1220; --accent:#6ee7b7; --accent-2:#3ee9c0; --muted:#c3ccd9; --glass: rgba(255,255,255,0.04);
@@ -314,41 +320,6 @@
     .names-side textarea{width:100%;resize:vertical;font-family:inherit;font-size:15px;padding:.6rem;border-radius:10px;background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14)}
     .names-check{display:flex;align-items:center;gap:.4rem;font-size:14px;color:var(--muted);cursor:pointer}
     .names-check[hidden]{display:none}
-    /* --- El rodillo de nombres ------------------------------------------
-       Antes esto era una tarta que giraba. Con cuatro nombres se leia, pero
-       con los ciento y pico que deja el chat las porciones eran rayas sin
-       sitio para el nombre dentro: se veia girar algo, no quien participaba.
-       Un rodillo los pasa a todos por delante con el nombre entero, y lo que
-       se mira es quien va cayendo.
-
-       Va en vertical y no en horizontal porque los nombres son anchos: asi
-       cada uno tiene la linea entera para el y caben siete a la vez. */
-    .names-reel-box{position:relative;flex:none;width:100%;max-width:100%;margin:0 auto;
-      /* El alto de fila manda en todo lo demas: el alto de la ventana, el
-         cuerpo de letra y donde para el ganador salen de aqui. Cambiarlo en
-         pantalla completa agranda el rodillo entero sin tocar nada mas. */
-      --fila:46px; --visibles:7}
-    .names-reel{position:relative;height:calc(var(--fila) * var(--visibles));overflow:hidden;
-      border-radius:14px;background:rgba(9,15,28,0.75);border:1px solid rgba(255,255,255,0.14);
-      box-shadow:0 10px 30px rgba(2,6,23,0.6),inset 0 0 40px rgba(2,6,23,0.55)}
-    .names-reel .tira{will-change:transform}
-    .names-reel .fila{height:var(--fila);display:flex;align-items:center;justify-content:center;
-      padding:0 .9rem;font-size:calc(var(--fila) * .4);font-weight:700;color:#e6eef8;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-      border-bottom:1px solid rgba(255,255,255,0.05)}
-    .names-reel .fila.vacio{color:var(--muted);font-weight:600;font-size:calc(var(--fila) * .3)}
-    /* La banda del centro: donde para el que gana. Hace de flecha, pero sin
-       tapar el nombre. */
-    .names-reel .marca{position:absolute;left:0;right:0;top:50%;height:var(--fila);
-      transform:translateY(-50%);pointer-events:none;z-index:2;
-      border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);
-      background:linear-gradient(90deg,rgba(110,231,183,0.16),rgba(110,231,183,0.03) 45%,
-        rgba(110,231,183,0.03) 55%,rgba(110,231,183,0.16))}
-    /* Arriba y abajo se difumina, para que se vea que la cinta sigue y no que
-       se corta. */
-    .names-reel .velo{position:absolute;inset:0;pointer-events:none;z-index:3;
-      background:linear-gradient(180deg,rgba(9,15,28,0.96),rgba(9,15,28,0) 30%,
-        rgba(9,15,28,0) 70%,rgba(9,15,28,0.96))}
     /* La animación del doble o nada tapa la escena ENTERA, no solo el rodillo:
        cuando suena es el número principal, y a pantalla completa eso quiere
        decir toda la pantalla. */
@@ -356,13 +327,6 @@
       display:flex;align-items:center;justify-content:center}
     .escena-video[hidden]{display:none}
     .escena-video video{width:100%;height:100%;object-fit:contain;display:block}
-    /* Al parar, el ganador se enciende dentro de la banda. */
-    .names-reel .fila.gana{color:#021018;background:var(--accent);
-      border-bottom-color:transparent;text-shadow:none}
-    /* Y en eliminación, el que se va: mismo sitio, color contrario, y tachado
-       para que se entienda sin leer el cartel. */
-    .names-reel .fila.fuera{color:#fff5f5;background:#b91c1c;
-      border-bottom-color:transparent;text-decoration:line-through}
     /* El aviso de que la escucha del chat no va. Va debajo de la linea de
        estado del minijuego, que es donde se estaba mirando. Lo grave se ve; lo
        que solo esta pasando va apagado, para no parpadear en rojo cada vez que
@@ -1602,19 +1566,6 @@
     #randomResult{margin-top:0.5rem;color:var(--accent);font-weight:600;font-size:16px}
     .slot-wrapper{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;z-index:1000;pointer-events:none}
     .slot-wrapper.show{display:block}
-    .slot-machine{display:flex;flex-direction:column;gap:calc(1rem * var(--anim-scale));padding:calc(1.6rem * var(--anim-scale));border-radius:20px;background:linear-gradient(180deg, rgba(13,21,38,0.97), rgba(6,11,22,0.97));border:3px solid var(--accent);box-shadow:0 30px 80px rgba(0,0,0,0.75), inset 0 0 40px rgba(110,231,183,0.10)}
-    .slot-row{display:flex;justify-content:center;gap:calc(1rem * var(--anim-scale))}
-    .slot-reel{width:calc(158px * var(--anim-scale));height:calc(200px * var(--anim-scale));border-radius:16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);overflow:hidden;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(.5rem * var(--anim-scale));padding:calc(.7rem * var(--anim-scale))}
-    .slot-reel img{width:calc(88px * var(--anim-scale));height:calc(88px * var(--anim-scale));object-fit:contain}
-    .slot-reel .slot-name{font-size:calc(15px * var(--anim-scale));line-height:1.25;text-align:center;color:var(--muted);max-height:2.5em;overflow:hidden}
-    .slot-reel.spinning{animation:slotBlur .26s linear infinite}
-    .slot-reel.stopped{animation:slotStop .45s cubic-bezier(.2,1.6,.4,1);border-color:var(--accent);box-shadow:0 0 0 2px rgba(110,231,183,0.25), 0 0 22px rgba(110,231,183,0.35)}
-    .slot-reel.stopped .slot-name{color:#e6eef8}
-    .slot-reel.rare{background:linear-gradient(160deg, rgba(37,99,235,0.55), rgba(13,21,38,0.90));border-color:rgba(96,165,250,0.80)}
-    .slot-reel.epic{background:linear-gradient(160deg, rgba(147,51,234,0.55), rgba(13,21,38,0.90));border-color:rgba(192,132,252,0.80)}
-    .slot-reel.mythic{background:linear-gradient(160deg, rgba(220,38,38,0.55), rgba(13,21,38,0.90));border-color:rgba(248,113,113,0.80)}
-    @keyframes slotBlur{0%{transform:translateY(-6px);filter:blur(1.2px)}50%{transform:translateY(4px);filter:blur(1.6px)}100%{transform:translateY(-6px);filter:blur(1.2px)}}
-    @keyframes slotStop{0%{transform:translateY(-26px) scale(1.06)}60%{transform:translateY(4px) scale(.99)}100%{transform:none}}
     .roulette-wrapper{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;z-index:1000;pointer-events:none}
     .roulette-wrapper.show{display:flex}
     .roulette-wheel{position:relative;width:calc(340px * var(--anim-scale));height:calc(340px * var(--anim-scale));border-radius:50%;background:radial-gradient(circle at center, rgba(255,255,255,0.16) 0 18%, rgba(255,255,255,0.03) 19% 24%, transparent 25%), conic-gradient(#ff6b8a 0 16%, #ffd166 16% 32%, #6ee7b7 32% 48%, #60a5fa 48% 64%, #c084fc 64% 80%, #f472b6 80% 100%);border:calc(16px * var(--anim-scale)) solid rgba(255,255,255,0.18);box-shadow:0 28px 70px rgba(0,0,0,0.6), inset 0 0 35px rgba(255,255,255,0.08);animation:spinRoulette 5s cubic-bezier(.12,.8,.2,1) forwards}
@@ -2779,6 +2730,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
   <canvas class="confetti-lienzo" id="confettiLienzo"></canvas>
   <div class="confetti" id="confetti"></div>
 
+  <script src="/js/ruleta-nombres.js"></script>
+  <script src="/js/tragaperras.js"></script>
   <script src="/js/eventos.js"></script>
   <script src="/js/chat-aviso.js"></script>
   <script src="/js/rutas.js"></script>
@@ -3870,74 +3823,52 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     const slotWrapper = document.getElementById('slotWrapper');
     const slotMachine = document.getElementById('slotMachine');
-    let slotIntervals = [];
+    // Los relojes de la RULETA (la de la rueda), que sigue siendo de aquí. Los de
+    // la tragaperras los lleva Tragaperras.
     let slotTimeouts = [];
-    let slotReels = [];
-    const SLOT_REELS_POR_FILA = 5;
-    const MAX_SLOT_REELS = 20;   // mas rodillos no caben en pantalla
     // Resultado real del sorteo: los rodillos y la ruleta paran sobre estos.
     let drawWinners = [];
+    // El mando de la tragaperras mientras está puesta.
+    let tragaperras = null;
 
-    function pintarSlot(reel, item) {
-      applyRarityClass(reel, itemTags[itemId(item)] ?? '');
-      const imgUrl = item.image_urls?.icon ?? item.image_urls?.sd ?? '';
-      const nombre = item.name?.es ?? item.name ?? '';
-      reel.innerHTML = `
-        <img src="${escapeHtml(imgUrl)}" alt="" onerror="this.style.visibility='hidden'" />
-        <div class="slot-name">${escapeHtml(String(nombre))}</div>
-      `;
+    // Un recurso del catálogo, con lo que la tragaperras necesita para pintarlo.
+    // Ver js/tragaperras.js.
+    function aCosaSlot(item) {
+      return {
+        nombre: item?.name?.es ?? item?.name ?? '',
+        imagen: item?.image_urls?.icon ?? item?.image_urls?.sd ?? '',
+        rareza: itemTags[itemId(item)] ?? ''
+      };
     }
 
     // Tragaperras: se usa cuando no hay imagen de ruleta configurada.
-    // Los rodillos van parando de izquierda a derecha durante la espera.
+    //
+    // El cómo se monta y cuándo para cada rodillo es de js/tragaperras.js, que es
+    // el mismo código que usa el widget de OBS. Antes estaba aquí y el widget se
+    // había hecho su propia versión, con tres rodillos fijos en vez de uno por
+    // recurso y sin la parada escalonada: no se parecían en nada.
+    //
+    // La espera de 4500 ms no es un número nuevo: es lo que duraba el reparto de
+    // paradas de antes (1800 de la primera más 2700 hasta la última), así que los
+    // rodillos paran exactamente cuando paraban.
     function startSlotMachine(n) {
       stopSlotMachine();
       const pool = getRoulettePool(allItems);
       if (!pool.length) return;
-
-      // Un rodillo por recurso sorteado, en filas de 5 como maximo.
-      const reels = Math.min(Math.max(n, 1), MAX_SLOT_REELS);
-      // Las filas se reparten parejas: 6 rodillos salen 3 y 3, no 5 y 1.
-      const filas = Math.ceil(reels / SLOT_REELS_POR_FILA);
-      const porFila = Math.ceil(reels / filas);
-      slotMachine.innerHTML = '';
-      let fila = null;
-      for (let i = 0; i < reels; i++) {
-        if (i % porFila === 0) {
-          fila = document.createElement('div');
-          fila.className = 'slot-row';
-          slotMachine.appendChild(fila);
-        }
-        const reel = document.createElement('div');
-        reel.className = 'slot-reel spinning';
-        pintarSlot(reel, pool[Math.floor(Math.random() * pool.length)]);
-        fila.appendChild(reel);
-        slotReels.push(reel);
-
-        slotIntervals.push(setInterval(() => {
-          pintarSlot(reel, pool[Math.floor(Math.random() * pool.length)]);
-        }, 190));
-
-        // Las paradas se reparten dentro de la espera para que quepan todas,
-        // sea uno o sean veinte rodillos: la ultima cae justo antes del final.
-        const parada = reels > 1 ? 1800 + (i * 2700) / (reels - 1) : 3200;
-        slotTimeouts.push(setTimeout(() => {
-          clearInterval(slotIntervals[i]);
-          reel.classList.remove('spinning');
-          reel.classList.add('stopped');
-          // Si el sorteo ya respondio, el rodillo para sobre el ganador real.
-          if (drawWinners[i]) pintarSlot(reel, drawWinners[i]);
-        }, parada));
-      }
+      tragaperras = Tragaperras.montar({
+        caja: slotMachine,
+        cuantos: n,
+        relleno: pool.map(aCosaSlot),
+        premios: drawWinners.map(aCosaSlot),
+        espera: 4500
+      });
       slotWrapper.classList.add('show');
     }
 
     function stopSlotMachine() {
-      slotIntervals.forEach(clearInterval);
+      if (tragaperras) { tragaperras.quitar(); tragaperras = null; }
       slotTimeouts.forEach(clearTimeout);
-      slotIntervals = [];
       slotTimeouts = [];
-      slotReels = [];
       slotWrapper.classList.remove('show');
       slotMachine.innerHTML = '';
     }
@@ -3948,9 +3879,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       drawWinners = Array.isArray(items) ? items : [];
       if (!drawWinners.length) return;
 
-      slotReels.forEach((reel, i) => {
-        if (drawWinners[i] && reel.classList.contains('stopped')) pintarSlot(reel, drawWinners[i]);
-      });
+      // Lo que ya paró se repinta con su premio; lo que sigue girando lo cogerá
+      // al parar. De eso se encarga el mando de la tragaperras.
+      if (tragaperras) tragaperras.premios(drawWinners.map(aCosaSlot));
 
       const nodes = Array.from(rouletteItems.children);
       if (!nodes.length) return;
@@ -9025,7 +8956,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // al final: es lo que hace que los últimos nombres pasen de uno en uno y
     // se puedan leer justo antes de parar.
     const GIRO_NOMBRES = 5200;
-    const CURVA_NOMBRES = 'cubic-bezier(.12,.72,.18,1)';
 
     // --- Doble o nada -----------------------------------------------------
     // El que gana puede jugarse el premio: una de cada diez lo dobla, las otras
@@ -9182,26 +9112,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // Las filas del rodillo. Van todas: el rodillo existe justamente para
     // enseñar a todo el mundo, no una muestra.
-    function filasNombres(lista) {
-      return lista.map((n) => '<div class="fila">' + escapeHtml(n) + '</div>').join('');
-    }
-
-    // El alto de fila se mide, no se supone: lo pone el CSS y cambia en
-    // pantalla completa y en móvil. Si se calculara aquí, el rodillo pararía
-    // entre dos nombres en cuanto la pantalla cambiara de tamaño.
-    function altoFilaNombres() {
-      const fila = document.querySelector('#nameReelTira .fila');
-      return fila ? fila.getBoundingClientRect().height : 46;
-    }
-
-    // Cuánto hay que subir la cinta para dejar la fila «i» dentro de la banda
-    // del centro.
-    function paradaNombres(i, alto) {
-      const caja = document.getElementById('nameReel');
-      const visibles = Math.max(1, Math.round(caja.getBoundingClientRect().height / alto));
-      return -i * alto + alto * (visibles - 1) / 2;
-    }
-
     function renderNameWheel() {
       const tira = document.getElementById('nameReelTira');
       if (!tira) return;
@@ -9223,23 +9133,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // Mientras gira no se toca: repintar dejaría la cinta a medias.
       if (girandoNombres) return;
 
-      tira.style.transition = 'none';
-      tira.style.transform = 'translateY(0px)';
-
-      if (!nombres.length) {
-        tira.innerHTML = '<div class="fila vacio">Escribe algunos nombres</div>';
-        return;
-      }
-      // En reposo se repite lo justo para que no queden huecos: una lista de
-      // dos nombres dejaría cinco filas vacías en una ventana de siete.
-      const veces = Math.max(1, Math.ceil(12 / nombres.length));
-      tira.innerHTML = filasNombres(repetir(nombres, veces));
-    }
-
-    function repetir(lista, veces) {
-      const salida = [];
-      for (let i = 0; i < veces; i++) salida.push(...lista);
-      return salida;
+      // El reposo también es de CintaNombres, para que la cinta se pinte igual
+      // aquí y en el widget. Ver js/ruleta-nombres.js.
+      CintaNombres.quieta(tira, nombres, 'Escribe algunos nombres');
     }
 
     // ¿Está puesta la casilla de eliminación?
@@ -9404,25 +9300,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // parar. Las vueltas se ajustan al tamaño de la lista para que cuatro
       // nombres no den un giro de cuatro filas, y para que doscientos no monten
       // miles de filas de nada.
-      const vueltas = Math.max(3, Math.min(12, Math.ceil(80 / nombres.length)));
-      // Y detrás del ganador va una cola, que si no, cuando el que gana es el
-      // último de la lista, para en la banda con media ventana vacía debajo.
-      // Seis filas cubren la mitad de abajo de cualquier ventana razonable.
-      const cola = Array.from({ length: 6 }, (_, i) => nombres[i % nombres.length]);
+      // La cinta la monta y la gira CintaNombres, que es el mismo código que usa
+      // el widget de OBS. Antes esto estaba aquí y el widget tenía su propia
+      // versión, con otro alto de fila y otra banda: no se parecían. Ver
+      // js/ruleta-nombres.js.
       const tira = document.getElementById('nameReelTira');
-      tira.innerHTML = filasNombres(repetir(nombres, vueltas).concat(cola));
-
-      const alto = altoFilaNombres();
-      const cual = (vueltas - 1) * nombres.length + elegido;
-
-      // Se arranca desde arriba del todo, sin transición, y se fuerza el
-      // recálculo: si no, el navegador junta las dos posiciones en una sola y
-      // no se ve girar nada.
-      tira.style.transition = 'none';
-      tira.style.transform = 'translateY(0px)';
-      void tira.offsetHeight;
-      tira.style.transition = `transform ${GIRO_NOMBRES}ms ${CURVA_NOMBRES}`;
-      tira.style.transform = `translateY(${paradaNombres(cual, alto)}px)`;
+      const cual = CintaNombres.girar({
+        caja: document.getElementById('nameReel'),
+        tira,
+        lista: nombres,
+        elegido,
+        ms: GIRO_NOMBRES
+      });
 
       await new Promise((resolve) => setTimeout(resolve, GIRO_NOMBRES + 200));
 
@@ -9431,8 +9320,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const resto = nombres.filter((_, i) => i !== elegido);
       const elimina = modoEliminaNombres();
       // El que ha parado en la banda: se enciende si gana, se tacha si se va.
-      const fila = tira.children[cual];
-      if (fila) fila.classList.add(elimina ? 'fuera' : 'gana');
+      CintaNombres.marcar(tira, cual, elimina);
 
       if (elimina) {
         // Aquí el de la banda no gana: se va. Y gana quien aguante hasta

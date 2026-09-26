@@ -50,6 +50,10 @@ export interface Sorteo {
 
 export interface SorteoVisible extends Sorteo {
   girando: boolean;
+  // Cuantos recursos se sortean. Va SIEMPRE, tambien mientras gira: la
+  // tragaperras monta un rodillo por recurso, asi que sin esto no sabria cuantos
+  // poner. Un numero no destripa nada; lo que ha salido si, y eso se calla.
+  cuantos: number;
 }
 
 const sorteos = new Map<string, Sorteo>();
@@ -125,14 +129,27 @@ export function estado(uid: string): SorteoVisible | null {
     return null;
   }
   const girando = ahora < s.terminaEn;
-  // Mientras gira no se dice QUE ha salido: con la lista delante, quien mire el
-  // JSON lo sabria antes de que se vea en pantalla. El relleno si va, que es de
-  // lo que tira la tragaperras para dar vueltas.
+  // Los premios van desde el principio, tambien mientras gira. Hay que decir por
+  // que, porque la primera version los callaba:
+  //
+  // En la tragaperras los rodillos paran de uno en uno, de izquierda a derecha, y
+  // cada uno para SOBRE SU premio. Sin los premios, los rodillos pararian sobre
+  // relleno, o sea que el espectador veria aterrizar objetos que no son los que
+  // ha ganado nadie. Eso no es «no destripar»: es enganar, y es peor que no
+  // animar. Corregirlos de golpe al final tampoco vale, porque lo que se ve es
+  // media docena de premios cambiando a la vez.
+  //
+  // Asi que quien tenga la direccion del widget puede mirar el JSON y saber lo
+  // que va a salir durante los segundos que dura la animacion. Se acepta por lo
+  // mismo que en la ruleta de nombres: esa direccion es del dueno del directo y
+  // la reparte el. Lo unico que se sigue callando es a QUIEN le toca, que no hace
+  // falta para animar.
   return {
     quien: girando ? '' : s.quien,
-    cosas: girando ? [] : s.cosas,
+    cosas: s.cosas,
     relleno: s.relleno,
     girando,
+    cuantos: s.cosas.length,
     terminaEn: s.terminaEn,
     cuando: s.cuando
   };
