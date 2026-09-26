@@ -3,19 +3,23 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Ruleta de objetos · widget</title>
+<title>Ruleta de recursos · widget</title>
 <link rel="icon" href="data:," />
 <!--
-  El widget de la ruleta de siempre, la de objetos.  /widget/sorteo.html?clave=XXXX
+  El widget de la ruleta de siempre, la de recursos.  /widget/sorteo.html?clave=XXXX
+
+  Recursos y no «objetos»: en este proyecto no es lo mismo. Lo que se sortea es la
+  familia 'resources' del catalogo; los equipables (los «objetos») son otro
+  catalogo aparte que no entra en el sorteo, solo se consulta.
 
   Aquí decide el servidor: el sorteo lo hace /api/random-items con sus rarezas y
   sus exclusiones, y esto solo enseña lo que salió. Antes se sorteaba y se
   acababa sin dejar rastro, así que la superposición no tenía nada que contar.
 
-  Mientras gira se ve la tragaperras dando vueltas con objetos del catálogo, y al
+  Mientras gira se ve la tragaperras dando vueltas con recursos del catálogo, y al
   parar salen los premios y a quién le tocan.
 
-  Lo que da vueltas mientras gira es RELLENO: otros objetos del mismo catálogo
+  Lo que da vueltas mientras gira es RELLENO: otros recursos del mismo catálogo
   que el servidor manda aparte. Los premios de verdad no se mandan hasta que la
   animación termina, así que tener esta dirección no destripa el resultado.
 -->

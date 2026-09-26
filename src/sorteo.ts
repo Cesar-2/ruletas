@@ -1,7 +1,11 @@
-// El ultimo sorteo de la ruleta de objetos, para que el widget pueda contarlo.
+// El ultimo sorteo de la ruleta de recursos, para que el widget pueda contarlo.
 //
-// Esta es la ruleta de siempre, la del Ruleton: se sortean objetos del catalogo
-// y se anuncia a quien le tocan. Aqui SI decide el servidor (lo hace
+// Esta es la ruleta de siempre, la del Ruleton: se sortean recursos del catalogo
+// y se anuncia a quien le tocan.
+//
+// Recursos y no «objetos»: en este proyecto no es lo mismo. Lo que se sortea es
+// la familia 'resources'; los equipables (los «objetos») son otro catalogo que
+// no entra en el sorteo, solo se consulta. Ver fetchItemsCached en server.ts. Aqui SI decide el servidor (lo hace
 // /api/random-items, con sus rarezas y sus exclusiones); esto solo se queda con
 // el resultado para que la superposicion de OBS pueda ensenarlo, porque antes se
 // resolvia y se acababa, sin dejar rastro.
@@ -22,7 +26,7 @@ export interface Dependencias {
 let deps: Dependencias;
 export function iniciar(d: Dependencias): void { deps = d; }
 
-// Un objeto, con lo poco que hace falta para dibujarlo.
+// Un recurso, con lo poco que hace falta para dibujarlo.
 export interface Cosa {
   id: string;
   nombre: string;
@@ -35,7 +39,7 @@ export interface Sorteo {
   // A quien le toca, tal y como lo escribio el dueño. '' si sorteo sin nombre.
   quien: string;
   cosas: Cosa[];
-  // Con que se rellena la tragaperras mientras gira: unos cuantos objetos mas,
+  // Con que se rellena la tragaperras mientras gira: unos cuantos recursos mas,
   // que si no la animacion seria los premios dando vueltas y se veria venir lo
   // que va a salir. No son parte del resultado.
   relleno: Cosa[];
@@ -57,7 +61,7 @@ const vivo = new Vivo<Sorteo>('sorteo', () => deps);
 // rato.
 const CADUCA_MS = 30 * 60 * 1000;
 
-// Cuantos objetos de relleno se guardan. Los suficientes para que la
+// Cuantos recursos de relleno se guardan. Los suficientes para que la
 // tragaperras no repita siempre los mismos, sin mandar el catalogo entero.
 const RELLENO_MAX = 24;
 
