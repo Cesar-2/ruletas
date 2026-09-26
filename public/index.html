@@ -9348,15 +9348,38 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('nameWinnerBanner').hidden = true;
       document.getElementById('nameWinnerActions').hidden = true;
 
-      // Se avisa al servidor de que se ha jugado, solo para la estadística del
-      // panel de admin. No decide nada, así que si falla da igual.
+      // Quien para en la banda lo elige AQUÍ, la página: la lista vive en su
+      // cuadro de texto, así que el servidor no conoce a los participantes y no
+      // puede elegir. Es el único minijuego donde es así.
+      const elegido = Math.floor(Math.random() * nombres.length);
+
+      // Se avisa al servidor: la estadística del panel de admin, y de paso lo
+      // que va a salir, para que el widget de OBS pueda contarlo. El servidor no
+      // se lo dice a nadie hasta que la ruleta para, así que tener la dirección
+      // del widget no destripa el resultado.
+      //
+      // Se avisa al EMPEZAR y no al acabar: si se mandara al acabar y la
+      // petición se perdiera (se cierra la pestaña, se va la red), el widget se
+      // quedaría sin cartel justo cuando más se está mirando. Todo lo que hace
+      // falta se sabe ya: eliminando, el de la banda se va y gana solo si queda
+      // uno; si no, el de la banda gana.
+      // Los dos modos no son simétricos: normalmente el de la banda gana, pero
+      // eliminando el de la banda SE VA, y gana quien aguanta hasta quedarse
+      // solo. Así que el ganador va aparte, y eliminando es el que queda.
+      const seVa = modoEliminaNombres();
+      const resta = nombres.filter((_, i) => i !== elegido);
       api('/api/ruleta-chat/girada', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cuantos: nombres.length })
+        body: JSON.stringify({
+          cuantos: nombres.length,
+          quien: nombres[elegido],
+          seVa,
+          ganador: seVa ? (resta.length === 1 ? resta[0] : '') : nombres[elegido],
+          quedan: resta.length,
+          duracion: GIRO_NOMBRES + 200
+        })
       }).catch(() => {});
-
-      const elegido = Math.floor(Math.random() * nombres.length);
 
       // La cinta lleva la lista entera repetida unas cuantas veces, y el
       // ganador es el de la última vuelta: así, pase lo que pase, delante de la

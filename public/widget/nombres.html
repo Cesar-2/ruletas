@@ -8,14 +8,22 @@
 <!--
   El widget de la Ruleta de nombres, para OBS.  /widget/nombres.html?clave=XXXX
 
-  Una advertencia, que conviene saberla: el SORTEO de esta ruleta no vive en el
-  servidor. La página tira la ruleta y se queda con el ganador, pero eso no se
-  guarda en ninguna parte, así que aquí no hay forma de saber a quién le tocó.
-  Lo que sí se puede enseñar es la inscripción, que es lo que sí está en el
-  servidor: quién se va apuntando desde el chat y cuánto queda para cerrar.
+  Enseña dos cosas: la inscripción (quién se va apuntando desde el chat y cuánto
+  queda para cerrar) y el resultado del último giro.
 
-  Para poder pintar también la ruleta girando y el ganador, el servidor tendría
-  que guardar el resultado del sorteo. Es una decisión aparte.
+  Conviene saber de dónde sale ese resultado: a esta ruleta la gira la PÁGINA, no
+  el servidor, porque la lista de nombres vive en su cuadro de texto y el
+  servidor no conoce a los participantes. Así que la página le cuenta al servidor
+  lo que ha salido, y esto lo repite. Es un espejo, no un árbitro; en los otros
+  minijuegos es al contrario, decide el servidor y el navegador solo lo anima.
+
+  El servidor no suelta quién ha salido hasta que la ruleta ha parado, así que
+  tener la dirección de este widget no destripa el resultado antes de verse.
+
+  Los dos modos de la ruleta no son simétricos: normalmente el de la banda gana,
+  pero eliminando el de la banda SE VA y gana quien aguanta hasta quedarse solo.
+  Por eso el cartel mira `seVa` y `ganador` por separado en vez de dar por hecho
+  que el de la banda ha ganado.
 -->
 <link rel="stylesheet" href="/css/widget.css" />
 <style>
@@ -36,6 +44,21 @@
   }
   /* Los últimos en llegar se destacan: es lo que la gente busca al apuntarse. */
   .lista-nombres span.nuevo { border-color: rgba(110, 231, 183, .5); color: #6ee7b7; }
+
+  /* El cartel del resultado. Va en grande porque es lo que se queda en pantalla
+     cuando la ruleta para: es el momento que la gente mira. */
+  .resultado { text-align: center; }
+  .resultado .quien {
+    font-size: 2.6rem;
+    font-weight: 800;
+    line-height: 1.1;
+    word-break: break-word;
+  }
+  .resultado .que { margin-top: .3rem; font-size: 1rem; opacity: .85 }
+  .resultado.gana .quien { color: #6ee7b7 }
+  .resultado.fuera .quien { color: #fca5a5; text-decoration: line-through }
+  /* Girando no se dice quién: el servidor no lo suelta todavía. */
+  .girando { text-align: center; font-size: 1.6rem; font-weight: 700; opacity: .9 }
 </style>
 </head>
 <body>
@@ -45,6 +68,15 @@
       <div class="rotulo" id="rotulo">apuntados a la ruleta</div>
       <div class="lista-nombres" id="lista"></div>
       <div class="cuenta" id="cuenta" hidden></div>
+    </div>
+    <div class="panel" id="panelGira" hidden>
+      <div class="girando">Girando la ruleta…</div>
+    </div>
+    <div class="panel" id="panelResultado" hidden>
+      <div class="resultado" id="resultado">
+        <div class="quien" id="resQuien"></div>
+        <div class="que" id="resQue"></div>
+      </div>
     </div>
   </div>
   <div id="espera" hidden>Widget conectado · esperando a que abras la ruleta</div>
@@ -62,6 +94,44 @@
     Widget.arranca({
       ruta: 'nombres',
       pinta(e) {
+        const s = e.sorteo;
+
+        // Mientras gira, y después con el cartel puesto, manda el resultado: es
+        // lo que se está mirando. La inscripción se aparta para no competir con
+        // el cartel, aunque siga abierta (eliminando se sigue girando con la
+        // inscripción abierta).
+        q('panelGira').hidden = !(s && s.girando);
+        q('panelResultado').hidden = !(s && !s.girando && s.quien);
+
+        if (s && s.girando) { q('panel').hidden = true; return true; }
+
+        if (s && s.quien) {
+          q('panel').hidden = true;
+          const caja = q('resultado');
+          // Eliminando, el de la banda se va. Y si con eso queda uno, ese gana:
+          // el cartel lo dice con su nombre, no con el del que se acaba de ir.
+          if (s.seVa) {
+            if (s.ganador) {
+              caja.className = 'resultado gana';
+              q('resQuien').textContent = s.ganador;
+              q('resQue').textContent = '¡gana la ruleta!';
+            } else {
+              caja.className = 'resultado fuera';
+              q('resQuien').textContent = s.quien;
+              q('resQue').textContent = s.quedan === 1
+                ? 'queda fuera · queda 1'
+                : 'queda fuera · quedan ' + s.quedan;
+            }
+          } else {
+            caja.className = 'resultado gana';
+            q('resQuien').textContent = s.ganador || s.quien;
+            q('resQue').textContent = s.cuantos > 1
+              ? '¡gana la ruleta! · entre ' + s.cuantos
+              : '¡gana la ruleta!';
+          }
+          return true;
+        }
+
         // Abierta se enseña aunque no haya nadie: es cuando hay que decir qué
         // escribir en el chat.
         q('panel').hidden = !e.abierta;

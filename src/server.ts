@@ -1714,6 +1714,9 @@ app.get('/api/widget/nombres', (req: Request, res: Response) => {
       abierta: e.abierta,
       palabra: e.palabra,
       nombres: e.nombres,
+      // El ultimo sorteo, para poder sacar el cartel del ganador. Mientras la
+      // ruleta gira viene sin ganador: lo esconde ruletachat.
+      sorteo: e.sorteo,
       cierraEn: e.cierraEn,
       ahora: e.ahora
     });

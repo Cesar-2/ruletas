@@ -85,13 +85,20 @@ router.post('/api/ruleta-chat/vaciar', (req: Request, res: Response) => {
   res.json(ruletachat.vaciar(ctx.requireUid(req)));
 });
 
-// POST /api/ruleta-chat/girada -> avisa de que la rueda ha girado
-// A diferencia del resto, a esta ruleta la gira la pagina, asi que no hay nada
-// aqui que sea «se ha jugado». Esto no decide ni reparte nada: solo suma una
-// partida a la estadistica del panel de admin.
+// POST /api/ruleta-chat/girada  Body: { cuantos, ganador?, duracion? }
+// A diferencia del resto, a esta ruleta la gira la pagina: la lista de nombres
+// vive en su cuadro de texto, asi que el servidor no conoce a los participantes
+// y no puede elegir. Aqui no se decide ni se reparte nada.
+//
+// Lo que se hace es apuntar la partida para la estadistica del panel de admin y
+// guardar lo que la pagina dice que ha salido, para que el widget de OBS pueda
+// contarlo. El ganador no se devuelve a nadie hasta que la ruleta para de girar.
+// Ver ruletachat.ts.
 router.post('/api/ruleta-chat/girada', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
   const cuantos = Number(req.body?.cuantos) || 0;
-  estadisticas.apuntar('nombres', ctx.requireUid(req), cuantos);
+  estadisticas.apuntar('nombres', uid, cuantos);
+  ruletachat.guardarSorteo(uid, req.body);
   res.json({ ok: true });
 });
 
