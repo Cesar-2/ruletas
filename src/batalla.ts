@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import * as chat from './chat';
 import { Cronometro } from './cronometro';
+import { Vivo, quedanSegundos } from './vivo';
 
 export interface Luchador {
   nombre: string;
@@ -76,8 +77,15 @@ export interface Dependencias {
 let deps: Dependencias;
 export function iniciar(d: Dependencias): void { deps = d; }
 
-// La batalla en curso vive en memoria: dura lo que dura el directo.
+// La batalla en curso vive en memoria, que es donde se toca a cada duelo; de
+// ahi se saca una foto a disco para que un reinicio no se lleve el cuadro a
+// medio torneo. Aqui se guarda todo, golpes incluidos: un cuadro con sus
+// combates son unos pocos kilobytes, y es justo lo que la pagina va contando
+// ronda a ronda. Ver vivo.ts.
 const batallas = new Map<string, Batalla>();
+const vivo = new Vivo<Batalla>('batalla', () => deps);
+// La palabra con la que se abrio, para rehacer la escucha tal cual estaba.
+const palabras = new Map<string, string>();
 
 function archivoAjustes(uid: string): string {
   return path.join(deps.userDir(uid), 'batalla.json');
@@ -105,6 +113,18 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
   deps.ensureUserDir(uid);
   deps.writeJson(archivoAjustes(uid), actual);
   return actual;
+}
+
+// La foto de lo que hay vivo ahora mismo.
+function apuntarEnDisco(uid: string): void {
+  const batalla = batallas.get(uid);
+  if (!batalla) { vivo.borrar(uid); return; }
+  vivo.guardar(uid, {
+    estado: batalla,
+    canal: escuchas.get(uid)?.canal || '',
+    palabra: palabras.get(uid) || '',
+    cierraEn: crono.cierraEn(uid)
+  });
 }
 
 export function estado(uid: string): Batalla & { escuchando: string; palabra: string; cierraEn: number; ahora: number } {
@@ -142,20 +162,58 @@ export function abrir(uid: string, canal: string, segundos?: unknown): Batalla {
     abierta: true, luchadores: [], rondas: [], campeon: '', puntos: ajustes.puntos
   };
   batallas.set(uid, batalla);
+  escuchar(uid, canal, ajustes.palabra);
+  apuntarEnDisco(uid);
+  return batalla;
+}
 
-  const buscada = ajustes.palabra.trim().toLowerCase();
+// Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
+// rehacer la escucha de una inscripcion que se abrio antes del reinicio.
+function escuchar(uid: string, canal: string, palabra: string): void {
+  const buscada = String(palabra || '').trim().toLowerCase();
+  palabras.set(uid, buscada);
   escuchas.set(uid, chat.conectar(canal, (m) => {
-    if (!batalla.abierta) return;
+    const batalla = batallas.get(uid);
+    if (!batalla || !batalla.abierta) return;
     if (!chat.esLaPalabra(m.texto, buscada)) return;
     entrar(uid, m.autor);
   }));
-  return batalla;
+}
+
+// Recupera el torneo que estaba en marcha al apagarse. La llama el servidor al
+// arrancar, una vez por cuenta.
+export function rehacer(uid: string): boolean {
+  const foto = vivo.leer(uid);
+  if (!foto) return false;
+  const e = foto.estado;
+  const batalla: Batalla = {
+    abierta: Boolean(e.abierta),
+    luchadores: Array.isArray(e.luchadores) ? e.luchadores : [],
+    rondas: Array.isArray(e.rondas) ? e.rondas : [],
+    campeon: String(e.campeon || ''),
+    puntos: Number(e.puntos) || leerAjustes(uid).puntos
+  };
+  batallas.set(uid, batalla);
+
+  // El cronometro sigue contando desde la hora que se guardo, no desde cero:
+  // si se le paso la hora con el servidor apagado, la inscripcion ya cerro.
+  const quedan = quedanSegundos(foto.cierraEn);
+  if (batalla.abierta && quedan >= 0) {
+    if (quedan > 0) crono.poner(uid, quedan);
+    if (foto.canal) escuchar(uid, foto.canal, foto.palabra);
+  } else if (quedan < 0) {
+    crono.rehacerVencido(uid, foto.cierraEn);
+  }
+  apuntarEnDisco(uid);
+  return true;
 }
 
 export function cancelar(uid: string): void {
   cerrarEscucha(uid);
   crono.quitar(uid);
   batallas.delete(uid);
+  palabras.delete(uid);
+  vivo.borrar(uid);
 }
 
 export function escuchando(uid: string): string {
@@ -176,6 +234,7 @@ export function entrar(uid: string, nombre: string): { ok: boolean; error?: stri
   if (batalla.luchadores.some((l) => l.clave === clave)) return { ok: false, error: 'ya estabas apuntado' };
 
   batalla.luchadores.push({ nombre: limpio, clave });
+  apuntarEnDisco(uid);
   return { ok: true };
 }
 
@@ -240,6 +299,7 @@ export function empezar(uid: string): Batalla | null {
   crono.quitar(uid);
   batalla.luchadores = sortearClases(batalla.luchadores);
   batalla.rondas = [emparejar(batalla.luchadores.map((l) => l.nombre), 1)];
+  apuntarEnDisco(uid);
   return batalla;
 }
 
@@ -258,6 +318,7 @@ export function repetir(uid: string): Batalla | null {
   };
   nueva.rondas = [emparejar(nueva.luchadores.map((l) => l.nombre), 1)];
   batallas.set(uid, nueva);
+  apuntarEnDisco(uid);
   return nueva;
 }
 
@@ -369,6 +430,7 @@ export function resolverRonda(uid: string): Batalla | null {
   }
 
   cerrarRonda(uid, batalla, ronda);
+  apuntarEnDisco(uid);
   return batalla;
 }
 
@@ -386,5 +448,6 @@ export function resolverDuelo(uid: string, cual: number): Batalla | null {
   pelear(duelo);
 
   if (ronda.duelos.every((d) => d.ganador)) cerrarRonda(uid, batalla, ronda);
+  apuntarEnDisco(uid);
   return batalla;
 }

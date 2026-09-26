@@ -17,6 +17,7 @@
 import fs from 'fs';
 import path from 'path';
 import * as chat from './chat';
+import { Vivo } from './vivo';
 import * as batalla from './batalla';
 
 export interface Retador {
@@ -82,8 +83,31 @@ export interface Dependencias {
 let deps: Dependencias;
 export function iniciar(d: Dependencias): void { deps = d; }
 
-// La partida vive en memoria: dura lo que dura el directo.
+// La partida vive en memoria, que es donde se toca a cada combate; de ahi se
+// saca una foto a disco para que un reinicio no se lleve al rey ni a la cola.
+// Esta es la que mas lo agradece: la colina no se resuelve de una, es el estado
+// que mas dura de todos los minijuegos. Ver vivo.ts.
 const colinas = new Map<string, Colina>();
+const vivo = new Vivo<Colina>('colina', () => deps);
+// La palabra con la que se abrio, para rehacer la escucha tal cual estaba.
+const palabras = new Map<string, string>();
+
+// La foto de lo que hay vivo ahora mismo.
+//
+// El duelo se deja fuera: es el relato golpe a golpe del ultimo combate, y solo
+// sirve para que la pagina lo cuente. Si un reinicio pilla a mitad del relato,
+// la pagina ya se recargo y no lo esta contando; lo que importa es quien quedo
+// de rey, y eso si se guarda.
+function apuntarEnDisco(uid: string): void {
+  const colina = colinas.get(uid);
+  if (!colina) { vivo.borrar(uid); return; }
+  vivo.guardar(uid, {
+    estado: { ...colina, duelo: null },
+    canal: escuchas.get(uid)?.canal || '',
+    palabra: palabras.get(uid) || '',
+    cierraEn: 0
+  });
+}
 
 function archivo(uid: string): string {
   return path.join(deps.userDir(uid), 'colina.json');
@@ -179,19 +203,58 @@ export function abrir(uid: string, canal: string): Colina {
   const colina = vacia();
   colina.abierta = true;
   colinas.set(uid, colina);
+  escuchar(uid, canal, leerGuardado(uid).palabra);
+  apuntarEnDisco(uid);
+  return colina;
+}
 
-  const buscada = leerGuardado(uid).palabra.trim().toLowerCase();
+// Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
+// rehacer la escucha de una colina que se abrio antes del reinicio.
+function escuchar(uid: string, canal: string, palabra: string): void {
+  const buscada = String(palabra || '').trim().toLowerCase();
+  palabras.set(uid, buscada);
   escuchas.set(uid, chat.conectar(canal, (m) => {
-    if (!colina.abierta) return;
+    const colina = colinas.get(uid);
+    if (!colina || !colina.abierta) return;
     if (!chat.esLaPalabra(m.texto, buscada)) return;
     entrar(uid, m.autor);
   }));
-  return colina;
+}
+
+// Recupera la colina que estaba en marcha al apagarse. La llama el servidor al
+// arrancar, una vez por cuenta.
+export function rehacer(uid: string): boolean {
+  const foto = vivo.leer(uid);
+  if (!foto) return false;
+  const e = foto.estado;
+  const base = vacia();
+  const colina: Colina = {
+    ...base,
+    abierta: Boolean(e.abierta),
+    cola: Array.isArray(e.cola) ? e.cola : [],
+    rey: e.rey || null,
+    derrotado: String(e.derrotado || ''),
+    mejor: e.mejor || null,
+    peleados: Number(e.peleados) || 0,
+    clases: (e.clases && typeof e.clases === 'object') ? e.clases : {},
+    // El duelo no se guarda, y con el se van los que estaban peleando: tras un
+    // reinicio la pagina ya no esta contando nada, asi que dejar a dos
+    // marcados como «peleando ahora mismo» solo les impediria volver a la cola.
+    duelo: null,
+    enCombate: [],
+    combateDesde: 0
+  };
+  colinas.set(uid, colina);
+  if (colina.abierta && foto.canal) escuchar(uid, foto.canal, foto.palabra);
+  apuntarEnDisco(uid);
+  return true;
 }
 
 export function cerrar(uid: string): void {
   cerrarEscucha(uid);
   colinas.delete(uid);
+  palabras.delete(uid);
+  vivo.borrar(uid);
 }
 
 export function escuchando(uid: string): string {
@@ -213,6 +276,7 @@ export function finCombate(uid: string): void {
   if (!colina) return;
   colina.enCombate = [];
   colina.combateDesde = 0;
+  apuntarEnDisco(uid);
 }
 
 // Ponerse en la cola. Lo llama el chat y tambien el dueno a mano.
@@ -233,6 +297,7 @@ export function entrar(uid: string, nombre: string): { ok: boolean; error?: stri
 
   if (!colina.clases[clave]) colina.clases[clave] = batalla.sortearClase();
   colina.cola.push({ nombre: limpio, clave, clase: colina.clases[clave] });
+  apuntarEnDisco(uid);
   return { ok: true };
 }
 
@@ -243,7 +308,8 @@ export function sacar(uid: string, nombre: string): boolean {
   const clave = String(nombre || '').trim().toLowerCase();
   const antes = colina.cola.length;
   colina.cola = colina.cola.filter((r) => r.clave !== clave);
-  return colina.cola.length < antes;
+  if (colina.cola.length < antes) { apuntarEnDisco(uid); return true; }
+  return false;
 }
 
 // Si hay con quien pelear el siguiente combate.
@@ -304,6 +370,7 @@ export function siguiente(uid: string): Colina | null {
     colina.rey = { ...retador, racha: 1 };
     apuntarMejor(uid, colina, retador.nombre, 1);
   }
+  apuntarEnDisco(uid);
   return colina;
 }
 
@@ -317,6 +384,7 @@ export function destronar(uid: string): Colina | null {
   colina.derrotado = '';
   colina.enCombate = [];
   colina.combateDesde = 0;
+  apuntarEnDisco(uid);
   return colina;
 }
 

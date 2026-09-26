@@ -28,6 +28,18 @@ export class Cronometro {
     }, s * 1000));
   }
 
+  // Vuelve a poner una hora de cierre que YA paso, sin temporizador: es para
+  // recuperar tras un reinicio una inscripcion a la que se le paso la hora
+  // mientras el servidor estaba apagado. No se avisa al minijuego, porque el
+  // que rehace ya sabe que esa ronda esta cerrada; esto solo sirve para que
+  // `vencido()` diga la verdad y la pagina siga poniendo «inscripcion
+  // cerrada» en vez de parecer abierta de nuevo.
+  rehacerVencido(uid: string, cierraEn: number): void {
+    this.quitar(uid);
+    const c = Math.floor(Number(cierraEn) || 0);
+    if (c > 0 && Date.now() >= c) this.cierres.set(uid, c);
+  }
+
   // Lo olvida del todo: al empezar, cancelar o cerrar a mano.
   quitar(uid: string): void {
     const t = this.temporizadores.get(uid);

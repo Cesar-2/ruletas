@@ -3005,6 +3005,39 @@ batalla.iniciar({
   clasesConArte: () => Object.keys(arteBatalla().clases)
 });
 
+// Las rondas que estaban abiertas cuando el servidor se apago. Se recuperan
+// aqui, despues de que todos los minijuegos tengan sus dependencias puestas y
+// antes de escuchar el puerto: asi la primera peticion que llegue ya ve la
+// ronda en su sitio, en vez de encontrarse la partida vacia y volver a pintar
+// el panel desde cero.
+//
+// Se vuelve a entrar en el chat de quien estuviera escuchando, asi que un
+// reinicio a mitad de inscripcion es ahora un bache de unos segundos y no una
+// ronda perdida. Ver vivo.ts.
+function rehacerRondasVivas(): void {
+  const cuenta: Record<string, number> = {};
+  const cuales: [string, (uid: string) => boolean][] = [
+    ['carrera', carrera.rehacer],
+    ['plinko', plinko.rehacer],
+    ['batalla', batalla.rehacer],
+    ['colina', colina.rehacer],
+    ['nombres', ruletachat.rehacer]
+  ];
+  for (const u of readUsers()) {
+    for (const [nombre, rehacer] of cuales) {
+      try {
+        if (rehacer(u.id)) cuenta[nombre] = (cuenta[nombre] || 0) + 1;
+      } catch (err) {
+        // Una cuenta con la foto rota no puede dejar sin recuperar a las
+        // demas, ni impedir que el servidor arranque.
+        console.error(`Failed to restore ${nombre} for ${u.id}:`, err);
+      }
+    }
+  }
+  const resumen = Object.entries(cuenta).map(([n, c]) => `${n}: ${c}`).join(', ');
+  if (resumen) console.log(`Rondas recuperadas del reinicio -> ${resumen}`);
+}
+
 twitch.iniciar(
   {
     userDir,
@@ -3018,6 +3051,8 @@ twitch.iniciar(
     usuarios: readUsers().map((u) => u.id)
   }
 );
+
+rehacerRondasVivas();
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

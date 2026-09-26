@@ -20,6 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import * as chat from './chat';
 import { Cronometro } from './cronometro';
+import { Vivo, quedanSegundos } from './vivo';
 
 // --- El tablero ---------------------------------------------------------
 // Todo se mide en "unidades de clavija": la separacion entre dos clavijas
@@ -296,10 +297,30 @@ export interface Dependencias {
 let deps: Dependencias;
 export function iniciar(d: Dependencias): void { deps = d; }
 
-// La partida en curso vive en memoria: dura lo que dura el directo.
+// La partida en curso vive en memoria, que es donde se toca mil veces por
+// segundo; de ahi se saca una foto a disco para que un reinicio no se la lleve.
+// Ver vivo.ts.
 const partidas = new Map<string, Plinko>();
+const vivo = new Vivo<Plinko>('plinko', () => deps);
+// La palabra con la que se abrio cada ronda, para rehacer la escucha tal cual
+// estaba: los ajustes pueden haber cambiado desde entonces.
+const palabras = new Map<string, string>();
 const escuchas = new Map<string, chat.Conexion>();
 const crono = new Cronometro((uid) => cerrarEscucha(uid));
+
+// La foto de lo que hay vivo ahora mismo. Las tiradas se dejan fuera a
+// proposito: son miles de puntos de recorrido para animar algo que ya se vio.
+// Ver vivo.ts.
+function apuntarEnDisco(uid: string): void {
+  const partida = partidas.get(uid);
+  if (!partida) { vivo.borrar(uid); return; }
+  vivo.guardar(uid, {
+    estado: { ...partida, tiradas: [] },
+    canal: escuchas.get(uid)?.canal || '',
+    palabra: palabras.get(uid) || '',
+    cierraEn: crono.cierraEn(uid)
+  });
+}
 
 function tableroDe(ajustes: Ajustes): Tablero {
   return { ...TABLERO_POR_DEFECTO, filas: ajustes.filas };
@@ -592,14 +613,54 @@ export function abrir(uid: string, canal: string, palabra?: string, segundos?: u
     tablero: tableroDe(ajustes), multiplicadores: ajustes.multiplicadores.slice()
   };
   partidas.set(uid, partida);
+  escuchar(uid, canal, (palabra || ajustes.palabra));
+  apuntarEnDisco(uid);
+  return partida;
+}
 
-  const buscada = (palabra || ajustes.palabra).trim().toLowerCase();
+// Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
+// rehacer la escucha de una ronda que se abrio antes del reinicio.
+function escuchar(uid: string, canal: string, palabra: string): void {
+  const buscada = String(palabra || '').trim().toLowerCase();
+  palabras.set(uid, buscada);
   escuchas.set(uid, chat.conectar(canal, (m) => {
-    if (!partida.abierta) return;
+    const partida = partidas.get(uid);
+    if (!partida || !partida.abierta) return;
     if (!chat.esLaPalabra(m.texto, buscada)) return;
     apuntar(uid, m.autor);
   }));
-  return partida;
+}
+
+// Recupera la ronda que estaba abierta al apagarse, si la hay. La llama el
+// servidor al arrancar, una vez por cuenta.
+export function rehacer(uid: string): boolean {
+  const foto = vivo.leer(uid);
+  if (!foto) return false;
+  const e = foto.estado;
+  const ajustes = leerAjustes(uid);
+  const partida: Plinko = {
+    abierta: Boolean(e.abierta),
+    jugadores: Array.isArray(e.jugadores) ? e.jugadores : [],
+    tiradas: [],
+    tiradoEn: String(e.tiradoEn || ''),
+    tablero: e.tablero || tableroDe(ajustes),
+    multiplicadores: Array.isArray(e.multiplicadores) ? e.multiplicadores : ajustes.multiplicadores.slice(),
+    ...(e.modo ? { modo: e.modo } : {}),
+    ...(Array.isArray(e.premios) ? { premios: e.premios } : {})
+  };
+  partidas.set(uid, partida);
+
+  // El cronometro sigue contando desde la hora que se guardo, no desde cero:
+  // si se le paso la hora con el servidor apagado, la inscripcion ya cerro.
+  const quedan = quedanSegundos(foto.cierraEn);
+  if (partida.abierta && quedan >= 0) {
+    if (quedan > 0) crono.poner(uid, quedan);
+    if (foto.canal) escuchar(uid, foto.canal, foto.palabra);
+  } else if (quedan < 0) {
+    crono.rehacerVencido(uid, foto.cierraEn);
+  }
+  apuntarEnDisco(uid);
+  return true;
 }
 
 export function apuntar(uid: string, nombre: string): boolean {
@@ -611,6 +672,7 @@ export function apuntar(uid: string, nombre: string): boolean {
   const clave = limpio.toLowerCase();
   if (partida.jugadores.some((j) => j.clave === clave)) return false;
   partida.jugadores.push({ nombre: limpio, clave });
+  apuntarEnDisco(uid);
   return true;
 }
 
@@ -663,6 +725,10 @@ export function tirar(uid: string): Plinko | null {
   });
   aligerar(partida.tiradas);
   partida.tiradoEn = new Date().toISOString();
+  // Ya se tiro: lo que queda en pantalla es el resultado, y eso no hace falta
+  // rescatarlo de un reinicio.
+  vivo.borrar(uid);
+  palabras.delete(uid);
   return partida;
 }
 
@@ -673,6 +739,9 @@ export function repetir(uid: string, canal: string): Plinko | null {
   const mismos = anterior.jugadores.slice();
   const nueva = abrir(uid, canal);
   nueva.jugadores = mismos;
+  // `abrir` ya saco su foto, pero era de una partida sin nadie: hay que volver
+  // a sacarla con los que se acaban de heredar.
+  apuntarEnDisco(uid);
   return nueva;
 }
 
@@ -680,4 +749,6 @@ export function cancelar(uid: string): void {
   cerrarEscucha(uid);
   crono.quitar(uid);
   partidas.delete(uid);
+  palabras.delete(uid);
+  vivo.borrar(uid);
 }

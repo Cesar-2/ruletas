@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import * as chat from './chat';
 import { Cronometro } from './cronometro';
+import { Vivo, quedanSegundos } from './vivo';
 
 export interface Corredor {
   nombre: string;       // como se escribe, para enseñarlo
@@ -68,13 +69,34 @@ export interface Dependencias {
 let deps: Dependencias;
 export function iniciar(d: Dependencias): void { deps = d; }
 
-// La carrera en curso vive en memoria: es de un rato, no de guardarla.
+// La carrera en curso vive en memoria, que es donde se toca mil veces por
+// segundo; de ahi se saca una foto a disco para que un reinicio no se la lleve.
+// Ver vivo.ts.
 const carreras = new Map<string, Carrera>();
+const vivo = new Vivo<Carrera>('carrera', () => deps);
+// La palabra con la que se abrio cada ronda. Hace falta para rehacer la escucha
+// tal cual estaba: los ajustes pueden haber cambiado desde entonces.
+const palabras = new Map<string, string>();
 // La conexion al chat mientras hay inscripcion abierta.
 const escuchas = new Map<string, chat.Conexion>();
 // Al llegar la hora deja de escuchar el chat. La carrera no se corre sola:
 // sigue esperando a que el streamer pulse «¡Correr!».
 const crono = new Cronometro((uid) => cerrarEscucha(uid));
+
+// La foto de lo que hay vivo ahora mismo. Se llama en cada cambio: son
+// archivos de nada y solo se escriben cuando pasa algo.
+//
+// Las marcas y los eventos se dejan fuera a proposito: ver vivo.ts.
+function apuntarEnDisco(uid: string): void {
+  const carrera = carreras.get(uid);
+  if (!carrera) { vivo.borrar(uid); return; }
+  vivo.guardar(uid, {
+    estado: { ...carrera, marcas: [], eventos: [] },
+    canal: escuchas.get(uid)?.canal || '',
+    palabra: palabras.get(uid) || '',
+    cierraEn: crono.cierraEn(uid)
+  });
+}
 
 export function estado(uid: string): Carrera & { escuchando: string; ajustes: Ajustes; cierraEn: number; ahora: number } {
   const c = carreras.get(uid) || { abierta: false, corredores: [], resultado: [], corridaEn: '', marcas: [], eventos: [] };
@@ -223,14 +245,52 @@ export function abrir(uid: string, canal: string, palabra?: string, segundos?: u
   crono.poner(uid, segundos);
   const carrera: Carrera = { abierta: true, corredores: [], resultado: [], corridaEn: '', marcas: [], eventos: [] };
   carreras.set(uid, carrera);
+  escuchar(uid, canal, (palabra || leerAjustes(uid).palabra));
+  apuntarEnDisco(uid);
+  return carrera;
+}
 
-  const buscada = (palabra || leerAjustes(uid).palabra).trim().toLowerCase();
+// Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
+// rehacer la escucha de una ronda que se abrio antes del reinicio.
+function escuchar(uid: string, canal: string, palabra: string): void {
+  const buscada = String(palabra || '').trim().toLowerCase();
+  palabras.set(uid, buscada);
   escuchas.set(uid, chat.conectar(canal, (m) => {
-    if (!carrera.abierta) return;
+    const carrera = carreras.get(uid);
+    if (!carrera || !carrera.abierta) return;
     if (!chat.esLaPalabra(m.texto, buscada)) return;
     apuntar(uid, m.autor);
   }));
-  return carrera;
+}
+
+// Recupera la ronda que estaba abierta al apagarse, si la hay. La llama el
+// servidor al arrancar, una vez por cuenta.
+export function rehacer(uid: string): boolean {
+  const foto = vivo.leer(uid);
+  if (!foto) return false;
+  const e = foto.estado;
+  const carrera: Carrera = {
+    abierta: Boolean(e.abierta),
+    corredores: Array.isArray(e.corredores) ? e.corredores : [],
+    resultado: Array.isArray(e.resultado) ? e.resultado : [],
+    corridaEn: String(e.corridaEn || ''),
+    marcas: [],
+    eventos: []
+  };
+  carreras.set(uid, carrera);
+
+  // El cronometro sigue contando desde la hora que se guardo, no desde cero:
+  // si se le paso la hora mientras el servidor estaba apagado, la inscripcion
+  // ya cerro y no se vuelve a escuchar el chat.
+  const quedan = quedanSegundos(foto.cierraEn);
+  if (carrera.abierta && quedan >= 0) {
+    if (quedan > 0) crono.poner(uid, quedan);
+    if (foto.canal) escuchar(uid, foto.canal, foto.palabra);
+  } else if (quedan < 0) {
+    crono.rehacerVencido(uid, foto.cierraEn);
+  }
+  apuntarEnDisco(uid);
+  return true;
 }
 
 // Apuntar a alguien. Separada del chat para poder añadir a mano y para probar.
@@ -245,6 +305,7 @@ export function apuntar(uid: string, nombre: string): boolean {
   // Repetidos no; de resto, cabe todo el mundo.
   if (carrera.corredores.some((c) => c.clave === clave)) return false;
   carrera.corredores.push({ nombre: limpio, clave });
+  apuntarEnDisco(uid);
   return true;
 }
 
@@ -361,6 +422,10 @@ export function correr(uid: string): Carrera | null {
     return { puesto: i + 1, nombre: c.nombre, puntos };
   });
   carrera.corridaEn = new Date().toISOString();
+  // Ya corrio: lo que queda en pantalla es el resultado, y eso no hace falta
+  // rescatarlo de un reinicio.
+  vivo.borrar(uid);
+  palabras.delete(uid);
   return carrera;
 }
 
@@ -373,6 +438,9 @@ export function repetir(uid: string, canal: string): Carrera | null {
   const mismos = anterior.corredores.slice();
   const nueva = abrir(uid, canal);
   nueva.corredores = mismos;
+  // `abrir` ya saco su foto, pero era de una carrera sin corredores: hay que
+  // volver a sacarla con los que se acaban de heredar.
+  apuntarEnDisco(uid);
   return nueva;
 }
 
@@ -381,4 +449,6 @@ export function cancelar(uid: string): void {
   cerrarEscucha(uid);
   crono.quitar(uid);
   carreras.delete(uid);
+  palabras.delete(uid);
+  vivo.borrar(uid);
 }
