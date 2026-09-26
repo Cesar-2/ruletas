@@ -131,7 +131,9 @@ function apuntarEnDisco(uid: string): void {
   deps.alCambiar?.(uid);
 }
 
-export function estado(uid: string): Batalla & { escuchando: string; palabra: string; cierraEn: number; ahora: number } {
+export function estado(uid: string): Batalla & {
+  escuchando: string; chat: chat.Salud | null; palabra: string; cierraEn: number; ahora: number;
+} {
   const b = batallas.get(uid) || {
     abierta: false, luchadores: [], rondas: [], campeon: '', puntos: leerAjustes(uid).puntos
   };
@@ -139,7 +141,7 @@ export function estado(uid: string): Batalla & { escuchando: string; palabra: st
   // Los puntos que se enseñan son los ajustados ahora mismo, no los que
   // hubiera al abrir: se pueden cambiar en cualquier momento.
   return {
-    ...b, puntos: ajustes.puntos, escuchando: escuchando(uid), palabra: ajustes.palabra,
+    ...b, puntos: ajustes.puntos, escuchando: escuchando(uid), chat: saludChat(uid), palabra: ajustes.palabra,
     cierraEn: crono.cierraEn(uid), ahora: Date.now()
   };
 }
@@ -173,6 +175,15 @@ export function abrir(uid: string, canal: string, segundos?: unknown): Batalla {
 
 // Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
 // rehacer la escucha de una inscripcion que se abrio antes del reinicio.
+// Como va la escucha del chat, para poder decirlo en pantalla. null si no se
+// esta escuchando.
+//
+// Hace falta porque el nombre del canal NO prueba que se este leyendo su chat:
+// con un canal mal escrito el socket abre igual y Twitch se calla. Ver chat.ts.
+function saludChat(uid: string): chat.Salud | null {
+  return escuchas.get(uid)?.salud() || null;
+}
+
 function escuchar(uid: string, canal: string, palabra: string): void {
   const buscada = String(palabra || '').trim().toLowerCase();
   palabras.set(uid, buscada);
@@ -181,7 +192,7 @@ function escuchar(uid: string, canal: string, palabra: string): void {
     if (!batalla || !batalla.abierta) return;
     if (!chat.esLaPalabra(m.texto, buscada)) return;
     entrar(uid, m.autor);
-  }));
+  }, () => deps.alCambiar?.(uid)));
 }
 
 // Recupera el torneo que estaba en marcha al apagarse. La llama el servidor al

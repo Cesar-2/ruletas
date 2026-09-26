@@ -185,10 +185,12 @@ function vacia(): Colina {
   };
 }
 
-export function estado(uid: string): Colina & { escuchando: string; palabra: string; record: Marca | null } {
+export function estado(uid: string): Colina & {
+  escuchando: string; chat: chat.Salud | null; palabra: string; record: Marca | null;
+} {
   const c = colinas.get(uid) || vacia();
   const datos = leerGuardado(uid);
-  return { ...c, escuchando: escuchando(uid), palabra: datos.palabra, record: datos.record };
+  return { ...c, escuchando: escuchando(uid), chat: saludChat(uid), palabra: datos.palabra, record: datos.record };
 }
 
 // La conexion al chat mientras la colina esta abierta.
@@ -214,6 +216,15 @@ export function abrir(uid: string, canal: string): Colina {
 
 // Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
 // rehacer la escucha de una colina que se abrio antes del reinicio.
+// Como va la escucha del chat, para poder decirlo en pantalla. null si no se
+// esta escuchando.
+//
+// Hace falta porque el nombre del canal NO prueba que se este leyendo su chat:
+// con un canal mal escrito el socket abre igual y Twitch se calla. Ver chat.ts.
+function saludChat(uid: string): chat.Salud | null {
+  return escuchas.get(uid)?.salud() || null;
+}
+
 function escuchar(uid: string, canal: string, palabra: string): void {
   const buscada = String(palabra || '').trim().toLowerCase();
   palabras.set(uid, buscada);
@@ -222,7 +233,7 @@ function escuchar(uid: string, canal: string, palabra: string): void {
     if (!colina || !colina.abierta) return;
     if (!chat.esLaPalabra(m.texto, buscada)) return;
     entrar(uid, m.autor);
-  }));
+  }, () => deps.alCambiar?.(uid)));
 }
 
 // Recupera la colina que estaba en marcha al apagarse. La llama el servidor al

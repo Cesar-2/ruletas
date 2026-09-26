@@ -62,6 +62,7 @@
     function pintarPlinko() {
       const cuantos = plinko.jugadores.length;
       const estado = document.getElementById('plinkoEstado');
+      avisarChat('plinkoEstado', plinko.chat);
       estado.textContent = plinkoCayendo
         ? 'Cayendo…'
         : plinko.abierta

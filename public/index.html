@@ -363,6 +363,14 @@
        para que se entienda sin leer el cartel. */
     .names-reel .fila.fuera{color:#fff5f5;background:#b91c1c;
       border-bottom-color:transparent;text-decoration:line-through}
+    /* El aviso de que la escucha del chat no va. Va debajo de la linea de
+       estado del minijuego, que es donde se estaba mirando. Lo grave se ve; lo
+       que solo esta pasando va apagado, para no parpadear en rojo cada vez que
+       se abre una ronda. Ver chat-aviso.js. */
+    .chat-aviso{margin:.4rem 0 0;padding:.45rem .6rem;border-radius:8px;font-size:13px;
+      background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);color:#9fb3c8}
+    .chat-aviso.grave{background:rgba(220,38,38,0.14);border-color:rgba(248,113,113,0.5);color:#fecaca}
+
     .tab-panel{display:none}
     .tab-panel.active{display:block}
     #items,#equipItems,#randomResult{display:flex;flex-wrap:wrap;gap:12px;padding-top:8px}
@@ -2772,6 +2780,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
   <div class="confetti" id="confetti"></div>
 
   <script src="/js/eventos.js"></script>
+  <script src="/js/chat-aviso.js"></script>
   <script src="/js/rutas.js"></script>
   <script src="/js/plinko-tablero.js"></script>
   <script>
@@ -5726,6 +5735,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       // El campeon no se dice hasta que el ultimo combate acaba de contarse:
       // el cartel y el cuadro ya se callan, y esta linea no.
+      avisarChat('batallaEstado', batalla.chat);
       document.getElementById('batallaEstado').textContent = narrando
         ? `Contando la ronda ${batalla.rondas.length}…`
         : batalla.campeon
@@ -6119,6 +6129,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('colinaAbrir').textContent = colina.abierta ? 'Reiniciar la colina' : 'Abrir la cola';
 
       const estado = document.getElementById('colinaEstado');
+      avisarChat('colinaEstado', colina.chat);
       if (!colina.abierta) {
         estado.textContent = 'Sin colina abierta.';
       } else {
@@ -6711,6 +6722,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     function pintarCarrera() {
       const estado = document.getElementById('carreraEstado');
       const cuantos = carrera.corredores.length;
+      avisarChat('carreraEstado', carrera.chat);
       estado.textContent = carrera.abierta
         ? (cerradaPorTiempo(carrera)
           ? `Inscripción cerrada: ${cuantos} apuntado(s). Pulsa «¡Correr!».`
@@ -9034,6 +9046,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     function pintarInscripcion(estado) {
       const aviso = document.getElementById('nameChatEstado');
+      avisarChat('nameChatEstado', estado.chat);
       document.getElementById('nameChatAbrir').hidden = estado.abierta;
       document.getElementById('nameChatCerrar').hidden = !estado.abierta;
       aviso.textContent = estado.abierta

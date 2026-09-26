@@ -331,7 +331,7 @@ function tableroDe(ajustes: Ajustes): Tablero {
 }
 
 export function estado(uid: string): Plinko & {
-  escuchando: string; ajustes: Ajustes; cierraEn: number; ahora: number; fisica: Fisica;
+  escuchando: string; chat: chat.Salud | null; ajustes: Ajustes; cierraEn: number; ahora: number; fisica: Fisica;
 } {
   const ajustes = leerAjustes(uid);
   const p = partidas.get(uid) || {
@@ -348,6 +348,7 @@ export function estado(uid: string): Plinko & {
     premios: p.tiradas.length ? (p.premios || ajustes.premios) : ajustes.premios,
     fisica: FISICA_POR_DEFECTO,
     escuchando: escuchas.get(uid)?.canal || '',
+    chat: saludChat(uid),
     ajustes,
     cierraEn: crono.cierraEn(uid),
     ahora: Date.now()
@@ -624,6 +625,15 @@ export function abrir(uid: string, canal: string, palabra?: string, segundos?: u
 
 // Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
 // rehacer la escucha de una ronda que se abrio antes del reinicio.
+// Como va la escucha del chat, para poder decirlo en pantalla. null si no se
+// esta escuchando.
+//
+// Hace falta porque el nombre del canal NO prueba que se este leyendo su chat:
+// con un canal mal escrito el socket abre igual y Twitch se calla. Ver chat.ts.
+function saludChat(uid: string): chat.Salud | null {
+  return escuchas.get(uid)?.salud() || null;
+}
+
 function escuchar(uid: string, canal: string, palabra: string): void {
   const buscada = String(palabra || '').trim().toLowerCase();
   palabras.set(uid, buscada);
@@ -632,7 +642,7 @@ function escuchar(uid: string, canal: string, palabra: string): void {
     if (!partida || !partida.abierta) return;
     if (!chat.esLaPalabra(m.texto, buscada)) return;
     apuntar(uid, m.autor);
-  }));
+  }, () => deps.alCambiar?.(uid)));
 }
 
 // Recupera la ronda que estaba abierta al apagarse, si la hay. La llama el

@@ -102,10 +102,12 @@ function apuntarEnDisco(uid: string): void {
   deps.alCambiar?.(uid);
 }
 
-export function estado(uid: string): Carrera & { escuchando: string; ajustes: Ajustes; cierraEn: number; ahora: number } {
+export function estado(uid: string): Carrera & {
+  escuchando: string; chat: chat.Salud | null; ajustes: Ajustes; cierraEn: number; ahora: number;
+} {
   const c = carreras.get(uid) || { abierta: false, corredores: [], resultado: [], corridaEn: '', marcas: [], eventos: [] };
   return {
-    ...c, escuchando: escuchas.get(uid)?.canal || '', ajustes: leerAjustes(uid),
+    ...c, escuchando: escuchas.get(uid)?.canal || '', chat: saludChat(uid), ajustes: leerAjustes(uid),
     cierraEn: crono.cierraEn(uid), ahora: Date.now()
   };
 }
@@ -256,6 +258,15 @@ export function abrir(uid: string, canal: string, palabra?: string, segundos?: u
 
 // Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
 // rehacer la escucha de una ronda que se abrio antes del reinicio.
+// Como va la escucha del chat, para poder decirlo en pantalla. null si no se
+// esta escuchando.
+//
+// Hace falta porque el nombre del canal NO prueba que se este leyendo su chat:
+// con un canal mal escrito el socket abre igual y Twitch se calla. Ver chat.ts.
+function saludChat(uid: string): chat.Salud | null {
+  return escuchas.get(uid)?.salud() || null;
+}
+
 function escuchar(uid: string, canal: string, palabra: string): void {
   const buscada = String(palabra || '').trim().toLowerCase();
   palabras.set(uid, buscada);
@@ -264,7 +275,7 @@ function escuchar(uid: string, canal: string, palabra: string): void {
     if (!carrera || !carrera.abierta) return;
     if (!chat.esLaPalabra(m.texto, buscada)) return;
     apuntar(uid, m.autor);
-  }));
+  }, () => deps.alCambiar?.(uid)));
 }
 
 // Recupera la ronda que estaba abierta al apagarse, si la hay. La llama el

@@ -57,6 +57,8 @@ export interface Estado {
   abierta: boolean;
   nombres: string[];
   escuchando: string;
+  // Como va la escucha: null si no se esta escuchando. Ver chat.ts.
+  chat: chat.Salud | null;
   palabra: string;
   doblePct: number;     // posibilidades de doblar en el doble o nada
   cierraEn: number;     // cuando se cierra sola (reloj del servidor); 0 = sin limite
@@ -79,6 +81,7 @@ export function estado(uid: string): Estado {
     abierta: escuchas.has(uid),
     nombres: listas.get(uid) || [],
     escuchando: escuchas.get(uid)?.canal || '',
+    chat: saludChat(uid),
     palabra: leerAjustes(uid).palabra,
     doblePct: leerAjustes(uid).doblePct,
     cierraEn: crono.cierraEn(uid),
@@ -145,13 +148,22 @@ export function abrir(uid: string, canal: string, palabra?: string, segundos?: u
 
 // Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
 // rehacer la escucha de una inscripcion que se abrio antes del reinicio.
+// Como va la escucha del chat, para poder decirlo en pantalla. null si no se
+// esta escuchando.
+//
+// Hace falta porque el nombre del canal NO prueba que se este leyendo su chat:
+// con un canal mal escrito el socket abre igual y Twitch se calla. Ver chat.ts.
+function saludChat(uid: string): chat.Salud | null {
+  return escuchas.get(uid)?.salud() || null;
+}
+
 function escuchar(uid: string, canal: string, palabra: string): void {
   const buscada = String(palabra || '').trim().toLowerCase();
   palabras.set(uid, buscada);
   escuchas.set(uid, chat.conectar(canal, (m) => {
     if (!chat.esLaPalabra(m.texto, buscada)) return;
     apuntar(uid, m.autor);
-  }));
+  }, () => deps.alCambiar?.(uid)));
 }
 
 // Recupera lo que estaba apuntado al apagarse. La llama el servidor al
