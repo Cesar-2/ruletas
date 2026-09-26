@@ -216,10 +216,10 @@
     });
 
     function vigilar(encender) {
-      if (vigilante) { clearInterval(vigilante); vigilante = null; }
-      // Mientras la inscripción está abierta se pregunta cada 2 s quién se ha
-      // apuntado por el chat; el resto del tiempo no se molesta al servidor.
-      if (encender) vigilante = setInterval(cargarCarrera, 2000);
+      // Mientras la inscripción está abierta, el servidor avisa de quién se ha
+      // apuntado por el chat en vez de que esto pregunte cada dos segundos.
+      // Ver eventos.js.
+      Eventos.vigilar('carrera', cargarCarrera, encender);
     }
 
     document.getElementById('carreraAbrir').addEventListener('click', async () => {

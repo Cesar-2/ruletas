@@ -121,6 +121,7 @@
   <div id="fallo" hidden></div>
 
   <script src="/js/plinko-tablero.js"></script>
+  <script src="/js/eventos.js"></script>
   <script src="/js/widget-base.js"></script>
   <script>
   (function () {
@@ -140,8 +141,9 @@
     // ?siempre=1 deja el tablero puesto también en el directo, para quien lo
     // quiera fijo en una esquina en vez de que aparezca y desaparezca.
     const siempre = prueba || params.get('siempre') === '1';
-    // Cada cuánto se pregunta al servidor. Lo mismo que hace la página.
-    const CADA = Math.max(500, Number(params.get('cada')) || 2000);
+    // Con ?cada= se fuerza el reloj de antes, en milisegundos, y se descarta el
+    // canal de avisos. No hace falta para nada normal.
+    const CADA = Number(params.get('cada')) || 0;
 
     const lienzo = document.getElementById('lienzo');
     const todo = document.getElementById('todo');
@@ -310,8 +312,15 @@
     }
 
     mirar();
-    setInterval(mirar, CADA);
-    // La cuenta atrás de la inscripción tiene que bajar aunque no se sondee.
+    if (CADA) {
+      setInterval(mirar, Math.max(500, CADA));
+    } else {
+      // El servidor avisa y aquí solo se pide el estado. Ver eventos.js.
+      Eventos.usarDireccion('/api/widget/eventos?clave=' + encodeURIComponent(clave));
+      Eventos.vigilar('plinko', mirar, true);
+    }
+    // La cuenta atrás de la inscripción tiene que bajar aunque no llegue ningún
+    // aviso: es un reloj de la página, no del servidor.
     setInterval(() => { if (estado && estado.abierta) repasarVisible(); }, 250);
   })();
   </script>

@@ -1,6 +1,11 @@
-// Lo que todos los widgets hacen igual: leer la clave de la url, preguntar al
-// servidor cada poco, enseñarse solo cuando hay algo que enseñar y decir en
-// pantalla si algo va mal.
+// Lo que todos los widgets hacen igual: leer la clave de la url, enterarse de
+// los cambios, enseñarse solo cuando hay algo que enseñar y decir en pantalla
+// si algo va mal.
+//
+// Antes preguntaba cada dos segundos. Ahora el servidor avisa por su canal y
+// esto pide el estado cuando le toca, con un reloj lento de repuesto por si el
+// canal se cae. Se nota en pantalla: lo que se apunta alguien en el chat sale
+// al momento en vez de con hasta dos segundos de retraso. Ver eventos.js.
 //
 // Se sacó aquí al montar el segundo widget. Cada minijuego solo pone lo suyo:
 // qué se ve y cómo se pinta.
@@ -24,8 +29,10 @@
   const clave = params.get('clave') || '';
   const prueba = params.get('fondo') !== '0';
   const siempre = prueba || params.get('siempre') === '1';
-  // Cada cuánto se pregunta. Lo mismo que hace la página del Ruleton.
-  const CADA = Math.max(500, Number(params.get('cada')) || 2000);
+  // Con ?cada= se fuerza el reloj de antes, en milisegundos. No hace falta para
+  // nada normal: está para poder descartar el canal si alguna vez da guerra en
+  // una máquina concreta.
+  const CADA = Number(params.get('cada')) || 0;
 
   function caja(id) { return document.getElementById(id); }
 
@@ -74,7 +81,13 @@
     }
 
     mirar();
-    setInterval(mirar, CADA);
+    if (CADA) {
+      // A mano: el reloj de antes y nada de canal.
+      setInterval(mirar, Math.max(500, CADA));
+    } else {
+      Eventos.usarDireccion('/api/widget/eventos?clave=' + encodeURIComponent(clave));
+      Eventos.vigilar(ruta, mirar, true);
+    }
     return { mirar, decirFallo };
   }
 

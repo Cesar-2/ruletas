@@ -14,7 +14,6 @@
     // de la simulación, no una elegida antes de tirar.
 
     let plinko = { abierta: false, jugadores: [], tiradas: [], tablero: null, multiplicadores: [] };
-    let plinkoVigilante = null;   // refresca los apuntados mientras hay inscripción
     let plinkoCayendo = false;    // mientras se está viendo caer las bolas
     let plinkoAnimacion = null;   // el requestAnimationFrame en curso
     // Lo que se está dibujando ahora mismo: bolas a medio caer y casillas que
@@ -54,9 +53,10 @@
     }
 
     function plinkoVigilar(encender) {
-      if (plinkoVigilante) { clearInterval(plinkoVigilante); plinkoVigilante = null; }
-      // Solo se pregunta mientras la inscripción está abierta.
-      if (encender) plinkoVigilante = setInterval(cargarPlinko, 2000);
+      // El servidor avisa por su canal y aquí solo se pide el estado. Queda un
+      // reloj de repuesto por dentro, muy lento, por si el canal se cae.
+      // Ver eventos.js.
+      Eventos.vigilar('plinko', cargarPlinko, encender);
     }
 
     function pintarPlinko() {

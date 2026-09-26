@@ -12,6 +12,7 @@ import * as colina from './colina';
 import * as ruletachat from './ruletachat';
 import * as catalogo from './catalogo';
 import * as widget from './widget';
+import * as avisos from './avisos';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -1474,6 +1475,107 @@ app.get('/api/img/touch/:tamano/:archivo', async (req: Request, res: Response) =
 // Las paginas que se meten en OBS como Fuente de Navegador. No llevan sesion
 // (OBS no tiene cookies), asi que se identifican con una clave en la url que
 // solo sirve para mirar. Ver widget.ts.
+
+// --- Avisos en vivo -----------------------------------------------------
+// El servidor avisa de que un minijuego cambio y el que escucha pide el estado
+// como siempre. Antes cada panel preguntaba cada dos segundos; ahora solo
+// pregunta cuando hay algo. Ver avisos.ts.
+
+// Cada cuanto se manda un latido. Un canal callado lo corta cualquier proxy (y
+// Cloudflare a los 100s), asi que se manda un comentario cada 25 segundos: no
+// es un evento, no llega al codigo del cliente, solo mantiene la tuberia.
+const LATIDO_MS = 25000;
+
+// Cuanto se espera antes de mandar un aviso. Cuarenta personas apuntandose son
+// cuarenta cambios en un segundo, y mandar cuarenta avisos solo haria que el
+// cliente pidiera el estado cuarenta veces para pintar lo mismo. Se juntan.
+const JUNTAR_MS = 120;
+
+// Escribe una cosa en el canal. Devuelve false si la conexion ya no esta, que
+// pasa constantemente: el navegador cierra sin avisar en cuanto cambias de
+// pestaña o recargas.
+//
+// El formato de SSE es tonto pero quisquilloso: cada linea es "campo: valor" y
+// lo que cierra el mensaje es una linea en blanco. Una linea que empieza por
+// dos puntos es un comentario y no le llega al codigo del cliente, que es
+// justo lo que se quiere del latido.
+function escribirEnCanal(res: Response, lineas: string[]): boolean {
+  try {
+    res.write(lineas.concat(['', '']).join('\n'));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// Monta un canal de eventos para una cuenta. Lo comparten la pagina y los
+// widgets, que solo se diferencian en como dicen de quien son.
+function abrirCanal(req: Request, res: Response, uid: string): void {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    // Para nginx, que si no se guarda la respuesta en su buffer y no sale nada
+    // hasta que se corta.
+    'X-Accel-Buffering': 'no'
+  });
+  // Un primer aviso para que el cliente sepa que esto ya esta en pie y pueda
+  // apagar su reloj de repuesto.
+  escribirEnCanal(res, ['event: listo', 'data: {}']);
+
+  // Los que han cambiado y todavia no se han mandado.
+  let pendientes = new Set<avisos.Juego>();
+  let junta: ReturnType<typeof setTimeout> | null = null;
+
+  const soltar = avisos.escuchar(uid, (juego) => {
+    pendientes.add(juego);
+    if (junta) return;
+    junta = setTimeout(() => {
+      junta = null;
+      const cuales = Array.from(pendientes);
+      pendientes = new Set();
+      for (const j of cuales) {
+        // Si la conexion se fue entre medias se deja de escribir; de soltar el
+        // oyente se encarga el 'close' de abajo.
+        if (!escribirEnCanal(res, ['event: cambio', 'data: ' + JSON.stringify({ juego: j })])) return;
+      }
+    }, JUNTAR_MS);
+  });
+
+  const latido = setInterval(() => {
+    escribirEnCanal(res, [': latido']);
+  }, LATIDO_MS);
+
+  // Al cerrarse hay que soltarlo TODO: el oyente, el latido y la junta. Un
+  // oyente que se queda aqui es una pestaña cerrada a la que se sigue
+  // escribiendo, y son los que se acumulan hasta tirar el servidor.
+  const cerrar = () => {
+    clearInterval(latido);
+    if (junta) { clearTimeout(junta); junta = null; }
+    soltar();
+  };
+  req.on('close', cerrar);
+  req.on('error', cerrar);
+  // Y el de la respuesta, que es el que importa: escribir en una conexion que
+  // el navegador ya cerro no lanza, emite 'error' aqui. Sin nadie escuchando,
+  // ese error no lo recoge nadie y se lleva el proceso por delante; y pasa
+  // constantemente, porque cerrar la pestaña o recargar cierra sin avisar.
+  res.on('error', cerrar);
+}
+
+// GET /api/eventos -> los cambios de la cuenta de quien pregunta
+app.get('/api/eventos', (req: Request, res: Response) => {
+  abrirCanal(req, res, requireUid(req));
+});
+
+// GET /api/widget/eventos?clave= -> igual, pero para OBS, que no tiene sesion
+app.get('/api/widget/eventos', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  // Con una clave que no vale no se abre canal: 404 y a callar, igual que en
+  // las demas rutas de widget.
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  abrirCanal(req, res, uid);
+});
 
 // GET /api/widget/clave -> la clave de quien pregunta, creandola si no tiene
 app.get('/api/widget/clave', (req: Request, res: Response) => {
@@ -2988,21 +3090,25 @@ app.post('/api/puntos/vaciar', (req: Request, res: Response) => {
 app.use('/assets', express.static(ASSETS_DIR));
 app.use('/', express.static(path.join(process.cwd(), 'public')));
 
-carrera.iniciar({ userDir, ensureUserDir, writeJson });
-ruletachat.iniciar({ userDir, ensureUserDir, writeJson });
+carrera.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'carrera') });
+ruletachat.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'nombres') });
 // El tablero de clavijas reparte en el mismo marcador que la carrera.
-plinko.iniciar({ userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos });
+plinko.iniciar({
+  userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos,
+  alCambiar: (uid) => avisos.cambio(uid, 'plinko')
+});
 // La cuenta de partidas es de toda la instalacion, asi que vive con los datos
 // comunes y no en la carpeta de cada usuario.
 estadisticas.iniciar({ archivo: () => path.join(DATA_DIR, 'estadisticas.json'), writeJson });
 widget.iniciar({ archivo: () => path.join(DATA_DIR, 'widgets.json'), writeJson });
 // El rey de la colina no reparte nada: solo guarda su palabra y su record.
-colina.iniciar({ userDir, ensureUserDir, writeJson });
+colina.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'colina') });
 // La batalla reparte en el mismo marcador que la carrera.
 batalla.iniciar({
   userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos,
   // Solo pelean las clases de Dofus que tienen imagen de prueba.
-  clasesConArte: () => Object.keys(arteBatalla().clases)
+  clasesConArte: () => Object.keys(arteBatalla().clases),
+  alCambiar: (uid) => avisos.cambio(uid, 'batalla')
 });
 
 // Las rondas que estaban abiertas cuando el servidor se apago. Se recuperan

@@ -626,9 +626,9 @@
     }
 
     function vigilarBatalla(encender) {
-      if (vigilanteBatalla) { clearInterval(vigilanteBatalla); vigilanteBatalla = null; }
-      // Mientras se apuntan, se pregunta cada 2 s quién ha entrado con su código.
-      if (encender) vigilanteBatalla = setInterval(cargarBatalla, 2000);
+      // Mientras se apuntan, el servidor avisa de quién ha entrado con su
+      // código. Ver eventos.js.
+      Eventos.vigilar('batalla', cargarBatalla, encender);
     }
 
     async function accionBatalla(ruta, cuerpo) {

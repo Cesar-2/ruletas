@@ -78,6 +78,9 @@ export interface Dependencias {
   userDir(uid: string): string;
   ensureUserDir(uid: string): void;
   writeJson(file: string, data: unknown): void;
+  // Se llama cuando cambia algo que se ve en pantalla, para que el servidor
+  // avise a quien este mirando en vez de hacerle preguntar. Ver avisos.ts.
+  alCambiar?(uid: string): void;
 }
 
 let deps: Dependencias;
@@ -107,6 +110,7 @@ function apuntarEnDisco(uid: string): void {
     palabra: palabras.get(uid) || '',
     cierraEn: 0
   });
+  deps.alCambiar?.(uid);
 }
 
 function archivo(uid: string): string {
@@ -255,6 +259,7 @@ export function cerrar(uid: string): void {
   colinas.delete(uid);
   palabras.delete(uid);
   vivo.borrar(uid);
+  deps.alCambiar?.(uid);
 }
 
 export function escuchando(uid: string): string {

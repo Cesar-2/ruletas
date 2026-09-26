@@ -2771,6 +2771,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
   <canvas class="confetti-lienzo" id="confettiLienzo"></canvas>
   <div class="confetti" id="confetti"></div>
 
+  <script src="/js/eventos.js"></script>
   <script src="/js/plinko-tablero.js"></script>
   <script>
     // Modal propio: confirm() y alert() del navegador anteponen el origen
@@ -5666,7 +5667,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // --- Batalla de viewers -----------------------------------------------
     let batalla = { abierta: false, luchadores: [], rondas: [], campeon: '', puntos: 25 };
-    let vigilanteBatalla = null;
     // El combate que se está mirando de cerca, como "ronda:duelo". Se guarda
     // aparte del cuadro porque este se repinta entero y se perdería la clase.
     let dueloAmpliado = '';
@@ -5914,7 +5914,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // El combate lo resuelve el servidor con las mismas reglas que la batalla,
     // asi que se dibuja con su mismo cuadro y se cuenta con su mismo relato.
     let colina = { abierta: false, cola: [], rey: null, duelo: null, clases: {} };
-    let vigilanteColina = null;
+
     let peleandoColina = false;   // mientras se cuenta un combate golpe a golpe
     // Como estaban el trono y el record justo antes del combate. El servidor
     // contesta con el resultado ya decidido, asi que si se pintara lo que
@@ -6163,7 +6163,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // Pone el siguiente combate a correr solo. No hace nada si esta pausado, si
     // la colina esta cerrada o si todavia no hay con quien pelear: en cuanto
-    // entre alguien, el vigilante vuelve a llamar aqui.
+    // entre alguien, el aviso del servidor vuelve a llamar aqui.
     function programarColina() {
       pararEsperaColina();
       if (!autoColina || !colina.abierta || peleandoColina || !hayCombateColina()) return;
@@ -6189,13 +6189,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     function vigilarColina(encender) {
-      if (vigilanteColina) { clearInterval(vigilanteColina); vigilanteColina = null; }
       if (!encender) pararEsperaColina();
-      // La cola no se cierra nunca: se sigue preguntando quien entra tambien
-      // mientras se pelea, que es justo la gracia del juego.
-      if (encender) vigilanteColina = setInterval(() => {
+      // La cola no se cierra nunca: el servidor avisa de quien entra tambien
+      // mientras se pelea, que es justo la gracia del juego. Ver eventos.js.
+      //
+      // Mientras se esta contando un combate no se repinta: se dejaria a medias
+      // el relato que la pagina esta enseñando. El aviso que llegue entonces se
+      // pierde a proposito; el siguiente, o el reloj de repuesto, lo recoge.
+      Eventos.vigilar('colina', () => {
         if (!peleandoColina) cargarColina();
-      }, 2000);
+      }, encender);
     }
 
     async function accionColina(ruta, cuerpo) {
@@ -6234,7 +6237,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       pararEsperaColina();
       const eraRey = colina.rey ? colina.rey.nombre : '';
       const recordAntes = colina.record ? colina.record.racha : 0;
-      // Que no se repinte mientras se cuenta, ni por el vigilante ni por otro
+      // Que no se repinte mientras se cuenta, ni por un aviso del servidor ni por otro
       // clic: se veria el final antes de tiempo.
       peleandoColina = true;
       antesDelCombate = { rey: colina.rey, record: colina.record };
@@ -6576,7 +6579,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     const COLORES_BOLA = ['#fbbf24', '#f43f5e', '#a3e635', '#e879f9', '#22d3ee',
       '#fb923c', '#4ade80', '#f472b6', '#facc15', '#38bdf8'];
     let carrera = { abierta: false, corredores: [], resultado: [], escuchando: '' };
-    let vigilante = null;      // el temporizador que refresca los apuntados
     let corriendo = false;
 
     // Cambio entre minijuegos. La ruleta es uno más, así que su panel vive
@@ -8925,7 +8927,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // aquí solo se recogen y se meten en la lista, que sigue siendo del
     // navegador. Lo recogido se borra del servidor: así, si luego se quita a
     // alguien de la lista a mano, no vuelve a colarse solo.
-    let vigilanteNombres = null;
+    // Si se esta recogiendo lo apuntado. Antes esto era el temporizador, que
+    // valia de bandera por estar puesto o no; ahora que avisa el servidor hace
+    // falta decirlo aparte.
+    let recogiendoNombres = false;
 
     function pintarInscripcion(estado) {
       const aviso = document.getElementById('nameChatEstado');
@@ -8961,7 +8966,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
       ponerSiNoLoTocas('nameChatPalabra', estado.palabra);
       pintarInscripcion(estado);
-      if (!estado.abierta && !vigilanteNombres) return;
+      if (!estado.abierta && !recogiendoNombres) return;
       if (meterEnLaLista(estado.nombres)) {
         try { await api('/api/ruleta-chat/vaciar', { method: 'POST' }); } catch (e) { /* al siguiente */ }
       }
@@ -8970,9 +8975,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     function vigilarNombres(encender) {
-      if (vigilanteNombres) { clearInterval(vigilanteNombres); vigilanteNombres = null; }
-      // Mientras esta abierta, se pregunta cada 2 s quien ha entrado.
-      if (encender) vigilanteNombres = setInterval(recogerInscritos, 2000);
+      recogiendoNombres = Boolean(encender);
+      // Mientras esta abierta, el servidor avisa de quien ha entrado.
+      // Ver eventos.js.
+      Eventos.vigilar('nombres', recogerInscritos, encender);
     }
 
     document.getElementById('nameChatAbrir').addEventListener('click', async () => {

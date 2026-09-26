@@ -290,6 +290,9 @@ export interface Dependencias {
   userDir(uid: string): string;
   ensureUserDir(uid: string): void;
   writeJson(file: string, data: unknown): void;
+  // Se llama cuando cambia algo que se ve en pantalla, para que el servidor
+  // avise a quien este mirando en vez de hacerle preguntar. Ver avisos.ts.
+  alCambiar?(uid: string): void;
   // El marcador es el mismo que el de la carrera.
   sumarPuntos(uid: string, nombre: string, cuantos: number): number;
 }
@@ -320,6 +323,7 @@ function apuntarEnDisco(uid: string): void {
     palabra: palabras.get(uid) || '',
     cierraEn: crono.cierraEn(uid)
   });
+  deps.alCambiar?.(uid);
 }
 
 function tableroDe(ajustes: Ajustes): Tablero {
@@ -729,6 +733,7 @@ export function tirar(uid: string): Plinko | null {
   // rescatarlo de un reinicio.
   vivo.borrar(uid);
   palabras.delete(uid);
+  deps.alCambiar?.(uid);
   return partida;
 }
 
@@ -751,4 +756,5 @@ export function cancelar(uid: string): void {
   partidas.delete(uid);
   palabras.delete(uid);
   vivo.borrar(uid);
+  deps.alCambiar?.(uid);
 }

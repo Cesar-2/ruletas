@@ -68,6 +68,9 @@ export interface Dependencias {
   userDir(uid: string): string;
   ensureUserDir(uid: string): void;
   writeJson(file: string, data: unknown): void;
+  // Se llama cuando cambia algo que se ve en pantalla, para que el servidor
+  // avise a quien este mirando en vez de hacerle preguntar. Ver avisos.ts.
+  alCambiar?(uid: string): void;
   // El marcador es el mismo que el de la carrera.
   sumarPuntos(uid: string, nombre: string, cuantos: number): number;
   // Las clases de Dofus que tienen imagen de prueba: solo se sortean esas.
@@ -125,6 +128,7 @@ function apuntarEnDisco(uid: string): void {
     palabra: palabras.get(uid) || '',
     cierraEn: crono.cierraEn(uid)
   });
+  deps.alCambiar?.(uid);
 }
 
 export function estado(uid: string): Batalla & { escuchando: string; palabra: string; cierraEn: number; ahora: number } {
@@ -214,6 +218,7 @@ export function cancelar(uid: string): void {
   batallas.delete(uid);
   palabras.delete(uid);
   vivo.borrar(uid);
+  deps.alCambiar?.(uid);
 }
 
 export function escuchando(uid: string): string {
