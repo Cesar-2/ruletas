@@ -1523,35 +1523,25 @@ function abrirCanal(req: Request, res: Response, uid: string): void {
   // apagar su reloj de repuesto.
   escribirEnCanal(res, ['event: listo', 'data: {}']);
 
-  // Los que han cambiado y todavia no se han mandado.
-  let pendientes = new Set<avisos.Juego>();
-  let junta: ReturnType<typeof setTimeout> | null = null;
-
-  const soltar = avisos.escuchar(uid, (juego) => {
-    pendientes.add(juego);
-    if (junta) return;
-    junta = setTimeout(() => {
-      junta = null;
-      const cuales = Array.from(pendientes);
-      pendientes = new Set();
-      for (const j of cuales) {
-        // Si la conexion se fue entre medias se deja de escribir; de soltar el
-        // oyente se encarga el 'close' de abajo.
-        if (!escribirEnCanal(res, ['event: cambio', 'data: ' + JSON.stringify({ juego: j })])) return;
-      }
-    }, JUNTAR_MS);
+  // De juntar los avisos seguidos se encarga avisos.ts: aqui solo se escriben.
+  const soltar = avisos.escucharJuntando(uid, JUNTAR_MS, (juegos) => {
+    for (const j of juegos) {
+      // Si la conexion se fue entre medias se deja de escribir; de soltar el
+      // oyente se encarga el 'close' de abajo.
+      if (!escribirEnCanal(res, ['event: cambio', 'data: ' + JSON.stringify({ juego: j })])) return;
+    }
   });
 
   const latido = setInterval(() => {
     escribirEnCanal(res, [': latido']);
   }, LATIDO_MS);
 
-  // Al cerrarse hay que soltarlo TODO: el oyente, el latido y la junta. Un
-  // oyente que se queda aqui es una pestaña cerrada a la que se sigue
-  // escribiendo, y son los que se acumulan hasta tirar el servidor.
+  // Al cerrarse hay que soltarlo TODO: el latido y el oyente (que se lleva por
+  // delante su propia espera a medias). Un oyente que se queda aqui es una
+  // pestaña cerrada a la que se sigue escribiendo, y son los que se acumulan
+  // hasta tirar el servidor.
   const cerrar = () => {
     clearInterval(latido);
-    if (junta) { clearTimeout(junta); junta = null; }
     soltar();
   };
   req.on('close', cerrar);

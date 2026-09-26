@@ -57,6 +57,48 @@ export function cambio(uid: string, juego: Juego): void {
   }
 }
 
+// Como escuchar de verdad: juntando los avisos seguidos.
+//
+// Cuarenta personas apuntandose son cuarenta cambios en un segundo, y mandar
+// cuarenta avisos solo haria que el que escucha pidiera el estado cuarenta
+// veces para pintar lo mismo. Se espera un pelin y se manda una sola vez lo que
+// haya cambiado, sin repetidos.
+//
+// Esto vive aqui y no en el canal porque es de los avisos, no de como se
+// escriben: asi se puede probar sin levantar un servidor.
+//
+//   esperaMs  cuanto se junta antes de soltar
+//   alSoltar  se llama con los juegos que han cambiado, cada uno una vez
+//
+// Devuelve la funcion de dejar de escuchar, que HAY que llamar al cerrarse:
+// suelta el oyente y tambien la espera a medias, que si no se queda un
+// temporizador apuntando a una conexion que ya no esta.
+export function escucharJuntando(
+  uid: string,
+  esperaMs: number,
+  alSoltar: (juegos: Juego[]) => void
+): () => void {
+  let pendientes = new Set<Juego>();
+  let espera: ReturnType<typeof setTimeout> | null = null;
+
+  const soltar = escuchar(uid, (juego) => {
+    pendientes.add(juego);
+    if (espera) return;
+    espera = setTimeout(() => {
+      espera = null;
+      const cuales = Array.from(pendientes);
+      pendientes = new Set();
+      alSoltar(cuales);
+    }, esperaMs);
+  });
+
+  return () => {
+    if (espera) { clearTimeout(espera); espera = null; }
+    pendientes = new Set();
+    soltar();
+  };
+}
+
 // Cuantos estan mirando ahora mismo, para poder decirlo en el arranque y en los
 // registros cuando algo va raro.
 export function cuantos(): number {
