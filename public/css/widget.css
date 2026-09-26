@@ -1,0 +1,77 @@
+/* Lo que comparten todas las páginas de widget: fondo transparente para OBS,
+   el cartel de «conectado» del modo prueba y el aviso de fallo.
+   Lo propio de cada minijuego va en su página. */
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #e6eef8;
+}
+
+/* Solo en modo prueba (sin ?fondo=0), para colocarlo en OBS. */
+body.con-fondo { background: #0b1220; }
+
+#todo {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* Se desvanece cuando no hay nada que enseñar, para no dejar un cuadro
+     muerto encima del directo. */
+  opacity: 0;
+  transition: opacity .45s ease;
+}
+#todo.visible { opacity: 1; }
+
+/* La caja oscura en la que van casi todos: legible encima de cualquier juego. */
+.panel {
+  max-width: 92vw;
+  text-align: center;
+  background: rgba(9, 15, 28, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  padding: 1.2rem 1.6rem;
+  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.7);
+}
+.panel[hidden] { display: none; }
+
+.cifra { font-size: 2.6rem; font-weight: 800; line-height: 1; }
+.rotulo { font-size: .95rem; color: #9fb3c8; margin-top: .3rem; }
+.quienes { margin-top: .7rem; font-size: 1rem; line-height: 1.5; word-break: break-word; }
+.cuenta { margin-top: .6rem; font-size: 1.1rem; color: #6ee7b7; font-weight: 700; }
+.cuenta[hidden] { display: none; }
+
+/* El aviso de «esto está vivo», solo en modo prueba. */
+#espera {
+  position: absolute;
+  left: 50%;
+  top: 1.2rem;
+  transform: translateX(-50%);
+  padding: .45rem .9rem;
+  font-size: .9rem;
+  color: #6ee7b7;
+  background: rgba(9, 15, 28, 0.85);
+  border: 1px solid rgba(110, 231, 183, 0.35);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+#espera[hidden] { display: none; }
+
+/* El fallo se dice en pantalla: si el widget se queda en blanco en mitad de un
+   directo, lo peor es no saber por qué. */
+#fallo {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: .5rem .8rem;
+  font-size: .85rem;
+  color: #fca5a5;
+  background: rgba(9, 15, 28, 0.9);
+  text-align: center;
+}
+#fallo[hidden] { display: none; }

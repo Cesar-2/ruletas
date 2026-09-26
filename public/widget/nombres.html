@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ruleta de nombres · widget</title>
+<link rel="icon" href="data:," />
+<!--
+  El widget de la Ruleta de nombres, para OBS.  /widget/nombres.html?clave=XXXX
+
+  Una advertencia, que conviene saberla: el SORTEO de esta ruleta no vive en el
+  servidor. La página tira la ruleta y se queda con el ganador, pero eso no se
+  guarda en ninguna parte, así que aquí no hay forma de saber a quién le tocó.
+  Lo que sí se puede enseñar es la inscripción, que es lo que sí está en el
+  servidor: quién se va apuntando desde el chat y cuánto queda para cerrar.
+
+  Para poder pintar también la ruleta girando y el ganador, el servidor tendría
+  que guardar el resultado del sorteo. Es una decisión aparte.
+-->
+<link rel="stylesheet" href="/css/widget.css" />
+<style>
+  .lista-nombres {
+    margin-top: .8rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    justify-content: center;
+    max-width: 44rem;
+  }
+  .lista-nombres span {
+    padding: .25rem .6rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    font-size: .95rem;
+  }
+  /* Los últimos en llegar se destacan: es lo que la gente busca al apuntarse. */
+  .lista-nombres span.nuevo { border-color: rgba(110, 231, 183, .5); color: #6ee7b7; }
+</style>
+</head>
+<body>
+  <div id="todo">
+    <div class="panel" id="panel" hidden>
+      <div class="cifra" id="cuantos">0</div>
+      <div class="rotulo" id="rotulo">apuntados a la ruleta</div>
+      <div class="lista-nombres" id="lista"></div>
+      <div class="cuenta" id="cuenta" hidden></div>
+    </div>
+  </div>
+  <div id="espera" hidden>Widget conectado · esperando a que abras la ruleta</div>
+  <div id="fallo" hidden></div>
+
+  <script src="/js/widget-base.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const q = Widget.caja;
+    // Cuántos de los últimos se marcan como recién llegados.
+    const RECIENTES = 3;
+
+    Widget.arranca({
+      ruta: 'nombres',
+      pinta(e) {
+        // Abierta se enseña aunque no haya nadie: es cuando hay que decir qué
+        // escribir en el chat.
+        q('panel').hidden = !e.abierta;
+        if (!e.abierta) return false;
+        const quienes = e.nombres || [];
+
+        q('cuantos').textContent = quienes.length;
+        q('rotulo').textContent = quienes.length === 1
+          ? 'apuntado a la ruleta'
+          : 'apuntados a la ruleta';
+
+        const lista = q('lista');
+        lista.innerHTML = '';
+        if (!quienes.length) {
+          // Sin nadie, lo útil es qué hay que escribir, no una lista vacía.
+          const invita = document.createElement('span');
+          invita.textContent = e.palabra ? 'Escribe ' + e.palabra + ' en el chat' : 'Escribe en el chat para entrar';
+          lista.appendChild(invita);
+        } else {
+          // Con mucha gente no caben todos: los últimos, que son los que acaban
+          // de escribir, y se dice cuántos vienen detrás.
+          const caben = quienes.slice(-24);
+          const sobran = quienes.length - caben.length;
+          caben.forEach((nombre, i) => {
+            const s = document.createElement('span');
+            s.textContent = nombre;
+            if (i >= caben.length - RECIENTES) s.className = 'nuevo';
+            lista.appendChild(s);
+          });
+          if (sobran > 0) {
+            const mas = document.createElement('span');
+            mas.textContent = 'y ' + sobran + ' más';
+            lista.appendChild(mas);
+          }
+        }
+
+        const cuenta = q('cuenta');
+        const quedan = e.cierraEn ? Math.max(0, Math.round((e.cierraEn - Date.now()) / 1000)) : 0;
+        cuenta.hidden = !quedan;
+        if (quedan) cuenta.textContent = 'cierra en ' + quedan + 's';
+        return true;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

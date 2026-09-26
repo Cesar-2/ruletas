@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rey de la colina · widget</title>
+<link rel="icon" href="data:," />
+<!--
+  El widget del Rey de la colina, para OBS.  /widget/colina.html?clave=XXXX
+
+  Aquí lo que importa es quién manda y cuánto lleva aguantando: la racha es lo
+  que se persigue en este minijuego, así que va en grande. Debajo, quién está
+  esperando turno.
+-->
+<link rel="stylesheet" href="/css/widget.css" />
+<style>
+  .corona { font-size: 2.2rem; line-height: 1; }
+  .rey-nombre { font-size: 2.2rem; font-weight: 800; line-height: 1.1; margin-top: .2rem; }
+  .rey-clase { font-size: .95rem; color: #9fb3c8; margin-top: .15rem; }
+  /* La racha es el marcador de este juego: la cifra más grande de todas. */
+  .racha { margin-top: .6rem; font-size: 1.15rem; color: #fbbf24; font-weight: 700; }
+  .racha b { font-size: 2rem; }
+  .tumbado { margin-top: .5rem; font-size: .95rem; color: #fca5a5; }
+  .tumbado[hidden] { display: none; }
+  .cola { margin-top: .9rem; padding-top: .7rem; border-top: 1px solid rgba(255,255,255,0.12); }
+  .cola .titulo { font-size: .8rem; color: #9fb3c8; text-transform: uppercase; letter-spacing: .04em; }
+  .cola .lista { margin-top: .35rem; font-size: 1rem; line-height: 1.5; }
+  .cola[hidden] { display: none; }
+  .nadie { color: #9fb3c8; font-size: 1.05rem; }
+  .record { margin-top: .6rem; font-size: .85rem; color: #9fb3c8; }
+  .record[hidden] { display: none; }
+</style>
+</head>
+<body>
+  <div id="todo">
+    <div class="panel" id="panel">
+      <div class="corona">👑</div>
+      <div class="rey-nombre" id="quien">—</div>
+      <div class="rey-clase" id="clase"></div>
+      <div class="racha" id="racha"></div>
+      <div class="tumbado" id="tumbado" hidden></div>
+      <div class="cola" id="cola" hidden>
+        <div class="titulo">Esperando turno</div>
+        <div class="lista" id="colaLista"></div>
+      </div>
+      <div class="record" id="record" hidden></div>
+    </div>
+  </div>
+  <div id="espera" hidden>Widget conectado · esperando a que abras la colina</div>
+  <div id="fallo" hidden></div>
+
+  <script src="/js/widget-base.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const q = Widget.caja;
+
+    Widget.arranca({
+      ruta: 'colina',
+      pinta(e) {
+        const hayRey = Boolean(e.rey);
+        const hayCola = Boolean(e.cola && e.cola.length);
+        // Con la colina abierta se enseña aunque no haya nadie: es cuando hay
+        // que decirle al chat qué escribir para retar.
+        if (!e.abierta && !hayRey && !hayCola) { q('panel').hidden = true; return false; }
+        q('panel').hidden = false;
+
+        if (hayRey) {
+          q('quien').textContent = e.rey.nombre;
+          q('clase').textContent = e.rey.clase || '';
+          // Una victoria no es «racha de 1»: es que acaba de subir.
+          q('racha').innerHTML = e.rey.racha > 1
+            ? '<b>' + e.rey.racha + '</b> seguidas'
+            : 'acaba de subir';
+        } else {
+          q('quien').textContent = 'La colina está libre';
+          q('clase').textContent = '';
+          q('racha').textContent = e.palabra ? 'Escribe ' + e.palabra + ' para retar' : '';
+        }
+
+        // A quién acaba de tumbar, mientras se cuenta el último combate.
+        const tumbado = q('tumbado');
+        tumbado.hidden = !e.derrotado;
+        if (e.derrotado) tumbado.textContent = 'ha tumbado a ' + e.derrotado;
+
+        const cola = q('cola');
+        cola.hidden = !hayCola;
+        if (hayCola) {
+          q('cola').querySelector('.titulo').textContent = 'Esperando turno';
+          // Con mucha cola no caben todos: los primeros, que son los que van a
+          // pelear, y se dice cuántos vienen detrás.
+          const caben = e.cola.slice(0, 8).map((r) => r.nombre);
+          const sobran = e.cola.length - caben.length;
+          q('colaLista').textContent = caben.join(' · ') + (sobran > 0 ? ' · y ' + sobran + ' más' : '');
+        }
+
+        // El récord histórico, si alguien ha llegado más lejos que el de ahora.
+        const record = q('record');
+        const mejor = e.record || e.mejor;
+        const vale = mejor && (!hayRey || mejor.racha > e.rey.racha);
+        record.hidden = !vale;
+        if (vale) record.textContent = 'Récord: ' + mejor.nombre + ', ' + mejor.racha + ' seguidas';
+
+        return true;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

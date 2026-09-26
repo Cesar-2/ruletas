@@ -11,6 +11,7 @@ import * as batalla from './batalla';
 import * as colina from './colina';
 import * as ruletachat from './ruletachat';
 import * as catalogo from './catalogo';
+import * as widget from './widget';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -1172,6 +1173,11 @@ app.get('/api/twitch/callback', async (req: Request, res: Response) => {
 app.use('/api', (req: Request, res: Response, next: any) => {
   if (req.path === '/auth/me' || req.path === '/auth/login' ||
       req.path === '/auth/register' || req.path === '/auth/logout') return next();
+  // Lo que miran los widgets entra sin sesion, porque OBS no puede tenerla: se
+  // identifican con su clave, que cada ruta comprueba por su cuenta. Lo de
+  // /api/widget/clave NO: eso es pedir la clave, y para eso hay que ser quien
+  // dice que es.
+  if (req.path.startsWith('/widget/') && !req.path.startsWith('/widget/clave')) return next();
   if (!usuarioDe(req)) return res.status(401).json({ error: 'no autenticado' });
   next();
 });
@@ -1212,9 +1218,12 @@ app.get('/api/admin/users', (req: Request, res: Response) => {
 // Solo lo ve el admin: el resto ni sabe que existe (lo corta el guardia de
 // /api/admin de mas arriba). Las cuentas y las medias las hace el modulo; aqui
 // solo se le presta como se llama cada cuenta, para no ensenar identificadores.
-app.get('/api/admin/estadisticas', (_req: Request, res: Response) => {
+// El filtro de minijuego va en 'mini' y no en 'juego': 'juego' ya lo usa la
+// pagina para decir si mira Dofus o Touch, y pisarlo aqui seria pedir problemas.
+app.get('/api/admin/estadisticas', (req: Request, res: Response) => {
   const nombres = new Map(readUsers().map((u) => [u.id, u.username]));
-  res.json(estadisticas.resumen(nombres));
+  const mini = String(req.query?.mini ?? '') as estadisticas.Juego | '';
+  res.json(estadisticas.resumen(nombres, mini));
 });
 
 // PATCH /api/admin/users/:id  Body: { bloqueado?, admin? }
@@ -1458,6 +1467,152 @@ app.get('/api/img/touch/:tamano/:archivo', async (req: Request, res: Response) =
   } catch (err) {
     // Que falte una imagen no es motivo para romper la ficha del objeto.
     res.status(404).end();
+  }
+});
+
+// --- Widgets para OBS ----------------------------------------------------
+// Las paginas que se meten en OBS como Fuente de Navegador. No llevan sesion
+// (OBS no tiene cookies), asi que se identifican con una clave en la url que
+// solo sirve para mirar. Ver widget.ts.
+
+// GET /api/widget/clave -> la clave de quien pregunta, creandola si no tiene
+app.get('/api/widget/clave', (req: Request, res: Response) => {
+  res.json({ clave: widget.claveDe(requireUid(req)) });
+});
+
+// POST /api/widget/clave/rotar -> otra clave; la de antes deja de valer
+app.post('/api/widget/clave/rotar', (req: Request, res: Response) => {
+  res.json({ clave: widget.rotar(requireUid(req)) });
+});
+
+// GET /api/widget/plinko?clave= -> el tablero de esa cuenta, sin sesion
+// Devuelve lo justo para pintarlo: nada de ajustes, ni de catalogo, ni de
+// quien es el dueno de la cuenta.
+app.get('/api/widget/plinko', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  // Sin clave valida no se cuenta que ha fallado: ni que no existe, ni que
+  // existe pero no juega. A quien prueba claves no se le da conversacion.
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  try {
+    const e = plinko.estado(uid);
+    res.json({
+      abierta: e.abierta,
+      // Lo que hay que escribir en el chat: el widget lo enseña mientras la
+      // inscripcion esta abierta, que es cuando hace falta saberlo.
+      palabra: e.ajustes.palabra,
+      jugadores: e.jugadores.map((j) => j.nombre),
+      tiradas: e.tiradas,
+      tiradoEn: e.tiradoEn,
+      tablero: e.tablero,
+      multiplicadores: e.multiplicadores,
+      modo: e.modo,
+      premios: e.premios,
+      fisica: e.fisica,
+      cierraEn: e.cierraEn,
+      ahora: e.ahora
+    });
+  } catch (err) {
+    console.error('Failed to serve plinko widget:', err);
+    res.status(500).json({ error: 'failed to get widget state' });
+  }
+});
+
+// Los demas widgets. Todos igual: la clave dice de quien es, y se contesta lo
+// justo para pintarlo. Nada de ajustes, ni de catalogo, ni de quien es el
+// dueno de la cuenta.
+//
+// El del sorteo no esta: la ruleta de objetos no deja partida en el servidor
+// (el sorteo se resuelve y se acabo), asi que no hay nada vivo que mirar. Para
+// tenerlo habria que guardar el ultimo sorteo, que es otra decision.
+
+// GET /api/widget/carrera?clave=
+app.get('/api/widget/carrera', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  try {
+    const e = carrera.estado(uid);
+    res.json({
+      abierta: e.abierta,
+      palabra: e.ajustes.palabra,
+      corredores: e.corredores.map((c) => c.nombre),
+      resultado: e.resultado,
+      corridaEn: e.corridaEn,
+      marcas: e.marcas,
+      eventos: e.eventos,
+      // Cuanto dura la carrera: el widget reparte los ticks en ese tiempo,
+      // igual que la pagina.
+      duracion: e.ajustes.duracion,
+      animacion: e.ajustes.animacion,
+      cierraEn: e.cierraEn,
+      ahora: e.ahora
+    });
+  } catch (err) {
+    console.error('Failed to serve carrera widget:', err);
+    res.status(500).json({ error: 'failed to get widget state' });
+  }
+});
+
+// GET /api/widget/batalla?clave=
+app.get('/api/widget/batalla', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  try {
+    const e = batalla.estado(uid);
+    res.json({
+      abierta: e.abierta,
+      palabra: e.palabra,
+      luchadores: e.luchadores.map((l) => ({ nombre: l.nombre, clase: l.clase || '' })),
+      rondas: e.rondas,
+      campeon: e.campeon,
+      puntos: e.puntos,
+      cierraEn: e.cierraEn,
+      ahora: e.ahora
+    });
+  } catch (err) {
+    console.error('Failed to serve batalla widget:', err);
+    res.status(500).json({ error: 'failed to get widget state' });
+  }
+});
+
+// GET /api/widget/colina?clave=
+app.get('/api/widget/colina', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  try {
+    const e = colina.estado(uid);
+    res.json({
+      abierta: e.abierta,
+      palabra: e.palabra,
+      rey: e.rey,
+      cola: e.cola.map((r) => ({ nombre: r.nombre, clase: r.clase })),
+      duelo: e.duelo,
+      derrotado: e.derrotado,
+      mejor: e.mejor,
+      record: e.record,
+      peleados: e.peleados
+    });
+  } catch (err) {
+    console.error('Failed to serve colina widget:', err);
+    res.status(500).json({ error: 'failed to get widget state' });
+  }
+});
+
+// GET /api/widget/nombres?clave=
+app.get('/api/widget/nombres', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  try {
+    const e = ruletachat.estado(uid);
+    res.json({
+      abierta: e.abierta,
+      palabra: e.palabra,
+      nombres: e.nombres,
+      cierraEn: e.cierraEn,
+      ahora: e.ahora
+    });
+  } catch (err) {
+    console.error('Failed to serve nombres widget:', err);
+    res.status(500).json({ error: 'failed to get widget state' });
   }
 });
 
@@ -2840,6 +2995,7 @@ plinko.iniciar({ userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPu
 // La cuenta de partidas es de toda la instalacion, asi que vive con los datos
 // comunes y no en la carpeta de cada usuario.
 estadisticas.iniciar({ archivo: () => path.join(DATA_DIR, 'estadisticas.json'), writeJson });
+widget.iniciar({ archivo: () => path.join(DATA_DIR, 'widgets.json'), writeJson });
 // El rey de la colina no reparte nada: solo guarda su palabra y su record.
 colina.iniciar({ userDir, ensureUserDir, writeJson });
 // La batalla reparte en el mismo marcador que la carrera.

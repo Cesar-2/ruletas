@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tablero de clavijas · widget</title>
+<!-- Sin icono: en OBS no se ve, y sin esto el navegador pide /favicon.ico y se queja. -->
+<link rel="icon" href="data:," />
+<!--
+  El widget del tablero, para meter en OBS como Fuente de Navegador.
+
+  Se abre con la clave en la url:  /widget/plinko.html?clave=XXXX
+
+  No lleva sesión: OBS no tiene cookies, así que la clave es lo único que dice
+  de quién es el tablero. Solo sirve para mirar.
+
+  El dibujo es el mismo que el de la página, el de js/plinko-tablero.js: si se
+  cambia el tablero, cambian los dos a la vez. Aquí solo está lo que es propio
+  del widget: pedir el estado cada poco, reproducir la caída cuando hay una
+  tirada nueva y quitarse de en medio cuando no pasa nada.
+-->
+<style>
+  /* Con ?fondo=0 el fondo es transparente y en OBS se ve el juego por
+     detrás. Sin él sale oscuro, que es lo cómodo para colocarlo. */
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    color: #e6eef8;
+  }
+  body.con-fondo { background: #0b1220; }
+
+  #todo {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* Se desvanece cuando no hay nada que enseñar, para no dejar un cuadro
+       muerto encima del directo. */
+    opacity: 0;
+    transition: opacity .45s ease;
+  }
+  #todo.visible { opacity: 1; }
+
+  canvas { max-width: 100%; max-height: 100%; }
+
+  /* Quién está apuntado, mientras la inscripción está abierta. */
+  #apuntados {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 90%;
+    text-align: center;
+    background: rgba(9, 15, 28, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 16px;
+    padding: 1.2rem 1.6rem;
+    box-shadow: 0 20px 60px rgba(2, 6, 23, 0.7);
+  }
+  #apuntados[hidden] { display: none; }
+  #apuntados .cuantos { font-size: 2.6rem; font-weight: 800; line-height: 1; }
+  #apuntados .rotulo { font-size: .95rem; color: #9fb3c8; margin-top: .3rem; }
+  #apuntados .quienes {
+    margin-top: .7rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #e6eef8;
+    word-break: break-word;
+  }
+  #apuntados .cuenta { margin-top: .6rem; font-size: 1.1rem; color: #6ee7b7; font-weight: 700; }
+
+  /* El fallo se dice en pantalla: si el widget se queda en blanco en mitad de
+     un directo, lo peor es no saber por qué. */
+  #fallo {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: .5rem .8rem;
+    font-size: .85rem;
+    color: #fca5a5;
+    background: rgba(9, 15, 28, 0.9);
+    text-align: center;
+  }
+  #fallo[hidden] { display: none; }
+
+  /* El aviso de «esto está vivo», solo en modo prueba. */
+  #espera {
+    position: absolute;
+    left: 50%;
+    top: 1.2rem;
+    transform: translateX(-50%);
+    padding: .45rem .9rem;
+    font-size: .9rem;
+    color: #6ee7b7;
+    background: rgba(9, 15, 28, 0.85);
+    border: 1px solid rgba(110, 231, 183, 0.35);
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  #espera[hidden] { display: none; }
+</style>
+</head>
+<body>
+  <div id="todo">
+    <canvas id="lienzo"></canvas>
+    <div id="apuntados" hidden>
+      <div class="cuantos" id="apCuantos">0</div>
+      <div class="rotulo" id="apRotulo">apuntados</div>
+      <div class="quienes" id="apQuienes"></div>
+      <div class="cuenta" id="apCuenta" hidden></div>
+    </div>
+  </div>
+  <!-- Solo en modo prueba (sin ?fondo=0): dice que el widget está vivo y esperando.
+       En el directo no sale nunca. -->
+  <div id="espera" hidden>Widget conectado · esperando a que abras una ronda</div>
+  <div id="fallo" hidden></div>
+
+  <script src="/js/plinko-tablero.js"></script>
+  <script src="/js/widget-base.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    const params = new URLSearchParams(location.search);
+    const clave = params.get('clave') || '';
+    // La dirección pelada es el modo de prueba: fondo oscuro para colocarlo
+    // en OBS, y el tablero siempre a la vista aunque no haya partida.
+    //
+    // Que en reposo no se vea nada es lo que se quiere encima del directo,
+    // pero abriendo la url a pelo parecía que no funcionaba. Por eso el fondo
+    // es lo de por defecto y se quita con ?fondo=0, que es como va en el
+    // directo: transparente y solo cuando hay algo que enseñar.
+    const prueba = params.get('fondo') !== '0';
+    if (prueba) document.body.classList.add('con-fondo');
+    // ?siempre=1 deja el tablero puesto también en el directo, para quien lo
+    // quiera fijo en una esquina en vez de que aparezca y desaparezca.
+    const siempre = prueba || params.get('siempre') === '1';
+    // Cada cuánto se pregunta al servidor. Lo mismo que hace la página.
+    const CADA = Math.max(500, Number(params.get('cada')) || 2000);
+
+    const lienzo = document.getElementById('lienzo');
+    const todo = document.getElementById('todo');
+    const fallo = document.getElementById('fallo');
+
+    let estado = null;
+    // Las bolas que se están viendo caer ahora mismo.
+    let bolas = [];
+    // Las clavijas encendidas: cuál se golpeó y cuándo.
+    const vivas = new Map();
+    // Y las casillas, que se encienden cuando les cae una bola dentro.
+    const casillasVivas = new Map();
+    // Qué tirada se está reproduciendo, para no repetirla en cada sondeo.
+    let tiradaVista = '';
+    let animando = false;
+
+    function decirFallo(texto) {
+      fallo.textContent = texto || '';
+      fallo.hidden = !texto;
+    }
+
+    function ajustarLienzo() {
+      const dpr = window.devicePixelRatio || 1;
+      // Cuadrado y lo más grande que quepa: el tablero es más alto que ancho,
+      // pero el módulo ya lo centra dentro de lo que se le dé.
+      const lado = Math.min(window.innerWidth, window.innerHeight);
+      lienzo.width = Math.round(lado * dpr);
+      lienzo.height = Math.round(lado * dpr);
+      lienzo.style.width = lado + 'px';
+      lienzo.style.height = lado + 'px';
+    }
+    window.addEventListener('resize', ajustarLienzo);
+    ajustarLienzo();
+
+    function pintar() {
+      if (!estado || !estado.tablero) return;
+      PlinkoTablero.dibujar(lienzo, estado, vivas, bolas, casillasVivas);
+    }
+    PlinkoTablero.alRepintar(pintar);
+
+    // --- La caída ---------------------------------------------------------
+    // El servidor manda el recorrido entero de cada bola, fotograma a
+    // fotograma, y los golpes con su fotograma. Aquí solo se reproduce: no se
+    // decide nada, igual que en la página.
+    const FPS = 60;
+    // Cuánto se queda la foto final en pantalla antes de desvanecerse. Es lo
+    // que se mira para ver dónde cayó cada bola.
+    const QUIETA_AL_FINAL = 6000;
+
+    function verCaer(tiradas) {
+      if (!tiradas || !tiradas.length) return;
+      animando = true;
+      vivas.clear();
+      casillasVivas.clear();
+      // Las bolas las hace el módulo, igual que en la página: así llevan el
+      // color y la estela que el dibujo les va a pedir.
+      bolas = tiradas.map((t, i) => PlinkoTablero.nuevaBola(t, i));
+
+      const arranque = performance.now();
+      function paso(ahora) {
+        const t = (ahora - arranque) / 1000;
+        let quedan = false;
+        for (const b of bolas) {
+          const suyo = t - b.empiezaEn;
+          if (suyo < 0) { b.visible = false; quedan = true; continue; }
+          b.visible = true;
+          const cual = Math.floor(suyo * FPS);
+          if (cual < b.recorrido.length) quedan = true;
+          else if (!b.acabada) {
+            // Al llegar al suelo se enciende la casilla donde cayó, que es lo
+            // que se mira al final de la tirada.
+            b.acabada = true;
+            casillasVivas.set(b.casilla, ahora);
+          }
+          const punto = b.recorrido[Math.min(cual, b.recorrido.length - 1)];
+          if (punto) {
+            // La estela solo se mueve al cambiar de fotograma: con la pantalla
+            // a 144 Hz se llenaría de puntos repetidos.
+            if (cual !== b.ultimoFotograma) {
+              b.estela.push([b.x, b.y]);
+              if (b.estela.length > PlinkoTablero.ESTELA) b.estela.shift();
+              b.ultimoFotograma = cual;
+            }
+            b.x = punto[0];
+            b.y = punto[1];
+          }
+          // Las clavijas se encienden al pasar su fotograma, no antes.
+          const golpes = b.golpes.get(cual);
+          if (golpes) golpes.forEach((clavija) => { if (clavija >= 0) vivas.set(clavija, ahora); });
+        }
+        // Las apagadas se quitan, que si no los Map crecen sin parar.
+        for (const [clavija, cuando] of vivas) {
+          if (ahora - cuando > PlinkoTablero.BRILLO_CLAVIJA) vivas.delete(clavija);
+        }
+        for (const [casilla, cuando] of casillasVivas) {
+          if (ahora - cuando > PlinkoTablero.BRILLO_CASILLA) casillasVivas.delete(casilla);
+        }
+        pintar();
+        if (quedan || vivas.size || casillasVivas.size) requestAnimationFrame(paso);
+        else {
+          animando = false;
+          setTimeout(() => {
+            if (animando) return;
+            bolas = [];
+            repasarVisible();
+            pintar();
+          }, QUIETA_AL_FINAL);
+        }
+      }
+      requestAnimationFrame(paso);
+    }
+
+    // --- Qué se enseña ----------------------------------------------------
+
+    function repasarVisible() {
+      const apuntados = document.getElementById('apuntados');
+      // Abierta se enseña aunque no haya nadie apuntado todavía: es cuando el
+      // chat necesita saber qué escribir.
+      const hayGente = Boolean(estado && estado.abierta);
+      const hayCaida = animando || bolas.length;
+      // Con la inscripción abierta se enseña quién va apuntado; mientras caen
+      // las bolas, el tablero; y si no pasa nada, nada, salvo en modo prueba o
+      // con ?siempre=1, donde el tablero se queda puesto.
+      apuntados.hidden = !hayGente || hayCaida;
+      todo.classList.toggle('visible', Boolean(hayGente || hayCaida || (siempre && estado)));
+
+      // En modo prueba se dice que está esperando, que si no el tablero quieto
+      // tampoco aclara si el widget está vivo.
+      const espera = document.getElementById('espera');
+      espera.hidden = !prueba || Boolean(hayGente || hayCaida);
+
+      if (!apuntados.hidden) {
+        Widget.pintarApuntados({ cuantos: 'apCuantos', rotulo: 'apRotulo', quienes: 'apQuienes', cuenta: 'apCuenta' }, estado.jugadores, estado.palabra, estado.cierraEn);
+      }
+    }
+
+    async function mirar() {
+      if (!clave) { decirFallo('Falta la clave en la dirección del widget.'); return; }
+      try {
+        const res = await fetch('/api/widget/plinko?clave=' + encodeURIComponent(clave), { cache: 'no-store' });
+        if (!res.ok) {
+          decirFallo(res.status === 404
+            ? 'Esa clave no vale. Cópiala otra vez desde Configuración.'
+            : 'No se pudo leer el tablero (' + res.status + ').');
+          return;
+        }
+        decirFallo('');
+        estado = await res.json();
+      } catch (e) {
+        // Solo la petición: si se tragara también los fallos de pintado, un
+        // error del tablero se leería como «sin conexión» y no habría por
+        // dónde cogerlo.
+        decirFallo('Sin conexión con el Ruleton.');
+        return;
+      }
+
+      // Una tirada nueva se reproduce una sola vez: se reconoce por cuándo se
+      // tiró, que es lo que cambia en cada ronda.
+      if (estado.tiradas && estado.tiradas.length && estado.tiradoEn !== tiradaVista) {
+        tiradaVista = estado.tiradoEn;
+        todo.classList.add('visible');
+        verCaer(estado.tiradas);
+      }
+      repasarVisible();
+      if (!animando) pintar();
+    }
+
+    mirar();
+    setInterval(mirar, CADA);
+    // La cuenta atrás de la inscripción tiene que bajar aunque no se sondee.
+    setInterval(() => { if (estado && estado.abierta) repasarVisible(); }, 250);
+  })();
+  </script>
+</body>
+</html>

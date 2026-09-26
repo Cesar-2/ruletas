@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Batalla Dofus · widget</title>
+<link rel="icon" href="data:," />
+<!--
+  El widget de la Batalla Dofus, para OBS.  /widget/batalla.html?clave=XXXX
+
+  El torneo entero viene resuelto del servidor: rondas, duelos y cada golpe con
+  cómo quedan de vida los dos. Aquí se cuenta el último combate golpe a golpe,
+  como en la página, y al final se queda el campeón.
+-->
+<link rel="stylesheet" href="/css/widget.css" />
+<style>
+  .combate { width: min(92vw, 720px); }
+  .contra { display: flex; align-items: stretch; gap: .8rem; }
+  .lado {
+    flex: 1;
+    background: rgba(9, 15, 28, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    padding: .8rem 1rem;
+    text-align: center;
+  }
+  .lado .nombre { font-size: 1.25rem; font-weight: 800; line-height: 1.2; word-break: break-word; }
+  .lado .clase { font-size: .82rem; color: #9fb3c8; margin-top: .1rem; min-height: 1em; }
+  .vida { margin-top: .55rem; height: .7rem; border-radius: 999px; background: rgba(255,255,255,0.10); overflow: hidden; }
+  .vida i { display: block; height: 100%; background: linear-gradient(90deg, #34d399, #6ee7b7); transition: width .25s ease; }
+  /* Con poca vida se pone rojo: se ve venir el final sin leer números. */
+  .vida.poca i { background: linear-gradient(90deg, #ef4444, #f87171); }
+  .puntos { margin-top: .25rem; font-size: .9rem; color: #9fb3c8; font-variant-numeric: tabular-nums; }
+  .vs { align-self: center; font-weight: 800; color: #9fb3c8; }
+  .lado.cae { opacity: .45; }
+  .relato {
+    margin-top: .7rem;
+    background: rgba(9, 15, 28, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    padding: .6rem .9rem;
+    font-size: 1rem;
+    text-align: center;
+    min-height: 1.4em;
+  }
+  .relato .critico { color: #fbbf24; font-weight: 700; }
+  .relato .fallo { color: #9fb3c8; }
+  .campeon { font-size: 1rem; color: #9fb3c8; }
+  .campeon .quien { display: block; font-size: 2.2rem; font-weight: 800; color: #fbbf24; margin-top: .2rem; }
+</style>
+</head>
+<body>
+  <div id="todo">
+    <div class="panel" id="apuntados" hidden>
+      <div class="cifra" id="apCuantos">0</div>
+      <div class="rotulo" id="apRotulo">apuntados</div>
+      <div class="quienes" id="apQuienes"></div>
+      <div class="cuenta" id="apCuenta" hidden></div>
+    </div>
+
+    <div class="combate" id="combate" hidden>
+      <div class="contra">
+        <div class="lado" id="ladoA">
+          <div class="nombre" id="nombreA">—</div>
+          <div class="clase" id="claseA"></div>
+          <div class="vida" id="vidaA"><i></i></div>
+          <div class="puntos" id="pvA">100 PdV</div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="lado" id="ladoB">
+          <div class="nombre" id="nombreB">—</div>
+          <div class="clase" id="claseB"></div>
+          <div class="vida" id="vidaB"><i></i></div>
+          <div class="puntos" id="pvB">100 PdV</div>
+        </div>
+      </div>
+      <div class="relato" id="relato"></div>
+    </div>
+
+    <div class="panel campeon" id="campeon" hidden>
+      🏆 Campeón
+      <span class="quien" id="campeonQuien"></span>
+    </div>
+  </div>
+  <div id="espera" hidden>Widget conectado · esperando a que abras un torneo</div>
+  <div id="fallo" hidden></div>
+
+  <script src="/js/widget-base.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const q = Widget.caja;
+    const VIDA = 100;
+    // Cuánto tarda en contarse cada golpe. Lo bastante para leerlo.
+    const POR_GOLPE = 900;
+
+    let contando = false;
+    // Qué duelo se está contando, para no repetirlo en cada sondeo.
+    let dueloVisto = '';
+    let clases = {};
+
+    function pintarVida(cual, cuanta) {
+      const caja = q('vida' + cual);
+      const pct = Math.max(0, Math.min(100, cuanta));
+      caja.querySelector('i').style.width = pct + '%';
+      caja.classList.toggle('poca', pct <= 30);
+      q('pv' + cual).textContent = Math.max(0, Math.round(cuanta)) + ' PdV';
+    }
+
+    function contarDuelo(d) {
+      contando = true;
+      q('apuntados').hidden = true;
+      q('campeon').hidden = true;
+      q('combate').hidden = false;
+      q('ladoA').classList.remove('cae');
+      q('ladoB').classList.remove('cae');
+      q('nombreA').textContent = d.a;
+      q('nombreB').textContent = d.b;
+      q('claseA').textContent = clases[d.a] || '';
+      q('claseB').textContent = clases[d.b] || '';
+      pintarVida('A', VIDA);
+      pintarVida('B', VIDA);
+      q('relato').textContent = '';
+
+      const golpes = d.golpes || [];
+      let i = 0;
+      function siguiente() {
+        if (i >= golpes.length) {
+          // Se acabó: el que cae se apaga y se dice quién pasa.
+          const cae = d.ganador === d.a ? 'B' : 'A';
+          q('lado' + cae).classList.add('cae');
+          q('relato').innerHTML = '<b>' + escapar(d.ganador) + '</b> pasa de ronda';
+          contando = false;
+          return;
+        }
+        const g = golpes[i++];
+        pintarVida('A', g.vidaA);
+        pintarVida('B', g.vidaB);
+        q('relato').innerHTML = relatoDe(g);
+        setTimeout(siguiente, POR_GOLPE);
+      }
+      siguiente();
+    }
+
+    function escapar(t) {
+      return String(t == null ? '' : t).replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function relatoDe(g) {
+      const quien = '<b>' + escapar(g.quien) + '</b>';
+      const a = '<b>' + escapar(g.a) + '</b>';
+      if (g.fallo) return '<span class="fallo">' + a + ' esquiva a ' + quien + '</span>';
+      let texto = quien + ' ' + escapar(g.ataque) + ' ' + a + ' · −' + g.dano;
+      if (g.critico) texto = '<span class="critico">' + texto + ' ¡crítico!</span>';
+      if (g.aguanta) texto += ' · aguanta con un hilo';
+      return texto;
+    }
+
+    // El último duelo que tenga golpes contados: es lo que se está peleando.
+    function ultimoDuelo(e) {
+      for (let r = (e.rondas || []).length - 1; r >= 0; r--) {
+        const duelos = e.rondas[r].duelos || [];
+        for (let d = duelos.length - 1; d >= 0; d--) {
+          if (duelos[d].b && (duelos[d].golpes || []).length) return { d: duelos[d], id: r + '-' + d };
+        }
+      }
+      return null;
+    }
+
+    Widget.arranca({
+      ruta: 'batalla',
+      pinta(e) {
+        clases = {};
+        (e.luchadores || []).forEach((l) => { clases[l.nombre] = l.clase || ''; });
+
+        if (contando) return true;
+
+        const ultimo = ultimoDuelo(e);
+        if (ultimo && ultimo.id !== dueloVisto) {
+          dueloVisto = ultimo.id;
+          contarDuelo(ultimo.d);
+          return true;
+        }
+
+        // Campeón: se queda puesto hasta que se abra otro torneo.
+        if (e.campeon) {
+          q('combate').hidden = true;
+          q('apuntados').hidden = true;
+          q('campeon').hidden = false;
+          q('campeonQuien').textContent = e.campeon;
+          return true;
+        }
+        q('campeon').hidden = true;
+
+        // Abierta se enseña siempre, con nadie apuntado también: es cuando el
+        // chat necesita saber qué escribir.
+        const apuntados = q('apuntados');
+        apuntados.hidden = !e.abierta;
+        if (e.abierta) {
+          q('combate').hidden = true;
+          Widget.pintarApuntados({ cuantos: 'apCuantos', rotulo: 'apRotulo', quienes: 'apQuienes', cuenta: 'apCuenta' }, e.luchadores.map((l) => l.nombre), e.palabra, e.cierraEn);
+        }
+        return Boolean(e.abierta);
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

@@ -184,6 +184,9 @@ export interface UsoJuego extends Uso {
 }
 
 export interface Resumen {
+  // Que minijuego se esta mirando, o '' si son todos. La pagina lo usa para
+  // saber que filtro le contestaron, no para pedirlo.
+  filtro: Juego | '';
   desde: string;
   historialDesde: string;
   // Si el historial no cubre todo, el panel avisa de que las tendencias miran
@@ -214,10 +217,16 @@ export interface Resumen {
 
 // nombres: como se llama cada cuenta, para no ensenar identificadores sueltos.
 // Las cuentas que ya no existen se quedan fuera.
-export function resumen(nombres: Map<string, string>): Resumen {
+//
+// filtro: mirar un solo minijuego. Con filtro puesto TODO lo de abajo habla de
+// ese y nada mas: las cifras de arriba, la grafica por dia, las horas, la
+// racha y quien ha jugado. La unica que no se filtra es la lista «por
+// minijuego», que es justo la comparacion entre todos y con la que se elige.
+export function resumen(nombres: Map<string, string>, filtro: Juego | '' = ''): Resumen {
   const registro = leer();
   const ahora = Date.now();
-  const hist = registro.historial;
+  const soloUno = filtro && JUEGOS.includes(filtro as Juego) ? (filtro as Juego) : '';
+  const hist = soloUno ? registro.historial.filter((e) => e.j === soloUno) : registro.historial;
 
   const enVentana = (desdeDias: number, hastaDias: number) =>
     hist.filter((e) => {
@@ -292,22 +301,32 @@ export function resumen(nombres: Map<string, string>): Resumen {
     .map(([uid, suyos]) => ({
       id: uid,
       username: nombres.get(uid),
-      juegos: suyos,
-      total: Object.values(suyos).reduce((a, b) => a + (Number(b) || 0), 0),
+      // Con un minijuego puesto se ensena solo lo suyo: si no, la ficha diria
+      // «12 partidas» mientras el resto del panel cuenta tres.
+      juegos: soloUno ? { [soloUno]: Number(suyos[soloUno]) || 0 } : suyos,
+      total: soloUno
+        ? Number(suyos[soloUno]) || 0
+        : Object.values(suyos).reduce((a, b) => a + (Number(b) || 0), 0),
       ultima: ultimaDe.get(uid) || ''
     }))
+    // Quien no haya jugado a ese no pinta nada en la lista.
+    .filter((u) => u.total > 0)
     .sort((a, b) => b.total - a.total);
 
-  const partidas = juegos.reduce((s, j) => s + j.partidas, 0);
+  // Los contadores de siempre son por minijuego, asi que con filtro puesto los
+  // totales salen de ese y no de la suma.
+  const mirados = soloUno ? juegos.filter((j) => j.id === soloUno) : juegos;
+  const partidas = mirados.reduce((s, j) => s + j.partidas, 0);
   const diasActivos = jugados.size;
 
   return {
+    filtro: soloUno,
     desde: registro.desde,
     historialDesde: registro.historialDesde,
     historialParcial: hist.length < partidas,
     totales: {
       partidas,
-      jugadores: juegos.reduce((s, j) => s + j.jugadores, 0),
+      jugadores: mirados.reduce((s, j) => s + j.jugadores, 0),
       partidasConHistorial: hist.length,
       recientes: recientes.length,
       previas: previas.length,
