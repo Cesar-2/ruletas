@@ -1,5 +1,9 @@
-// Cargar el marcador desde una hoja de calculo: primero se mira lo que va a
-// pasar y luego se aplica.
+// El marcador de puntos: verlo, corregirlo a mano, moverlo y vaciarlo, y
+// cargarlo de golpe desde una hoja de calculo (primero se mira lo que va a
+// pasar y luego se aplica).
+//
+// Es el mismo marcador para todos los minijuegos que reparten puntos, asi que
+// no es de ninguno.
 //
 // Salio de index.html, que se habia puesto en casi once mil lineas. Se movio
 // tal cual, sin tocar la sangria: dentro hay plantillas de varias lineas y
@@ -214,99 +218,3 @@
         showAlert('No se pudo vaciar', e.message);
       }
     });
-
-    function vigilar(encender) {
-      // Mientras la inscripción está abierta, el servidor avisa de quién se ha
-      // apuntado por el chat en vez de que esto pregunte cada dos segundos.
-      // Ver eventos.js.
-      Eventos.vigilar('carrera', cargarCarrera, encender);
-    }
-
-    document.getElementById('carreraAbrir').addEventListener('click', async () => {
-      // El canal sale de Configuración; aquí solo se elige la palabra.
-      try {
-        carrera = await api('/api/carrera/abrir', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            palabra: document.getElementById('carreraPalabra').value.trim(),
-            segundos: segundosDe('carreraMinutos')
-          })
-        });
-        document.getElementById('carreraPodio').hidden = true;
-        document.getElementById('carreraRelato').hidden = true;
-        pintarCarrera();
-        vigilar(true);
-      } catch (e) {
-        showAlert('No se pudo abrir la carrera', e.message);
-      }
-    });
-
-    document.getElementById('carreraCorrer').addEventListener('click', async () => {
-      if (corriendo) return;
-      corriendo = true;
-      vigilar(false);
-      pintarCarrera();
-      let hecha;
-      try {
-        hecha = await api('/api/carrera/correr', { method: 'POST' });
-      } catch (e) {
-        corriendo = false;
-        showAlert('No se pudo correr', e.message);
-        pintarCarrera();
-        return;
-      }
-      carrera = { ...carrera, ...hecha };
-      const tarda = animarCarrera(hecha.resultado);
-      setTimeout(() => {
-        corriendo = false;
-        pintarPodio(hecha.resultado);
-        cargarPuntos();
-        pintarCarrera();
-        makeConfetti(30);
-      }, tarda + 200);
-    });
-
-    document.getElementById('carreraRepetir').addEventListener('click', async () => {
-      try {
-        carrera = await api('/api/carrera/repetir', { method: 'POST' });
-      } catch (e) {
-        showAlert('No se pudo repetir', e.message);
-        return;
-      }
-      // El podio y el relato anteriores sobran; la pista la redibuja
-      // pintarCarrera() desde cero, así que las balineras vuelven a la salida.
-      document.getElementById('carreraPodio').hidden = true;
-      document.getElementById('carreraRelato').hidden = true;
-      pintarCarrera();
-      vigilar(true);
-    });
-
-    document.getElementById('carreraCancelar').addEventListener('click', async () => {
-      try {
-        carrera = await api('/api/carrera/cancelar', { method: 'POST' });
-      } catch (e) { /* se repinta igual */ }
-      vigilar(false);
-      document.getElementById('carreraPista').hidden = true;
-      pintarCarrera();
-    });
-
-    document.getElementById('carreraApuntar').addEventListener('click', async () => {
-      const campo = document.getElementById('carreraNombre');
-      const nombre = campo.value.trim();
-      if (!nombre) return;
-      try {
-        carrera = await api('/api/carrera/apuntar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre })
-        });
-        campo.value = '';
-        pintarCarrera();
-      } catch (e) {
-        showAlert('No se pudo apuntar', e.message);
-      }
-    });
-
-
-
