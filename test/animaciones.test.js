@@ -442,3 +442,144 @@ test('sin load() en el elemento no revienta', async () => {
   video.onended();
   await fin;
 });
+
+// --- El combate del rey de la colina ----------------------------------------
+//
+// El widget no enseñaba la pelea: salía el rey y el resultado, pero no el
+// combate. El relato y el dibujo estaban en index.html, así que el widget no
+// tenía con qué. Ahora salen de js/dofus-arte.js y css/combate.css, los dos.
+//
+// Estos tests CARGAN el archivo de verdad, no solo comprueban su sintaxis. Y hay
+// un motivo concreto: al darle su propio escapado, la definición no llegó a
+// entrar (el script se ancló en un 'use strict' que ese archivo no tiene) y
+// quedó usada pero sin definir. `node --check` pasaba, porque es un error de
+// ejecución. Cargarlo lo pilla.
+
+const vm = require('node:vm');
+
+function cargarArte(estado) {
+  const codigo = fs.readFileSync(path.join(JS, 'dofus-arte.js'), 'utf8');
+  const hecho = {};
+  const elemento = () => ({
+    hidden: false, innerHTML: '', style: {}, dataset: {},
+    classList: {
+      c: new Set(), add(x) { this.c.add(x); }, remove(x) { this.c.delete(x); },
+      toggle(x, v) { if (v === false) this.c.delete(x); else this.c.add(x); },
+      contains(x) { return this.c.has(x); }
+    },
+    children: [], appendChild() {}, querySelector: () => null, querySelectorAll: () => []
+  });
+  const ctx = {
+    colina: (estado && estado.colina) || { clases: {}, peleados: 1 },
+    batalla: (estado && estado.batalla) || { luchadores: [], arte: { clases: {} } },
+    document: {
+      getElementById: (id) => (hecho[id] = hecho[id] || elemento()),
+      createElement: () => elemento()
+    },
+    setTimeout, clearTimeout, Promise, Math, Object, Array, String, Number, JSON, console
+  };
+  ctx.globalThis = ctx;
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(codigo, ctx, { filename: 'dofus-arte.js' });
+  return { ctx, hecho };
+}
+
+test('el arte de los combates se carga sin la página detrás', () => {
+  // Es lo que hace falta para que el widget pueda usarlo: que no dependa de nada
+  // de index.html. Si le faltara una función, esto revienta al cargar.
+  const { ctx } = cargarArte();
+  for (const f of ['esc', 'claseDe', 'hechizoDe', 'muneco', 'lineaDeGolpe', 'etiquetaClase',
+    'abrirRing', 'dofusSvg', 'dofusHuevoSvg', 'escenarioColina', 'htmlDueloColina',
+    'dibujarDueloColina', 'contarRonda']) {
+    assert.strictEqual(typeof ctx[f], 'function', 'falta ' + f);
+  }
+});
+
+test('escapa el HTML sin usar el DOM', () => {
+  const { ctx } = cargarArte();
+  assert.strictEqual(ctx.esc('<b>&"x"</b>'), '&lt;b&gt;&amp;&quot;x&quot;&lt;/b&gt;');
+  assert.strictEqual(ctx.esc(null), '');
+});
+
+test('la clase del muñeco es la que repartió la colina, no una inventada', () => {
+  // Sin esto los muñecos del widget saldrían con otra clase que en la página,
+  // porque claseDe() se la saca del nombre cuando no la tiene.
+  const { ctx } = cargarArte({
+    colina: { clases: { ana: 'Yopuka', beto: 'Ocra' }, peleados: 1 },
+    batalla: { luchadores: [], arte: { clases: {} } }
+  });
+  assert.strictEqual(ctx.claseDe('Ana').clase, 'Yopuka');
+  assert.strictEqual(ctx.claseDe('Beto').clase, 'Ocra');
+  // Y da igual cómo se escriban las mayúsculas, que la colina las guarda en bajas.
+  assert.strictEqual(ctx.claseDe('ANA').clase, 'Yopuka');
+});
+
+test('el duelo se monta con lo que contarRonda va a buscar', () => {
+  const { ctx } = cargarArte({
+    colina: { clases: { ana: 'Yopuka', beto: 'Ocra' }, peleados: 2 },
+    batalla: { luchadores: [], arte: { clases: {} } }
+  });
+  const duelo = {
+    a: 'Ana', b: 'Beto', ganador: 'Ana',
+    golpes: [{ quien: 'Ana', a: 'Beto', dano: 30, vidaA: 100, vidaB: 70 }]
+  };
+  const html = ctx.htmlDueloColina(duelo, true);
+
+  // contarRonda busca .duelo[data-ronda][data-duelo] y dentro las barras, el
+  // texto del golpe y los dos muñecos. Si falta algo, no anima nada.
+  assert.ok(html.includes('data-ronda="0"'), 'la ronda');
+  assert.ok(html.includes('data-duelo="0"'), 'el duelo');
+  assert.ok(html.includes('class="muneco lado-a'), 'el muñeco de la izquierda');
+  assert.ok(html.includes('class="muneco lado-b'), 'y el de la derecha');
+  assert.ok(/data-lado="a"/.test(html) && /data-lado="b"/.test(html), 'las dos barras de vida');
+  assert.ok(html.includes('class="golpe"'), 'donde va el texto del golpe');
+  assert.ok(html.includes('class="lineas"'), 'y el relato');
+});
+
+test('el que pierde va marcado para caerse', () => {
+  const { ctx } = cargarArte();
+  const html = ctx.htmlDueloColina({
+    a: 'Ana', b: 'Beto', ganador: 'Ana',
+    golpes: [{ quien: 'Ana', a: 'Beto', dano: 100, vidaA: 100, vidaB: 0 }]
+  }, true);
+  assert.ok(/class="muneco lado-b cae/.test(html), 'Beto se cae');
+  assert.ok(!/class="muneco lado-a cae/.test(html), 'y Ana no');
+});
+
+test('un nombre con HTML no se cuela en el duelo', () => {
+  const { ctx } = cargarArte();
+  const html = ctx.htmlDueloColina({ a: '<img src=x onerror=alert(1)>', b: 'Beto', golpes: [] }, false);
+  assert.ok(!html.includes('<img src=x'), 'no queda la etiqueta');
+  assert.ok(html.includes('&lt;img'), 'queda escapada');
+});
+
+test('el escenario del combate cambia con cada pelea', () => {
+  // Así dos combates seguidos no salen en el mismo sitio.
+  for (const [peleados, esperado] of [[1, 0], [2, 1], [5, 4], [0, 0]]) {
+    const { ctx } = cargarArte({ colina: { clases: {}, peleados } });
+    assert.strictEqual(ctx.escenarioColina(), esperado, 'peleados=' + peleados);
+  }
+});
+
+test('el widget del rey de la colina carga el combate compartido', () => {
+  // El test que evita volver atrás: si alguien se hace otra vez su propia versión
+  // del combate en el widget, o se le olvida cargar la compartida, salta.
+  const w = fs.readFileSync(path.join(__dirname, '..', 'public', 'widget', 'colina.html'), 'utf8');
+  assert.ok(w.includes('/css/combate.css'), 'carga el CSS del combate');
+  assert.ok(w.includes('/js/dofus-arte.js'), 'y el arte');
+  assert.ok(w.includes('dibujarDueloColina'), 'monta el duelo con el código compartido');
+  assert.ok(w.includes('contarRonda'), 'y lo cuenta con el compartido');
+  assert.ok(w.includes('colinaCuadro'), 'con el mismo id que la página, para compartir el CSS');
+  // Y no puede tener su propio dibujo.
+  assert.ok(!/<svg/.test(w), 'el widget no dibuja muñecos por su cuenta');
+});
+
+test('la página y el widget cargan el MISMO combate', () => {
+  const leer = (p) => fs.readFileSync(path.join(__dirname, '..', 'public', p), 'utf8');
+  for (const p of ['index.html', 'widget/colina.html']) {
+    const texto = leer(p);
+    assert.ok(texto.includes('/css/combate.css'), p + ' carga css/combate.css');
+    assert.ok(texto.includes('/js/dofus-arte.js'), p + ' carga js/dofus-arte.js');
+  }
+});

@@ -8,11 +8,19 @@
 <!--
   El widget del Rey de la colina, para OBS.  /widget/colina.html?clave=XXXX
 
-  Aquí lo que importa es quién manda y cuánto lleva aguantando: la racha es lo
-  que se persigue en este minijuego, así que va en grande. Debajo, quién está
-  esperando turno.
+  Enseña dos cosas, y manda la que esté pasando:
+
+    - Mientras se pelea, EL COMBATE: los dos muñecos con su clase de Dofus, las
+      barras de vida y el relato golpe a golpe. Es el mismo dibujo y el mismo
+      relato que la página, de js/dofus-arte.js y css/combate.css. Antes esto no
+      estaba y en la superposición salía el rey y el resultado, pero no la pelea.
+    - El resto del tiempo, quién manda y cuánto lleva aguantando: la racha es lo
+      que se persigue en este minijuego, así que va en grande. Debajo, quién está
+      esperando turno.
 -->
 <link rel="stylesheet" href="/css/widget.css" />
+<!-- El combate es el MISMO que el de la página, no una copia parecida. -->
+<link rel="stylesheet" href="/css/combate.css" />
 <style>
   .corona { font-size: 2.2rem; line-height: 1; }
   .rey-nombre { font-size: 2.2rem; font-weight: 800; line-height: 1.1; margin-top: .2rem; }
@@ -45,20 +53,72 @@
       </div>
       <div class="record" id="record" hidden></div>
     </div>
+    <!-- El combate. Mismo id que en la página para poder compartir el CSS, y lo
+         monta dibujarDueloColina() de js/dofus-arte.js. -->
+    <div class="cuadro" id="colinaCuadro" hidden></div>
   </div>
   <div id="espera" hidden>Widget conectado · esperando a que abras la colina</div>
   <div id="fallo" hidden></div>
 
   <script src="/js/eventos.js"></script>
+  <script src="/js/dofus-arte.js"></script>
   <script src="/js/widget-base.js"></script>
   <script>
   (function () {
     'use strict';
     const q = Widget.caja;
 
+    // dofus-arte.js lee estos dos para saber qué clase le toca a cada uno y con
+    // qué arte dibujarla. En la página son las variables del panel; aquí se ponen
+    // desde lo que manda el servidor. Van en globalThis y no con let porque este
+    // script está dentro de una función y dofus-arte.js las busca por su nombre.
+    globalThis.colina = { clases: {}, peleados: 0, rey: null, cola: [] };
+    globalThis.batalla = { luchadores: [], arte: { clases: {}, escenario: '', escenarios: [] } };
+
+    // Cuántos combates se habían peleado la última vez que se contó uno. Sirve de
+    // nombre del combate: el servidor no manda un identificador, pero sí cuántos
+    // van, y eso sube en cada pelea.
+    let contados = -1;
+    // Mientras se cuenta un combate no se repinta nada: repintar dejaría el
+    // relato a medias. Es lo mismo que hace la página con peleandoColina.
+    let contando = false;
+
+    // Cuenta un combate nuevo, si lo hay. Devuelve true si se ha puesto a contar.
+    function contarSiToca(e) {
+      const d = e.duelo;
+      if (contando) return true;
+      if (!d || !d.golpes || !d.golpes.length) return false;
+      if (e.peleados === contados) return false;
+      contados = e.peleados;
+      contando = true;
+      // El marcado lo monta el mismo código que en la página, y el relato también.
+      dibujarDueloColina(d, false);
+      q('panel').hidden = true;
+      q('colinaCuadro').hidden = false;
+      Promise.resolve(contarRonda({ duelos: [d] }, 0, [0], 'colinaCuadro'))
+        .catch(() => {})
+        .then(() => { contando = false; });
+      return true;
+    }
+
     Widget.arranca({
       ruta: 'colina',
       pinta(e) {
+        // Lo primero: darle a dofus-arte.js lo que necesita para dibujar. Sin las
+        // clases que reparte la colina, los muñecos saldrían con otra clase que en
+        // la página, porque claseDe() se las inventa del nombre cuando no las tiene.
+        globalThis.colina = {
+          clases: e.clases || {},
+          peleados: e.peleados || 0,
+          rey: e.rey || null,
+          cola: e.cola || []
+        };
+        globalThis.batalla = { luchadores: [], arte: e.arte || { clases: {} } };
+
+        // Mientras se pelea, manda el combate: es lo que se está mirando.
+        if (contarSiToca(e)) return true;
+        q('colinaCuadro').hidden = true;
+
         const hayRey = Boolean(e.rey);
         const hayCola = Boolean(e.cola && e.cola.length);
         // Con la colina abierta se enseña aunque no haya nadie: es cuando hay

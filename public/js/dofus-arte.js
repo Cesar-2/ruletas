@@ -2,6 +2,15 @@
 // pinta y sus hechizos, el dibujo de cada muneco, y el relato de un combate
 // golpe a golpe.
 //
+// Escapar va aquí dentro y no se toma de la página. Antes se usaba el escapeHtml
+// de index.html, y por eso este archivo no se podía cargar solo: el widget del
+// rey de la colina lo necesita sin la página detrás.
+    function esc(t) {
+      return String(t == null ? '' : t)
+        .replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+//
 // Es de la batalla y del rey de la colina por igual: los dos reparten clase
 // igual y los dos cuentan sus combates con contarRonda(), asi que esto no es
 // de ninguno de los dos en particular.
@@ -105,7 +114,7 @@
     function abrirRing(indiceRonda, indiceDuelo) {
       const escenario = escenarioDe(indiceRonda || 0, indiceDuelo || 0);
       return escenario
-        ? `<div class="ring dofus con-escenario" style="background-image:url('${escapeHtml(escenario)}')">`
+        ? `<div class="ring dofus con-escenario" style="background-image:url('${esc(escenario)}')">`
         : '<div class="ring dofus">';
     }
 
@@ -393,7 +402,7 @@
         return `<svg viewBox="0 0 60 96" aria-hidden="true">
           <ellipse cx="30" cy="91" rx="19" ry="5" fill="${equipo}" fill-opacity=".22" stroke="${equipo}" stroke-width="1.8"/>
           <ellipse cx="31" cy="91" rx="13" ry="3" fill="#000" opacity=".3"/>
-          <image href="${escapeHtml(arte)}" x="0" y="0" width="60" height="92" preserveAspectRatio="xMidYMax meet"/>
+          <image href="${esc(arte)}" x="0" y="0" width="60" height="92" preserveAspectRatio="xMidYMax meet"/>
         </svg>`;
       }
       if (c.clase === 'Yopuka') return yopukaSvg(equipo);
@@ -468,6 +477,35 @@
           </g>
         </g>
       </svg>`;
+    }
+
+    // Estas dos estaban en index.html, sueltas justo antes de este archivo. Son
+    // del relato del combate, asi que su sitio es aqui: sin ellas el widget del
+    // rey de la colina no podia contar la pelea.
+
+    // Un luchador: su personaje de Dofus, dentro de la caja que se anima.
+    // Como se cuenta un golpe: el texto tal cual y de que color va. Se usa
+    // mientras se narra en directo y al rehacer el log en Combates, para que
+    // lo que se lee despues sea exactamente lo que se vio.
+    function lineaDeGolpe(g, duelo, i, esElUltimo) {
+      const h = hechizoDe(g.quien, i);
+      const clase = esElUltimo ? 'cae'
+        : g.fallo ? 'fallo'
+        : g.aguanta ? 'aguanta'
+        : g.critico ? 'critico'
+        : g.furia ? 'furia' : '';
+      const texto = esElUltimo
+        ? `${g.quien} lanza ${h.nombre}. ${g.a}: −${g.dano} PdV. ${g.a} ha muerto. ¡Victoria de ${duelo.ganador}!`
+        : g.fallo
+          ? `${g.quien} lanza ${h.nombre}, pero ${g.a} lo esquiva.`
+          : `${g.quien} lanza ${h.nombre}. ${g.a}: −${g.dano} PdV (${h.elemento})` +
+            `${g.critico ? '. ¡Golpe crítico!' : ''}${g.furia ? `. ${g.quien} se crece con pocos PdV` : ''}.` +
+            `${g.aguanta ? ` ¡${g.a} resiste con 1 PdV!` : ''}`;
+      return { texto, clase };
+    }
+
+    function muneco(lado, extra, nombre) {
+      return `<div class="muneco lado-${lado}${extra}">${dofusSvg(claseDe(nombre), lado)}</div>`;
     }
 
     // Cuenta la ronda golpe a golpe: los muñecos se pegan, las barras de vida bajan y el relato va
@@ -591,9 +629,9 @@
               }
             }
             texto.innerHTML = g.fallo
-              ? `${escapeHtml(g.quien)} lanza ${escapeHtml(h.nombre)}: ¡${escapeHtml(g.a)} lo esquiva!`
-              : `${escapeHtml(g.quien)} lanza ${escapeHtml(h.nombre)}` +
-                ` <span class="pum">${escapeHtml(g.a)}: −${g.dano} PdV${g.critico ? ' ¡Golpe crítico!' : ''}</span>`;
+              ? `${esc(g.quien)} lanza ${esc(h.nombre)}: ¡${esc(g.a)} lo esquiva!`
+              : `${esc(g.quien)} lanza ${esc(h.nombre)}` +
+                ` <span class="pum">${esc(g.a)}: −${g.dano} PdV${g.critico ? ' ¡Golpe crítico!' : ''}</span>`;
 
             // Como el chat de combate del juego: quién lanza qué, y cuántos
             // PdV pierde el otro. Lo mismo que se guarda para Combates.
@@ -627,4 +665,73 @@
       // Se espera a que la última victoria se haya visto y su recuadro encogido:
       // al acabar se repinta el cuadro, y se lo llevaría por delante.
       return new Promise((listo) => setTimeout(listo, masLargo * RITMO + 1800));
+    }
+
+
+    // --- El duelo del rey de la colina ---------------------------------
+    // Estas cuatro estaban en index.html. Son las que MONTAN el duelo, y
+    // contarRonda() da por hecho que el marcado ya existe: sin ellas el widget
+    // del rey de la colina no tenia como dibujar la pelea, y por eso en la
+    // superposicion salia el rey y el resultado pero no el combate.
+
+    // El Dofus esmeralda que preside el duelo. Dibujado a mano como el resto
+    // del arte propio: asi no depende de ningun archivo y escala limpio.
+    function dofusHuevoSvg() {
+      return `<svg viewBox="0 0 120 150" aria-hidden="true">
+        <path d="M60 6 C93 6 114 46 114 82 C114 116 90 144 60 144 C30 144 6 116 6 82 C6 46 27 6 60 6 Z"
+              fill="#4d8c0b" stroke="#c6f000" stroke-width="5"/>
+        <path d="M60 16 C86 16 104 50 104 82 C104 111 84 135 60 135 C36 135 16 111 16 82 C16 50 34 16 60 16 Z"
+              fill="#6aa80f"/>
+        <path d="M74 46 C74 31 46 31 44 46 C42 60 76 64 78 82 C80 102 48 106 44 90"
+              fill="none" stroke="#2f6b06" stroke-width="19" stroke-linecap="round"/>
+        <path d="M74 46 C74 31 46 31 44 46 C42 60 76 64 78 82 C80 102 48 106 44 90"
+              fill="none" stroke="#d9f524" stroke-width="12" stroke-linecap="round"/>
+        <ellipse cx="38" cy="44" rx="11" ry="20" fill="#fff" opacity=".38" transform="rotate(-24 38 44)"/>
+        <ellipse cx="84" cy="112" rx="7" ry="11" fill="#fff" opacity=".2" transform="rotate(-32 84 112)"/>
+        <circle cx="80" cy="36" r="4" fill="#eaff6b" opacity=".85"/>
+        <circle cx="34" cy="96" r="3" fill="#eaff6b" opacity=".7"/>
+        <circle cx="62" cy="124" r="2.5" fill="#eaff6b" opacity=".6"/>
+      </svg>`;
+    }
+    // Aqui todos los combates se pelean en el mismo sitio del cuadro, asi que
+    // el escenario no puede salir de la posicion como en el torneo: se va
+    // pasando al siguiente con cada combate peleado. Sale de la cuenta que
+    // lleva el servidor, no de un contador de la pagina, para que al repintar
+    // el ultimo combate se siga viendo en el escenario donde se peleo.
+    function escenarioColina() {
+      return Math.max(0, (colina.peleados || 1) - 1);
+    }
+    // El mismo recuadro de combate que el torneo, con la diferencia de que
+    // aqui no hay boton de pelear dentro: el combate lo lanza el de abajo.
+    // Con «conGanador» se pinta ya resuelto; sin ello, con las barras llenas,
+    // que es como tiene que empezar el relato para no destripar el final.
+    function htmlDueloColina(d, conGanador) {
+      const ganado = conGanador && d.ganador;
+      const clase = (quien) => ganado ? (d.ganador === quien ? 'lado gana' : 'lado pierde') : 'lado';
+      const golpes = d.golpes || [];
+      const ultimo = ganado ? golpes[golpes.length - 1] : null;
+      const barra = (lado, vida) => {
+        const cual = vida <= 20 ? 'critica' : vida <= 50 ? 'poca' : '';
+        return '<div class="vida"><b class="rastro" data-lado="' + lado + '" style="width:' + vida + '%"></b>'
+          + '<i data-lado="' + lado + '" class="' + cual + '" style="width:' + vida + '%"></i></div>';
+      };
+      const caido = (quien) => ganado && d.ganador !== quien ? ' cae' : '';
+      return '<div class="duelo' + (ganado ? ' resuelto' : '') + '" data-ronda="0" data-duelo="0">'
+        + '<div class="mk">'
+        + '<div class="mk-lado a">' + barra('a', ultimo ? ultimo.vidaA : 100)
+        + '<div class="' + clase(d.a) + '"><span class="quien">' + esc(d.a) + '</span>'
+        + etiquetaClase(d.a) + '</div></div>'
+        + '<div class="mk-vs" title="Dofus">' + dofusHuevoSvg() + '</div>'
+        + '<div class="mk-lado b">' + barra('b', ultimo ? ultimo.vidaB : 100)
+        + '<div class="' + clase(d.b) + '"><span class="quien">' + esc(d.b) + '</span>'
+        + etiquetaClase(d.b) + '</div></div>'
+        + '</div>'
+        + abrirRing(0, escenarioColina()) + muneco('a', caido(d.a), d.a) + muneco('b', caido(d.b), d.b)
+        + '<div class="fx"></div></div>'
+        + '<div class="golpe"></div><div class="lineas"></div></div>';
+    }
+    function dibujarDueloColina(d, conGanador) {
+      const cuadro = document.getElementById('colinaCuadro');
+      cuadro.hidden = false;
+      cuadro.innerHTML = '<div class="ronda"><div class="duelos">' + htmlDueloColina(d, conGanador) + '</div></div>';
     }

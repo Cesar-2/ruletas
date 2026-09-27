@@ -1,0 +1,144 @@
+/* El cuadro de combate: los muñecos, las barras de vida y el relato golpe a
+   golpe. Aparte para poder usarlo en dos sitios: la página del Ruleton y el
+   widget del rey de la colina que se mete en OBS.
+
+   Estaba dentro del <style> de index.html, y el widget de la colina no lo tenía:
+   por eso en la superposición salía el rey y el resultado, pero no se veía la
+   pelea. Lo mismo que ya pasó con las dos ruletas.
+
+   Lo usan la batalla y el rey de la colina por igual: los dos pelean con las
+   mismas reglas y se cuentan con el mismo contarRonda(). Ver js/dofus-arte.js.
+
+   Las variables del tema llevan valor de respaldo, porque los widgets no cargan
+   el CSS de la página. */
+
+.cuadro{display:flex;gap:1rem;overflow-x:auto;margin-top:1rem;padding-bottom:.4rem}
+.cuadro .ronda{flex:1 1 100%;display:flex;flex-direction:column;gap:.5rem}
+.cuadro .duelos{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.5rem;
+  align-items:start}
+.cuadro .duelo.resuelto{padding:.3rem .55rem;transition:padding .3s ease}
+.cuadro .duelo.resuelto .ring,
+.cuadro .duelo.resuelto .vida,
+.cuadro .duelo.resuelto .vs,
+.cuadro .duelo.resuelto .golpe,
+.cuadro .duelo.resuelto .lado.pierde{display:none}
+.cuadro .duelo.resuelto .lineas{max-height:74px;opacity:.75}
+.cuadro .duelo.resuelto .lado.gana::before{content:'✔';margin-right:.35rem;opacity:.55}
+.cuadro .ronda h4{margin:0 0 .2rem;font-size:12px;color:var(--muted, #9fb3c8);text-transform:uppercase;letter-spacing:.03em}
+.cuadro .duelo{padding:.45rem .6rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);font-size:13px}
+.cuadro .lado{display:flex;align-items:center;gap:.4rem;padding:.15rem 0;color:var(--muted, #9fb3c8)}
+.cuadro .lado.gana{color:#e6eef8;font-weight:700}
+.cuadro .lado.pierde{opacity:.5;text-decoration:line-through}
+.cuadro .vs{font-size:11px;color:var(--muted, #9fb3c8);text-align:center;padding:.1rem 0}
+.cuadro .pase{font-size:11px;color:var(--muted, #9fb3c8);font-style:italic}
+.cuadro .mk{display:grid;grid-template-columns:1fr clamp(20px,6%,32px) 1fr;
+  column-gap:.5rem;align-items:center;margin-bottom:.45rem}
+.cuadro .mk-lado{display:contents}
+.cuadro .mk-lado .vida{grid-row:1;min-width:0}
+.cuadro .mk-lado .lado{grid-row:2;min-width:0}
+.cuadro .mk-lado.a .vida,.cuadro .mk-lado.a .lado{grid-column:1}
+.cuadro .mk-lado.b .vida,.cuadro .mk-lado.b .lado{grid-column:3}
+.cuadro .mk-vs{grid-column:2;grid-row:1 / span 2;width:100%;display:flex;
+  align-items:center;justify-content:center;line-height:0}
+.cuadro .mk-vs svg{width:100%;height:auto;display:block;
+  filter:drop-shadow(0 0 5px rgba(198,240,0,.55));
+  animation:dofusLate 2.4s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.cuadro .mk-vs svg{animation:none}}
+.cuadro .vida{position:relative;height:13px;border-radius:3px;overflow:hidden;
+  background:#3f0d0d;border:2px solid #241606;
+  box-shadow:0 0 0 1px rgba(253,224,71,.35),inset 0 2px 0 rgba(255,255,255,.12)}
+.cuadro .vida i{position:relative;z-index:1;display:block;height:100%;width:100%;
+  background:linear-gradient(180deg,#fef08a,#fbbf24 45%,#f59e0b);transition:width .25s ease}
+.cuadro .vida .rastro{position:absolute;left:0;top:0;bottom:0;background:#fff;opacity:.8;transition:width .5s ease .35s}
+.cuadro .vida i.poca{background:linear-gradient(180deg,#fdba74,#ea580c)}
+.cuadro .vida i.critica{background:linear-gradient(180deg,#fca5a5,#b91c1c);
+  animation:vidaCritica .5s steps(2,end) infinite}
+.cuadro .vida::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0 9.5%,rgba(0,0,0,.45) 9.5% 10%)}
+.cuadro .mk-lado.b .vida{transform:scaleX(-1)}
+.cuadro .mk-lado .lado{display:block;margin-top:.2rem;font-size:12px;font-weight:800;
+  letter-spacing:.04em;text-transform:uppercase;overflow:hidden}
+.cuadro .mk-lado .lado .quien{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cuadro .mk-lado .lado .clase{display:block;margin:0;font-size:10px;font-weight:600;
+  letter-spacing:.02em;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cuadro .mk-lado.b .lado{justify-content:flex-end;text-align:right}
+.cuadro .vida.golpeada{animation:vidaGolpe .22s ease-out}
+@keyframes vidaGolpe{0%{box-shadow:0 0 0 2px #fff,inset 0 0 12px #fff}
+  100%{box-shadow:0 0 0 1px rgba(253,224,71,.35)}}
+.cuadro .duelo.resuelto .mk-vs{display:none}
+@media (prefers-reduced-motion:reduce){.cuadro .vida i.critica,.cuadro .vida.golpeada{animation:none}}
+.cuadro .duelo.peleando{border-color:rgba(255,255,255,0.35)}
+.cuadro .duelo-mandos{display:flex;gap:.35rem;align-items:center;margin-top:.4rem}
+.cuadro .duelo-mandos button{padding:.2rem .5rem;font-size:12px;box-shadow:none}
+.cuadro .duelo[data-ronda]:not(.resuelto){cursor:zoom-in}
+.cuadro .duelo.ampliado{order:-1;grid-column:1/-1;zoom:1.7;cursor:zoom-out;
+  border-color:rgba(253,224,71,0.45);box-shadow:0 0 0 1px rgba(253,224,71,0.2)}
+.cuadro .ring{position:relative;height:84px;margin:.1rem 0 .45rem;border-radius:8px;overflow:hidden;
+  background:linear-gradient(180deg,#1e293b 0,#1e293b 38%,#334155 38%,#475569 100%);
+  box-shadow:inset 0 -6px 12px rgba(0,0,0,.35)}
+.muneco{--dir:1;position:absolute;bottom:4px;left:18%;width:40px;height:60px;z-index:2;
+  transform-origin:50% 100%;animation:guardia .6s ease-in-out infinite}
+.muneco.lado-b{--dir:-1;left:auto;right:18%;animation-delay:-.3s}
+.muneco svg{display:block;width:100%;height:100%;overflow:visible}
+.muneco.lado-b svg{transform:scaleX(-1)}
+.muneco .brazo{transform-box:fill-box;transform-origin:0 50%}
+.muneco.pega{animation:pegar .32s ease-out}
+.muneco.pega .brazo{animation:directo .32s ease-out}
+.muneco.recibe{animation:recibir .32s ease-out}
+.muneco.recibe svg{filter:brightness(1.9) saturate(.3)}
+.muneco.esquiva{animation:esquivar .32s ease-out}
+.muneco.furioso svg{filter:drop-shadow(0 0 4px #f97316) drop-shadow(0 0 8px rgba(239,68,68,.8))}
+.muneco.cae{animation:none;transform:rotate(calc(var(--dir) * -85deg)) translate(calc(var(--dir) * -4px),6px);opacity:.55;
+  transition:transform .5s cubic-bezier(.5,0,.8,.4),opacity .5s}
+.muneco.celebra{animation:celebra .5s ease-in-out infinite}
+.muneco.celebra .brazo{transform:rotate(-70deg)}
+@keyframes celebra{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.cuadro .fx{position:absolute;inset:0;pointer-events:none;z-index:3}
+.cuadro .ring.temblor{animation:temblor .3s linear}
+@keyframes temblor{0%,100%{transform:translate(0)}20%{transform:translate(-3px,1px)}40%{transform:translate(3px,-1px)}
+  60%{transform:translate(-2px,1px)}80%{transform:translate(2px,0)}}
+@media (prefers-reduced-motion:reduce){.muneco,.muneco .brazo,.fx span,.cuadro .ring.temblor{animation:none !important}}
+.cuadro .ring.dofus{
+  background:repeating-linear-gradient(27deg,rgba(0,0,0,.16) 0 1px,transparent 1px 14px),
+    repeating-linear-gradient(-27deg,rgba(0,0,0,.16) 0 1px,transparent 1px 14px),
+    linear-gradient(180deg,#7aa33e,#5b7f2c);
+  box-shadow:inset 0 0 18px rgba(0,0,0,.45)}
+.cuadro .ring.dofus::before,.cuadro .ring.dofus::after{content:none}
+.cuadro .ring.dofus{height:118px}
+.cuadro .ring.dofus .muneco{width:56px;height:90px}
+.cuadro .ring.dofus.con-escenario{background-color:#6b7bd1;background-size:cover;
+  background-position:center 70%;background-repeat:no-repeat;box-shadow:inset 0 -16px 22px rgba(0,0,0,.25)}
+.cuadro .lado .clase{font-size:11px;font-weight:600;color:var(--muted, #9fb3c8);margin-left:.35rem}
+.cuadro .golpe{font-size:11px;color:var(--muted, #9fb3c8);margin-top:.3rem;min-height:1.2em;line-height:1.3}
+.cuadro .golpe .pum{color:#fbbf24;font-weight:700}
+.cuadro .duelo .lineas{max-height:132px;overflow-y:auto;margin-top:.3rem;
+  padding-top:.3rem;border-top:1px solid rgba(255,255,255,0.09);
+  font-size:11.5px;line-height:1.35;transition:max-height .3s ease,opacity .3s ease}
+.cuadro .duelo .lineas:empty{display:none}
+@keyframes cae{0%,55%{transform:translateY(0) scaleY(.6);opacity:0}
+  60%{opacity:.9;transform:translateY(0) scaleY(1)}
+  95%,100%{transform:translateY(180px) scaleY(1.5);opacity:0}}
+
+/* --- El duelo del rey de la colina ------------------------------------
+   Aqui solo se pelea uno cada vez, asi que el combate sale grande y centrado en
+   vez de como una celda de cuadro de torneo. Y al acabar no se encoge: el
+   recuadro es lo unico que cuenta quien ha tumbado a quien.
+
+   El widget usa el mismo id que la pagina para poder compartir esto. */
+   el recuadro es lo unico que cuenta quien ha tumbado a quien. */
+/* El ancho se limita en la columna y no en el combate: un margin auto
+   sobre una celda de rejilla la encoge al contenido en vez de estirarla. */
+#colinaCuadro .duelos{grid-template-columns:minmax(0,520px);justify-content:center}
+/* Y no se encoge al acabar: el ring y el perdedor se quedan a la vista,
+   que es lo unico que cuenta quien ha tumbado a quien. */
+#colinaCuadro .duelo.resuelto{padding:.45rem .6rem}
+#colinaCuadro .duelo.resuelto .ring,
+#colinaCuadro .duelo.resuelto .vida,
+#colinaCuadro .duelo.resuelto .golpe,
+#colinaCuadro .duelo.resuelto .lado.pierde{display:block}
+/* Y el huevo se queda en medio, que si no las dos barras se miran de lejos. */
+#colinaCuadro .duelo.resuelto .mk-vs{display:flex}
+#colinaCuadro .duelo.resuelto .lineas{max-height:none;opacity:1}
+/* El cursor de lupa es de la Batalla, donde pulsando un combate se amplia.
+   Aqui no hay nada que pulsar: solo se pelea uno cada vez y ya sale grande. */
+#colinaCuadro .duelo[data-ronda]{cursor:default}

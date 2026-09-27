@@ -7,6 +7,9 @@
   <!-- El rodillo de nombres, que lo comparten esta pagina y el widget de OBS.
        Estaba aqui dentro y el widget se habia hecho su propia version con otro
        alto de fila y otra banda: no se parecian. Ver css/ruleta-nombres.css. -->
+  <!-- El cuadro de combate, que comparten esta pagina y el widget del rey de la
+       colina. Ver css/combate.css. -->
+  <link rel="stylesheet" href="/css/combate.css" />
   <link rel="stylesheet" href="/css/ruleta-nombres.css" />
   <!-- Y la tragaperras de la ruleta de recursos, por lo mismo. -->
   <link rel="stylesheet" href="/css/tragaperras.css" />
@@ -573,20 +576,6 @@
 
     /* Aqui solo se pelea un combate cada vez, asi que ocupa el ancho entero
        en vez de una columna de cuadro de torneo. Y al acabar no se encoge:
-       el recuadro es lo unico que cuenta quien ha tumbado a quien. */
-    /* El ancho se limita en la columna y no en el combate: un margin auto
-       sobre una celda de rejilla la encoge al contenido en vez de estirarla. */
-    #colinaCuadro .duelos{grid-template-columns:minmax(0,520px);justify-content:center}
-    /* Y no se encoge al acabar: el ring y el perdedor se quedan a la vista,
-       que es lo unico que cuenta quien ha tumbado a quien. */
-    #colinaCuadro .duelo.resuelto{padding:.45rem .6rem}
-    #colinaCuadro .duelo.resuelto .ring,
-    #colinaCuadro .duelo.resuelto .vida,
-    #colinaCuadro .duelo.resuelto .golpe,
-    #colinaCuadro .duelo.resuelto .lado.pierde{display:block}
-    /* Y el huevo se queda en medio, que si no las dos barras se miran de lejos. */
-    #colinaCuadro .duelo.resuelto .mk-vs{display:flex}
-    #colinaCuadro .duelo.resuelto .lineas{max-height:none;opacity:1}
     /* A pantalla completa lo que crece es EL COMBATE. Es lo unico que se mira
        mientras se pelea, y hasta ahora se quedaba en sus 520px en medio de una
        pantalla vacia. El trono, el record y la cola se quedan como estan y le
@@ -615,9 +604,6 @@
     @media (min-width:1500px){ .escena:fullscreen .colina-cartel{zoom:2.9} }
     @media (min-width:1900px){ .escena:fullscreen .colina-cartel{zoom:3.4} }
     @media (max-height:760px){ .escena:fullscreen .colina-cartel{zoom:2} }
-    /* El cursor de lupa es de la Batalla, donde pulsando un combate se amplia.
-       Aqui no hay nada que pulsar: solo se pelea uno cada vez y ya sale grande. */
-    #colinaCuadro .duelo[data-ronda]{cursor:default}
 
     .game-subpanel{display:none}
     .game-subpanel.active{display:block}
@@ -644,25 +630,12 @@
     .marcador .quitar{flex:none;padding:.25rem .5rem;font-size:12px;box-shadow:none;
       background:rgba(248,113,113,0.10);color:#fca5a5;border:1px solid rgba(248,113,113,0.35)}
     /* El cuadro del torneo: una columna por ronda. */
-    .cuadro{display:flex;gap:1rem;overflow-x:auto;margin-top:1rem;padding-bottom:.4rem}
-    .cuadro .ronda{flex:1 1 100%;display:flex;flex-direction:column;gap:.5rem}
     /* Los duelos de la ronda, en rejilla: con mucha gente no se hace una
        columna infinita. */
     /* Ancho minimo mayor: cada duelo lleva ahora su propio log debajo. */
-    .cuadro .duelos{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.5rem;
-      align-items:start}
     /* Resuelto: fuera el ring, las barras y el relato. Solo queda quien pasa. */
-    .cuadro .duelo.resuelto{padding:.3rem .55rem;transition:padding .3s ease}
-    .cuadro .duelo.resuelto .ring,
-    .cuadro .duelo.resuelto .vida,
-    .cuadro .duelo.resuelto .vs,
-    .cuadro .duelo.resuelto .golpe,
-    .cuadro .duelo.resuelto .lado.pierde{display:none}
     /* El log se queda aunque el duelo acabe: es lo que sirve para repasar
        que paso. Solo se hace mas bajito, que ya no hay nada que seguir. */
-    .cuadro .duelo.resuelto .lineas{max-height:74px;opacity:.75}
-    .cuadro .duelo.resuelto .lado.gana::before{content:'✔';margin-right:.35rem;opacity:.55}
-    .cuadro .ronda h4{margin:0 0 .2rem;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
     /* Combates: lo que paso en cada duelo ya peleado. Se lee, no se anima:
        aqui no hay barras ni munecos, solo el parte del combate. */
     .historial-combates{margin-top:.6rem;display:flex;flex-direction:column;gap:1rem}
@@ -686,68 +659,26 @@
     .historial-combates .cuantos{margin-left:auto;font-size:11px;color:var(--muted)}
     .historial-combates .lineas{margin-top:.45rem;max-height:220px;overflow-y:auto;font-size:12px;line-height:1.45}
     .historial-combates .pase{color:var(--muted);font-size:12px}
-    .cuadro .duelo{padding:.45rem .6rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);font-size:13px}
-    .cuadro .lado{display:flex;align-items:center;gap:.4rem;padding:.15rem 0;color:var(--muted)}
-    .cuadro .lado.gana{color:#e6eef8;font-weight:700}
-    .cuadro .lado.pierde{opacity:.5;text-decoration:line-through}
-    .cuadro .vs{font-size:11px;color:var(--muted);text-align:center;padding:.1rem 0}
-    .cuadro .pase{font-size:11px;color:var(--muted);font-style:italic}
     /* La barra de vida de cada luchador durante el combate. */
     /* La vida al estilo Mortal Kombat: las dos barras arriba, una frente a la
        otra, con el nombre debajo y el VS en medio. */
     /* Rejilla de dos filas: arriba las dos barras de vida, abajo los dos
        nombres, y el huevo en medio ocupando las dos. Asi las barras quedan
        siempre a la misma altura, mida lo que mida cada lado. */
-    .cuadro .mk{display:grid;grid-template-columns:1fr clamp(20px,6%,32px) 1fr;
-      column-gap:.5rem;align-items:center;margin-bottom:.45rem}
     /* Los dos lados no pintan nada por si mismos: lo que se coloca en la
        rejilla es lo que llevan dentro. */
-    .cuadro .mk-lado{display:contents}
-    .cuadro .mk-lado .vida{grid-row:1;min-width:0}
-    .cuadro .mk-lado .lado{grid-row:2;min-width:0}
-    .cuadro .mk-lado.a .vida,.cuadro .mk-lado.a .lado{grid-column:1}
-    .cuadro .mk-lado.b .vida,.cuadro .mk-lado.b .lado{grid-column:3}
     /* El Dofus en medio, entre las dos barras. Es cuadrado por dentro (el
        viewBox manda), asi que crece y encoge sin deformarse: el ancho sale
        del sitio que haya y el alto va solo. */
-    .cuadro .mk-vs{grid-column:2;grid-row:1 / span 2;width:100%;display:flex;
-      align-items:center;justify-content:center;line-height:0}
     /* Late despacio, como si guardara algo dentro. */
-    .cuadro .mk-vs svg{width:100%;height:auto;display:block;
-      filter:drop-shadow(0 0 5px rgba(198,240,0,.55));
-      animation:dofusLate 2.4s ease-in-out infinite}
     @keyframes dofusLate{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
-    @media (prefers-reduced-motion:reduce){.cuadro .mk-vs svg{animation:none}}
-    .cuadro .vida{position:relative;height:13px;border-radius:3px;overflow:hidden;
-      background:#3f0d0d;border:2px solid #241606;
-      box-shadow:0 0 0 1px rgba(253,224,71,.35),inset 0 2px 0 rgba(255,255,255,.12)}
-    .cuadro .vida i{position:relative;z-index:1;display:block;height:100%;width:100%;
-      background:linear-gradient(180deg,#fef08a,#fbbf24 45%,#f59e0b);transition:width .25s ease}
     /* Lo que se acaba de perder se queda un momento en blanco y luego se vacia. */
-    .cuadro .vida .rastro{position:absolute;left:0;top:0;bottom:0;background:#fff;opacity:.8;transition:width .5s ease .35s}
-    .cuadro .vida i.poca{background:linear-gradient(180deg,#fdba74,#ea580c)}
-    .cuadro .vida i.critica{background:linear-gradient(180deg,#fca5a5,#b91c1c);
-      animation:vidaCritica .5s steps(2,end) infinite}
     @keyframes vidaCritica{0%,100%{filter:brightness(1)}50%{filter:brightness(1.6)}}
     /* Las muescas de los segmentos, como la barra del juego. */
-    .cuadro .vida::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;
-      background:repeating-linear-gradient(90deg,transparent 0 9.5%,rgba(0,0,0,.45) 9.5% 10%)}
     /* La del lado B se vacía hacia el centro, como en el juego. */
-    .cuadro .mk-lado.b .vida{transform:scaleX(-1)}
     /* El nombre en su línea, con todo el ancho, y la clase debajo más pequeña:
        en una sola línea no cabían los dos y se pisaban. */
-    .cuadro .mk-lado .lado{display:block;margin-top:.2rem;font-size:12px;font-weight:800;
-      letter-spacing:.04em;text-transform:uppercase;overflow:hidden}
-    .cuadro .mk-lado .lado .quien{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .cuadro .mk-lado .lado .clase{display:block;margin:0;font-size:10px;font-weight:600;
-      letter-spacing:.02em;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .cuadro .mk-lado.b .lado{justify-content:flex-end;text-align:right}
     /* Al encajar un golpe, la barra da un fogonazo. */
-    .cuadro .vida.golpeada{animation:vidaGolpe .22s ease-out}
-    @keyframes vidaGolpe{0%{box-shadow:0 0 0 2px #fff,inset 0 0 12px #fff}
-      100%{box-shadow:0 0 0 1px rgba(253,224,71,.35)}}
-    .cuadro .duelo.resuelto .mk-vs{display:none}
-    @media (prefers-reduced-motion:reduce){.cuadro .vida i.critica,.cuadro .vida.golpeada{animation:none}}
     /* El tablero de clavijas. El dibujo entero es del lienzo: asi la bola, las
        clavijas y las casillas crecen juntas y a pantalla completa se ve igual,
        solo que mas grande. */
@@ -838,30 +769,15 @@
       font-size:11px;color:var(--muted)}
     .premios-lista input{width:62px;text-align:center;background:var(--card);color:inherit;
       border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.3rem}
-    .cuadro .duelo.peleando{border-color:rgba(255,255,255,0.35)}
     /* Los mandos de cada combate: fijarlo arriba y soltarlo suelto. */
-    .cuadro .duelo-mandos{display:flex;gap:.35rem;align-items:center;margin-top:.4rem}
-    .cuadro .duelo-mandos button{padding:.2rem .5rem;font-size:12px;box-shadow:none}
     /* Un combate se mira de cerca pulsándolo: sube arriba del todo, ocupa la
        fila entera y crece con zoom, que es lo único que agranda también el ring
        y los muñecos, medidos en píxeles. En pantalla completa cabe más. */
     /* Solo los que están por pelear: uno ya terminado no es lo que se quiere
        enseñar en grande, y además ya se ve encogido. */
-    .cuadro .duelo[data-ronda]:not(.resuelto){cursor:zoom-in}
-    .cuadro .duelo.ampliado{order:-1;grid-column:1/-1;zoom:1.7;cursor:zoom-out;
-      border-color:rgba(253,224,71,0.45);box-shadow:0 0 0 1px rgba(253,224,71,0.2)}
     .escena:fullscreen .cuadro .duelo.ampliado{zoom:2.4}
     /* El ring: lona, cuerdas y los postes azul y rojo. Cada muñeco mira hacia
        el contrario, y --dir dice hacia donde es «adelante» para él. */
-    .cuadro .ring{position:relative;height:84px;margin:.1rem 0 .45rem;border-radius:8px;overflow:hidden;
-      background:linear-gradient(180deg,#1e293b 0,#1e293b 38%,#334155 38%,#475569 100%);
-      box-shadow:inset 0 -6px 12px rgba(0,0,0,.35)}
-    .muneco{--dir:1;position:absolute;bottom:4px;left:18%;width:40px;height:60px;z-index:2;
-      transform-origin:50% 100%;animation:guardia .6s ease-in-out infinite}
-    .muneco.lado-b{--dir:-1;left:auto;right:18%;animation-delay:-.3s}
-    .muneco svg{display:block;width:100%;height:100%;overflow:visible}
-    .muneco.lado-b svg{transform:scaleX(-1)}
-    .muneco .brazo{transform-box:fill-box;transform-origin:0 50%}
     /* En guardia: botando sobre la punta de los pies mientras espera. */
     @keyframes guardia{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
     /* Pega, encaja o esquiva: lo mismo que cuenta el relato, pero visto. */
@@ -871,23 +787,11 @@
       30%{transform:translateX(calc(var(--dir) * -9px)) rotate(calc(var(--dir) * -10deg))}
       65%{transform:translateX(calc(var(--dir) * 2px))}}
     @keyframes esquivar{0%,100%{transform:translate(0,0)}50%{transform:translate(calc(var(--dir) * -12px),4px)}}
-    .muneco.pega{animation:pegar .32s ease-out}
-    .muneco.pega .brazo{animation:directo .32s ease-out}
-    .muneco.recibe{animation:recibir .32s ease-out}
     /* El golpe se nota: un destello blanco en el que lo recibe. */
-    .muneco.recibe svg{filter:brightness(1.9) saturate(.3)}
-    .muneco.esquiva{animation:esquivar .32s ease-out}
     /* Contra las cuerdas: aura de rabia. */
-    .muneco.furioso svg{filter:drop-shadow(0 0 4px #f97316) drop-shadow(0 0 8px rgba(239,68,68,.8))}
     /* Derrotado: se va de espaldas al suelo. */
-    .muneco.cae{animation:none;transform:rotate(calc(var(--dir) * -85deg)) translate(calc(var(--dir) * -4px),6px);opacity:.55;
-      transition:transform .5s cubic-bezier(.5,0,.8,.4),opacity .5s}
     /* Y el que gana lo celebra con el guante en alto. */
-    .muneco.celebra{animation:celebra .5s ease-in-out infinite}
-    .muneco.celebra .brazo{transform:rotate(-70deg)}
-    @keyframes celebra{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
     /* Los efectos de cada golpe: estrella, daño que sube y letreros. */
-    .cuadro .fx{position:absolute;inset:0;pointer-events:none;z-index:3}
     .fx span{position:absolute;font-weight:900;white-space:nowrap;text-shadow:0 2px 0 #000,0 0 6px rgba(0,0,0,.8)}
     .fx [data-lado="a"]{left:28%}
     .fx [data-lado="b"]{left:72%}
@@ -904,25 +808,11 @@
       75%{opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
     @keyframes ko{0%{transform:translate(-50%,-50%) scale(3);opacity:0}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
     /* El crítico hace temblar el ring entero. */
-    .cuadro .ring.temblor{animation:temblor .3s linear}
-    @keyframes temblor{0%,100%{transform:translate(0)}20%{transform:translate(-3px,1px)}40%{transform:translate(3px,-1px)}
-      60%{transform:translate(-2px,1px)}80%{transform:translate(2px,0)}}
-    @media (prefers-reduced-motion:reduce){.muneco,.muneco .brazo,.fx span,.cuadro .ring.temblor{animation:none !important}}
     /* Dofus: un mapa de casillas isometricas, como los combates del juego,
        sin cuerdas ni postes. */
-    .cuadro .ring.dofus{
-      background:repeating-linear-gradient(27deg,rgba(0,0,0,.16) 0 1px,transparent 1px 14px),
-        repeating-linear-gradient(-27deg,rgba(0,0,0,.16) 0 1px,transparent 1px 14px),
-        linear-gradient(180deg,#7aa33e,#5b7f2c);
-      box-shadow:inset 0 0 18px rgba(0,0,0,.45)}
-    .cuadro .ring.dofus::before,.cuadro .ring.dofus::after{content:none}
     /* Los personajes de Dofus son más grandes que los boxeadores: cabezones. */
-    .cuadro .ring.dofus{height:118px}
-    .cuadro .ring.dofus .muneco{width:56px;height:90px}
     /* Con escenario de verdad: la imagen de fondo en vez de las casillas,
        encuadrada para que los luchadores pisen la plataforma. */
-    .cuadro .ring.dofus.con-escenario{background-color:#6b7bd1;background-size:cover;
-      background-position:center 70%;background-repeat:no-repeat;box-shadow:inset 0 -16px 22px rgba(0,0,0,.25)}
     /* El hechizo vuela del que lo lanza al que lo recibe. */
     .fx .hechizo{top:24px;font-size:18px;text-shadow:0 0 8px rgba(255,255,255,.8)}
     .fx .hechizo.ab{animation:vuelaAB .35s ease-in forwards}
@@ -936,9 +826,6 @@
     .fx .dano.aire{color:#4ade80}
     .fx .dano.neutral{color:#e5e7eb}
     .fx .letrero.victoria{font-size:24px;color:#fde047;animation:ko .5s cubic-bezier(.2,1.6,.4,1) forwards}
-    .cuadro .lado .clase{font-size:11px;font-weight:600;color:var(--muted);margin-left:.35rem}
-    .cuadro .golpe{font-size:11px;color:var(--muted);margin-top:.3rem;min-height:1.2em;line-height:1.3}
-    .cuadro .golpe .pum{color:#fbbf24;font-weight:700}
     .relato{margin-top:1rem;max-height:180px;overflow-y:auto;font-size:13px;
       border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:.6rem .8rem}
     .relato[hidden]{display:none}
@@ -955,10 +842,6 @@
     /* El log de cada combate va dentro de su propio duelo, no en una lista
        aparte: asi cada pelea y lo que se cuenta de ella estan siempre a la
        misma altura, sin depender de que dos rejillas distintas cuadren. */
-    .cuadro .duelo .lineas{max-height:132px;overflow-y:auto;margin-top:.3rem;
-      padding-top:.3rem;border-top:1px solid rgba(255,255,255,0.09);
-      font-size:11.5px;line-height:1.35;transition:max-height .3s ease,opacity .3s ease}
-    .cuadro .duelo .lineas:empty{display:none}
     .lineas div{padding:.1rem 0;color:var(--muted)}
     .lineas div.critico{color:#fbbf24}
     .lineas div.cae{color:#e6eef8;font-weight:700}
@@ -1130,9 +1013,6 @@
     /* --- Goteras de la cueva de las hormigas ----------------------------- */
     .gota{top:14px;width:4px;height:7px;border-radius:0 0 50% 50%;background:rgba(165,243,252,.75);
       animation:cae 5.5s ease-in infinite}
-    @keyframes cae{0%,55%{transform:translateY(0) scaleY(.6);opacity:0}
-      60%{opacity:.9;transform:translateY(0) scaleY(1)}
-      95%,100%{transform:translateY(180px) scaleY(1.5);opacity:0}}
 
     /* --- Pepitas sueltas en la pulpa de la manzana ----------------------- */
     .pepita{width:7px;height:10px;border-radius:50% 50% 45% 45%;background:#57534e;
@@ -5806,50 +5686,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       else dueloAmpliado = '';
     }
 
-    // El Dofus esmeralda que preside el duelo. Dibujado a mano como el resto
-    // del arte propio: asi no depende de ningun archivo y escala limpio.
-    function dofusHuevoSvg() {
-      return `<svg viewBox="0 0 120 150" aria-hidden="true">
-        <path d="M60 6 C93 6 114 46 114 82 C114 116 90 144 60 144 C30 144 6 116 6 82 C6 46 27 6 60 6 Z"
-              fill="#4d8c0b" stroke="#c6f000" stroke-width="5"/>
-        <path d="M60 16 C86 16 104 50 104 82 C104 111 84 135 60 135 C36 135 16 111 16 82 C16 50 34 16 60 16 Z"
-              fill="#6aa80f"/>
-        <path d="M74 46 C74 31 46 31 44 46 C42 60 76 64 78 82 C80 102 48 106 44 90"
-              fill="none" stroke="#2f6b06" stroke-width="19" stroke-linecap="round"/>
-        <path d="M74 46 C74 31 46 31 44 46 C42 60 76 64 78 82 C80 102 48 106 44 90"
-              fill="none" stroke="#d9f524" stroke-width="12" stroke-linecap="round"/>
-        <ellipse cx="38" cy="44" rx="11" ry="20" fill="#fff" opacity=".38" transform="rotate(-24 38 44)"/>
-        <ellipse cx="84" cy="112" rx="7" ry="11" fill="#fff" opacity=".2" transform="rotate(-32 84 112)"/>
-        <circle cx="80" cy="36" r="4" fill="#eaff6b" opacity=".85"/>
-        <circle cx="34" cy="96" r="3" fill="#eaff6b" opacity=".7"/>
-        <circle cx="62" cy="124" r="2.5" fill="#eaff6b" opacity=".6"/>
-      </svg>`;
-    }
 
-    // Un luchador: su personaje de Dofus, dentro de la caja que se anima.
-    // Como se cuenta un golpe: el texto tal cual y de que color va. Se usa
-    // mientras se narra en directo y al rehacer el log en Combates, para que
-    // lo que se lee despues sea exactamente lo que se vio.
-    function lineaDeGolpe(g, duelo, i, esElUltimo) {
-      const h = hechizoDe(g.quien, i);
-      const clase = esElUltimo ? 'cae'
-        : g.fallo ? 'fallo'
-        : g.aguanta ? 'aguanta'
-        : g.critico ? 'critico'
-        : g.furia ? 'furia' : '';
-      const texto = esElUltimo
-        ? `${g.quien} lanza ${h.nombre}. ${g.a}: −${g.dano} PdV. ${g.a} ha muerto. ¡Victoria de ${duelo.ganador}!`
-        : g.fallo
-          ? `${g.quien} lanza ${h.nombre}, pero ${g.a} lo esquiva.`
-          : `${g.quien} lanza ${h.nombre}. ${g.a}: −${g.dano} PdV (${h.elemento})` +
-            `${g.critico ? '. ¡Golpe crítico!' : ''}${g.furia ? `. ${g.quien} se crece con pocos PdV` : ''}.` +
-            `${g.aguanta ? ` ¡${g.a} resiste con 1 PdV!` : ''}`;
-      return { texto, clase };
-    }
-
-    function muneco(lado, extra, nombre) {
-      return `<div class="muneco lado-${lado}${extra}">${dofusSvg(claseDe(nombre), lado)}</div>`;
-    }
 
 
   </script>
@@ -5965,50 +5802,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         + '<span class="turno">' + (i + 1) + '.</span>' + escapeHtml(r.nombre) + '</span>').join('');
     }
 
-    // Aqui todos los combates se pelean en el mismo sitio del cuadro, asi que
-    // el escenario no puede salir de la posicion como en el torneo: se va
-    // pasando al siguiente con cada combate peleado. Sale de la cuenta que
-    // lleva el servidor, no de un contador de la pagina, para que al repintar
-    // el ultimo combate se siga viendo en el escenario donde se peleo.
-    function escenarioColina() {
-      return Math.max(0, (colina.peleados || 1) - 1);
-    }
 
-    // El mismo recuadro de combate que el torneo, con la diferencia de que
-    // aqui no hay boton de pelear dentro: el combate lo lanza el de abajo.
-    // Con «conGanador» se pinta ya resuelto; sin ello, con las barras llenas,
-    // que es como tiene que empezar el relato para no destripar el final.
-    function htmlDueloColina(d, conGanador) {
-      const ganado = conGanador && d.ganador;
-      const clase = (quien) => ganado ? (d.ganador === quien ? 'lado gana' : 'lado pierde') : 'lado';
-      const golpes = d.golpes || [];
-      const ultimo = ganado ? golpes[golpes.length - 1] : null;
-      const barra = (lado, vida) => {
-        const cual = vida <= 20 ? 'critica' : vida <= 50 ? 'poca' : '';
-        return '<div class="vida"><b class="rastro" data-lado="' + lado + '" style="width:' + vida + '%"></b>'
-          + '<i data-lado="' + lado + '" class="' + cual + '" style="width:' + vida + '%"></i></div>';
-      };
-      const caido = (quien) => ganado && d.ganador !== quien ? ' cae' : '';
-      return '<div class="duelo' + (ganado ? ' resuelto' : '') + '" data-ronda="0" data-duelo="0">'
-        + '<div class="mk">'
-        + '<div class="mk-lado a">' + barra('a', ultimo ? ultimo.vidaA : 100)
-        + '<div class="' + clase(d.a) + '"><span class="quien">' + escapeHtml(d.a) + '</span>'
-        + etiquetaClase(d.a) + '</div></div>'
-        + '<div class="mk-vs" title="Dofus">' + dofusHuevoSvg() + '</div>'
-        + '<div class="mk-lado b">' + barra('b', ultimo ? ultimo.vidaB : 100)
-        + '<div class="' + clase(d.b) + '"><span class="quien">' + escapeHtml(d.b) + '</span>'
-        + etiquetaClase(d.b) + '</div></div>'
-        + '</div>'
-        + abrirRing(0, escenarioColina()) + muneco('a', caido(d.a), d.a) + muneco('b', caido(d.b), d.b)
-        + '<div class="fx"></div></div>'
-        + '<div class="golpe"></div><div class="lineas"></div></div>';
-    }
 
-    function dibujarDueloColina(d, conGanador) {
-      const cuadro = document.getElementById('colinaCuadro');
-      cuadro.hidden = false;
-      cuadro.innerHTML = '<div class="ronda"><div class="duelos">' + htmlDueloColina(d, conGanador) + '</div></div>';
-    }
 
     // Si hay con quien pelear. Sin rey hacen falta dos: uno sube al trono y el
     // otro le reta.

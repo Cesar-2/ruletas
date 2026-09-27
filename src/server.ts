@@ -1694,6 +1694,12 @@ app.get('/api/widget/colina', (req: Request, res: Response) => {
       rey: e.rey,
       cola: e.cola.map((r) => ({ nombre: r.nombre, clase: r.clase })),
       duelo: e.duelo,
+      // La clase que le toco a cada uno y el arte, para que el widget dibuje los
+      // MISMOS muñecos que la pagina. Sin esto, el relato del combate salia con
+      // otras clases, porque claseDe() se las inventa a partir del nombre cuando
+      // no las tiene. Ver js/dofus-arte.js.
+      clases: e.clases,
+      arte: arte.deBatalla(),
       derrotado: e.derrotado,
       mejor: e.mejor,
       record: e.record,
