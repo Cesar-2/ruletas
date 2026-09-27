@@ -1642,7 +1642,10 @@ app.get('/api/widget/carrera', (req: Request, res: Response) => {
     res.json({
       abierta: e.abierta,
       palabra: e.ajustes.palabra,
-      corredores: e.corredores.map((c) => c.nombre),
+      // Enteros, con su clave: la pista busca cada calle por la clave, no por el
+      // nombre, porque los nombres vienen del chat y pueden traer cualquier cosa.
+      // Ver js/carrera-pista.js.
+      corredores: e.corredores,
       resultado: e.resultado,
       corridaEn: e.corridaEn,
       marcas: e.marcas,

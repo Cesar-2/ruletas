@@ -583,3 +583,145 @@ test('la página y el widget cargan el MISMO combate', () => {
     assert.ok(texto.includes('/js/dofus-arte.js'), p + ' carga js/dofus-arte.js');
   }
 });
+
+// --- La pista de la carrera -------------------------------------------------
+//
+// El widget tenía su propia pista: emojis deslizándose por un carril. La página
+// dibuja los bichos del pliego con sus poses (correr, tropezar, acelerar, ganar),
+// con semáforo de salida, puestos y relato. No se parecían en nada.
+//
+// Ahora salen de css/carrera.css y js/carrera-pista.js, los dos. Y estos tests
+// CARGAN el módulo de verdad, por lo mismo que los del combate: al moverlo se
+// quedaron fuera cinco cosas que usaba (BICHOS, COLORES_BOLA, adornosDe,
+// escapeHtml, corriendo y los cuatro dibujos de los bichos) y `node --check` no
+// ve ninguna, porque son errores de ejecución.
+
+function cargarPista(estado) {
+  const codigo = fs.readFileSync(path.join(JS, 'carrera-pista.js'), 'utf8');
+  const hecho = {};
+  const elemento = (clase) => ({
+    className: clase || '', hidden: false, innerHTML: '', textContent: '', dataset: {},
+    hijos: [], clientWidth: 600, offsetWidth: 22,
+    style: { _p: {}, setProperty(k, v) { this._p[k] = v; }, getPropertyValue(k) { return this._p[k] || ''; } },
+    classList: {
+      c: new Set((clase || '').split(' ').filter(Boolean)),
+      add(...x) { x.forEach((y) => this.c.add(y)); },
+      remove(...x) { x.forEach((y) => this.c.delete(y)); },
+      toggle(x, v) { if (v === false) this.c.delete(x); else if (v === true) this.c.add(x); else if (this.c.has(x)) this.c.delete(x); else this.c.add(x); },
+      contains(x) { return this.c.has(x); }
+    },
+    appendChild(h) { this.hijos.push(h); return h; },
+    prepend(h) { this.hijos.unshift(h); return h; },
+    remove() {}, closest: () => null,
+    querySelector: () => null, querySelectorAll: () => [],
+    addEventListener() {}, removeEventListener() {},
+    getBoundingClientRect: () => ({ width: 600, height: 300 })
+  });
+  const ctx = {
+    carrera: estado || {
+      abierta: false,
+      corredores: [{ nombre: 'Ana', clave: 'ana' }, { nombre: 'Beto', clave: 'beto' }],
+      resultado: [], corridaEn: '', marcas: [], eventos: [],
+      ajustes: { duracion: 8, animacion: 'caballos' }
+    },
+    document: { getElementById: (id) => (hecho[id] = hecho[id] || elemento()), createElement: () => elemento() },
+    setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1, clearInterval() {},
+    requestAnimationFrame: () => 1, cancelAnimationFrame() {},
+    performance: { now: () => 0 },
+    Image: function () { return { src: '', onload: null, onerror: null }; },
+    Promise, Math, Object, Array, String, Number, JSON, Map, Set, WeakMap, Date, console
+  };
+  // El modulo se apunta al resize para recolocar la pista cuando cambia el
+  // tamaño, asi que window necesita los oyentes.
+  ctx.addEventListener = () => {};
+  ctx.removeEventListener = () => {};
+  ctx.globalThis = ctx; ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(codigo, ctx, { filename: 'carrera-pista.js' });
+  return { ctx, hecho, dentro: (expr) => vm.runInContext(expr, ctx) };
+}
+
+test('la pista de la carrera se carga sin la página detrás', () => {
+  const { ctx } = cargarPista();
+  for (const f of ['bichoDeLaPista', 'pintarCorredores', 'pulsarCorredores', 'ponerPose',
+    'dibujarPista', 'animarCarrera', 'adornosDe', 'esc',
+    'caballoSvg', 'patoSvg', 'hormigaSvg', 'larvaSvg']) {
+    assert.strictEqual(typeof ctx[f], 'function', 'falta ' + f);
+  }
+});
+
+test('el pliego de sprites tiene los cuatro bichos con sus poses', () => {
+  const { dentro } = cargarPista();
+  const filas = dentro('PLIEGO.filas');
+  for (const b of ['caballos', 'patos', 'hormigas', 'larvas']) {
+    assert.ok(b in filas, 'falta la fila de ' + b);
+  }
+  // Las poses son lo que hace que el bicho corra en vez de deslizarse.
+  const pose = dentro('POSE');
+  assert.ok(Array.isArray(pose.correr) && pose.correr.length > 1, 'el ciclo de correr');
+  for (const p of ['idle', 'acelera', 'tropieza', 'esfuerzo', 'gana', 'pierde']) {
+    assert.notStrictEqual(pose[p], undefined, 'falta la pose ' + p);
+  }
+});
+
+test('dibujarPista y animarCarrera se pueden llamar sin reventar', () => {
+  // Es lo que de verdad comprobaba el fallo: al mover el módulo se quedaron fuera
+  // BICHOS, COLORES_BOLA, adornosDe, corriendo y los cuatro dibujos, y cada una
+  // reventaba aquí.
+  const { ctx } = cargarPista({
+    abierta: false,
+    corredores: [{ nombre: 'Ana', clave: 'ana' }, { nombre: 'Beto', clave: 'beto' }],
+    resultado: [{ puesto: 1, nombre: 'Ana', puntos: 10 }],
+    corridaEn: new Date().toISOString(),
+    marcas: [[0, 0], [0.5, 0.4], [1, 0.9]],
+    eventos: [{ tick: 1, texto: 'Ana se pone primero' }],
+    ajustes: { duracion: 8, animacion: 'patos' }
+  });
+  ctx.dibujarPista();
+  ctx.animarCarrera([{ puesto: 1, nombre: 'Ana', puntos: 10 }]);
+  ctx.pintarCorredores();
+  ctx.pulsarCorredores(false);
+});
+
+test('el bicho de la pista se lee de su clase', () => {
+  const { ctx } = cargarPista();
+  const pista = (clase) => ({ classList: { c: new Set(clase.split(' ')), contains(x) { return this.c.has(x); } } });
+  assert.strictEqual(ctx.bichoDeLaPista(pista('pista patos')), 'patos');
+  assert.strictEqual(ctx.bichoDeLaPista(pista('pista larvas')), 'larvas');
+  assert.strictEqual(ctx.bichoDeLaPista(pista('pista')), 'caballos', 'sin clase, caballos');
+});
+
+test('los cuatro bichos se dibujan y devuelven SVG', () => {
+  const { ctx } = cargarPista();
+  // El cuarto es el numero de pinta que le toca, no un texto: de ahi salen el
+  // sombrero, el cuello y la cara de cada pato.
+  for (const f of ['caballoSvg', 'patoSvg', 'hormigaSvg', 'larvaSvg']) {
+    for (const pinta of [0, 1, 2, 7]) {
+      const svg = ctx[f]('#fff', '#000', 3, pinta);
+      assert.ok(typeof svg === 'string' && svg.includes('<svg'),
+        f + ' devuelve SVG con la pinta ' + pinta);
+    }
+  }
+});
+
+test('el widget de la carrera usa la pista compartida, no una propia', () => {
+  const w = fs.readFileSync(path.join(__dirname, '..', 'public', 'widget', 'carrera.html'), 'utf8');
+  assert.ok(w.includes('/css/carrera.css'), 'carga el CSS de la pista');
+  assert.ok(w.includes('/js/carrera-pista.js'), 'y la pista');
+  assert.ok(w.includes('dibujarPista'), 'dibuja con el código compartido');
+  assert.ok(w.includes('animarCarrera'), 'y anima con el compartido');
+  assert.ok(w.includes('carreraPista') && w.includes('carreraRelato'),
+    'con los mismos ids que la página, para compartir el CSS');
+  // Y no puede tener su propia versión.
+  assert.ok(!/🐎|🦆|🐜|🐛/.test(w), 'el widget ya no dibuja emojis por su cuenta');
+  assert.ok(!/requestAnimationFrame/.test(w), 'ni su propio bucle de animación');
+});
+
+test('la página y el widget de la carrera cargan lo MISMO', () => {
+  const leer = (p) => fs.readFileSync(path.join(__dirname, '..', 'public', p), 'utf8');
+  for (const p of ['index.html', 'widget/carrera.html']) {
+    const texto = leer(p);
+    assert.ok(texto.includes('/css/carrera.css'), p + ' carga css/carrera.css');
+    assert.ok(texto.includes('/js/carrera-pista.js'), p + ' carga js/carrera-pista.js');
+  }
+});

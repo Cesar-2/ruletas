@@ -1,0 +1,342 @@
+/* La pista de la carrera de balineras: las calles, los bichos, el semaforo de
+   salida y el relato. Aparte para poder usarla en dos sitios: la pagina del
+   Ruleton y el widget que se mete en OBS.
+
+   Estaba dentro del <style> de index.html, y el widget no lo tenia: por eso se
+   habia hecho su propia pista con emojis deslizandose, que no se parecia en nada
+   a la de la pagina. Lo mismo que ya paso con las ruletas y con el combate.
+
+   Las variables del tema llevan valor de respaldo, porque los widgets no cargan
+   el CSS de la pagina. */
+
+  .pista,.pista.llena{padding-left:2rem}
+  .pista.hormigas{padding-left:2rem}
+  .pista.larvas{padding-left:2rem}
+  .calle .bola .quien{max-width:4.5rem;font-size:10px}
+.relato{margin-top:1rem;max-height:180px;overflow-y:auto;font-size:13px;
+  border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:.6rem .8rem}
+.relato[hidden]{display:none}
+.relato div{padding:.12rem 0;color:var(--muted, #9fb3c8)}
+.relato div.critico{color:#fbbf24}
+.relato div.cae{color:#e6eef8;font-weight:600}
+.relato div.lidera{color:#7dd3fc}
+.relato div.tiron{color:#6ee7b7}
+.relato div.tropiezo{color:#fca5a5}
+.relato div.gana{color:#e6eef8;font-weight:700}
+.relato div.fallo{color:var(--muted, #9fb3c8);font-style:italic}
+.relato div.furia{color:#fb923c;font-weight:600}
+.relato div.aguanta{color:#7dd3fc;font-weight:700}
+.pista{position:relative;margin-top:1rem;padding:.8rem .8rem .8rem 3.5rem;border-radius:12px;overflow:hidden;
+  background:repeating-linear-gradient(90deg,#14532d 0 40px,#166534 40px 80px);
+  border:2px solid rgba(255,255,255,0.14);box-shadow:inset 0 0 30px rgba(2,6,23,.55)}
+.pista[hidden]{display:none}
+.calle{position:relative;height:46px;margin-bottom:-4px;background:none;border:none;
+  overflow:visible}
+.calle:last-child{margin-bottom:0}
+.calle .bola .quien{position:absolute;right:100%;top:50%;transform:translateY(-50%);
+  margin-right:7px;padding:1px .4rem;border-radius:6px;font-size:11px;font-weight:700;line-height:14px;
+  color:#0b1220;background:rgba(248,250,252,.94);white-space:nowrap;pointer-events:none;
+  box-shadow:0 2px 6px rgba(2,6,23,.5);max-width:8.5rem;overflow:hidden;text-overflow:ellipsis}
+.calle .bola .quien::after{content:'';position:absolute;left:100%;top:50%;margin-top:-4px;
+  border:4px solid transparent;border-left-color:rgba(248,250,252,.94)}
+.pista.llena .calle .bola .quien{font-size:9px;line-height:12px;padding:0 .25rem;margin-right:5px;max-width:6rem}
+.pista.llena .calle .bola .quien::after{border-width:3px;margin-top:-3px}
+.calle .bola{position:absolute;left:3px;top:4px;width:22px;height:22px;border-radius:50%;z-index:3;
+  box-shadow:0 0 0 1px rgba(255,255,255,0.35) inset, 0 2px 6px rgba(2,6,23,.6);
+  transform:translateX(0);transition:transform 0s linear;
+  display:flex;align-items:center;justify-content:center}
+.calle .bola::before{content:'';position:absolute;right:60%;top:50%;width:0;height:12px;margin-top:-6px;
+  border-radius:6px;background:linear-gradient(90deg,rgba(222,196,160,0),rgba(222,196,160,.7));
+  transition:width .25s ease;pointer-events:none}
+.pista:not(.parada) .calle .bola::before{width:26px}
+.pista:not(.parada) .calle .bola.turbo::before{width:56px;background:linear-gradient(90deg,rgba(110,231,183,0),rgba(110,231,183,.9))}
+.calle .bola.turbo{box-shadow:0 0 0 2px #6ee7b7, 0 0 14px rgba(110,231,183,.8)}
+.calle .bola.tropieza{box-shadow:0 0 0 2px #f87171, 0 0 12px rgba(248,113,113,.8)}
+.calle .bola.tropieza .bicho{animation:tropezon .3s ease-in-out !important}
+@keyframes tropezon{0%,100%{transform:rotate(0) scaleX(-1)}30%{transform:rotate(-28deg) scaleX(-1)}70%{transform:rotate(18deg) scaleX(-1)}}
+.calle .bola.lider{box-shadow:0 0 0 2px #fde047, 0 0 16px rgba(253,224,71,.85)}
+.calle .bola.lider::after{content:'👑';position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:12px;line-height:1}
+.calle .bola .pos{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:1px;z-index:2;min-width:20px;
+  padding:0 .3rem;border-radius:999px;font-size:11px;font-weight:800;line-height:18px;text-align:center;
+  color:#021018;background:rgba(255,255,255,0.75);transition:background .2s}
+.calle .pos:empty{display:none}
+.calle .pos.p1{background:#fde047}
+.calle .pos.p2{background:#e2e8f0}
+.calle .pos.p3{background:#f59e0b}
+.pista.patos .salida{width:66px}
+.pista.llena .salida{width:32px}
+.pista:not(.parada) .salida i:first-child{transform:translateY(calc(-100% - 5px))}
+.pista:not(.parada) .salida i:nth-child(2){transform:translateY(calc(100% + 5px))}
+.pista.caballos .orilla{height:14px;
+  background:repeating-linear-gradient(90deg,#e2e8f0 0 5px,transparent 5px 30px),
+    linear-gradient(180deg,transparent 35%,#e2e8f0 35% 55%,transparent 55%),#166534}
+.pista.caballos .orilla::after{display:none}
+.pista.hormigas .orilla{height:15px;background:linear-gradient(180deg,#1c1917,#0c0a09)}
+.pista.hormigas .orilla::after{height:11px;
+  background:linear-gradient(135deg,#0c0a09 50%,transparent 50%) 0 0/14px 11px,
+    linear-gradient(225deg,#0c0a09 50%,transparent 50%) 0 0/14px 11px}
+.pista.larvas .orilla{height:15px;background:linear-gradient(180deg,#e11d48,#9f1239)}
+.pista.larvas .orilla::after{height:8px;
+  background:radial-gradient(circle at 8px 0,transparent 0 6px,#be123c 6px) 0 0/16px 8px}
+.pista.larvas .orilla.abajo::after{background:radial-gradient(circle at 8px 8px,transparent 0 6px,#be123c 6px) 0 0/16px 8px}
+.pista.patos .meta-global{background:repeating-linear-gradient(180deg,#fff 0 8px,#be123c 8px 16px)}
+.pista.hormigas .meta-global{background:linear-gradient(90deg,transparent,rgba(254,243,199,.9));
+  width:26px;box-shadow:none;animation:luzFinal 1.6s ease-in-out infinite alternate}
+@keyframes luzFinal{from{opacity:.65}to{opacity:1}}
+.pista.larvas .meta-global{background:radial-gradient(ellipse 5px 3px at 50% 30%,#44403c 60%,transparent 70%),
+  radial-gradient(ellipse 5px 3px at 50% 70%,#44403c 60%,transparent 70%),
+  linear-gradient(90deg,rgba(254,249,195,0),#fef9c3);width:24px;box-shadow:none}
+.pista .semaforo{position:absolute;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;
+  font-size:64px;font-weight:900;color:#fff;background:rgba(2,6,23,.45);
+  text-shadow:0 4px 20px rgba(0,0,0,.9);pointer-events:none}
+.pista .semaforo{flex-direction:column;gap:.5rem}
+.pista .semaforo .num b{display:block;animation:cuenta .6s cubic-bezier(.2,1.5,.4,1)}
+.pista .semaforo .luces{display:flex;gap:.7rem}
+.pista .semaforo .luces i{width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.14);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+.pista .semaforo .luces i.on:nth-child(1){background:#ef4444;box-shadow:0 0 12px #ef4444}
+.pista .semaforo .luces i.on:nth-child(2){background:#fbbf24;box-shadow:0 0 12px #fbbf24}
+.pista .semaforo .luces i.on:nth-child(3){background:#4ade80;box-shadow:0 0 14px #4ade80}
+.chapuzon{position:absolute;left:-6px;right:-6px;top:50%;height:18px;margin-top:-9px;z-index:-1;
+  pointer-events:none;border-radius:50%;
+  background:radial-gradient(ellipse at center,rgba(255,255,255,.95),rgba(255,255,255,0) 70%);
+  animation:salpica .9s ease-out forwards}
+.pista.caballos .chapuzon{background:radial-gradient(ellipse at center,rgba(222,196,160,.95),rgba(222,196,160,0) 70%)}
+.pista.hormigas .chapuzon{background:radial-gradient(ellipse at center,rgba(161,98,7,.9),rgba(161,98,7,0) 70%)}
+.pista.larvas .chapuzon{background:radial-gradient(ellipse at center,rgba(253,230,138,.9),rgba(253,230,138,0) 70%)}
+@keyframes salpica{0%{transform:scale(.3);opacity:0}25%{opacity:.95}100%{transform:scale(2.4);opacity:0}}
+.pista .semaforo.ya{color:#6ee7b7;background:transparent;animation:seVa .5s ease-out forwards}
+@keyframes cuenta{0%{transform:scale(2.2);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes seVa{to{opacity:0;transform:scale(1.4)}}
+.pista.foto::after{content:'';position:absolute;inset:0;z-index:95;background:#fff;
+  pointer-events:none;animation:flash .5s ease-out forwards}
+@keyframes flash{0%{opacity:.85}100%{opacity:0}}
+.calle.llega .bola .quien{color:#fff;background:rgba(2,6,23,.9)}
+.calle.gana .bola .quien{color:#021018;background:#fde047}
+.calle.gana .bola svg{filter:drop-shadow(0 0 4px #fde047) drop-shadow(0 0 12px rgba(253,224,71,.8))}
+.pista.llena{padding-left:2.5rem}
+.pista.llena .calle{height:18px;border-bottom-width:1px}
+.pista.llena .calle .bola{width:14px;height:14px;top:2px}
+.pista.llena .calle .bola::after{display:none}
+.pista.llena .calle .bicho{font-size:12px;line-height:14px}
+.pista.llena .calle .bola .pos{font-size:9px;line-height:13px;min-width:18px}
+  .pista .semaforo span,.pista.foto::after,.calle .bola.tropieza .bicho{animation:none !important}
+.calle .bicho{display:block;font-size:19px;line-height:22px;text-align:center;
+  filter:drop-shadow(0 1px 2px rgba(2,6,23,.7))}
+.pista.caballos .calle .bicho{animation:galope .28s steps(2,end) infinite}
+.pista.patos .calle .bicho{animation:contoneo .5s ease-in-out infinite}
+.pista.hormigas .calle .bicho{font-size:16px;animation:trote .12s linear infinite}
+.pista.larvas .calle .bicho{animation:reptar .55s ease-in-out infinite}
+@keyframes galope{0%{transform:translateY(0) scaleX(-1)}100%{transform:translateY(-3px) scaleX(-1)}}
+@keyframes contoneo{0%,100%{transform:rotate(-9deg) scaleX(-1)}50%{transform:rotate(9deg) scaleX(-1)}}
+@keyframes trote{0%,100%{transform:translateY(0) scaleX(-1)}50%{transform:translateY(-1px) scaleX(-1)}}
+@keyframes reptar{0%,100%{transform:scaleX(-1) scale(1,1)}50%{transform:scaleX(-1) scale(.82,1.15)}}
+.pista.parada .calle .bicho{animation:none;transform:scaleX(-1)}
+.pista .calle .bola.dibujo{width:56px;height:40px;top:0;left:0;border-radius:0;
+  background:transparent !important;box-shadow:none !important}
+.pista .calle .bola.dibujo::before{right:75%}
+.pista .calle .bola.dibujo::after{top:-8px;left:62%}
+.pista.parada .caballo,.pista.parada .caballo .pata,.pista.parada .caballo .cola{animation:none}
+.calle .bola.lider svg{filter:drop-shadow(0 0 3px #fde047) drop-shadow(0 0 6px rgba(253,224,71,.7))}
+.calle .bola.turbo svg{filter:drop-shadow(0 0 3px #6ee7b7) drop-shadow(0 0 6px rgba(110,231,183,.8))}
+.calle .bola.tropieza svg{filter:drop-shadow(0 0 3px #f87171);animation:tambalea .3s ease-in-out}
+@keyframes tambalea{0%,100%{transform:rotate(0)}30%{transform:rotate(18deg) translateY(2px)}70%{transform:rotate(-10deg)}}
+.pista.patos{border-color:rgba(103,232,249,.5);
+  padding-top:18px;padding-bottom:18px;
+  background:linear-gradient(180deg,#0891b2 0%,#0e7490 45%,#155e75 100%)}
+.pista.llena.patos{padding-top:17px;padding-bottom:17px}
+.pista.patos .decorado::after{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 40% at 30% 0%,rgba(165,243,252,.28),transparent 70%);
+  animation:solAgua 9s ease-in-out infinite alternate}
+@keyframes solAgua{from{opacity:.55}to{opacity:1}}
+.ola{position:absolute;left:-10%;right:-10%;top:0;bottom:0;
+  will-change:transform;backface-visibility:hidden}
+.ola.o1{background:radial-gradient(ellipse 16px 3px at 50% 40%,rgba(255,255,255,.42) 55%,transparent 70%) 0 0/54px 17px;
+  animation:fluye1 7s linear infinite}
+.pista.caballos .ola.o1{background:radial-gradient(ellipse 10px 3px at 50% 50%,rgba(134,239,172,.35) 55%,transparent 72%) 0 0/54px 17px}
+.pista.caballos .ola.o2{background:radial-gradient(ellipse 6px 2px at 30% 60%,rgba(22,101,52,.5) 55%,transparent 72%) 0 0/38px 13px}
+.pista.caballos .ola.o3{background:radial-gradient(ellipse 22px 5px at 60% 50%,rgba(20,83,45,.45) 55%,transparent 72%) 0 0/90px 26px}
+.pista.hormigas .ola.o1{background:radial-gradient(ellipse 12px 2px at 50% 50%,rgba(120,53,15,.5) 55%,transparent 72%) 0 0/54px 17px}
+.pista.hormigas .ola.o2{background:radial-gradient(ellipse 7px 2px at 30% 60%,rgba(0,0,0,.45) 55%,transparent 72%) 0 0/38px 13px}
+.pista.hormigas .ola.o3{background:radial-gradient(ellipse 24px 5px at 60% 50%,rgba(41,37,36,.6) 55%,transparent 72%) 0 0/90px 26px}
+.pista.larvas .ola.o1{background:radial-gradient(ellipse 12px 2px at 50% 50%,rgba(255,255,255,.45) 55%,transparent 72%) 0 0/54px 17px}
+.pista.larvas .ola.o2{background:radial-gradient(ellipse 7px 2px at 30% 60%,rgba(180,83,9,.35) 55%,transparent 72%) 0 0/38px 13px}
+.pista.larvas .ola.o3{background:radial-gradient(ellipse 24px 5px at 60% 50%,rgba(120,53,15,.28) 55%,transparent 72%) 0 0/90px 26px}
+.ola.o2{background:radial-gradient(ellipse 10px 2px at 20% 70%,rgba(255,255,255,.22) 55%,transparent 70%) 0 0/38px 13px;
+  animation:fluye2 4.5s linear infinite}
+.ola.o3{background:radial-gradient(ellipse 26px 4px at 70% 55%,rgba(8,145,178,.3) 55%,transparent 72%) 0 0/90px 26px;
+  animation:fluye3 13s linear infinite}
+@keyframes fluye1{from{transform:translate3d(0,0,0)}to{transform:translate3d(-54px,0,0)}}
+@keyframes fluye2{from{transform:translate3d(0,0,0)}to{transform:translate3d(38px,0,0)}}
+@keyframes fluye3{from{transform:translate3d(0,0,0)}to{transform:translate3d(-90px,0,0)}}
+.pista:not(.parada) .ola.o1{animation-duration:2.6s}
+.pista:not(.parada) .ola.o2{animation-duration:1.7s}
+.pista:not(.parada) .ola.o3{animation-duration:5s}
+.pista.patos .calle .bola.dibujo::before{height:7px;margin-top:3px;border-radius:50%;
+  background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.8))}
+.pista.patos:not(.parada) .calle .bola.turbo::before{width:60px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff)}
+.pista.patos .calle{height:62px;margin-bottom:-4px}
+.pista.patos .calle .bola.dibujo{width:56px;height:50px}
+.pista.patos .calle .bola.tropieza svg{animation:chapuzon .35s ease-in-out}
+@keyframes chapuzon{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(7px) rotate(30deg)}}
+.pista.parada .pato{animation-duration:1.8s}
+.pista.parada .pato .ala{animation:none}
+.pista.parada .pato .capa{animation-duration:2.4s}
+.pista.hormigas{padding:18px .8rem 22px 3.5rem;border-color:rgba(120,113,108,.5);
+  background:radial-gradient(circle at 20% 30%,rgba(120,113,108,.25) 0 8px,transparent 9px) 0 0/60px 50px,
+    radial-gradient(circle at 70% 70%,rgba(68,64,60,.6) 0 6px,transparent 7px) 0 0/44px 38px,
+    linear-gradient(180deg,#1c1917,#292524)}
+.pista.hormigas::before{content:'';position:absolute;left:0;right:0;top:0;height:14px;
+  background:linear-gradient(135deg,#0c0a09 50%,transparent 50%) 0 0/16px 14px,
+    linear-gradient(225deg,#0c0a09 50%,transparent 50%) 0 0/16px 14px}
+.pista.hormigas .decorado{background:linear-gradient(180deg,transparent calc(100% - 26px),#3b2a1c calc(100% - 26px),#24180f);
+  box-shadow:inset 0 -22px 14px -14px rgba(0,0,0,.8)}
+.pista.hormigas .calle{height:42px;margin-bottom:-4px;border:none;background:none;box-shadow:none}
+.pista.hormigas .calle:last-child{margin-bottom:0}
+.pista.hormigas .calle.gana{background:linear-gradient(90deg,#3b2a1c,#a16207)}
+.pista.hormigas .calle .bola.dibujo::before{height:5px;margin-top:4px;background:linear-gradient(90deg,rgba(120,83,50,0),rgba(161,98,7,.7))}
+.pista.parada .hormiga,.pista.parada .hormiga .pata{animation:none}
+.pista.larvas{padding:22px .8rem 22px 3.5rem;border-color:rgba(159,18,57,.55);
+  background:
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20120%20130%22%3E%3Cg%20fill%3D%22%239f1239%22%20fill-opacity%3D%22.22%22%3E%3Cpath%20d%3D%22M60%2026c8-10%2022-12%2030-6%209%207%2012%2022%208%2040-4%2019-14%2038-24%2048-6%206-10%208-14%208s-8-2-14-8c-10-10-20-29-24-48-4-18-1-33%208-40%208-6%2022-4%2030%206z%22%2F%3E%3Cpath%20d%3D%22M57%2028c-2-12%202-22%208-26%201%208-1%2018-4%2026z%22%2F%3E%3Cpath%20d%3D%22M64%2018c8-12%2022-16%2032-13-2%2011-13%2021-26%2022-3%200-5-3-6-9z%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%237f1d1d%22%20stroke-opacity%3D%22.3%22%20stroke-width%3D%222.5%22%3E%3Cpath%20d%3D%22M60%2026c8-10%2022-12%2030-6%209%207%2012%2022%208%2040-4%2019-14%2038-24%2048-6%206-10%208-14%208s-8-2-14-8c-10-10-20-29-24-48-4-18-1-33%208-40%208-6%2022-4%2030%206z%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22%2378350f%22%20fill-opacity%3D%22.3%22%3E%3Cellipse%20cx%3D%2255%22%20cy%3D%2266%22%20rx%3D%224%22%20ry%3D%226.5%22%2F%3E%3Cellipse%20cx%3D%2267%22%20cy%3D%2272%22%20rx%3D%224%22%20ry%3D%226.5%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") center/auto 84% no-repeat,
+    radial-gradient(ellipse 7px 4px at 18% 30%,rgba(120,53,15,.3) 60%,transparent 70%) 0 0/130px 90px,
+    radial-gradient(ellipse 5px 3px at 72% 78%,rgba(120,53,15,.22) 60%,transparent 70%) 0 0/170px 110px,
+    repeating-linear-gradient(102deg,rgba(180,83,9,.09) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(78deg,rgba(255,255,255,.5) 0 1px,transparent 1px 17px),
+    linear-gradient(180deg,#fffbeb,#fdecc8 55%,#f8dba4)}
+.pista.larvas::before{content:'';position:absolute;left:0;right:0;top:0;height:16px;z-index:1;
+  background:radial-gradient(circle at 9px 16px,transparent 0 7px,#be123c 7px) 0 0/18px 16px,
+    linear-gradient(180deg,#e11d48,#9f1239)}
+.pista.larvas .calle:last-child::after{content:'';position:absolute;left:-999px;right:-999px;
+  top:100%;margin-top:6px;height:16px;z-index:1;pointer-events:none;
+  background:radial-gradient(circle at 9px 0,transparent 0 7px,#be123c 7px) 0 0/18px 16px,
+    linear-gradient(0deg,#e11d48,#9f1239)}
+.pista.larvas .decorado::after{content:'';position:absolute;left:0;right:0;top:16px;bottom:16px;
+  background:linear-gradient(180deg,rgba(120,53,15,.34),rgba(146,64,14,.22));
+  box-shadow:inset 0 6px 10px rgba(69,26,3,.4),inset 0 -6px 10px rgba(69,26,3,.3)}
+.pista.larvas .calle{height:42px;margin-bottom:-4px;border:none;background:none;box-shadow:none}
+.pista.larvas .calle:last-child{margin-bottom:0}
+.pista.larvas .calle.gana{background:linear-gradient(90deg,rgba(120,53,15,.42),rgba(132,204,22,.55))}
+.pista.larvas .calle .bola.dibujo::before{height:6px;margin-top:3px;border-radius:3px;
+  background:linear-gradient(90deg,rgba(180,83,9,0),rgba(180,83,9,.45))}
+.pista.larvas .calle .bola.tropieza svg{animation:enrosque .4s ease-in-out}
+@keyframes enrosque{0%,100%{transform:rotate(0) scale(1)}50%{transform:rotate(-25deg) scale(.8)}}
+.pista.parada .larva{animation-duration:2s}
+.pista.parada .larva .anillo,.pista.parada .larva .pelo{animation:none}
+.pista.llena .calle .bola.dibujo{width:25px;height:18px}
+.pista.llena .caballo,.pista.llena .pato,.pista.llena .hormiga,.pista.llena .larva{width:25px;height:18px}
+.corredor{display:block;background-repeat:no-repeat;
+  filter:drop-shadow(0 3px 4px rgba(2,6,23,.45))}
+.bola.dibujo .corredor{transform-origin:50% 100%}
+.pista.llena.patos .calle{height:18px}
+.pista.llena.patos .calle .quien{line-height:18px;left:36px;font-size:11px}
+.pista.llena.patos .calle .bola.dibujo{width:25px;height:18px}
+.pista.llena.patos .calle .pos{line-height:13px}
+.pista.llena.hormigas .calle,.pista.llena.larvas .calle{margin-bottom:3px;border-radius:9px}
+.pista.llena.larvas{padding:13px .8rem 13px 2.5rem}
+.pista.llena.larvas::before{height:9px;background-size:12px 9px,auto}
+.pista.llena.larvas .calle:last-child::after{margin-top:4px;height:9px;background-size:12px 9px,auto}
+  .ola,.pista.patos .decorado::after{animation:none !important}
+.meta{color:var(--muted, #9fb3c8);font-size:14px}
+
+/* --- Los adornos de la pista ------------------------------------------
+   Los nenufares, las nubes, los peces y los detalles de cada bicho. Venian de
+   index.html: sin ellos la pista del widget saldria pelada. */
+
+.carriles{position:relative;z-index:1}
+.salida{position:absolute;left:0;top:-6px;bottom:-6px;width:52px;z-index:80;
+  pointer-events:none;overflow:hidden;border-radius:5px;
+  box-shadow:0 0 0 3px #7f1d1d,0 3px 10px rgba(2,6,23,.55)}
+.salida::after{content:'';position:absolute;inset:0;z-index:2;border-radius:5px;
+  border-left:4px solid #7f1d1d;border-right:4px solid #7f1d1d;
+  box-shadow:inset 0 5px 0 rgba(127,29,29,.9),inset 0 -5px 0 rgba(127,29,29,.9)}
+.salida i{position:absolute;left:4px;right:4px;height:calc(50% - 5px);
+  background:repeating-linear-gradient(45deg,#ef4444 0 9px,#f8fafc 9px 18px);
+  box-shadow:inset 0 0 0 2px rgba(127,29,29,.85),0 2px 6px rgba(2,6,23,.4);
+  transition:transform .6s cubic-bezier(.6,-0.2,.3,1.4)}
+.salida i:first-child{top:5px;border-bottom:3px solid #7f1d1d}
+.salida i:nth-child(2){bottom:5px;border-top:3px solid #7f1d1d}
+.salida b{position:absolute;right:0;top:0;bottom:0;width:3px;z-index:3;
+  background:rgba(255,255,255,.75);box-shadow:0 0 8px rgba(255,255,255,.45)}
+.decorado{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;border-radius:10px}
+.decorado > *{position:absolute}
+.orilla{position:absolute;left:-12rem;right:-2rem;height:16px;z-index:0;
+  background:linear-gradient(180deg,#4d7c0f,#3f6212)}
+.orilla.arriba{bottom:100%;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25),0 3px 8px rgba(2,6,23,.45)}
+.orilla.abajo{top:100%;background:linear-gradient(0deg,#4d7c0f,#3f6212);
+  box-shadow:inset 0 3px 0 rgba(0,0,0,.25),0 -3px 8px rgba(2,6,23,.45)}
+.orilla::after{content:'';position:absolute;left:0;right:0;height:9px;
+  background:
+    radial-gradient(ellipse 3px 9px at 6px 100%,#65a30d 60%,transparent 65%) 0 0/34px 9px,
+    radial-gradient(ellipse 2px 7px at 20px 100%,#4d7c0f 60%,transparent 65%) 0 0/27px 9px}
+.orilla.arriba::after{top:100%}
+.orilla.abajo::after{bottom:100%;transform:scaleY(-1)}
+.nube{height:13px;border-radius:999px;background:rgba(255,255,255,.75);z-index:2;
+  box-shadow:10px -5px 0 -2px rgba(255,255,255,.7),22px 1px 0 -3px rgba(255,255,255,.68);
+  animation:pasaNube 44s linear infinite}
+@keyframes pasaNube{from{transform:translateX(0)}to{transform:translateX(-140%)}}
+.nenufar{border-radius:50%;background:radial-gradient(circle at 35% 30%,#65a30d,#3f6212);
+  box-shadow:inset -2px -3px 4px rgba(0,0,0,.3);animation:mece 5s ease-in-out infinite}
+.nenufar::before{content:'';position:absolute;right:8%;top:44%;width:46%;height:12%;
+  background:inherit;filter:none;background:rgba(8,145,178,.85);transform:rotate(-12deg)}
+.nenufar i{position:absolute;left:24%;top:16%;width:38%;height:38%;border-radius:50%;
+  background:radial-gradient(circle at 50% 50%,#fde047 0 28%,#f9a8d4 30%,#ec4899);
+  box-shadow:0 1px 3px rgba(2,6,23,.5)}
+@keyframes mece{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-3px) rotate(3deg)}}
+.pez{left:30%;top:64%;width:13px;height:7px;border-radius:50% 30% 30% 50%;
+  background:#fbbf24;opacity:0;animation:asoma 13s ease-in-out infinite}
+.pez::after{content:'';position:absolute;right:-5px;top:1px;border:3px solid transparent;
+  border-right-color:#f59e0b}
+.pez.b{left:68%;top:31%;background:#fb7185;animation-delay:6.5s}
+.pez.b::after{border-right-color:#f43f5e}
+@keyframes asoma{0%,84%,100%{opacity:0;transform:translateY(6px)}
+  88%,95%{opacity:.9;transform:translateY(0)}}
+.gota{top:14px;width:4px;height:7px;border-radius:0 0 50% 50%;background:rgba(165,243,252,.75);
+  animation:cae 5.5s ease-in infinite}
+.pepita{width:7px;height:10px;border-radius:50% 50% 45% 45%;background:#57534e;
+  box-shadow:inset -1px -1px 2px rgba(0,0,0,.4);opacity:.55;transform:rotate(18deg)}
+  .nube,.nenufar,.pez,.gota{animation:none !important}
+  .pez{opacity:.9}
+.meta-global{position:absolute;right:0;top:-6px;bottom:-6px;width:10px;z-index:0;pointer-events:none;
+  background:repeating-linear-gradient(180deg,#fff 0 8px,#0b1220 8px 16px);
+  box-shadow:0 0 10px rgba(255,255,255,.35)}
+.caballo{display:block;width:56px;height:40px;overflow:visible;animation:galopa .3s ease-in-out infinite}
+.caballo .pata{transform-box:fill-box;transform-origin:50% 0;animation:zancada .3s ease-in-out infinite}
+.caballo .pata.b{animation-delay:-.15s}
+.caballo .cola{transform-box:fill-box;transform-origin:100% 0;animation:coletazo .3s ease-in-out infinite}
+@keyframes galopa{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-2px) rotate(-3deg)}}
+@keyframes zancada{0%,100%{transform:rotate(28deg)}50%{transform:rotate(-28deg)}}
+@keyframes coletazo{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(15deg)}}
+.pato{display:block;width:56px;height:50px;overflow:visible;transform-origin:50% 80%;animation:flota .6s ease-in-out infinite}
+.pato .ala{transform-box:fill-box;transform-origin:30% 30%;animation:aleteo .3s ease-in-out infinite}
+.pato .onda{transform-box:fill-box;transform-origin:center;animation:onda 1.2s ease-out infinite}
+.pato .capa{transform-box:fill-box;transform-origin:100% 20%;animation:ondea .7s ease-in-out infinite}
+@keyframes ondea{0%,100%{transform:rotate(-4deg) skewY(2deg)}50%{transform:rotate(5deg) skewY(-3deg)}}
+.pato .onda.b{animation-delay:-.6s}
+@keyframes flota{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(1.5px) rotate(4deg)}}
+@keyframes aleteo{0%,100%{transform:rotate(0)}50%{transform:rotate(-22deg)}}
+@keyframes onda{0%{transform:scale(.4);opacity:.8}100%{transform:scale(1.4);opacity:0}}
+.hormiga{display:block;width:56px;height:35px;overflow:visible;animation:trotecito .16s linear infinite}
+.hormiga .pata{transform-box:fill-box;transform-origin:50% 0;animation:patitas .16s linear infinite}
+.hormiga .pata.b{animation-delay:-.08s}
+.hormiga .antena{transform-box:fill-box;transform-origin:0 100%;animation:antenas .5s ease-in-out infinite alternate}
+.hormiga .haz{animation:haz 2s ease-in-out infinite alternate}
+@keyframes trotecito{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+@keyframes patitas{0%,100%{transform:rotate(25deg)}50%{transform:rotate(-25deg)}}
+@keyframes antenas{from{transform:rotate(-8deg)}to{transform:rotate(10deg)}}
+@keyframes haz{from{opacity:.4}to{opacity:.65}}
+.larva{display:block;width:56px;height:35px;overflow:visible;transform-origin:0 50%;
+  animation:arrastre .55s ease-in-out infinite}
+.larva .anillo{transform-box:fill-box;transform-origin:center;animation:onda-larva .55s ease-in-out infinite}
+.larva .anillo.b{animation-delay:-.09s}
+.larva .anillo.c{animation-delay:-.18s}
+.larva .anillo.d{animation-delay:-.27s}
+.larva .pelo{transform-box:fill-box;transform-origin:50% 100%;animation:pelos .55s ease-in-out infinite}
+.larva .pelo.b{animation-delay:-.12s}
+.larva .pelo.c{animation-delay:-.24s}
+@keyframes arrastre{0%,100%{transform:scale(1,1)}45%{transform:scale(.86,1.12)}70%{transform:scale(1.05,.95)}}
+@keyframes onda-larva{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-1.5px) scale(1.12)}}
+@keyframes pelos{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(12deg)}}
+  .caballo,.caballo .pata,.caballo .cola,.pato,.pato .ala,.pato .onda,
+  .hormiga,.hormiga .pata,.hormiga .antena,.pista.hormigas .meta-global,
+  .larva,.larva .anillo,.larva .pelo,.pato .capa,

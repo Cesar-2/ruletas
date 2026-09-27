@@ -9,59 +9,26 @@
   El widget de la carrera, para OBS.  /widget/carrera.html?clave=XXXX
 
   El servidor manda la carrera entera tick a tick (cuánto lleva recorrido cada
-  corredor en cada instante). Aquí solo se reproduce, igual que hace la página:
-  no se decide nada, así que lo que se ve en el directo es exactamente lo que
-  pasó.
+  corredor en cada instante). Aquí solo se reproduce: no se decide nada, así que
+  lo que se ve en el directo es exactamente lo que pasó.
+
+  La pista es la MISMA que la de la página, de css/carrera.css y
+  js/carrera-pista.js: los mismos bichos del pliego con sus poses (correr,
+  tropezar, acelerar, ganar), el semáforo de salida, los puestos y el relato.
+
+  Antes esto tenía su propia pista, con emojis deslizándose por un carril, y no se
+  parecía en nada a la del panel. Es lo mismo que pasó con las dos ruletas y con
+  el combate del rey de la colina: duplicar una animación acaba en dos animaciones
+  que se van separando.
 -->
 <link rel="stylesheet" href="/css/widget.css" />
+<!-- La pista es la MISMA que la de la página, no una copia parecida. -->
+<link rel="stylesheet" href="/css/carrera.css" />
 <style>
-  .pista { width: min(92vw, 900px); }
-  .carril {
-    position: relative;
-    height: 2.1rem;
-    margin-bottom: .3rem;
-    background: rgba(9, 15, 28, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 999px;
-    overflow: hidden;
-  }
-  /* La meta, para que se vea cuánto queda. */
-  .carril::after {
-    content: '';
-    position: absolute;
-    right: 2.2rem; top: 0; bottom: 0;
-    width: 2px;
-    background: rgba(255, 255, 255, 0.25);
-  }
-  .bicho {
-    position: absolute;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 1.4rem;
-    line-height: 1;
-    white-space: nowrap;
-    /* Sin transición: la posición la manda el tick, y suavizarla desincronizaría
-       lo que se ve de lo que de verdad pasó. */
-  }
-  .quien {
-    position: absolute;
-    left: .7rem; top: 50%;
-    transform: translateY(-50%);
-    font-size: .85rem;
-    font-weight: 700;
-    color: #9fb3c8;
-    pointer-events: none;
-  }
-  .puesto {
-    position: absolute;
-    right: .6rem; top: 50%;
-    transform: translateY(-50%);
-    font-size: .9rem;
-    font-weight: 800;
-    color: #6ee7b7;
-  }
-  .puesto[hidden] { display: none; }
-  .carril.gana { border-color: rgba(110, 231, 183, 0.55); }
+  /* Lo único propio del widget: cuánto ocupa la pista encima del directo. La
+     página la mete en una tarjeta; aquí manda la pantalla. */
+  #carreraPista { width: min(94vw, 1000px); }
+  #carreraRelato { max-width: min(94vw, 1000px); }
 </style>
 </head>
 <body>
@@ -72,125 +39,86 @@
       <div class="quienes" id="apQuienes"></div>
       <div class="cuenta" id="apCuenta" hidden></div>
     </div>
-    <div class="pista" id="pista" hidden></div>
+    <!-- Mismos ids que en la página, que es lo que permite compartir la pista y
+         su CSS. Los monta dibujarPista() y los anima animarCarrera(). -->
+    <div class="pista parada" id="carreraPista" hidden></div>
+    <div class="relato" id="carreraRelato" hidden></div>
   </div>
   <div id="espera" hidden>Widget conectado · esperando a que abras una carrera</div>
   <div id="fallo" hidden></div>
 
   <script src="/js/eventos.js"></script>
+  <script src="/js/carrera-pista.js"></script>
   <script src="/js/widget-base.js"></script>
   <script>
   (function () {
     'use strict';
     const q = Widget.caja;
-    const BICHOS = { caballos: '🐎', patos: '🦆', hormigas: '🐜', larvas: '🐛' };
 
-    // Qué carrera se está reproduciendo, para no repetirla en cada sondeo.
-    let vista = '';
-    let corriendo = false;
-    // La animación en marcha. Hay que poder pararla: si empieza otra carrera
-    // sin haber terminado la anterior, quedarían dos bucles pintando encima
-    // del mismo carril, uno de ellos con la pista vieja ya desmontada.
-    let animacion = 0;
     // Cuánto se queda la foto final antes de quitarse: es donde se lee quién
     // ganó, y con menos no da tiempo.
     const QUIETA_AL_FINAL = 8000;
+    // De qué carrera es lo que se está viendo, para reproducirla una sola vez.
+    // El servidor manda cuándo se corrió, y eso es distinto en cada carrera.
+    let vista = '';
     let quitarseEn = 0;
 
-    function montarPista(e) {
-      const pista = q('pista');
-      pista.innerHTML = '';
-      const bicho = BICHOS[e.animacion] || BICHOS.caballos;
-      e.corredores.forEach((nombre) => {
-        const carril = document.createElement('div');
-        carril.className = 'carril';
-        carril.innerHTML = '<span class="quien"></span>'
-          + '<span class="bicho">' + bicho + '</span>'
-          + '<span class="puesto" hidden></span>';
-        carril.querySelector('.quien').textContent = nombre;
-        pista.appendChild(carril);
-      });
-      return pista;
-    }
-
-    function verCorrer(e) {
-      if (animacion) cancelAnimationFrame(animacion);
-      const pista = montarPista(e);
-      pista.hidden = false;
-      corriendo = true;
-      const marcas = e.marcas || [];
-      if (!marcas.length) { corriendo = false; return; }
-
-      // Los ticks se reparten en lo que dure la carrera, igual que la página.
-      const duracion = Math.max(1, Number(e.duracion) || 8) * 1000;
-      const porTick = duracion / marcas.length;
-      const arranque = performance.now();
-      const carriles = [...pista.querySelectorAll('.carril')];
-
-      function paso(ahora) {
-        const t = (ahora - arranque) / porTick;
-        // Se recorta por los dos lados: con un tick raro (una pantalla que se
-        // duerme, un reloj que salta) el índice se iría fuera y aquí dentro no
-        // hay nada que salvar si eso pasa.
-        const i = Math.max(0, Math.min(marcas.length - 1, Math.floor(t) || 0));
-        const sig = Math.max(0, Math.min(marcas.length - 1, i + 1));
-        const fila = marcas[i] || [];
-        const filaSig = marcas[sig] || fila;
-        // Entre tick y tick se interpola, que si no se ve a saltos: la posición
-        // de verdad sigue siendo la que manda el servidor.
-        const entre = Math.min(1, Math.max(0, t - i));
-        carriles.forEach((carril, c) => {
-          const de = fila[c] ?? 0;
-          const a = filaSig[c] ?? de;
-          const cuanto = de + (a - de) * entre;
-          // Del borde izquierdo a la meta, dejando sitio para el número.
-          carril.querySelector('.bicho').style.left = (6 + cuanto * 82) + '%';
-        });
-
-        if (t < marcas.length) { animacion = requestAnimationFrame(paso); return; }
-        else {
-          animacion = 0;
-          // Al acabar, cada uno con su puesto.
-          (e.resultado || []).forEach((r) => {
-            const c = e.corredores.indexOf(r.nombre);
-            if (c < 0) return;
-            const carril = carriles[c];
-            const puesto = carril.querySelector('.puesto');
-            puesto.hidden = false;
-            puesto.textContent = r.puesto === 1 ? '🏆' : r.puesto + 'º';
-            if (r.puesto === 1) carril.classList.add('gana');
-          });
-          corriendo = false;
-          quitarseEn = Date.now() + QUIETA_AL_FINAL;
-        }
-      }
-      animacion = requestAnimationFrame(paso);
+    // carrera-pista.js lee este estado: quién corre (con su clave), las marcas
+    // tick a tick y cuánto dura. En la página es la variable del panel; aquí se
+    // pone desde lo que manda el servidor. Va en globalThis porque este script
+    // está dentro de una función y el módulo lo busca por su nombre.
+    function ponerEstado(e) {
+      globalThis.carrera = {
+        abierta: Boolean(e.abierta),
+        corredores: e.corredores || [],
+        resultado: e.resultado || [],
+        corridaEn: e.corridaEn || '',
+        marcas: e.marcas || [],
+        eventos: e.eventos || [],
+        ajustes: { duracion: e.duracion || 8, animacion: e.animacion || 'caballos' }
+      };
     }
 
     Widget.arranca({
       ruta: 'carrera',
       pinta(e) {
+        ponerEstado(e);
         const hayCarrera = e.marcas && e.marcas.length && e.corridaEn;
 
-        // Una carrera nueva se reproduce una sola vez.
+        // Una carrera nueva se reproduce una sola vez, y con el mismo código que
+        // la página: se dibuja la pista y se anima.
         if (hayCarrera && e.corridaEn !== vista) {
           vista = e.corridaEn;
           q('apuntados').hidden = true;
-          verCorrer(e);
+          q('carreraPista').hidden = false;
+          dibujarPista();
+          animarCarrera(e.resultado || []);
+          // Lo que dura la carrera más lo que se queda la foto final. La cuenta
+          // atrás del semáforo la pone el módulo, así que se le suma.
+          quitarseEn = Date.now() + 2400 + (Number(e.duracion) || 8) * 1000 + QUIETA_AL_FINAL;
           return true;
         }
-        if (corriendo) return true;
-        // La foto final se queda un rato y luego se quita.
+        // Mientras se está viendo, no se toca nada: repintar dejaría la carrera a
+        // medias.
         if (quitarseEn && Date.now() < quitarseEn) return true;
-        if (quitarseEn) { quitarseEn = 0; q('pista').hidden = true; }
+        if (quitarseEn) {
+          quitarseEn = 0;
+          q('carreraPista').hidden = true;
+          q('carreraRelato').hidden = true;
+        }
 
-        // Con la inscripción abierta se enseña, aunque no haya nadie todavía:
-        // es entonces cuando hay que decirle al chat qué escribir.
+        // Con la inscripción abierta se enseña, aunque no haya nadie todavía: es
+        // entonces cuando hay que decirle al chat qué escribir.
         const apuntados = q('apuntados');
         apuntados.hidden = !e.abierta;
         if (e.abierta) {
-          q('pista').hidden = true;
-          Widget.pintarApuntados({ cuantos: 'apCuantos', rotulo: 'apRotulo', quienes: 'apQuienes', cuenta: 'apCuenta' }, e.corredores, e.palabra, e.cierraEn);
+          q('carreraPista').hidden = true;
+          q('carreraRelato').hidden = true;
+          Widget.pintarApuntados(
+            { cuantos: 'apCuantos', rotulo: 'apRotulo', quienes: 'apQuienes', cuenta: 'apCuenta' },
+            (e.corredores || []).map((c) => c.nombre),
+            e.palabra, e.cierraEn
+          );
         }
         return Boolean(e.abierta);
       }
