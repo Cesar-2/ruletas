@@ -5388,7 +5388,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     let antesDelCombate = null;
     // El respiro entre un combate y el siguiente. Sin el, con la cola llena se
     // encadenarian sin que diera tiempo a ver como ha quedado cada uno.
-    const RESPIRO_COLINA = 4000;
+    //
+    // Dos segundos: lo justo para leer quien ha ganado sin que el directo se
+    // quede parado. Eran cuatro y se hacian largos con la cola llena.
+    const RESPIRO_COLINA = 2000;
     // Cuando toca el siguiente combate (0 = no hay ninguno esperando), y el
     // reloj que lo cuenta. Es uno solo: lleva la cuenta atras y lo dispara.
     let tocaColina = 0;
