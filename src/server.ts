@@ -1706,7 +1706,13 @@ app.get('/api/widget/colina', (req: Request, res: Response) => {
       derrotado: e.derrotado,
       mejor: e.mejor,
       record: e.record,
-      peleados: e.peleados
+      peleados: e.peleados,
+      // Cuando empezo el combate que hay puesto, y la hora del servidor. Con esto
+      // el widget distingue un combate que se esta peleando AHORA de uno que paso
+      // hace un rato: al abrirlo, el viejo no se repite. Los dos con el reloj del
+      // servidor, que el del PC de OBS puede ir adelantado.
+      combateDesde: e.combateDesde,
+      ahora: Date.now()
     });
   } catch (err) {
     console.error('Failed to serve colina widget:', err);

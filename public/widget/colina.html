@@ -82,13 +82,34 @@
     // Mientras se cuenta un combate no se repinta nada: repintar dejaría el
     // relato a medias. Es lo mismo que hace la página con peleandoColina.
     let contando = false;
+    // Si es la primera vez que se mira. Importa: al abrir el widget puede haber
+    // un combate ya peleado en el servidor, y contarlo sería repetir en pantalla
+    // una pelea de hace cinco minutos.
+    let primerVistazo = true;
+    // Lo que se da por «se está peleando ahora». El combate se cuenta en unos
+    // segundos, así que con cuatro sobra para pillar uno recién empezado.
+    const RECIEN = 4000;
 
     // Cuenta un combate nuevo, si lo hay. Devuelve true si se ha puesto a contar.
     function contarSiToca(e) {
       const d = e.duelo;
       if (contando) return true;
-      if (!d || !d.golpes || !d.golpes.length) return false;
-      if (e.peleados === contados) return false;
+      if (!d || !d.golpes || !d.golpes.length) { primerVistazo = false; return false; }
+      if (e.peleados === contados) { primerVistazo = false; return false; }
+
+      // Al abrir el widget solo se cuenta el combate si se está peleando AHORA.
+      // Uno viejo se da por visto y se espera al siguiente: mejor perderse uno
+      // que soltar en pantalla una pelea que ya pasó.
+      //
+      // Se mira con el reloj del SERVIDOR (él manda su hora), que el del PC que
+      // corre OBS puede ir adelantado y daría por viejo un combate recién salido.
+      const recien = e.combateDesde && (e.ahora - e.combateDesde) < RECIEN;
+      if (primerVistazo && !recien) {
+        contados = e.peleados;
+        primerVistazo = false;
+        return false;
+      }
+      primerVistazo = false;
       contados = e.peleados;
       contando = true;
       // El marcado lo monta el mismo código que en la página, y el relato también.

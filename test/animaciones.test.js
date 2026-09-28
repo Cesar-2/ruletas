@@ -725,3 +725,26 @@ test('la página y el widget de la carrera cargan lo MISMO', () => {
     assert.ok(texto.includes('/js/carrera-pista.js'), p + ' carga js/carrera-pista.js');
   }
 });
+
+test('el widget de la colina solo cuenta el combate si se está peleando ahora', () => {
+  // Al abrir el widget puede haber un combate ya peleado en el servidor. Contarlo
+  // sería soltar en pantalla una pelea de hace cinco minutos, así que en el primer
+  // vistazo solo se cuenta el que acaba de empezar.
+  const w = fs.readFileSync(path.join(__dirname, '..', 'public', 'widget', 'colina.html'), 'utf8');
+  assert.ok(w.includes('primerVistazo'), 'distingue el primer vistazo');
+  assert.ok(/combateDesde/.test(w), 'y mira cuándo empezó el combate');
+  assert.ok(/e\.ahora - e\.combateDesde/.test(w),
+    'con el reloj del servidor, no con el del PC que corre OBS');
+});
+
+test('el endpoint de la colina manda cuándo empezó el combate', () => {
+  // Sin esto el widget no puede saber si el combate es de ahora o de antes.
+  const s = fs.readFileSync(path.join(__dirname, '..', 'src', 'server.ts'), 'utf8');
+  const i = s.indexOf("app.get('/api/widget/colina'");
+  assert.ok(i > 0, 'la ruta existe');
+  const bloque = s.slice(i, i + 1600);
+  assert.ok(bloque.includes('combateDesde'), 'manda combateDesde');
+  assert.ok(bloque.includes('ahora'), 'y su propia hora');
+  assert.ok(bloque.includes('clases'), 'y las clases, para dibujar los muñecos igual');
+  assert.ok(bloque.includes('arte'), 'y el arte');
+});
