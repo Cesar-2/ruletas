@@ -29,15 +29,20 @@ body.con-fondo { background: #0b1220; }
 }
 #todo.visible { opacity: 1; }
 
-/* La caja oscura en la que van casi todos: legible encima de cualquier juego. */
+/* La caja oscura en la que van casi todos: legible encima de cualquier juego.
+
+   Cuánto tapa lo elige el dueño en Configuración › Widgets y llega en
+   --fondo-widget, de 0 a 1 (lo pone js/widget-base.js). El borde y la sombra
+   bajan con él: a cero no tiene que quedar el marco de una caja que no está.
+   Sin la variable vale lo de siempre. */
 .panel {
   max-width: 92vw;
   text-align: center;
-  background: rgba(9, 15, 28, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(9, 15, 28, var(--fondo-widget, .82));
+  border: 1px solid rgba(255, 255, 255, calc(var(--fondo-widget, .82) * .2));
   border-radius: 16px;
   padding: 1.2rem 1.6rem;
-  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.7);
+  box-shadow: 0 20px 60px rgba(2, 6, 23, calc(var(--fondo-widget, .82) * .85));
 }
 .panel[hidden] { display: none; }
 

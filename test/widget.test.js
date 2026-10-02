@@ -124,3 +124,55 @@ test('un archivo de claves roto no da acceso a nadie', (t) => {
   assert.ok(quejas.some((q) => q.includes('Failed to read widget keys')),
     'y queda dicho en el registro');
 });
+
+// --- Cómo se ven: el fondo de las cajas ---------------------------------
+
+function montarConAjustes(raiz) {
+  const widget = cargar('widget');
+  const escribir = (f, d) => fs.writeFileSync(f, JSON.stringify(d, null, 2), 'utf8');
+  widget.iniciar({
+    archivo: () => path.join(raiz, 'widgets.json'),
+    writeJson: escribir,
+    archivoAjustes: (uid) => path.join(raiz, uid, 'widgets.json'),
+    ensureUserDir: (uid) => fs.mkdirSync(path.join(raiz, uid), { recursive: true })
+  });
+  return widget;
+}
+
+test('sin tocar nada, el fondo es el de siempre', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const widget = montarConAjustes(c.raiz);
+  assert.strictEqual(widget.leerAjustes('u1').fondo, 82);
+});
+
+test('el fondo se guarda por cuenta y se queda entre 0 y 100', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const widget = montarConAjustes(c.raiz);
+
+  assert.strictEqual(widget.guardarAjustes('u1', { fondo: 40 }).fondo, 40);
+  assert.strictEqual(widget.leerAjustes('u1').fondo, 40, 'queda guardado');
+  assert.strictEqual(widget.leerAjustes('u2').fondo, 82, 'y no toca a los demás');
+
+  // El cero vale: es «sin caja», no «sin valor».
+  assert.strictEqual(widget.guardarAjustes('u1', { fondo: 0 }).fondo, 0);
+  assert.strictEqual(widget.leerAjustes('u1').fondo, 0);
+
+  assert.strictEqual(widget.guardarAjustes('u1', { fondo: 300 }).fondo, 100);
+  assert.strictEqual(widget.guardarAjustes('u1', { fondo: -5 }).fondo, 0);
+  // Algo que no es un número deja lo que había.
+  assert.strictEqual(widget.guardarAjustes('u1', { fondo: 55 }).fondo, 55);
+  assert.strictEqual(widget.guardarAjustes('u1', { fondo: 'mucho' }).fondo, 55);
+  assert.strictEqual(widget.guardarAjustes('u1', {}).fondo, 55);
+});
+
+test('las cajas de los widgets leen el fondo de la variable', () => {
+  // Si alguien vuelve a escribir el 0.82 a mano en una caja, ese widget deja
+  // de hacer caso al ajuste sin que nada falle.
+  const leer = (p) => fs.readFileSync(path.join(__dirname, '..', 'public', p), 'utf8');
+  for (const p of ['css/widget.css', 'widget/batalla.html', 'widget/plinko.html', 'widget/colina.html']) {
+    assert.ok(leer(p).includes('var(--fondo-widget'), p + ' usa la variable');
+  }
+  assert.ok(leer('js/widget-base.js').includes('--fondo-widget'), 'y widget-base.js la pone');
+});

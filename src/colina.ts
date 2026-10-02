@@ -53,10 +53,12 @@ export interface Colina {
   // Los dos que estan peleando ahora mismo, por su clave, mientras la pagina
   // cuenta el combate. No pueden encolarse: todavia se les esta viendo pelear.
   enCombate: string[];
-  // Cuando empezo ese combate. Es el seguro por si la pagina se cierra a mitad
-  // y nunca avisa de que termino: pasado un rato se les suelta igual, que
-  // quedarse bloqueado para siempre seria peor que el agujero que esto tapa.
+  // Cuando empezo ese combate y cuando se acaba de contar. Lo segundo lo sabe
+  // el servidor sin que nadie se lo diga, porque el relato va a ritmo fijo: es
+  // lo que impide que empiece otro combate encima, y lo que suelta a los dos
+  // aunque la pagina se cierre a mitad y nunca avise.
   combateDesde: number;
+  combateHasta: number;
   // La clase que le toco a cada uno, por su clave. Se guarda aparte de la cola
   // porque hace falta despues de salir de ella: al perdedor hay que seguir
   // dibujandolo mientras se cuenta el combate que acaba de perder. Y de paso,
@@ -70,9 +72,20 @@ export interface Ajustes {
 
 export const AJUSTES_POR_DEFECTO: Ajustes = { palabra: '!reto' };
 
-// Lo que como mucho se da por bueno que dure contar un combate. De sobra: el
-// relato mas largo no pasa de medio minuto.
-const TOPE_COMBATE = 90 * 1000;
+// Lo que tarda en contarse un combate en pantalla: un golpe cada RITMO_GOLPE y
+// un rato al final para ver la victoria. Son los mismos numeros que usa
+// contarRonda() en public/js/dofus-arte.js, y tienen que serlo: de aqui sale
+// cuando puede empezar el combate siguiente. Hay un test que los compara.
+export const RITMO_GOLPE = 700;
+export const COLA_COMBATE = 1800;
+
+export function duracionDe(duelo: batalla.Duelo): number {
+  return duelo.golpes.length * RITMO_GOLPE + COLA_COMBATE;
+}
+
+// Lo que se perdona al pedir el siguiente: los relojes de la pagina no clavan
+// el milisegundo, y negarle el combate por llegar un pelo antes seria tonto.
+const HOLGURA = 400;
 
 export interface Dependencias {
   userDir(uid: string): string;
@@ -168,6 +181,25 @@ export function record(uid: string): Marca | null {
   return leerGuardado(uid).record;
 }
 
+// Borra el record historico, que es lo unico que «Reiniciar la colina» no
+// toca. Se lleva tambien la mejor racha de la partida: si se quedara, seguiria
+// saliendo como record en el widget, que la enseña cuando no hay historico.
+// Al rey de ahora no se le quita la racha: su proxima victoria lo estrena.
+export function borrarRecord(uid: string): void {
+  const datos = leerGuardado(uid);
+  datos.record = null;
+  escribir(uid, datos);
+  const colina = colinas.get(uid);
+  if (colina) {
+    colina.mejor = null;
+    apuntarEnDisco(uid);
+  } else {
+    // Sin partida abierta no hay foto que guardar, pero el widget puede estar
+    // puesto igual y tiene que enterarse.
+    deps.alCambiar?.(uid);
+  }
+}
+
 // El record solo se toca cuando de verdad se supera: empatar no destrona a
 // quien lo tenia, que llego antes.
 function puedeSerRecord(uid: string, nombre: string, racha: number): void {
@@ -181,16 +213,21 @@ function vacia(): Colina {
   return {
     abierta: false, cola: [], rey: null, duelo: null,
     derrotado: '', mejor: null, peleados: 0, clases: {},
-    enCombate: [], combateDesde: 0
+    enCombate: [], combateDesde: 0, combateHasta: 0
   };
 }
 
 export function estado(uid: string): Colina & {
-  escuchando: string; chat: chat.Salud | null; palabra: string; record: Marca | null;
+  escuchando: string; chat: chat.Salud | null; palabra: string; record: Marca | null; ahora: number;
 } {
   const c = colinas.get(uid) || vacia();
   const datos = leerGuardado(uid);
-  return { ...c, escuchando: escuchando(uid), chat: saludChat(uid), palabra: datos.palabra, record: datos.record };
+  return {
+    ...c, escuchando: escuchando(uid), chat: saludChat(uid), palabra: datos.palabra, record: datos.record,
+    // La hora de aqui, para que quien mira sepa cuanto le queda al combate sin
+    // fiarse de su propio reloj.
+    ahora: Date.now()
+  };
 }
 
 // La conexion al chat mientras la colina esta abierta.
@@ -257,7 +294,8 @@ export function rehacer(uid: string): boolean {
     // marcados como «peleando ahora mismo» solo les impediria volver a la cola.
     duelo: null,
     enCombate: [],
-    combateDesde: 0
+    combateDesde: 0,
+    combateHasta: 0
   };
   colinas.set(uid, colina);
   if (colina.abierta && foto.canal) escuchar(uid, foto.canal, foto.palabra);
@@ -277,21 +315,34 @@ export function escuchando(uid: string): string {
   return escuchas.get(uid)?.canal || '';
 }
 
-// Si a esta persona se le esta viendo pelear ahora mismo. Pasado el tope se
-// deja de contar, por si nadie aviso de que el combate acabo.
+// Si todavia se esta contando un combate en pantalla. Mientras tanto no empieza
+// otro: antes cada pagina abierta lanzaba los suyos sin saber de las demas, y
+// con dos pestañas (o un moderador con la misma cuenta) los combates se pisaban
+// y el widget, que solo puede contar uno a la vez, se saltaba la mitad.
+export function ocupada(uid: string): boolean {
+  const colina = colinas.get(uid);
+  return Boolean(colina && colina.duelo && Date.now() < colina.combateHasta - HOLGURA);
+}
+
+// Si a esta persona se le esta viendo pelear ahora mismo. Acabado el relato se
+// le suelta sola, avise alguien o no.
 function estaPeleando(colina: Colina, clave: string): boolean {
   if (!colina.enCombate.length) return false;
-  if (Date.now() - colina.combateDesde > TOPE_COMBATE) return false;
+  if (Date.now() >= colina.combateHasta) return false;
   return colina.enCombate.includes(clave);
 }
 
 // La pagina avisa de que ya ha terminado de contar el combate: los dos que
 // peleaban quedan libres para volver a la cola.
+//
+// Solo vale si de verdad ha terminado. Una pestaña que va con retraso avisaria
+// del combate anterior con el siguiente ya empezado, y soltaria a los que
+// estan peleando ahora.
 export function finCombate(uid: string): void {
   const colina = colinas.get(uid);
-  if (!colina) return;
+  if (!colina || !colina.enCombate.length) return;
+  if (Date.now() < colina.combateHasta - HOLGURA) return;
   colina.enCombate = [];
-  colina.combateDesde = 0;
   apuntarEnDisco(uid);
 }
 
@@ -349,9 +400,11 @@ function apuntarMejor(uid: string, colina: Colina, nombre: string, racha: number
 //
 // Devuelve la colina ya resuelta, con el duelo entero dentro: la pagina lo
 // cuenta golpe a golpe, pero quien ha ganado ya esta decidido aqui.
+//
+// Tampoco si el anterior se esta contando todavia: ver ocupada().
 export function siguiente(uid: string): Colina | null {
   const colina = colinas.get(uid);
-  if (!colina || !hayCombate(uid)) return null;
+  if (!colina || !hayCombate(uid) || ocupada(uid)) return null;
 
   if (!colina.rey) {
     const primero = colina.cola.shift() as Retador;
@@ -374,6 +427,7 @@ export function siguiente(uid: string): Colina | null {
   // Los dos quedan ocupados hasta que la pagina avise de que ya se ha contado.
   colina.enCombate = [rey.clave, retador.clave];
   colina.combateDesde = Date.now();
+  colina.combateHasta = colina.combateDesde + duracionDe(duelo);
 
   if (duelo.ganador === rey.nombre) {
     rey.racha++;
@@ -400,6 +454,7 @@ export function destronar(uid: string): Colina | null {
   colina.derrotado = '';
   colina.enCombate = [];
   colina.combateDesde = 0;
+  colina.combateHasta = 0;
   apuntarEnDisco(uid);
   return colina;
 }

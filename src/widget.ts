@@ -23,6 +23,49 @@ import crypto from 'crypto';
 export interface Dependencias {
   archivo(): string;
   writeJson(file: string, data: unknown): void;
+  // Donde guarda cada cuenta como se ven sus widgets. Aparte de las claves, que
+  // son de toda la instalacion: esto es de cada uno, como el resto de ajustes.
+  archivoAjustes?(uid: string): string;
+  ensureUserDir?(uid: string): void;
+}
+
+// Como se ven los widgets de una cuenta.
+export interface Ajustes {
+  // Cuanto tapa la caja oscura que va detras de cada widget, de 0 (no hay caja:
+  // solo el texto encima del directo) a 100 (negra del todo).
+  fondo: number;
+}
+
+// 82 es lo que llevaban las cajas antes de poder cambiarse.
+export const AJUSTES_POR_DEFECTO: Ajustes = { fondo: 82 };
+
+function porcentaje(valor: unknown, siNo: number): number {
+  const n = Number(valor);
+  if (valor === null || valor === '' || !Number.isFinite(n)) return siNo;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+export function leerAjustes(uid: string): Ajustes {
+  try {
+    const f = deps.archivoAjustes?.(uid);
+    if (!f || !fs.existsSync(f)) return { ...AJUSTES_POR_DEFECTO };
+    const crudo = JSON.parse(fs.readFileSync(f, 'utf8')) || {};
+    return { fondo: porcentaje(crudo.fondo, AJUSTES_POR_DEFECTO.fondo) };
+  } catch (err) {
+    console.error('Failed to read widget settings:', err);
+    return { ...AJUSTES_POR_DEFECTO };
+  }
+}
+
+export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes {
+  const actual = leerAjustes(uid);
+  if (ajustes && ajustes.fondo != null) actual.fondo = porcentaje(ajustes.fondo, actual.fondo);
+  const f = deps.archivoAjustes?.(uid);
+  if (f) {
+    deps.ensureUserDir?.(uid);
+    deps.writeJson(f, actual);
+  }
+  return actual;
 }
 
 let deps: Dependencias;

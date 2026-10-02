@@ -18,8 +18,8 @@
   .contra { display: flex; align-items: stretch; gap: .8rem; }
   .lado {
     flex: 1;
-    background: rgba(9, 15, 28, 0.82);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(9, 15, 28, var(--fondo-widget, .82));
+    border: 1px solid rgba(255, 255, 255, calc(var(--fondo-widget, .82) * .17));
     border-radius: 14px;
     padding: .8rem 1rem;
     text-align: center;
@@ -35,8 +35,8 @@
   .lado.cae { opacity: .45; }
   .relato {
     margin-top: .7rem;
-    background: rgba(9, 15, 28, 0.82);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(9, 15, 28, var(--fondo-widget, .82));
+    border: 1px solid rgba(255, 255, 255, calc(var(--fondo-widget, .82) * .17));
     border-radius: 12px;
     padding: .6rem .9rem;
     font-size: 1rem;

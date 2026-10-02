@@ -231,6 +231,18 @@
       font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#9fb3c8}
     .widget-fila button{padding:.4rem .8rem;font-size:13px}
     .widget-fila .aviso{flex-basis:100%;font-size:12px;color:#9fb3c8;margin-left:190px}
+    /* La muestra del fondo de los widgets: la misma caja que css/widget.css,
+       encima de un fondo con color que hace de directo. */
+    .widget-muestra{--fondo-widget:.82;margin-top:.8rem;padding:1.6rem 1rem;border-radius:12px;
+      display:flex;justify-content:center;
+      background:linear-gradient(135deg,#f59e0b 0%,#ef4444 30%,#8b5cf6 62%,#06b6d4 100%)}
+    .widget-muestra .caja{text-align:center;color:#e6eef8;border-radius:16px;padding:1.2rem 1.6rem;
+      background:rgba(9,15,28,var(--fondo-widget));
+      border:1px solid rgba(255,255,255,calc(var(--fondo-widget) * .2));
+      box-shadow:0 20px 60px rgba(2,6,23,calc(var(--fondo-widget) * .85))}
+    .widget-muestra .cifra{font-size:2.6rem;font-weight:800;line-height:1}
+    .widget-muestra .rotulo{font-size:.95rem;color:#9fb3c8;margin-top:.3rem}
+    .widget-muestra .quienes{margin-top:.7rem;font-size:1rem;line-height:1.5}
     @keyframes modalIn{from{opacity:0;transform:translateY(-12px) scale(.97)}to{opacity:1;transform:none}}
     .winners-total{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:1rem;padding:.9rem 1rem;border-radius:10px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.16)}
     .winners-total[hidden]{display:none}
@@ -1330,6 +1342,9 @@
 
             <div class="draw-controls">
               <button type="button" id="colinaAbrir">Abrir la cola</button>
+              <!-- Aparte de «Reiniciar la colina», que no toca el record: es lo
+                   unico que sobrevive de un directo a otro. -->
+              <button type="button" id="colinaBorrarRecord" class="btn-cancel" disabled>Borrar el récord</button>
             </div>
             <p class="meta" id="colinaEstado">Sin colina abierta.</p>
             <p class="colina-cuenta" id="colinaCuenta" hidden></p>
@@ -1768,6 +1783,7 @@
             <button type="button" class="subtab cfgtab active" data-cfgtab="cuenta">👤 Mi cuenta</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="aspecto">🎨 Apariencia</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="minijuegos">🕹️ Minijuegos</button>
+            <button type="button" class="subtab cfgtab" data-cfgtab="widgets">📺 Widgets</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="datos">📦 Datos</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="acceso" id="cfgtabAcceso" hidden>🔑 Acceso</button>
           </div>
@@ -1927,10 +1943,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           </div>
           </div>
 
-          <div class="cfg-tabpanel" id="cfgtab-minijuegos">
-          <!-- Las direcciones para OBS. Van aquí arriba, fuera de las pestañas
-               de cada minijuego, porque la clave es la misma para todos y se
-               suelen poner varias de una sentada. -->
+          <!-- Lo de OBS tiene su pestaña: las direcciones (la clave es la misma
+               para todos y se suelen poner varias de una sentada) y cómo se ven.
+               Antes las direcciones iban arriba de Minijuegos. -->
+          <div class="cfg-tabpanel" id="cfgtab-widgets">
           <div class="config-section">
             <h4>Widgets para el directo</h4>
             <p class="meta">Cada uno se mete en OBS como <strong>Fuente › Navegador</strong> (900 × 900 va bien). Son transparentes: aparecen solos cuando hay partida y se quitan cuando no pasa nada. <strong>Probar</strong> abre la dirección a pelo, que sale con fondo: así se ve dónde queda mientras lo colocas.</p>
@@ -1942,6 +1958,28 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
           </div>
 
+          <div class="config-section">
+            <h4>Fondo de los widgets</h4>
+            <p class="meta">La caja oscura que va detrás de cada widget para que se lea encima del juego. A <strong>0</strong> no hay caja, solo las letras sobre el directo; a <strong>100</strong> es negra del todo. Vale para todos los widgets a la vez y, al guardar, los que tengas puestos en OBS cambian solos.</p>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgWidgetFondo">Opacidad del fondo:&nbsp;<span id="cfgWidgetFondoValue">82%</span></label>
+                <input id="cfgWidgetFondo" type="range" min="0" max="100" step="1" value="82" />
+              </div>
+            </div>
+            <!-- Una caja de widget de mentira encima de algo con color, para
+                 ver cuánto tapa antes de guardar. -->
+            <div class="widget-muestra" id="widgetMuestra" aria-hidden="true">
+              <div class="caja">
+                <div class="cifra">12</div>
+                <div class="rotulo">apuntados</div>
+                <div class="quienes">Ana · Beto · Carla</div>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <div class="cfg-tabpanel" id="cfgtab-minijuegos">
           <div class="config-section">
             <h4>Minijuegos</h4>
             <p class="meta">Cómo se ve cada minijuego. Lo que reparte puntos se ajusta en la pestaña Minijuegos de arriba.</p>
@@ -2393,11 +2431,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
       const res = await fetch(url.pathname + url.search, { cache: 'no-store', ...opts });
       if (!res.ok) {
-        let detalle = '';
-        try { detalle = (await res.json())?.error || ''; } catch (e) { /* respuesta sin JSON */ }
+        let datos = null;
+        try { datos = await res.json(); } catch (e) { /* respuesta sin JSON */ }
+        const detalle = datos?.error || '';
         // La sesión ha caducado o se ha cerrado en otra pestaña: a la entrada.
         if (res.status === 401 && !url.pathname.startsWith('/api/auth/')) mostrarLogin();
-        throw new Error(detalle || 'HTTP ' + res.status);
+        const fallo = new Error(detalle || 'HTTP ' + res.status);
+        // Lo que contestó el servidor, por si quien llama necesita algo más que
+        // el texto (el rey de la colina distingue «ocupada» de un fallo).
+        fallo.datos = datos;
+        throw fallo;
       }
       return res.json();
     }
@@ -4567,6 +4610,54 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
+    // Cómo se ven los widgets: cuánto tapa la caja oscura de detrás. Se guarda
+    // en el servidor y no en el navegador porque quien lo lee es OBS, que es
+    // otro navegador y entra con la clave.
+    const FONDO_WIDGET = 82;
+    // Lo último guardado, para poder volver a ello al descartar.
+    let fondoWidgetGuardado = FONDO_WIDGET;
+
+    function pintarFondoWidget(pct) {
+      const n = Math.max(0, Math.min(100, Math.round(Number(pct))));
+      const valor = Number.isFinite(n) ? n : FONDO_WIDGET;
+      document.getElementById('cfgWidgetFondo').value = valor;
+      document.getElementById('cfgWidgetFondoValue').textContent = valor + '%';
+      document.getElementById('widgetMuestra').style.setProperty('--fondo-widget', String(valor / 100));
+    }
+
+    // La muestra se mueve con el deslizador, sin esperar a guardar.
+    document.getElementById('cfgWidgetFondo').addEventListener('input', (ev) => pintarFondoWidget(ev.target.value));
+
+    // Se piden al abrir la pestaña: la clave para las direcciones y el fondo.
+    async function cargarWidgets() {
+      cargarClaveWidget();
+      // Con algo a medias no se pisa lo que se está moviendo.
+      if (cfgSucias.has('widgets')) return;
+      try {
+        fondoWidgetGuardado = (await api('/api/ajustes-widgets')).fondo;
+        pintarFondoWidget(fondoWidgetGuardado);
+      } catch (e) {
+        console.warn('No se pudieron leer los ajustes de los widgets:', e.message);
+      }
+    }
+
+    async function guardarWidgets() {
+      try {
+        const hecho = await api('/api/ajustes-widgets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fondo: Number(document.getElementById('cfgWidgetFondo').value) })
+        });
+        fondoWidgetGuardado = hecho.fondo;
+        pintarFondoWidget(fondoWidgetGuardado);
+        document.getElementById('cfgStatus').textContent = 'Guardado. Los widgets que tengas en OBS ya lo llevan.';
+        return true;
+      } catch (e) {
+        showAlert('No se pudo guardar el fondo de los widgets', e.message);
+        return false;
+      }
+    }
+
     // --- Retocar el catálogo ----------------------------------------------
     // Añadir un recurso que no está, cambiarle el nombre o la imagen a
     // cualquiera, y borrarlo del catálogo. Nada de esto toca el catálogo
@@ -5401,17 +5492,58 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     let autoColina = true;
     try { autoColina = localStorage.getItem('ruleton.colinaAuto') !== '0'; } catch (e) { /* sin recordar */ }
 
+    // El ritmo de los combates lo lleva el SERVIDOR, no esta pagina. Antes cada
+    // pagina abierta lanzaba los suyos sin saber de las demas: con dos pestañas
+    // (o un moderador con la misma cuenta) los combates se pisaban, cada una
+    // enseñaba la mitad y el widget de OBS se saltaba los que le llegaban
+    // mientras contaba otro. Ahora el servidor no empieza un combate hasta que
+    // el anterior se ha acabado de contar, y la pagina que no lo ha lanzado lo
+    // MIRA, igual que hace el widget.
+
+    // Cuando queda libre la colina para otro combate, en el reloj de aqui. Sale
+    // de lo que dice el servidor (cuanto le queda al combate), no de comparar
+    // su hora con la nuestra, que pueden no coincidir.
+    let colinaLibre = 0;
+    // El ultimo combate que esta pagina ha visto, por su numero: para no
+    // ponerse a mirar dos veces el mismo.
+    let colinaVisto = -1;
+    // Lo que se da por «acaba de empezar». Uno que lleva mas ya no se cuenta
+    // desde el principio: acabaria mucho despues que en las demas pantallas.
+    const RECIEN_COLINA = 4000;
+
+    function apuntarLibreColina() {
+      colinaLibre = Date.now() + Math.max(0, (colina.combateHasta || 0) - (colina.ahora || 0));
+    }
+
+    // Si lo que acaba de llegar trae un combate que esta pagina no ha visto y
+    // que se esta peleando ahora: lo ha lanzado otra pantalla.
+    function hayCombateAjenoColina() {
+      const d = colina.duelo;
+      if (!d || !d.golpes || !d.golpes.length) { colinaVisto = colina.peleados || 0; return false; }
+      if (colina.peleados === colinaVisto) return false;
+      colinaVisto = colina.peleados;
+      return (colina.ahora - colina.combateDesde) < RECIEN_COLINA;
+    }
+
     async function cargarColina() {
+      let nueva;
       try {
-        colina = await api('/api/colina');
+        nueva = await api('/api/colina');
       } catch (e) {
         console.warn('No se pudo leer la colina:', e.message);
         return;
       }
+      // Si mientras se preguntaba ha empezado a contarse un combate, esto ya
+      // llega tarde: pisaria el estado del combate que se esta enseñando.
+      if (peleandoColina) return;
+      const antes = colina;
+      colina = nueva;
+      apuntarLibreColina();
       // El arte (clases y escenarios) es el mismo de la batalla y se dibuja
       // con sus funciones, que lo leen de ahi.
       if (colina.arte) batalla.arte = colina.arte;
       if (colina.palabra) ponerSiNoLoTocas('colinaPalabra', colina.palabra);
+      if (hayCombateAjenoColina()) { mirarCombateColina(antes); return; }
       pintarColina();
       // Aqui es donde el juego se mueve solo: cada vez que se mira la cola, si
       // ya hay con quien pelear y no hay nada en marcha, se pone el siguiente
@@ -5573,6 +5705,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       // Con un combate contandose los mandos se apagan: soltar otro a medias
       // dejaria el recuadro contando dos peleas a la vez.
+      // Solo hay algo que borrar si hay record. Mientras se cuenta un combate
+      // no: el record que se ve es el de antes, y borrarlo a medias confunde.
+      document.getElementById('colinaBorrarRecord').disabled = peleandoColina || !colina.record;
       document.getElementById('accionesColina').hidden = !colina.abierta;
       document.getElementById('colinaSiguiente').disabled = peleandoColina || !hayCombate;
       document.getElementById('colinaAuto').textContent = autoColina ? '⏸ Pausar' : '▶ Automático';
@@ -5594,7 +5729,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     function programarColina() {
       pararEsperaColina();
       if (!autoColina || !colina.abierta || peleandoColina || !hayCombateColina()) return;
-      tocaColina = Date.now() + RESPIRO_COLINA;
+      // El respiro cuenta desde que acaba el combate que haya puesto, no desde
+      // ahora: si lo esta contando otra pantalla, todavia le queda.
+      tocaColina = Math.max(Date.now(), colinaLibre) + RESPIRO_COLINA;
       relojColina = setInterval(latidoColina, 250);
       latidoColina();
     }
@@ -5637,6 +5774,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // conserva el que ya habia para no volver a los dibujos a medias.
         if (r.arte) batalla.arte = r.arte;
         colina = { ...colina, ...r };
+        apuntarLibreColina();
         pintarColina();
         return true;
       } catch (e) {
@@ -5650,7 +5788,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (colina.abierta) {
         const ok = await showModal({
           title: 'Reiniciar la colina',
-          message: 'Se vacía la cola y el rey pierde su racha. El récord histórico no se toca.',
+          message: 'Se vacía la cola y el rey pierde su racha. El récord histórico no se toca: para eso está «Borrar el récord».',
           okText: 'Reiniciar', danger: true
         });
         if (!ok) return;
@@ -5669,13 +5807,47 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       peleandoColina = true;
       antesDelCombate = { rey: colina.rey, record: colina.record };
       pintarColina();
-      if (!await accionColina('/api/colina/siguiente')) {
+      let salio = 'si';
+      try {
+        const r = await api('/api/colina/siguiente', { method: 'POST' });
+        if (r.arte) batalla.arte = r.arte;
+        colina = { ...colina, ...r };
+        apuntarLibreColina();
+      } catch (e) {
+        // «Ocupada» no es un fallo: otra pantalla ha lanzado el combate antes
+        // que esta, o el anterior todavia se esta contando. No se avisa de nada.
+        salio = e.datos && e.datos.ocupada ? 'ocupada' : 'no';
+        if (salio === 'no') showAlert('Rey de la colina', e.message);
+      }
+      if (salio !== 'si') {
         peleandoColina = false;
         antesDelCombate = null;
         pintarColina();
+        // Se mira que hay puesto: si es un combate recien empezado, se cuenta
+        // aqui tambien; si no, se espera a que acabe.
+        if (salio === 'ocupada') cargarColina();
         return;
       }
+      colinaVisto = colina.peleados;
+      await contarColina(eraRey, recordAntes);
+    }
 
+    // Otra pantalla ha lanzado un combate: esta lo cuenta igual, en vez de
+    // lanzar otro encima. «antes» es como estaba la colina aqui justo antes, que
+    // es de donde sale el rey que se enseña mientras dura la pelea.
+    async function mirarCombateColina(antes) {
+      pararEsperaColina();
+      peleandoColina = true;
+      antesDelCombate = { rey: (antes && antes.rey) || null, record: (antes && antes.record) || null };
+      pintarColina();
+      await contarColina(
+        antesDelCombate.rey ? antesDelCombate.rey.nombre : '',
+        antesDelCombate.record ? antesDelCombate.record.racha : 0
+      );
+    }
+
+    // Cuenta el combate que hay puesto, lo haya lanzado esta pagina u otra.
+    async function contarColina(eraRey, recordAntes) {
       // El duelo ya viene resuelto del servidor; aqui se dibuja sin ganador y
       // se cuenta golpe a golpe, como una ronda de un solo combate.
       const d = colina.duelo;
@@ -5683,17 +5855,20 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       await contarRonda({ duelos: [d] }, 0, [0], 'colinaCuadro');
 
       // Ya se ha visto quien cae: se suelta la foto de antes y sale el trono
-      // como ha quedado. Y se avisa al servidor, que hasta ahora tenia a los
-      // dos por ocupados y no les dejaba volver a la cola.
+      // como ha quedado. Y se avisa al servidor, que suelta a los dos para que
+      // puedan volver a la cola (si nadie avisa, los suelta el solo).
       peleandoColina = false;
       antesDelCombate = null;
+      const antes = colina;
       await accionColina('/api/colina/fincombate');
 
       // Y al acabar, lo que merece celebrarse: un rey nuevo, o un record.
       if (colina.record && colina.record.racha > recordAntes) makeConfetti(40);
       else if (eraRey && colina.rey && colina.rey.nombre !== eraRey) makeConfetti(20);
 
-      // Y a por el siguiente, si queda alguien en la cola.
+      // Si esta pagina iba con retraso, puede que otra ya haya lanzado el
+      // siguiente: se mira ese. Si no, a por el siguiente cuando toque.
+      if (hayCombateAjenoColina()) { mirarCombateColina(antes); return; }
       programarColina();
     }
 
@@ -5720,6 +5895,19 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       await accionColina('/api/colina/destronar');
       // Con el trono libre, el siguiente sube y pelea solo, como siempre.
       programarColina();
+    });
+
+    document.getElementById('colinaBorrarRecord').addEventListener('click', async () => {
+      const r = colina.record;
+      if (!r) return;
+      const ok = await showModal({
+        title: 'Borrar el récord',
+        message: 'Se olvida el récord histórico (' + r.nombre + ', ' + r.racha
+          + ' seguidas). La cola y el rey de ahora no se tocan. No se puede deshacer.',
+        okText: 'Borrarlo', danger: true
+      });
+      if (!ok) return;
+      await accionColina('/api/colina/record/borrar');
     });
 
     document.getElementById('colinaCerrar').addEventListener('click', async () => {
@@ -6936,6 +7124,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       cuenta: { titulo: 'Mi cuenta', guardar: () => guardarCuenta() },
       aspecto: { titulo: 'Apariencia', guardar: () => saveSettings() },
       minijuegos: { titulo: 'Minijuegos', guardar: () => guardarAnimacionCarrera() },
+      widgets: { titulo: 'Widgets', guardar: () => guardarWidgets() },
       acceso: { titulo: 'Acceso', guardar: () => guardarInvite(document.getElementById('cfgInvite').value.trim()) }
     };
     // Datos no esta en la lista a proposito: los ratios se guardan solos y lo
@@ -7041,6 +7230,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         cfgSucias.delete(cual);
         if (cual === 'aspecto') fillConfigForm();
         if (cual === 'cuenta') pintarUsuario();
+        if (cual === 'widgets') pintarFondoWidget(fondoWidgetGuardado);
         pintarCfgGuardar();
         return true;
       }
@@ -7062,6 +7252,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // La lista se pide al abrir, para verla al día sin recargar la página.
         if (cual === 'acceso') cargarAcceso();
         if (cual === 'minijuegos') cargarMinijuegos();
+        if (cual === 'widgets') cargarWidgets();
       });
     });
     pintarCfgGuardar();

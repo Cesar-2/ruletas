@@ -36,6 +36,34 @@
 
   function caja(id) { return document.getElementById(id); }
 
+  // Cómo se ven los widgets, que lo elige el dueño en Configuración › Widgets:
+  // de momento, cuánto tapa la caja oscura de detrás. Va a una variable de CSS
+  // que leen todas las cajas (--fondo-widget, de 0 a 1), así que cada widget no
+  // tiene que hacer nada. Se pide aquí y no en arranca() porque el del tablero
+  // de clavijas no la usa.
+  //
+  // Si falla no se dice nada: el CSS lleva de respaldo el fondo de siempre, y
+  // un widget con el fondo de siempre es mejor que un aviso encima del directo.
+  const direccionCanal = '/api/widget/eventos?clave=' + encodeURIComponent(clave);
+  async function mirarAjustes() {
+    if (!clave) return;
+    try {
+      const res = await fetch('/api/widget/ajustes?clave=' + encodeURIComponent(clave), { cache: 'no-store' });
+      if (!res.ok) return;
+      const fondo = Number((await res.json()).fondo);
+      if (!Number.isFinite(fondo)) return;
+      document.documentElement.style.setProperty('--fondo-widget', String(Math.max(0, Math.min(100, fondo)) / 100));
+    } catch (e) { /* se queda el de respaldo */ }
+  }
+  mirarAjustes();
+  // Y si lo cambia con el widget ya puesto en OBS, llega sin recargar la fuente.
+  if (clave && CADA) {
+    setInterval(mirarAjustes, Math.max(500, CADA));
+  } else if (clave && window.Eventos) {
+    Eventos.usarDireccion(direccionCanal);
+    Eventos.vigilar('widgets', mirarAjustes, true);
+  }
+
   // Arranca un widget.
   //
   //   ruta    lo que va detrás de /api/widget/ (carrera, colina, ...)
@@ -85,7 +113,7 @@
       // A mano: el reloj de antes y nada de canal.
       setInterval(mirar, Math.max(500, CADA));
     } else {
-      Eventos.usarDireccion('/api/widget/eventos?clave=' + encodeURIComponent(clave));
+      Eventos.usarDireccion(direccionCanal);
       Eventos.vigilar(ruta, mirar, true);
     }
     return { mirar, decirFallo };

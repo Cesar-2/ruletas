@@ -11,9 +11,10 @@
   Enseña dos cosas, y manda la que esté pasando:
 
     - Mientras se pelea, EL COMBATE: los dos muñecos con su clase de Dofus, las
-      barras de vida y el relato golpe a golpe. Es el mismo dibujo y el mismo
-      relato que la página, de js/dofus-arte.js y css/combate.css. Antes esto no
-      estaba y en la superposición salía el rey y el resultado, pero no la pelea.
+      barras de vida y el golpe de cada momento. Es el mismo dibujo que la página,
+      de js/dofus-arte.js y css/combate.css, pero sin el log golpe a golpe y con
+      el tamaño fijo. Antes esto no estaba y en la superposición salía el rey y
+      el resultado, pero no la pelea.
     - El resto del tiempo, quién manda y cuánto lleva aguantando: la racha es lo
       que se persigue en este minijuego, así que va en grande. Debajo, quién está
       esperando turno.
@@ -37,6 +38,26 @@
   .nadie { color: #9fb3c8; font-size: 1.05rem; }
   .record { margin-top: .6rem; font-size: .85rem; color: #9fb3c8; }
   .record[hidden] { display: none; }
+
+  /* El combate, en OBS, ocupa SIEMPRE lo mismo. El widget va centrado, así que
+     cada línea que crecía el recuadro lo movía entero por la pantalla. */
+  #colinaCuadro { flex: none; width: min(520px, 92vw); margin: 0; padding: 0; overflow: hidden; }
+  /* combate.css le pone display:flex, que le gana al atributo hidden: sin esto
+     el combate ya contado se quedaba debajo del panel del rey. */
+  #colinaCuadro[hidden] { display: none; }
+  /* Aquí no va el log golpe a golpe: eso es de la página. Era lo que más hacía
+     crecer el recuadro, una línea por golpe. */
+  #colinaCuadro .lineas { display: none; }
+  /* El golpe de ahora sí, pero con sus dos líneas reservadas: con nombres o
+     hechizos largos pasaba de una a dos y el recuadro daba un salto. */
+  #colinaCuadro .golpe { height: 2.6em; overflow: hidden; }
+  /* Y la misma caja oscura que el panel del rey, con el fondo que se elige en
+     Configuración › Widgets. En la página el combate va sobre la tarjeta y le
+     basta un velo; encima de un juego los nombres no se leían. */
+  #colinaCuadro .duelo {
+    background: rgba(9, 15, 28, var(--fondo-widget, .82));
+    border-color: rgba(255, 255, 255, calc(var(--fondo-widget, .82) * .2));
+  }
 </style>
 </head>
 <body>
@@ -89,12 +110,21 @@
     // Lo que se da por «se está peleando ahora». El combate se cuenta en unos
     // segundos, así que con cuatro sobra para pillar uno recién empezado.
     const RECIEN = 4000;
+    // Para volver a mirar al acabar de contar. Lo da Widget.arranca, más abajo.
+    let widget = null;
 
     // Cuenta un combate nuevo, si lo hay. Devuelve true si se ha puesto a contar.
     function contarSiToca(e) {
       const d = e.duelo;
       if (contando) return true;
-      if (!d || !d.golpes || !d.golpes.length) { primerVistazo = false; return false; }
+      if (!d || !d.golpes || !d.golpes.length) {
+        primerVistazo = false;
+        // Sin combate puesto se vuelve a empezar la cuenta. Al reiniciar la
+        // colina los combates se numeran otra vez desde uno, y sin esto el que
+        // cayera en el mismo número que el último visto no se contaba.
+        contados = e.peleados || 0;
+        return false;
+      }
       if (e.peleados === contados) { primerVistazo = false; return false; }
 
       // Al abrir el widget solo se cuenta el combate si se está peleando AHORA.
@@ -118,11 +148,17 @@
       q('colinaCuadro').hidden = false;
       Promise.resolve(contarRonda({ duelos: [d] }, 0, [0], 'colinaCuadro'))
         .catch(() => {})
-        .then(() => { contando = false; });
+        .then(() => {
+          contando = false;
+          // Lo que llegó mientras se contaba se dejó pasar a propósito. Ahora se
+          // mira otra vez: si hay otro combate ya empezado se cuenta, y si no,
+          // vuelve el panel del rey sin esperar al siguiente aviso.
+          if (widget) widget.mirar();
+        });
       return true;
     }
 
-    Widget.arranca({
+    widget = Widget.arranca({
       ruta: 'colina',
       pinta(e) {
         // Lo primero: darle a dofus-arte.js lo que necesita para dibujar. Sin las

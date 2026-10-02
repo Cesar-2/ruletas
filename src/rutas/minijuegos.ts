@@ -369,6 +369,12 @@ router.post('/api/colina/sacar', (req: Request, res: Response) => {
 // POST /api/colina/siguiente -> pelea el rey contra el primero de la cola
 router.post('/api/colina/siguiente', (req: Request, res: Response) => {
   const uid = ctx.requireUid(req);
+  // Con un combate contandose no empieza otro. No es un fallo: es otra pantalla
+  // (otra pestaña, un moderador) que ha llegado antes. Se dice aparte para que
+  // la pagina se ponga a mirar ese combate en vez de sacar un aviso.
+  if (colina.ocupada(uid)) {
+    return res.status(409).json({ error: 'todavia se esta contando el combate anterior', ocupada: true });
+  }
   const c = colina.siguiente(uid);
   if (!c) return res.status(409).json({ error: 'no hay con quien pelear todavia' });
   res.json(colina.estado(uid));
@@ -394,6 +400,13 @@ router.post('/api/colina/destronar', (req: Request, res: Response) => {
 router.post('/api/colina/cerrar', (req: Request, res: Response) => {
   const uid = ctx.requireUid(req);
   colina.cerrar(uid);
+  res.json(colina.estado(uid));
+});
+
+// POST /api/colina/record/borrar -> olvida el record historico
+router.post('/api/colina/record/borrar', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  colina.borrarRecord(uid);
   res.json(colina.estado(uid));
 });
 

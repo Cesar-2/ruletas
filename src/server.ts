@@ -1593,6 +1593,39 @@ app.post('/api/widget/clave/rotar', (req: Request, res: Response) => {
   res.json({ clave: widget.rotar(requireUid(req)) });
 });
 
+// Como se ven los widgets: de momento, cuanto tapa la caja oscura de detras.
+//
+// Son dos direcciones porque los leen dos que se identifican distinto. El
+// widget, con su clave y sin sesion, solo puede LEER. Quien los cambia es el
+// dueño desde Configuracion, con su sesion: por eso la de guardar no va debajo
+// de /api/widget/, que es lo que entra sin sesion.
+
+// GET /api/widget/ajustes?clave= -> lo que lee cada widget al abrirse
+app.get('/api/widget/ajustes', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  res.json(widget.leerAjustes(uid));
+});
+
+// GET /api/ajustes-widgets -> los de quien pregunta
+app.get('/api/ajustes-widgets', (req: Request, res: Response) => {
+  res.json(widget.leerAjustes(requireUid(req)));
+});
+
+// POST /api/ajustes-widgets { fondo } -> los guarda y avisa a los widgets
+app.post('/api/ajustes-widgets', (req: Request, res: Response) => {
+  try {
+    const uid = requireUid(req);
+    const ajustes = widget.guardarAjustes(uid, { fondo: req.body?.fondo });
+    // Los widgets que esten puestos en OBS cambian al momento, sin recargar.
+    avisos.cambio(uid, 'widgets');
+    res.json(ajustes);
+  } catch (err) {
+    console.error('Failed to save widget settings:', err);
+    res.status(500).json({ error: 'failed to save widget settings' });
+  }
+});
+
 // GET /api/widget/plinko?clave= -> el tablero de esa cuenta, sin sesion
 // Devuelve lo justo para pintarlo: nada de ajustes, ni de catalogo, ni de
 // quien es el dueno de la cuenta.
@@ -1712,6 +1745,7 @@ app.get('/api/widget/colina', (req: Request, res: Response) => {
       // hace un rato: al abrirlo, el viejo no se repite. Los dos con el reloj del
       // servidor, que el del PC de OBS puede ir adelantado.
       combateDesde: e.combateDesde,
+      combateHasta: e.combateHasta,
       ahora: Date.now()
     });
   } catch (err) {
@@ -2610,7 +2644,10 @@ plinko.iniciar({
 // La cuenta de partidas es de toda la instalacion, asi que vive con los datos
 // comunes y no en la carpeta de cada usuario.
 estadisticas.iniciar({ archivo: () => path.join(DATA_DIR, 'estadisticas.json'), writeJson });
-widget.iniciar({ archivo: () => path.join(DATA_DIR, 'widgets.json'), writeJson });
+widget.iniciar({
+  archivo: () => path.join(DATA_DIR, 'widgets.json'), writeJson,
+  archivoAjustes: (uid) => path.join(userDir(uid), 'widgets.json'), ensureUserDir
+});
 // El arte de Dofus sale de la carpeta de datos de cada instalacion.
 arte.iniciar({ assetsDir: () => ASSETS_DIR });
 // La ruleta de objetos guarda su ultimo sorteo para el widget de OBS.
