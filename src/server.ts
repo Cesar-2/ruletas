@@ -16,6 +16,7 @@ import * as avisos from './avisos';
 import * as json from './json';
 import * as arte from './arte';
 import * as sorteo from './sorteo';
+import * as respaldo from './respaldo';
 import * as minijuegos from './rutas/minijuegos';
 import fs from 'fs';
 import path from 'path';
@@ -1357,6 +1358,30 @@ app.put('/api/admin/invite', (req: Request, res: Response) => {
   } catch (err) {
     console.error('Failed to save invite:', err);
     res.status(500).json({ error: 'failed to save invite' });
+  }
+});
+
+// GET /api/admin/respaldo -> la carpeta de datos entera, en un .tar.gz
+// Para cambiar de alojamiento, o para guardarse una copia: lleva las cuentas,
+// lo de cada una, las imagenes subidas y las claves de los widgets. Solo el
+// admin (lo corta el guardia de /api/admin): dentro van los hashes de las
+// contraseñas y las sesiones abiertas de todo el mundo.
+//
+// Va saliendo segun se empaqueta, sin dejar nada en disco. Ver respaldo.ts.
+app.get('/api/admin/respaldo', async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/gzip');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + respaldo.nombreDeArchivo() + '"');
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const r = await respaldo.enviar(DATA_DIR, 'data', res);
+    console.log('Backup downloaded by ' + requireUid(req) + ': ' + r.archivos + ' files, ' + r.bytes + ' bytes');
+  } catch (err) {
+    // A mitad de envio ya no se puede contestar otra cosa: la conexion se
+    // corta y la descarga falla a la vista, que es mejor que un archivo que
+    // parece entero y no lo esta.
+    console.error('Failed to send backup:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'failed to build backup' });
+    else res.destroy();
   }
 });
 

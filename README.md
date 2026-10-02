@@ -315,6 +315,38 @@ de datos.
 Los ficheros se guardan de forma atómica (se escribe un `.tmp` y se renombra encima),
 así que un corte de luz o un reinicio a destiempo no deja un JSON a medias.
 
+#### Cambiar de servidor
+
+Todo lo que hay que llevarse está en la carpeta de datos, y se puede bajar entero desde
+la propia página, sin entrar al servidor viejo por consola:
+
+1. **Bajar la copia.** Con la cuenta de administrador, en **Configuración › Acceso ›
+   Copia de todos los datos**. Descarga un `ruleton-datos-AAAA-MM-DD-HHMM.tar.gz` con
+   las cuentas, lo de cada una (servidores, rarezas, ganadores, historial, puntos,
+   ajustes), las imágenes subidas y las claves de los widgets. Hazlo con el directo
+   apagado: lo que se guarde después de bajarla ya no va dentro.
+
+2. **Ponerla en el servidor nuevo, antes de arrancar.** Dentro todo cuelga de `data/`,
+   así que se descomprime en la carpeta del Ruleton:
+
+   ```bash
+   cd /ruta/al/ruleton && tar xzf ruleton-datos-2026-10-02-1152.tar.gz
+   ```
+
+   Si allí los datos van fuera de la aplicación (`RULETON_DATA=/ruta/datos`), se
+   descomprime quitando esa primera carpeta:
+
+   ```bash
+   tar xzf ruleton-datos-2026-10-02-1152.tar.gz --strip-components=1 -C /ruta/datos
+   ```
+
+3. **Arrancar y entrar.** Las cuentas y las contraseñas son las mismas. Si el dominio
+   cambia hay que volver a iniciar sesión y **copiar otra vez en OBS las direcciones de
+   los widgets** (la clave es la misma, pero la dirección empieza por el dominio nuevo).
+
+El archivo lleva las contraseñas (cifradas) y las sesiones abiertas de todas las
+cuentas: trátalo como una contraseña y bórralo cuando la mudanza esté hecha.
+
 Las imágenes que subas (fondo, logo, ruleta) se guardan en `public/assets/` con un
 nombre aleatorio y se sirven sin pedir sesión: quien tenga la URL exacta puede verlas.
 No subas ahí nada que no quieras enseñar.

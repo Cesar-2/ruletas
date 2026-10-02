@@ -1824,6 +1824,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
           </div>
 
+          <div class="config-section">
+            <h4>Copia de todos los datos</h4>
+            <p class="meta">Descarga en un solo archivo <strong>todo lo que guarda esta instalación</strong>: las cuentas, lo de cada una (servidores, rarezas, ganadores, historial, puntos y ajustes), las imágenes subidas y las claves de los widgets. Es lo que hay que llevarse para <strong>cambiar de alojamiento</strong>: en el servidor nuevo se descomprime en la carpeta del Ruleton (<code>tar xzf ruleton-datos-….tar.gz</code>) antes de arrancarlo, y queda como estaba.</p>
+            <p class="meta">Dentro van las contraseñas (cifradas) y las sesiones abiertas de todas las cuentas: guárdalo como una contraseña más y no lo compartas.</p>
+            <div class="config-actions">
+              <button type="button" id="respaldoBajar">⬇ Descargar todos los datos</button>
+              <span class="meta" id="respaldoEstado" style="margin-left:auto"></span>
+            </div>
+          </div>
+
           </div>
 
           <div class="cfg-tabpanel active" id="cfgtab-cuenta">
@@ -2519,6 +2529,19 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         <div class="acceso-acciones">${acciones}</div>
       </div>`;
     }
+
+    // La copia entera de los datos. Va por un enlace y no por fetch: puede
+    // pesar bastante (lleva las imágenes) y así la guarda el navegador según
+    // llega, sin tenerla entera en memoria.
+    document.getElementById('respaldoBajar').addEventListener('click', () => {
+      const enlace = document.createElement('a');
+      enlace.href = '/api/admin/respaldo';
+      enlace.download = '';
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      document.getElementById('respaldoEstado').textContent = 'Descargando… mira las descargas del navegador.';
+    });
 
     async function cargarAcceso() {
       const lista = document.getElementById('accesoLista');
