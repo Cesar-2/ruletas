@@ -125,7 +125,6 @@
    recuadro es lo unico que cuenta quien ha tumbado a quien.
 
    El widget usa el mismo id que la pagina para poder compartir esto. */
-   el recuadro es lo unico que cuenta quien ha tumbado a quien. */
 /* El ancho se limita en la columna y no en el combate: un margin auto
    sobre una celda de rejilla la encoge al contenido en vez de estirarla. */
 #colinaCuadro .duelos{grid-template-columns:minmax(0,520px);justify-content:center}
@@ -142,3 +141,46 @@
 /* El cursor de lupa es de la Batalla, donde pulsando un combate se amplia.
    Aqui no hay nada que pulsar: solo se pelea uno cada vez y ya sale grande. */
 #colinaCuadro .duelo[data-ronda]{cursor:default}
+
+/* --- Las animaciones y los efectos de cada golpe -----------------------
+   El bote de los muñecos, el puñetazo, el daño que sube, el hechizo que vuela
+   y los letreros (¡GOLPE CRÍTICO!, ¡VICTORIA!).
+
+   Se habian quedado en el <style> de index.html cuando el cuadro se saco aqui,
+   asi que el widget no los tenia: los muñecos no se movian y los efectos
+   salian sin colocar, amontonados arriba a la izquierda del escenario. */
+@keyframes dofusLate{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@keyframes vidaCritica{0%,100%{filter:brightness(1)}50%{filter:brightness(1.6)}}
+@keyframes guardia{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes pegar{0%,100%{transform:translateX(0)}40%{transform:translateX(calc(var(--dir) * 22px))}}
+@keyframes directo{0%,100%{transform:translateX(0)}40%{transform:translateX(9px)}}
+@keyframes recibir{0%,100%{transform:translateX(0) rotate(0)}
+  30%{transform:translateX(calc(var(--dir) * -9px)) rotate(calc(var(--dir) * -10deg))}
+  65%{transform:translateX(calc(var(--dir) * 2px))}}
+@keyframes esquivar{0%,100%{transform:translate(0,0)}50%{transform:translate(calc(var(--dir) * -12px),4px)}}
+.fx span{position:absolute;font-weight:900;white-space:nowrap;text-shadow:0 2px 0 #000,0 0 6px rgba(0,0,0,.8)}
+.fx [data-lado="a"]{left:28%}
+.fx [data-lado="b"]{left:72%}
+.fx .dano{top:6px;margin-left:-12px;font-size:15px;color:#fca5a5;animation:sube .9s ease-out forwards}
+.fx .dano.fuerte{font-size:20px;color:#fde047}
+.fx .letrero{left:50%;top:40%;transform:translate(-50%,-50%);font-size:18px;color:#fff;animation:letrero .9s ease-out forwards}
+.fx .letrero.critico{color:#fde047}
+.fx .letrero.furia{color:#fb923c}
+.fx .letrero.fallo{color:#cbd5e1;font-style:italic;font-size:15px}
+.fx .letrero.aguanta{color:#7dd3fc}
+.fx .letrero.pelear{font-size:20px;color:#6ee7b7}
+@keyframes sube{0%{transform:translateY(8px);opacity:0}20%{opacity:1}100%{transform:translateY(-16px);opacity:0}}
+@keyframes letrero{0%{transform:translate(-50%,-50%) scale(.4);opacity:0}25%{transform:translate(-50%,-50%) scale(1.15);opacity:1}
+  75%{opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
+@keyframes ko{0%{transform:translate(-50%,-50%) scale(3);opacity:0}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
+.fx .hechizo{top:24px;font-size:18px;text-shadow:0 0 8px rgba(255,255,255,.8)}
+.fx .hechizo.ab{animation:vuelaAB .35s ease-in forwards}
+.fx .hechizo.ba{animation:vuelaBA .35s ease-in forwards}
+@keyframes vuelaAB{from{left:30%}to{left:70%;opacity:.3}}
+@keyframes vuelaBA{from{left:70%}to{left:30%;opacity:.3}}
+.fx .dano.tierra{color:#d97706}
+.fx .dano.fuego{color:#f87171}
+.fx .dano.agua{color:#60a5fa}
+.fx .dano.aire{color:#4ade80}
+.fx .dano.neutral{color:#e5e7eb}
+.fx .letrero.victoria{font-size:24px;color:#fde047;animation:ko .5s cubic-bezier(.2,1.6,.4,1) forwards}

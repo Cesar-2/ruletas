@@ -748,3 +748,30 @@ test('el endpoint de la colina manda cuándo empezó el combate', () => {
   assert.ok(bloque.includes('clases'), 'y las clases, para dibujar los muñecos igual');
   assert.ok(bloque.includes('arte'), 'y el arte');
 });
+
+test('la hoja del combate trae TODO lo que el combate necesita', () => {
+  // El widget del rey de la colina solo carga css/combate.css. Lo que se quede
+  // en el <style> de index.html, el widget no lo tiene: así se quedaron fuera
+  // las animaciones y los efectos de cada golpe, y en OBS los muñecos no se
+  // movían y los letreros salían amontonados en una esquina.
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'combate.css'), 'utf8');
+  const sinComentarios = css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  // Un trozo de comentario suelto se come la regla que viene detrás sin que
+  // nada avise. Pasó con la que centra el combate de la colina: se quedaba a
+  // la izquierda, a la mitad de ancho.
+  assert.ok(!sinComentarios.includes('*/'), 'no hay cierres de comentario sueltos');
+  assert.ok(!sinComentarios.includes('/*'), 'ni comentarios sin cerrar');
+  assert.ok(/#colinaCuadro \.duelos\{[^}]*justify-content:center/.test(sinComentarios),
+    'y la regla que centra el combate de la colina está viva');
+
+  // Toda animación que se usa aquí está definida aquí.
+  const definidas = new Set([...sinComentarios.matchAll(/@keyframes ([\w-]+)/g)].map((m) => m[1]));
+  const usadas = [...sinComentarios.matchAll(/animation:([\w-]+)/g)].map((m) => m[1]).filter((n) => n !== 'none');
+  for (const n of usadas) assert.ok(definidas.has(n), 'la animación «' + n + '» está en la hoja compartida');
+
+  // Y los efectos que monta contarRonda() tienen su estilo aquí.
+  for (const clase of ['.fx span', '.fx .dano', '.fx .letrero', '.fx .hechizo']) {
+    assert.ok(sinComentarios.includes(clase), clase + ' tiene estilo en la hoja compartida');
+  }
+});

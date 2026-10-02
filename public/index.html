@@ -682,9 +682,7 @@
        viewBox manda), asi que crece y encoge sin deformarse: el ancho sale
        del sitio que haya y el alto va solo. */
     /* Late despacio, como si guardara algo dentro. */
-    @keyframes dofusLate{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
     /* Lo que se acaba de perder se queda un momento en blanco y luego se vacia. */
-    @keyframes vidaCritica{0%,100%{filter:brightness(1)}50%{filter:brightness(1.6)}}
     /* Las muescas de los segmentos, como la barra del juego. */
     /* La del lado B se vacía hacia el centro, como en el juego. */
     /* El nombre en su línea, con todo el ancho, y la clase debajo más pequeña:
@@ -790,34 +788,12 @@
     /* El ring: lona, cuerdas y los postes azul y rojo. Cada muñeco mira hacia
        el contrario, y --dir dice hacia donde es «adelante» para él. */
     /* En guardia: botando sobre la punta de los pies mientras espera. */
-    @keyframes guardia{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
     /* Pega, encaja o esquiva: lo mismo que cuenta el relato, pero visto. */
-    @keyframes pegar{0%,100%{transform:translateX(0)}40%{transform:translateX(calc(var(--dir) * 22px))}}
-    @keyframes directo{0%,100%{transform:translateX(0)}40%{transform:translateX(9px)}}
-    @keyframes recibir{0%,100%{transform:translateX(0) rotate(0)}
-      30%{transform:translateX(calc(var(--dir) * -9px)) rotate(calc(var(--dir) * -10deg))}
-      65%{transform:translateX(calc(var(--dir) * 2px))}}
-    @keyframes esquivar{0%,100%{transform:translate(0,0)}50%{transform:translate(calc(var(--dir) * -12px),4px)}}
     /* El golpe se nota: un destello blanco en el que lo recibe. */
     /* Contra las cuerdas: aura de rabia. */
     /* Derrotado: se va de espaldas al suelo. */
     /* Y el que gana lo celebra con el guante en alto. */
     /* Los efectos de cada golpe: estrella, daño que sube y letreros. */
-    .fx span{position:absolute;font-weight:900;white-space:nowrap;text-shadow:0 2px 0 #000,0 0 6px rgba(0,0,0,.8)}
-    .fx [data-lado="a"]{left:28%}
-    .fx [data-lado="b"]{left:72%}
-    .fx .dano{top:6px;margin-left:-12px;font-size:15px;color:#fca5a5;animation:sube .9s ease-out forwards}
-    .fx .dano.fuerte{font-size:20px;color:#fde047}
-    .fx .letrero{left:50%;top:40%;transform:translate(-50%,-50%);font-size:18px;color:#fff;animation:letrero .9s ease-out forwards}
-    .fx .letrero.critico{color:#fde047}
-    .fx .letrero.furia{color:#fb923c}
-    .fx .letrero.fallo{color:#cbd5e1;font-style:italic;font-size:15px}
-    .fx .letrero.aguanta{color:#7dd3fc}
-    .fx .letrero.pelear{font-size:20px;color:#6ee7b7}
-    @keyframes sube{0%{transform:translateY(8px);opacity:0}20%{opacity:1}100%{transform:translateY(-16px);opacity:0}}
-    @keyframes letrero{0%{transform:translate(-50%,-50%) scale(.4);opacity:0}25%{transform:translate(-50%,-50%) scale(1.15);opacity:1}
-      75%{opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
-    @keyframes ko{0%{transform:translate(-50%,-50%) scale(3);opacity:0}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
     /* El crítico hace temblar el ring entero. */
     /* Dofus: un mapa de casillas isometricas, como los combates del juego,
        sin cuerdas ni postes. */
@@ -825,18 +801,7 @@
     /* Con escenario de verdad: la imagen de fondo en vez de las casillas,
        encuadrada para que los luchadores pisen la plataforma. */
     /* El hechizo vuela del que lo lanza al que lo recibe. */
-    .fx .hechizo{top:24px;font-size:18px;text-shadow:0 0 8px rgba(255,255,255,.8)}
-    .fx .hechizo.ab{animation:vuelaAB .35s ease-in forwards}
-    .fx .hechizo.ba{animation:vuelaBA .35s ease-in forwards}
-    @keyframes vuelaAB{from{left:30%}to{left:70%;opacity:.3}}
-    @keyframes vuelaBA{from{left:70%}to{left:30%;opacity:.3}}
     /* El daño, del color de su elemento, como en el juego. */
-    .fx .dano.tierra{color:#d97706}
-    .fx .dano.fuego{color:#f87171}
-    .fx .dano.agua{color:#60a5fa}
-    .fx .dano.aire{color:#4ade80}
-    .fx .dano.neutral{color:#e5e7eb}
-    .fx .letrero.victoria{font-size:24px;color:#fde047;animation:ko .5s cubic-bezier(.2,1.6,.4,1) forwards}
     /* El log de cada combate va dentro de su propio duelo, no en una lista
        aparte: asi cada pelea y lo que se cuenta de ella estan siempre a la
        misma altura, sin depender de que dos rejillas distintas cuadren. */
