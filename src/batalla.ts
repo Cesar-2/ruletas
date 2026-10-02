@@ -268,7 +268,7 @@ function barajar<T>(lista: T[]): T[] {
 const CLASES_DOFUS = [
   'Yopuka', 'Ocra', 'Xelor', 'Anutrof', 'Zurcarák', 'Feca',
   'Sram', 'Sadida', 'Osamodas', 'Aniripsa', 'Sacrógrito', 'Pandawa', 'Uginak',
-  'Zobal', 'Selotrop'
+  'Zobal', 'Selotrop', 'Steamer', 'Hipermago', 'Tymador'
 ];
 
 // Las que se sortean de verdad: las que tienen imagen puesta por el dueño en su

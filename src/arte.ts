@@ -25,10 +25,14 @@ const CLASE_DE_ARCHIVO: Record<string, string> = {
   yopuka: 'Yopuka', iop: 'Yopuka', ocra: 'Ocra', cra: 'Ocra', xelor: 'Xelor',
   anutrof: 'Anutrof', enutrof: 'Anutrof', anu: 'Anutrof',
   zurcarak: 'Zurcarák', ecaflip: 'Zurcarák', zurca: 'Zurcarák',
-  feca: 'Feca', sram: 'Sram', sadida: 'Sadida', sadi: 'Sadida', osamodas: 'Osamodas',
-  aniripsa: 'Aniripsa', eniripsa: 'Aniripsa', ani: 'Aniripsa', sacrogrito: 'Sacrógrito', sacrieur: 'Sacrógrito',
+  feca: 'Feca', sram: 'Sram', sadida: 'Sadida', sadi: 'Sadida', osamodas: 'Osamodas', osa: 'Osamodas',
+  aniripsa: 'Aniripsa', eniripsa: 'Aniripsa', ani: 'Aniripsa',
+  sacrogrito: 'Sacrógrito', sacrieur: 'Sacrógrito', sacro: 'Sacrógrito',
   pandawa: 'Pandawa', panda: 'Pandawa', uginak: 'Uginak', ouginak: 'Uginak',
-  zobal: 'Zobal', selotrop: 'Selotrop', steamer: 'Selotrop'
+  zobal: 'Zobal', selotrop: 'Selotrop', eliotrope: 'Selotrop',
+  // El Steamer apuntaba al Selotrop cuando no era clase aparte: ya lo es.
+  steamer: 'Steamer', hipermago: 'Hipermago', huppermage: 'Hipermago', hiper: 'Hipermago',
+  tymador: 'Tymador', roublard: 'Tymador', tyma: 'Tymador'
 };
 
 // El arte sale de dos sitios, en este orden: el que viene con la aplicacion

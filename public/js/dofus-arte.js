@@ -55,8 +55,16 @@
         hechizos: [['Mordisco', 'tierra'], ['Colmillo de la Presa', 'fuego'], ['Ladrido', 'aire'], ['Rabia de Uginak', 'agua']] },
       { clase: 'Zobal', ropa: '#7f1d1d', pelo: '#e5e7eb', rasgo: 'calavera', arma: '🎭',
         hechizos: [['Máscara del Psicópata', 'tierra'], ['Máscara del Clase', 'fuego'], ['Golpe de Máscara', 'neutral']] },
-      { clase: 'Selotrop', ropa: '#0f766e', pelo: '#e5e7eb', rasgo: 'capucha', arma: '⚙️',
-        hechizos: [['Chorro de Vapor', 'agua'], ['Pistón', 'tierra'], ['Lanzallamas', 'fuego']] }
+      // El Selotrop llevaba los hechizos de vapor mientras no habia Steamer: ahora
+      // cada uno tiene los suyos, los portales uno y las maquinas el otro.
+      { clase: 'Selotrop', ropa: '#0f766e', pelo: '#e5e7eb', rasgo: 'capucha', arma: '🌀',
+        hechizos: [['Wakmeha', 'tierra'], ['Afrenta', 'fuego'], ['Desaire', 'agua'], ['Insulto', 'aire']] },
+      { clase: 'Steamer', ropa: '#57534e', pelo: '#fef3c7', rasgo: 'gafas', arma: '⚙️',
+        hechizos: [['Chorro de Vapor', 'agua'], ['Pistón', 'tierra'], ['Lanzallamas', 'fuego']] },
+      { clase: 'Hipermago', ropa: '#d9e8c5', pelo: '#fde68a', rasgo: 'coleta', arma: '🔮',
+        hechizos: [['Lanza Solar', 'fuego'], ['Onda Telúrica', 'tierra'], ['Fragmentos de Hielo', 'agua'], ['Tormenta', 'aire']] },
+      { clase: 'Tymador', ropa: '#111827', pelo: '#0e7490', rasgo: 'calavera', arma: '💣',
+        hechizos: [['Explobomba', 'fuego'], ['Tornabomba', 'aire'], ['Bomba de Agua', 'agua'], ['Espingarda', 'tierra']] }
     ];
     // Lo que vuela de uno a otro, según el elemento del hechizo.
     const EMOJI_ELEMENTO = { tierra: '🪨', fuego: '🔥', agua: '💧', aire: '🌪️', neutral: '✴️' };
