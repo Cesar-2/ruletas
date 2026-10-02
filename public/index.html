@@ -233,10 +233,11 @@
     .widget-fila .aviso{flex-basis:100%;font-size:12px;color:#9fb3c8;margin-left:190px}
     /* La muestra del fondo de los widgets: la misma caja que css/widget.css,
        encima de un fondo con color que hace de directo. */
-    .widget-muestra{--fondo-widget:.82;margin-top:.8rem;padding:1.6rem 1rem;border-radius:12px;
-      display:flex;justify-content:center;
+    .widget-muestra{--fondo-widget:.82;--tamano-widget:1;margin-top:.8rem;padding:1.6rem 1rem;border-radius:12px;
+      display:flex;justify-content:center;align-items:center;min-height:22rem;overflow:hidden;
       background:linear-gradient(135deg,#f59e0b 0%,#ef4444 30%,#8b5cf6 62%,#06b6d4 100%)}
     .widget-muestra .caja{text-align:center;color:#e6eef8;border-radius:16px;padding:1.2rem 1.6rem;
+      transform:scale(var(--tamano-widget));
       background:rgba(9,15,28,var(--fondo-widget));
       border:1px solid rgba(255,255,255,calc(var(--fondo-widget) * .2));
       box-shadow:0 20px 60px rgba(2,6,23,calc(var(--fondo-widget) * .85))}
@@ -1969,9 +1970,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           </div>
 
           <div class="config-section">
-            <h4>Fondo de los widgets</h4>
-            <p class="meta">La caja oscura que va detrás de cada widget para que se lea encima del juego. A <strong>0</strong> no hay caja, solo las letras sobre el directo; a <strong>100</strong> es negra del todo. Vale para todos los widgets a la vez y, al guardar, los que tengas puestos en OBS cambian solos.</p>
+            <h4>Cómo se ven</h4>
+            <p class="meta"><strong>Tamaño</strong> es el de todo el widget a la vez: las cajas, las letras y los muñecos. A <strong>100</strong> es el de siempre, a 50 la mitad y a 200 el doble. Crece desde el centro, así que si no cabe en la fuente de OBS se corta por los bordes: agranda la fuente o baja el tamaño.</p>
+            <p class="meta"><strong>Fondo</strong> es la caja oscura que va detrás para que se lea encima del juego. A <strong>0</strong> no hay caja, solo las letras sobre el directo; a <strong>100</strong> es negra del todo.</p>
+            <p class="meta">Los dos valen para todos los widgets y, al guardar, los que tengas puestos en OBS cambian solos.</p>
             <div class="config-grid">
+              <div class="config-field">
+                <label for="cfgWidgetTamano">Tamaño:&nbsp;<span id="cfgWidgetTamanoValue">100%</span></label>
+                <input id="cfgWidgetTamano" type="range" min="50" max="200" step="5" value="100" />
+              </div>
               <div class="config-field">
                 <label for="cfgWidgetFondo">Opacidad del fondo:&nbsp;<span id="cfgWidgetFondoValue">82%</span></label>
                 <input id="cfgWidgetFondo" type="range" min="0" max="100" step="1" value="82" />
@@ -4633,12 +4640,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
     });
 
-    // Cómo se ven los widgets: cuánto tapa la caja oscura de detrás. Se guarda
-    // en el servidor y no en el navegador porque quien lo lee es OBS, que es
-    // otro navegador y entra con la clave.
+    // Cómo se ven los widgets: cuánto tapa la caja oscura de detrás y cómo de
+    // grande sale todo. Se guarda en el servidor y no en el navegador porque
+    // quien lo lee es OBS, que es otro navegador y entra con la clave.
     const FONDO_WIDGET = 82;
+    const TAMANO_WIDGET = 100;
     // Lo último guardado, para poder volver a ello al descartar.
     let fondoWidgetGuardado = FONDO_WIDGET;
+    let tamanoWidgetGuardado = TAMANO_WIDGET;
 
     function pintarFondoWidget(pct) {
       const n = Math.max(0, Math.min(100, Math.round(Number(pct))));
@@ -4648,8 +4657,17 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('widgetMuestra').style.setProperty('--fondo-widget', String(valor / 100));
     }
 
-    // La muestra se mueve con el deslizador, sin esperar a guardar.
+    function pintarTamanoWidget(pct) {
+      const n = Math.max(50, Math.min(200, Math.round(Number(pct))));
+      const valor = Number.isFinite(n) ? n : TAMANO_WIDGET;
+      document.getElementById('cfgWidgetTamano').value = valor;
+      document.getElementById('cfgWidgetTamanoValue').textContent = valor + '%';
+      document.getElementById('widgetMuestra').style.setProperty('--tamano-widget', String(valor / 100));
+    }
+
+    // La muestra se mueve con los deslizadores, sin esperar a guardar.
     document.getElementById('cfgWidgetFondo').addEventListener('input', (ev) => pintarFondoWidget(ev.target.value));
+    document.getElementById('cfgWidgetTamano').addEventListener('input', (ev) => pintarTamanoWidget(ev.target.value));
 
     // Se piden al abrir la pestaña: la clave para las direcciones y el fondo.
     async function cargarWidgets() {
@@ -4657,8 +4675,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // Con algo a medias no se pisa lo que se está moviendo.
       if (cfgSucias.has('widgets')) return;
       try {
-        fondoWidgetGuardado = (await api('/api/ajustes-widgets')).fondo;
+        const ajustes = await api('/api/ajustes-widgets');
+        fondoWidgetGuardado = ajustes.fondo;
+        tamanoWidgetGuardado = ajustes.tamano;
         pintarFondoWidget(fondoWidgetGuardado);
+        pintarTamanoWidget(tamanoWidgetGuardado);
       } catch (e) {
         console.warn('No se pudieron leer los ajustes de los widgets:', e.message);
       }
@@ -4669,14 +4690,19 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const hecho = await api('/api/ajustes-widgets', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fondo: Number(document.getElementById('cfgWidgetFondo').value) })
+          body: JSON.stringify({
+            fondo: Number(document.getElementById('cfgWidgetFondo').value),
+            tamano: Number(document.getElementById('cfgWidgetTamano').value)
+          })
         });
         fondoWidgetGuardado = hecho.fondo;
+        tamanoWidgetGuardado = hecho.tamano;
         pintarFondoWidget(fondoWidgetGuardado);
+        pintarTamanoWidget(tamanoWidgetGuardado);
         document.getElementById('cfgStatus').textContent = 'Guardado. Los widgets que tengas en OBS ya lo llevan.';
         return true;
       } catch (e) {
-        showAlert('No se pudo guardar el fondo de los widgets', e.message);
+        showAlert('No se pudieron guardar los ajustes de los widgets', e.message);
         return false;
       }
     }
@@ -7253,7 +7279,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         cfgSucias.delete(cual);
         if (cual === 'aspecto') fillConfigForm();
         if (cual === 'cuenta') pintarUsuario();
-        if (cual === 'widgets') pintarFondoWidget(fondoWidgetGuardado);
+        if (cual === 'widgets') { pintarFondoWidget(fondoWidgetGuardado); pintarTamanoWidget(tamanoWidgetGuardado); }
         pintarCfgGuardar();
         return true;
       }

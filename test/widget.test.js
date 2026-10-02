@@ -176,3 +176,42 @@ test('las cajas de los widgets leen el fondo de la variable', () => {
   }
   assert.ok(leer('js/widget-base.js').includes('--fondo-widget'), 'y widget-base.js la pone');
 });
+
+// --- Cómo se ven: el tamaño de todo ---------------------------------------
+
+test('el tamaño se guarda por cuenta, entre la mitad y el doble', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const widget = montarConAjustes(c.raiz);
+
+  assert.strictEqual(widget.leerAjustes('u1').tamano, 100, 'sin tocar nada, el de siempre');
+  assert.strictEqual(widget.guardarAjustes('u1', { tamano: 150 }).tamano, 150);
+  assert.strictEqual(widget.leerAjustes('u1').tamano, 150, 'queda guardado');
+  assert.strictEqual(widget.leerAjustes('u2').tamano, 100, 'y no toca a los demás');
+
+  // Ni tan pequeño que no se lea, ni tan grande que no quepa.
+  assert.strictEqual(widget.guardarAjustes('u1', { tamano: 5 }).tamano, 50);
+  assert.strictEqual(widget.guardarAjustes('u1', { tamano: 900 }).tamano, 200);
+  // Y el cero no es «sin tamaño»: es demasiado pequeño, como cualquier otro.
+  assert.strictEqual(widget.guardarAjustes('u1', { tamano: 0 }).tamano, 50);
+
+  // Cambiar una cosa no se lleva la otra.
+  widget.guardarAjustes('u1', { fondo: 30, tamano: 120 });
+  assert.deepStrictEqual(widget.guardarAjustes('u1', { fondo: 60 }), { fondo: 60, tamano: 120 });
+  assert.deepStrictEqual(widget.guardarAjustes('u1', { tamano: 80 }), { fondo: 60, tamano: 80 });
+  assert.deepStrictEqual(widget.guardarAjustes('u1', { tamano: 'grande' }), { fondo: 60, tamano: 80 });
+});
+
+test('todos los widgets escalan con el tamaño', () => {
+  // El tamaño va en una variable que escala #todo. El del tablero de clavijas
+  // no usa widget.css, así que la lleva en su propia hoja.
+  const leer = (p) => fs.readFileSync(path.join(__dirname, '..', 'public', p), 'utf8');
+  for (const p of ['css/widget.css', 'widget/plinko.html']) {
+    assert.ok(leer(p).includes('scale(var(--tamano-widget, 1))'), p + ' escala con la variable');
+  }
+  assert.ok(leer('js/widget-base.js').includes('--tamano-widget'), 'y widget-base.js la pone');
+  // Los que no son el del tablero tienen que cargar la hoja común.
+  for (const w of ['batalla', 'carrera', 'colina', 'nombres', 'sorteo']) {
+    assert.ok(leer('widget/' + w + '.html').includes('/css/widget.css'), w + ' carga widget.css');
+  }
+});

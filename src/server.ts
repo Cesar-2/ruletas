@@ -1618,7 +1618,8 @@ app.post('/api/widget/clave/rotar', (req: Request, res: Response) => {
   res.json({ clave: widget.rotar(requireUid(req)) });
 });
 
-// Como se ven los widgets: de momento, cuanto tapa la caja oscura de detras.
+// Como se ven los widgets: cuanto tapa la caja oscura de detras y como de
+// grande sale todo.
 //
 // Son dos direcciones porque los leen dos que se identifican distinto. El
 // widget, con su clave y sin sesion, solo puede LEER. Quien los cambia es el
@@ -1637,11 +1638,11 @@ app.get('/api/ajustes-widgets', (req: Request, res: Response) => {
   res.json(widget.leerAjustes(requireUid(req)));
 });
 
-// POST /api/ajustes-widgets { fondo } -> los guarda y avisa a los widgets
+// POST /api/ajustes-widgets { fondo?, tamano? } -> los guarda y avisa a los widgets
 app.post('/api/ajustes-widgets', (req: Request, res: Response) => {
   try {
     const uid = requireUid(req);
-    const ajustes = widget.guardarAjustes(uid, { fondo: req.body?.fondo });
+    const ajustes = widget.guardarAjustes(uid, { fondo: req.body?.fondo, tamano: req.body?.tamano });
     // Los widgets que esten puestos en OBS cambian al momento, sin recargar.
     avisos.cambio(uid, 'widgets');
     res.json(ajustes);

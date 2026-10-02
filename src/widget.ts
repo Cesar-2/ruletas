@@ -34,15 +34,24 @@ export interface Ajustes {
   // Cuanto tapa la caja oscura que va detras de cada widget, de 0 (no hay caja:
   // solo el texto encima del directo) a 100 (negra del todo).
   fondo: number;
+  // Como de grande se ve todo, en tanto por ciento: 100 es el tamaño de
+  // siempre, 50 la mitad y 200 el doble. Es de todo el widget a la vez (cajas,
+  // letras, muñecos), no de la letra sola.
+  tamano: number;
 }
 
 // 82 es lo que llevaban las cajas antes de poder cambiarse.
-export const AJUSTES_POR_DEFECTO: Ajustes = { fondo: 82 };
+export const AJUSTES_POR_DEFECTO: Ajustes = { fondo: 82, tamano: 100 };
 
-function porcentaje(valor: unknown, siNo: number): number {
+// Entre cuanto se deja el tamaño. Mas pequeño no se lee en un directo, y mas
+// grande no cabe en la fuente de OBS.
+export const TAMANO_MIN = 50;
+export const TAMANO_MAX = 200;
+
+function porcentaje(valor: unknown, siNo: number, min = 0, max = 100): number {
   const n = Number(valor);
   if (valor === null || valor === '' || !Number.isFinite(n)) return siNo;
-  return Math.max(0, Math.min(100, Math.round(n)));
+  return Math.max(min, Math.min(max, Math.round(n)));
 }
 
 export function leerAjustes(uid: string): Ajustes {
@@ -50,7 +59,10 @@ export function leerAjustes(uid: string): Ajustes {
     const f = deps.archivoAjustes?.(uid);
     if (!f || !fs.existsSync(f)) return { ...AJUSTES_POR_DEFECTO };
     const crudo = JSON.parse(fs.readFileSync(f, 'utf8')) || {};
-    return { fondo: porcentaje(crudo.fondo, AJUSTES_POR_DEFECTO.fondo) };
+    return {
+      fondo: porcentaje(crudo.fondo, AJUSTES_POR_DEFECTO.fondo),
+      tamano: porcentaje(crudo.tamano, AJUSTES_POR_DEFECTO.tamano, TAMANO_MIN, TAMANO_MAX)
+    };
   } catch (err) {
     console.error('Failed to read widget settings:', err);
     return { ...AJUSTES_POR_DEFECTO };
@@ -60,6 +72,9 @@ export function leerAjustes(uid: string): Ajustes {
 export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes {
   const actual = leerAjustes(uid);
   if (ajustes && ajustes.fondo != null) actual.fondo = porcentaje(ajustes.fondo, actual.fondo);
+  if (ajustes && ajustes.tamano != null) {
+    actual.tamano = porcentaje(ajustes.tamano, actual.tamano, TAMANO_MIN, TAMANO_MAX);
+  }
   const f = deps.archivoAjustes?.(uid);
   if (f) {
     deps.ensureUserDir?.(uid);

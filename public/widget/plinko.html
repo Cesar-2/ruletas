@@ -44,6 +44,9 @@
        muerto encima del directo. */
     opacity: 0;
     transition: opacity .45s ease;
+    /* El mismo tamaño configurable que los demás widgets (css/widget.css). */
+    transform: scale(var(--tamano-widget, 1));
+    transform-origin: center center;
   }
   #todo.visible { opacity: 1; }
 

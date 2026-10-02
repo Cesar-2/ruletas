@@ -26,6 +26,11 @@ body.con-fondo { background: #0b1220; }
      muerto encima del directo. */
   opacity: 0;
   transition: opacity .45s ease;
+  /* El tamaño de todo, que se elige en Configuración › Widgets. Se escala desde
+     el centro, que es donde va colocado el contenido: así crece o encoge sin
+     moverse de su sitio. Sin la variable, como siempre. */
+  transform: scale(var(--tamano-widget, 1));
+  transform-origin: center center;
 }
 #todo.visible { opacity: 1; }
 
