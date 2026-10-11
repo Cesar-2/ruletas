@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ruleta de premios</title>
+  <style>
+    :root{--card:rgba(13,21,38,0.92);--muted:#9fb0c8;--accent:#6ee7b7;--accent-2:#3ee9c0;
+      --bg-image:none;--overlay:0.78}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;padding:1.5rem;display:flex;align-items:center;justify-content:center;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+      background:linear-gradient(rgba(7,16,34,var(--overlay)), rgba(11,18,32,calc(var(--overlay) + 0.1))),
+        var(--bg-image) center center / cover no-repeat fixed #071022;color:#e6eef8}
+    .caja{width:min(560px,100%);padding:1.6rem;border-radius:18px;background:var(--card);
+      border:1px solid rgba(255,255,255,0.12);box-shadow:0 24px 60px rgba(2,6,23,0.7)}
+    /* De quien es esta ruleta: el logo y el titulo del streamer. */
+    .marca{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;
+      padding-bottom:.8rem;border-bottom:1px solid rgba(255,255,255,0.1)}
+    .marca[hidden]{display:none}
+    .marca img{height:34px;width:auto;border-radius:8px}
+    .marca span{font-size:15px;font-weight:600;color:var(--muted)}
+    /* Banners y redes del streamer, al pie. */
+    .pie{margin-top:1.4rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.1)}
+    .pie[hidden]{display:none}
+    .banners{display:flex;flex-direction:column;gap:.6rem}
+    .banners img{width:100%;border-radius:10px;display:block}
+    .banners a{display:block}
+    .redes{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.8rem}
+    .redes a{padding:.35rem .7rem;border-radius:999px;font-size:13px;font-weight:600;text-decoration:none;
+      color:#e6eef8;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14)}
+    .redes a:hover{background:rgba(255,255,255,0.16)}
+    h1{margin:0 0 .3rem;font-size:23px}
+    .meta{color:var(--muted);font-size:14px;margin:0 0 1.1rem}
+    label{display:block;font-size:13px;color:var(--muted);margin:.8rem 0 .25rem}
+    input{width:100%;padding:.65rem .7rem;border-radius:10px;border:1px solid rgba(255,255,255,0.16);
+      background:rgba(255,255,255,0.06);color:inherit;font-size:16px}
+    #codigo{text-transform:uppercase;letter-spacing:.08em;font-family:ui-monospace,Menlo,monospace}
+    button{padding:.7rem 1.1rem;border-radius:10px;border:none;cursor:pointer;font-size:15px;font-weight:600;
+      background:var(--accent);color:#04231a}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .error{margin-top:.8rem;color:#fca5a5;font-size:14px;min-height:1.2em}
+    [hidden]{display:none !important}
+
+    .cabecera{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+    .restantes{font-size:14px;color:var(--muted)}
+    .restantes strong{color:var(--accent);font-size:20px}
+    .donde{font-size:13px;font-weight:400;color:var(--muted)}
+    .salir{margin-left:.6rem;padding:.25rem .6rem;font-size:12px;font-weight:600;
+      background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.16)}
+    .salir:hover{background:rgba(255,255,255,0.14)}
+    .fin .acciones{margin-top:.8rem}
+
+    /* Los paquetes entre los que elige, como tarjetas. */
+    .paquetes{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin-bottom:1.2rem}
+    .paquete{flex:0 0 auto;width:110px;padding:.5rem;border-radius:12px;cursor:pointer;text-align:center;
+      background:rgba(255,255,255,0.05);border:2px solid rgba(255,255,255,0.12);color:inherit;font:inherit}
+    .paquete:hover{border-color:rgba(255,255,255,0.3)}
+    .paquete.elegido{border-color:var(--accent);background:rgba(110,231,183,0.14)}
+    .paquete img{width:100%;height:70px;object-fit:cover;border-radius:8px;display:block}
+    .paquete .sin-imagen{height:70px;display:flex;align-items:center;justify-content:center;font-size:28px;
+      border-radius:8px;background:rgba(255,255,255,0.06)}
+    .paquete .nombre{margin-top:.35rem;font-size:13px;font-weight:600;line-height:1.25;word-break:break-word}
+    .paquete .cuantos{font-size:11px;color:var(--muted)}
+
+    /* Los servidores entre los que elige, uno por linea. */
+    .servidores{display:flex;flex-direction:column;gap:.5rem}
+    .servidores button{width:100%;text-align:left;padding:.7rem .9rem;border-radius:12px;font-size:15px;
+      background:rgba(255,255,255,0.06);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
+    .servidores button:hover{border-color:var(--accent);background:rgba(110,231,183,0.10)}
+
+    /* La ruleta a un lado y la leyenda al otro. En pantalla estrecha, la
+       leyenda baja debajo en vez de estrujar la rueda. */
+    .rueda-fila{display:flex;gap:1.1rem;align-items:center;flex-wrap:wrap;justify-content:center}
+    .leyenda{flex:1 1 190px;min-width:180px;list-style:none;margin:0;padding:0;font-size:13px;
+      max-height:280px;overflow-y:auto}
+    .leyenda li{display:flex;align-items:center;gap:.5rem;padding:.28rem 0;line-height:1.3}
+    .leyenda .color{width:14px;height:14px;border-radius:4px;flex:none;
+      box-shadow:0 0 0 1px rgba(255,255,255,0.25) inset}
+    .leyenda .que{flex:1;word-break:break-word}
+    .leyenda .cuanto{color:var(--muted);font-size:12px;flex:none}
+    .leyenda .vacia{color:var(--muted)}
+
+    .rueda-caja{position:relative;width:min(260px,100%);flex:none;margin:0 auto}
+    .flecha{position:absolute;left:50%;top:-6px;transform:translateX(-50%);z-index:2;width:0;height:0;
+      border-left:14px solid transparent;border-right:14px solid transparent;border-top:26px solid #fdf2f8;
+      filter:drop-shadow(0 3px 6px rgba(0,0,0,.5))}
+    .rueda{width:100%;height:auto;display:block;transition:transform 4.6s cubic-bezier(.15,.9,.2,1)}
+
+    .acciones{margin-top:1.2rem;text-align:center}
+    .premio{margin-top:1.2rem;padding:1rem;border-radius:14px;text-align:center;
+      background:rgba(110,231,183,0.12);border:1px solid rgba(110,231,183,0.4)}
+    .premio img{max-width:150px;max-height:150px;border-radius:10px;display:block;margin:.6rem auto 0}
+    .premio h2{margin:0;font-size:19px}
+    .premio .contenido{list-style:none;margin:.7rem 0 0;padding:0;font-size:14px;line-height:1.6;color:#dbeafe}
+    .premio .contenido li{padding:.15rem 0}
+
+    .lista{margin-top:1.4rem;border-top:1px solid rgba(255,255,255,0.1);padding-top:.9rem}
+    .lista h3{margin:0 0 .5rem;font-size:14px;color:var(--muted);font-weight:600}
+    .lista ol{margin:0;padding-left:1.2rem;font-size:14px;line-height:1.7}
+    .fin{margin-top:1.2rem;padding:.9rem;border-radius:12px;font-size:14px;color:var(--muted);
+      background:rgba(255,255,255,0.05);text-align:center}
+  </style>
+</head>
+<body>
+  <div class="caja">
+    <div class="marca" id="marca" hidden>
+      <img id="marcaLogo" alt="" hidden />
+      <span id="marcaTitulo"></span>
+    </div>
+
+    <!-- Pantalla 1: pedir el codigo -->
+    <div id="pantallaCodigo">
+      <h1>🎁 Ruleta de premios</h1>
+      <p class="meta">Escribe el código que te han dado. Solo sirve una vez, así que no cierres esta página hasta gastar tus tiradas.</p>
+      <form id="formCodigo">
+        <label for="codigo">Código</label>
+        <input id="codigo" name="codigo" autocomplete="off" placeholder="ABC-DEF-GHJ" required />
+        <label for="nombre">Tu nombre (para saber de quién es el premio)</label>
+        <input id="nombre" name="nombre" autocomplete="off" maxlength="40" placeholder="Opcional" />
+        <div class="acciones"><button type="submit" id="btnEntrar">Entrar</button></div>
+        <div class="error" id="errorCodigo"></div>
+      </form>
+    </div>
+
+    <!-- Pantalla 2: en que servidor juega -->
+    <div id="pantallaServidor" hidden>
+      <h1>🌍 ¿En qué servidor juegas?</h1>
+      <p class="meta">Tus premios se apuntan en el servidor que elijas, así que escoge en el que juegues de verdad. No se puede cambiar después.</p>
+      <div class="servidores" id="servidores"></div>
+      <div class="error" id="errorServidor"></div>
+    </div>
+
+    <!-- Pantalla 3: la ruleta -->
+    <div id="pantallaRuleta" hidden>
+      <div class="cabecera">
+        <h1 style="margin:0">🎁 Tu ruleta <span class="donde" id="dondeJuega"></span></h1>
+        <span class="restantes">Tiradas: <strong id="restantes">0</strong>
+          <button type="button" id="btnSalir" class="salir">Salir</button>
+        </span>
+      </div>
+      <p class="meta" id="pistaPaquete">Elige un paquetón y gira: saldrá uno de los objetos que lleva dentro.</p>
+      <div class="paquetes" id="paquetes"></div>
+
+      <div class="rueda-fila">
+        <div class="rueda-caja">
+          <div class="flecha"></div>
+          <svg id="rueda" class="rueda" viewBox="0 0 200 200" role="img" aria-label="Ruleta de premios"></svg>
+        </div>
+        <ul class="leyenda" id="leyenda"></ul>
+      </div>
+      <div class="acciones"><button type="button" id="btnGirar">Girar</button></div>
+      <div class="premio" id="premio" hidden></div>
+      <div class="fin" id="fin" hidden>
+        Se te acabaron las tiradas. Si quieres más, pide otro código.
+        <div class="acciones"><button type="button" id="btnSalirFin">Salir</button></div>
+      </div>
+      <div class="lista" id="lista" hidden>
+        <h3>Lo que llevas ganado</h3>
+        <ol id="listaPremios"></ol>
+      </div>
+      <div class="error" id="errorRuleta"></div>
+    </div>
+
+    <!-- Los banners y las redes del streamer, al pie de todo. -->
+    <div class="pie" id="pie" hidden>
+      <div class="banners" id="banners"></div>
+      <div class="redes" id="redes"></div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let packs = [];
+  let restantes = 0;
+  let girando = false;
+  let vuelta = 0;
+  let elegido = -1;      // que paquete ha escogido; -1 = ninguno todavía
+  const ganados = [];
+
+  const escapar = (t) => String(t).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // El aspecto del streamer: su fondo, sus colores, su logo y su titulo. Llega
+  // en la respuesta del codigo, asi que hasta entonces se ve el tema neutro.
+  function aplicarAspecto(a) {
+    if (!a) return;
+    const raiz = document.documentElement;
+    if (a.backgroundUrl) raiz.style.setProperty('--bg-image', "url('" + a.backgroundUrl + "')");
+    if (Number.isFinite(a.overlayOpacity)) raiz.style.setProperty('--overlay', a.overlayOpacity);
+    if (a.accentColor) raiz.style.setProperty('--accent', a.accentColor);
+    if (a.accentColor2) raiz.style.setProperty('--accent-2', a.accentColor2);
+
+    const marca = $('marca');
+    const logo = $('marcaLogo');
+    const titulo = $('marcaTitulo');
+    logo.hidden = !a.logoUrl;
+    if (a.logoUrl) logo.src = a.logoUrl;
+    titulo.textContent = a.pageTitle || '';
+    marca.hidden = !a.logoUrl && !a.pageTitle;
+    if (a.pageTitle) document.title = a.pageTitle;
+
+    pintarPie(a.banners || [], a.socials || []);
+  }
+
+  const RED_NOMBRE = { twitch: 'Twitch', youtube: 'YouTube', kick: 'Kick', x: 'X',
+    instagram: 'Instagram', tiktok: 'TikTok', discord: 'Discord', web: 'Web' };
+
+  // Los banners y las redes del streamer. El servidor ya ha comprobado que las
+  // direcciones son http(s) o de /assets, asi que aqui solo se pintan.
+  function pintarPie(banners, redes) {
+    const caja = $('banners');
+    caja.innerHTML = '';
+    banners.forEach((b) => {
+      if (!b.imageUrl) return;
+      const img = document.createElement('img');
+      img.src = b.imageUrl;
+      img.alt = '';
+      if (b.linkUrl) {
+        const enlace = document.createElement('a');
+        enlace.href = b.linkUrl;
+        enlace.target = '_blank';
+        // Sin esto, la pagina de destino podria manipular esta desde atras.
+        enlace.rel = 'noopener noreferrer';
+        enlace.appendChild(img);
+        caja.appendChild(enlace);
+      } else {
+        caja.appendChild(img);
+      }
+    });
+
+    const cajaRedes = $('redes');
+    cajaRedes.innerHTML = '';
+    redes.forEach((r) => {
+      if (!r.url) return;
+      const enlace = document.createElement('a');
+      enlace.href = r.url;
+      enlace.target = '_blank';
+      enlace.rel = 'noopener noreferrer';
+      enlace.textContent = RED_NOMBRE[r.red] || 'Web';
+      cajaRedes.appendChild(enlace);
+    });
+
+    $('pie').hidden = !caja.children.length && !cajaRedes.children.length;
+  }
+
+  async function api(url, opts) {
+    const r = await fetch(url, { cache: 'no-store', ...opts });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'algo ha fallado');
+    return data;
+  }
+
+  // Las tarjetas entre las que elige. El paquete elegido manda lo que se
+  // dibuja en la ruleta: sus objetos, cada uno con su porcion.
+  function pintarPaquetes() {
+    const cont = $('paquetes');
+    cont.innerHTML = '';
+    packs.forEach((p, i) => {
+      const boton = document.createElement('button');
+      boton.type = 'button';
+      boton.className = 'paquete' + (i === elegido ? ' elegido' : '');
+      boton.innerHTML =
+        (p.imageUrl ? `<img src="${escapar(p.imageUrl)}" alt="" />` : '<div class="sin-imagen">🎁</div>') +
+        `<div class="nombre">${escapar(p.name)}</div>` +
+        `<div class="cuantos">${p.items.length} objeto(s)</div>`;
+      boton.addEventListener('click', () => {
+        if (girando) return;
+        elegido = i;
+        pintarPaquetes();
+        pintarRueda();
+        pintarLeyenda();
+        pintarEstado();
+      });
+      cont.appendChild(boton);
+    });
+  }
+
+  const COLORES = ['#6ee7b7', '#7dd3fc', '#c084fc', '#fbbf24', '#fb7185', '#34d399', '#93c5fd', '#f0abfc'];
+
+  // Los objetos del paquetón elegido, que son las porciones de la ruleta.
+  function objetosEnJuego() {
+    return elegido >= 0 && packs[elegido] ? packs[elegido].items : [];
+  }
+
+  // Todas las porciones miden lo mismo a proposito: si cada una midiera segun
+  // su probabilidad, el invitado se la leeria de un vistazo. Quien decide el
+  // premio es el servidor. Va sin texto: con muchos objetos los nombres se
+  // apretujaban y no se leia ninguno; para eso esta la leyenda.
+  function pintarRueda() {
+    const svg = $('rueda');
+    const items = objetosEnJuego();
+    if (!items.length) {
+      svg.innerHTML = '<circle cx="100" cy="100" r="95" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.18)" /><text x="100" y="103" text-anchor="middle" fill="#9fb0c8" font-size="9">Elige un paquetón</text>';
+      return;
+    }
+    const arcoIgual = 360 / items.length;
+    const punto = (grados, radio) => {
+      const rad = (grados - 90) * Math.PI / 180;
+      return [100 + radio * Math.cos(rad), 100 + radio * Math.sin(rad)];
+    };
+
+    let desde = 0;
+    svg.innerHTML = items.map((p, i) => {
+      const arco = arcoIgual;
+      const hasta = desde + arco;
+      const [x0, y0] = punto(desde, 95);
+      const [x1, y1] = punto(hasta, 95);
+      desde = hasta;
+
+      const color = COLORES[i % COLORES.length];
+      return items.length === 1
+        ? `<circle cx="100" cy="100" r="95" fill="${color}" />`
+        : `<path d="M100,100 L${x0.toFixed(2)},${y0.toFixed(2)} A95,95 0 ${arco > 180 ? 1 : 0},1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${color}" stroke="rgba(2,6,23,0.35)" stroke-width="0.6" />`;
+    }).join('') + '<circle cx="100" cy="100" r="11" fill="rgba(9,15,28,0.9)" stroke="rgba(255,255,255,0.25)" />';
+  }
+
+  // Quien es cada color, con su probabilidad de verdad sobre el total.
+  function pintarLeyenda() {
+    const cont = $('leyenda');
+    const items = objetosEnJuego();
+    if (!items.length) {
+      cont.innerHTML = '<li class="vacia">Elige un paquetón para ver qué puede salir.</li>';
+      return;
+    }
+    cont.innerHTML = items.map((it, i) => `<li>
+        <span class="color" style="background:${COLORES[i % COLORES.length]}"></span>
+        <span class="que">${escapar(it.name)}</span>
+      </li>`).join('');
+  }
+
+  function pintarEstado() {
+    $('restantes').textContent = restantes;
+    // Sin paquete escogido no hay nada que girar.
+    $('btnGirar').disabled = girando || restantes < 1 || elegido < 0;
+    $('pistaPaquete').textContent = elegido < 0
+      ? 'Elige un paquetón y gira: saldrá uno de los objetos que lleva dentro.'
+      : `Girando en «${packs[elegido].name}». Puedes cambiar de paquetón entre tirada y tirada.`;
+    $('fin').hidden = restantes > 0 || girando;
+    // Solo un botón de salir a la vez: cuando aparece el grande del final,
+    // se retira el pequeño de la cabecera.
+    $('btnSalir').hidden = !$('fin').hidden;
+    if (ganados.length) {
+      $('lista').hidden = false;
+      $('listaPremios').innerHTML = ganados.map((g) => `<li>${escapar(g)}</li>`).join('');
+    }
+  }
+
+  // Deja el centro de la porcion del premio justo debajo de la flecha.
+  function anguloDe(nombre) {
+    const items = objetosEnJuego();
+    const arco = 360 / items.length;
+    const i = items.findIndex((it) => it.name === nombre);
+    return i < 0 ? 0 : i * arco + arco / 2;
+  }
+
+  // Con servidor ya elegido se va a la ruleta; si no, a escogerlo primero.
+  function entrar(estado) {
+    aplicarAspecto(estado.aspecto);
+    if (!estado.servidor) return pedirServidor(estado);
+    packs = estado.packs || [];
+    restantes = estado.restantes;
+    $('dondeJuega').textContent = estado.servidor ? '· ' + estado.servidor : '';
+    // Con un solo paquete no hay nada que elegir: se escoge solo.
+    elegido = packs.length === 1 ? 0 : -1;
+    $('pantallaCodigo').hidden = true;
+    $('pantallaServidor').hidden = true;
+    $('pantallaRuleta').hidden = false;
+    pintarPaquetes();
+    pintarRueda();
+    pintarLeyenda();
+    pintarEstado();
+  }
+
+  function pedirServidor(estado) {
+    aplicarAspecto(estado.aspecto);
+    $('pantallaCodigo').hidden = true;
+    $('pantallaServidor').hidden = false;
+    const cont = $('servidores');
+    cont.innerHTML = '';
+    (estado.servidores || []).forEach((sv) => {
+      const boton = document.createElement('button');
+      boton.type = 'button';
+      boton.textContent = sv.name;
+      boton.addEventListener('click', async () => {
+        cont.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+        $('errorServidor').textContent = '';
+        try {
+          entrar(await api('/api/guest/server', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ server: sv.id })
+          }));
+        } catch (e) {
+          $('errorServidor').textContent = e.message;
+          cont.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+        }
+      });
+      cont.appendChild(boton);
+    });
+  }
+
+  $('formCodigo').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    $('errorCodigo').textContent = '';
+    $('btnEntrar').disabled = true;
+    try {
+      const estado = await api('/api/guest/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: $('codigo').value.trim(), nombre: $('nombre').value.trim() })
+      });
+      entrar(estado);
+    } catch (e) {
+      $('errorCodigo').textContent = e.message;
+      $('btnEntrar').disabled = false;
+    }
+  });
+
+  async function salir() {
+    // Salir con tiradas de sobra las pierde: mejor preguntarlo.
+    const aviso = 'Te quedan ' + restantes + ' tirada(s). Si sales las pierdes y hará falta otro código. ¿Salir?';
+    if (restantes > 0 && !confirm(aviso)) return;
+    try {
+      await api('/api/guest/logout', { method: 'POST' });
+    } catch (e) { /* aunque falle, se vuelve a la pantalla del codigo */ }
+    packs = [];
+    restantes = 0;
+    elegido = -1;
+    vuelta = 0;
+    ganados.length = 0;
+    $('rueda').style.transition = 'none';
+    $('rueda').style.transform = 'rotate(0deg)';
+    requestAnimationFrame(() => { $('rueda').style.transition = ''; });
+    $('premio').hidden = true;
+    $('lista').hidden = true;
+    $('fin').hidden = true;
+    $('errorRuleta').textContent = '';
+    $('errorCodigo').textContent = '';
+    $('codigo').value = '';
+    $('nombre').value = '';
+    $('btnEntrar').disabled = false;
+    $('pantallaRuleta').hidden = true;
+    $('pantallaServidor').hidden = true;
+    $('pantallaCodigo').hidden = false;
+    $('codigo').focus();
+  }
+
+  $('btnSalir').addEventListener('click', salir);
+  $('btnSalirFin').addEventListener('click', salir);
+
+  $('btnGirar').addEventListener('click', async () => {
+    if (girando || restantes < 1) return;
+    girando = true;
+    $('premio').hidden = true;
+    $('errorRuleta').textContent = '';
+    pintarEstado();
+
+    let r;
+    try {
+      r = await api('/api/guest/spin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pack: elegido })
+      });
+    } catch (e) {
+      girando = false;
+      $('errorRuleta').textContent = e.message;
+      pintarEstado();
+      return;
+    }
+
+    // El servidor ya ha decidido: la animacion solo lleva la flecha hasta ahí.
+    vuelta += 360 * 5 - ((vuelta + anguloDe(r.premio.name)) % 360);
+    $('rueda').style.transform = `rotate(${vuelta}deg)`;
+
+    setTimeout(() => {
+      restantes = r.restantes;
+      girando = false;
+      ganados.push(`${r.premio.name} (${r.premio.pack})`);
+      $('premio').innerHTML =
+        `<h2>🎉 ${escapar(r.premio.name)}</h2>` +
+        `<p class="contenido">del paquetón ${escapar(r.premio.pack)}</p>` +
+        (r.premio.imageUrl ? `<img src="${escapar(r.premio.imageUrl)}" alt="${escapar(r.premio.pack)}" />` : '');
+      $('premio').hidden = false;
+      pintarEstado();
+    }, 4700);
+  });
+
+  // Si recarga sin cerrar el navegador, la cookie sigue viva y se vuelve a
+  // entrar sin pedirle el codigo (que ya no valdria).
+  (async () => {
+    try {
+      entrar(await api('/api/guest/state'));
+    } catch (e) { /* no hay visita: se queda en la pantalla del codigo */ }
+  })();
+</script>
+</body>
+</html>
