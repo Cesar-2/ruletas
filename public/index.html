@@ -15,6 +15,9 @@
   <link rel="stylesheet" href="/css/ruleta-nombres.css" />
   <!-- Y la tragaperras de la ruleta de recursos, por lo mismo. -->
   <link rel="stylesheet" href="/css/tragaperras.css" />
+  <!-- La bola, el tablero y el cartón del bingo: los mismos aquí, en el widget
+       y en la página del cartón del espectador. -->
+  <link rel="stylesheet" href="/css/bingo.css" />
   <style>
     :root{
       --bg:#0f1724; --card:#0b1220; --accent:#6ee7b7; --accent-2:#3ee9c0; --muted:#c3ccd9; --glass: rgba(255,255,255,0.04);
@@ -726,6 +729,36 @@
     .plinko-apuntados .fichas{display:flex;flex-wrap:wrap;gap:.45rem}
     .plinko-apuntados .plinko-ficha{padding:.35rem .7rem}
     .plinko-apuntados .vacio{color:var(--muted);font-size:13px}
+    /* Bingo: la bola y el tablero lado a lado; debajo, quién ha cantado y
+       quién está más cerca. Lo de dibujar está en css/bingo.css. */
+    .bingo-mesa{display:flex;align-items:center;gap:1.4rem;flex-wrap:wrap;justify-content:center;margin-top:.9rem}
+    .bingo-mesa .bingo-tablero{flex:1 1 22rem}
+    .bingo-lado{display:flex;flex-direction:column;align-items:center;gap:.5rem}
+    .bingo-enlace{margin:.6rem 0;padding:.6rem .8rem;border-radius:10px;background:rgba(110,231,183,0.08);
+      border:1px solid rgba(110,231,183,0.25);display:flex;flex-wrap:wrap;gap:.4rem .8rem;align-items:center}
+    .bingo-enlace[hidden]{display:none}
+    .bingo-enlace .codigo{font-weight:900;letter-spacing:.12em;font-size:20px;color:var(--accent)}
+    .bingo-enlace a{color:var(--accent);word-break:break-all;font-size:14px}
+    .bingo-enlace button{padding:.3rem .7rem;font-size:13px}
+    .bingo-cantos{list-style:none;padding:0;margin:.8rem 0 0;display:flex;flex-direction:column;gap:.3rem}
+    .bingo-cantos[hidden]{display:none}
+    .bingo-canto{padding:.4rem .7rem;border-radius:8px;background:rgba(255,255,255,0.05);font-size:15px}
+    .bingo-canto.linea,.bingo-canto.bingo{background:rgba(110,231,183,0.14);color:var(--accent);font-weight:800}
+    .bingo-canto.falso{color:#fca5a5}
+    .bingo-canto.tarde{color:#fcd34d}
+    .bingo-cerca{margin-top:.9rem}
+    .bingo-cerca[hidden]{display:none}
+    .bingo-cerca h4{margin:0 0 .5rem;font-size:14px}
+    .bingo-cerca ol{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.3rem}
+    .bingo-jugador .bingo-ver{width:100%;display:flex;justify-content:space-between;gap:.8rem;
+      padding:.4rem .7rem;font-size:14px;background:rgba(255,255,255,0.05);color:inherit;box-shadow:none;border-radius:8px}
+    .bingo-jugador .quien{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .bingo-jugador .falta{color:var(--muted)}
+    .bingo-jugador.lo-tiene .bingo-ver{background:rgba(110,231,183,0.16)}
+    .bingo-jugador.lo-tiene .falta{color:var(--accent);font-weight:800}
+    .bingo-jugador.fuera{opacity:.55}
+    .bingo-jugador.fuera .quien{text-decoration:line-through}
+    .bingo-mini{padding:.5rem 0 .3rem .7rem}
     /* El editor de premios: una tarjeta por casilla, con su imagen y su nombre. */
     .premios-cosas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.6rem;margin:.8rem 0}
     .premios-cosas[hidden]{display:none}
@@ -1239,6 +1272,64 @@
             <button type="button" class="subtab" data-game="batalla">⚔️ Batalla Dofus</button>
             <button type="button" class="subtab" data-game="plinko">🎯 Tablero de clavijas</button>
             <button type="button" class="subtab" data-game="colina">👑 Rey de la colina</button>
+            <button type="button" class="subtab" data-game="bingo">🎱 Bingo</button>
+          </div>
+
+          <div class="game-subpanel" id="game-bingo-panel">
+          <section>
+            <h3>🎱 Bingo</h3>
+            <p class="meta">Los espectadores piden cartón escribiendo en tu chat de Twitch y tú vas sacando bolas. Cada uno ve su cartón en la página que sale abajo, con el código de la partida. <strong>Para ganar hay que cantar en el chat</strong>: si lo tiene, se lleva los puntos; si canta sin tenerlo, queda descalificado; si se le pasó (ya salió otra bola), no gana pero sigue jugando. Primero se juega la línea (fila, columna o diagonal) y después el cartón lleno. Con la línea a 0 puntos se juega solo el cartón lleno.</p>
+
+            <div class="draw-controls">
+              <label class="meta" for="bingoPalabra">Piden cartón con</label>
+              <input id="bingoPalabra" type="text" value="!carton" style="width:110px" />
+              <label class="meta" for="bingoCantar">Cantan con</label>
+              <input id="bingoCantar" type="text" value="!bingo" style="width:110px" />
+            </div>
+            <div class="draw-controls">
+              <label class="meta" for="bingoPuntosLinea">Puntos línea</label>
+              <input id="bingoPuntosLinea" type="number" min="0" max="1000000" value="10" style="width:90px" />
+              <label class="meta" for="bingoPuntosBingo">Puntos bingo</label>
+              <input id="bingoPuntosBingo" type="number" min="0" max="1000000" value="50" style="width:90px" />
+              <button type="button" id="bingoGuardar">Guardar</button>
+              <span class="meta" id="bingoGuardado"></span>
+            </div>
+
+            <div class="draw-controls">
+              <button type="button" id="bingoAbrir">Nueva partida</button>
+              <label class="meta" for="bingoMinutos">Cerrar cartones en (min)</label>
+              <input id="bingoMinutos" type="number" min="0" max="60" step="0.5" value="0" style="width:80px" title="0 = hasta que saques la primera bola" />
+              <span class="crono" id="bingoCrono" hidden></span>
+            </div>
+            <p class="meta" id="bingoEstado">Sin partida.</p>
+
+            <div class="bingo-enlace" id="bingoEnlace" hidden>
+              <span>Código <span class="codigo" id="bingoCodigo"></span></span>
+              <a id="bingoUrl" target="_blank" rel="noopener"></a>
+              <button type="button" id="bingoCopiar">Copiar</button>
+            </div>
+
+            <div class="bingo-mesa">
+              <div class="bingo-lado">
+                <div class="bingo-bola vacia" id="bingoBola"><span class="numero">?</span></div>
+                <div class="meta" id="bingoPrevias"></div>
+              </div>
+              <div id="bingoTablero"></div>
+            </div>
+
+            <ul class="bingo-cantos" id="bingoCantos" hidden></ul>
+
+            <div class="bingo-cerca" id="bingoCerca" hidden>
+              <h4 id="bingoCercaTitulo">Cartones</h4>
+              <ol id="bingoCercaLista"></ol>
+            </div>
+
+            <div class="controls" style="margin-top:.8rem">
+              <input id="bingoNombre" type="text" placeholder="Nombre de alguien" aria-label="Nombre" />
+              <button type="button" id="bingoApuntar">Darle cartón</button>
+              <button type="button" id="bingoCantarPor" class="btn-cancel">Cantar por él</button>
+            </div>
+          </section>
           </div>
 
           <div class="game-subpanel" id="game-batalla-panel">
@@ -2232,6 +2323,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     <button type="button" id="plinkoTirar" disabled>¡Soltar bolas!</button>
     <button type="button" id="plinkoRepetir" hidden>Otra ronda</button>
     <button type="button" id="plinkoCancelar" class="btn-cancel" hidden>Cancelar</button>
+  </div>
+
+  <div class="acciones-flotantes" id="accionesBingo" data-juego="bingo" hidden>
+    <button type="button" id="bingoSacar" hidden>Sacar bola</button>
+    <button type="button" id="bingoCancelar" class="btn-cancel" hidden>Cancelar</button>
   </div>
 
   <div class="acciones-flotantes" id="accionesColina" data-juego="colina" hidden>
@@ -4617,7 +4713,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       { id: 'carrera', nombre: '🏁 Carrera de balineras' },
       { id: 'batalla', nombre: '⚔️ Batalla Dofus' },
       { id: 'colina', nombre: '👑 Rey de la colina' },
-      { id: 'nombres', nombre: '🎡 Ruleta de nombres' }
+      { id: 'nombres', nombre: '🎡 Ruleta de nombres' },
+      { id: 'bingo', nombre: '🎱 Bingo' }
     ];
 
     function urlWidget(cual) {
@@ -6157,6 +6254,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (cual === 'carrera') cargarCarrera();
         if (cual === 'plinko') cargarPlinko();
         if (cual === 'colina') cargarColina();
+        if (cual === 'bingo') { cargarBingo(); bingoVigilar(true); }
         ajustarAcciones();
       });
     });
@@ -6416,6 +6514,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
   </script>
   <script src="/js/plinko-panel.js"></script>
+  <script src="/js/bingo-dibujo.js"></script>
+  <script src="/js/bingo-panel.js"></script>
   <script>
     // --- Buscador de objetos del catálogo ---
     // Busca sobre el catálogo del juego activo. Se pide una sola vez y se

@@ -15,9 +15,9 @@
 
 // 'widgets' no es un minijuego: es el aviso de que el dueño ha cambiado como se
 // ven sus widgets, para que los que esten puestos en OBS lo cojan al momento.
-export type Juego = 'carrera' | 'plinko' | 'batalla' | 'colina' | 'nombres' | 'sorteo' | 'widgets';
+export type Juego = 'carrera' | 'plinko' | 'batalla' | 'colina' | 'nombres' | 'sorteo' | 'bingo' | 'widgets';
 
-export const JUEGOS: Juego[] = ['carrera', 'plinko', 'batalla', 'colina', 'nombres', 'sorteo', 'widgets'];
+export const JUEGOS: Juego[] = ['carrera', 'plinko', 'batalla', 'colina', 'nombres', 'sorteo', 'bingo', 'widgets'];
 
 type Oyente = (juego: Juego) => void;
 

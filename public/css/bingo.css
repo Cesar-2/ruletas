@@ -1,0 +1,106 @@
+/* El bingo: la bola que acaba de salir, el tablero de las 75 y el carton.
+   Lo comparten la pagina, el widget de OBS y la pagina del carton del
+   espectador, para que los tres se vean igual. El dibujo esta en
+   js/bingo-dibujo.js. */
+
+.bingo-bola {
+  --color-bola: #6ee7b7;
+  width: 7.5rem;
+  height: 7.5rem;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  background: radial-gradient(circle at 32% 28%, #ffffff 0 12%, var(--color-bola) 55%, rgba(0, 0, 0, .55) 100%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .5), inset 0 -8px 18px rgba(0, 0, 0, .35);
+  color: #071022;
+  font-weight: 900;
+  line-height: 1;
+}
+.bingo-bola .letra { font-size: 1.4rem; opacity: .8; }
+.bingo-bola .numero { font-size: 3.2rem; }
+.bingo-bola.vacia { --color-bola: #475569; color: rgba(255, 255, 255, .6); }
+.bingo-bola.vacia .numero { font-size: 2rem; }
+.bingo-bola.nueva { animation: bingo-sale .7s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes bingo-sale {
+  0% { transform: scale(.2) rotate(-200deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+/* Un color por letra, el mismo en la bola, en el tablero y en el carton. */
+.bingo-b { --color-bola: #60a5fa; }
+.bingo-i { --color-bola: #f87171; }
+.bingo-n { --color-bola: #e5e7eb; }
+.bingo-g { --color-bola: #4ade80; }
+.bingo-o { --color-bola: #fbbf24; }
+
+/* El tablero: una fila por letra con sus quince numeros. */
+.bingo-tablero {
+  display: grid;
+  grid-template-columns: 2rem repeat(15, 1fr);
+  gap: 3px;
+  width: 100%;
+  max-width: 40rem;
+}
+.bingo-tablero .letra {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  color: var(--color-bola);
+}
+.bingo-tablero .num {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: .8rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, .28);
+  background: rgba(255, 255, 255, .04);
+  transition: background .3s ease, color .3s ease;
+}
+.bingo-tablero .num.salio { background: var(--color-bola); color: #071022; }
+.bingo-tablero .num.ultima { outline: 3px solid #fff; outline-offset: 1px; }
+
+/* El carton. */
+.bingo-carton {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  width: 100%;
+  max-width: 22rem;
+}
+.bingo-carton .cab {
+  text-align: center;
+  font-weight: 900;
+  font-size: 1.4rem;
+  color: var(--color-bola);
+}
+.bingo-carton .casilla {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 1.3rem;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .1);
+  color: #e6eef8;
+  position: relative;
+}
+.bingo-carton .casilla.marcada { background: var(--color-bola); color: #071022; border-color: transparent; }
+.bingo-carton .casilla.libre { font-size: .8rem; }
+.bingo-carton .casilla.en-linea { box-shadow: 0 0 0 3px #fff inset; }
+.bingo-carton.fuera { opacity: .45; filter: grayscale(1); }
+.bingo-carton.mini { max-width: 11rem; gap: 2px; }
+.bingo-carton.mini .cab { font-size: .8rem; }
+.bingo-carton.mini .casilla { font-size: .7rem; border-radius: 5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bingo-bola.nueva { animation: none; }
+}

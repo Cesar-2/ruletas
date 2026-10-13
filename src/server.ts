@@ -5,6 +5,7 @@ import * as twitch from './twitch';
 import * as carrera from './carrera';
 import * as juegos from './juegos';
 import * as plinko from './plinko';
+import * as bingo from './bingo';
 import * as excel from './excel';
 import * as estadisticas from './estadisticas';
 import * as batalla from './batalla';
@@ -1606,6 +1607,9 @@ app.use('/api', (req: Request, res: Response, next: any) => {
   // /api/widget/clave NO: eso es pedir la clave, y para eso hay que ser quien
   // dice que es.
   if (req.path.startsWith('/widget/') && !req.path.startsWith('/widget/clave')) return next();
+  // El carton del bingo lo mira el espectador, que no tiene cuenta: entra con
+  // el codigo de la partida, que la ruta comprueba. Ver bingo.ts.
+  if (req.path === '/bingo/carton') return next();
   if (!usuarioDe(req)) return res.status(401).json({ error: 'no autenticado' });
   next();
 });
@@ -2060,6 +2064,43 @@ app.post('/api/ajustes-widgets', (req: Request, res: Response) => {
     console.error('Failed to save widget settings:', err);
     res.status(500).json({ error: 'failed to save widget settings' });
   }
+});
+
+// GET /api/widget/bingo?clave= -> las bolas, el codigo y quien ha cantado
+// Ni cartones ni quien esta a punto: eso lo ve el streamer en su panel, y en
+// pantalla destriparia la emocion.
+app.get('/api/widget/bingo', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  try {
+    const e = bingo.estado(uid);
+    res.json({
+      hay: e.hay,
+      abierta: e.abierta,
+      codigo: e.codigo,
+      fase: e.fase,
+      palabra: e.ajustes.palabra,
+      cantar: e.ajustes.cantar,
+      jugadores: e.jugadores.map((j) => j.nombre),
+      salidas: e.salidas,
+      cantos: e.cantos,
+      cierraEn: e.cierraEn,
+      ahora: e.ahora
+    });
+  } catch (err) {
+    console.error('Failed to serve bingo widget:', err);
+    res.status(500).json({ error: 'failed to get widget state' });
+  }
+});
+
+// GET /api/bingo/carton?p=CODIGO&nombre= -> el carton de un espectador, sin sesion
+// El codigo es el de la partida, el que sale en el directo. Sin nombre se
+// contesta igual (las bolas y quien ha ganado), para que la pagina pueda decir
+// «ese nombre no tiene carton» en vez de «codigo malo».
+app.get('/api/bingo/carton', (req: Request, res: Response) => {
+  const r = bingo.cartonPublico(req.query?.p, req.query?.nombre);
+  if (!r) return res.status(404).json({ error: 'no hay ninguna partida con ese codigo' });
+  res.json(r);
 });
 
 // GET /api/widget/plinko?clave= -> el tablero de esa cuenta, sin sesion
@@ -3199,6 +3240,11 @@ app.delete('/api/guest-winners/:id', (req: Request, res: Response) => {
 });
 
 // Serve static UI
+// La del carton del bingo, que se dice en voz alta en el directo: /bingo?p=CODIGO
+app.get('/bingo', (_req: Request, res: Response) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'bingo.html'));
+});
+
 // La pagina del invitado, para poder pasarle un enlace limpio.
 app.get('/invitado', (_req: Request, res: Response) => {
   res.sendFile(path.join(process.cwd(), 'public', 'invitado.html'));
@@ -3228,6 +3274,11 @@ sorteo.iniciar({
   userDir, ensureUserDir, writeJson,
   alCambiar: (uid) => avisos.cambio(uid, 'sorteo')
 });
+// El bingo reparte en el mismo marcador que la carrera.
+bingo.iniciar({
+  userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos,
+  alCambiar: (uid) => avisos.cambio(uid, 'bingo')
+});
 // Y lo que las rutas de los minijuegos necesitan de aqui y no se pudo llevar.
 minijuegos.iniciar({ requireUid, canalDe, guardarImagen });
 // El rey de la colina no reparte nada: solo guarda su palabra y su record.
@@ -3254,6 +3305,7 @@ function rehacerRondasVivas(): void {
   const cuales: [string, (uid: string) => boolean][] = [
     ['carrera', carrera.rehacer],
     ['plinko', plinko.rehacer],
+    ['bingo', bingo.rehacer],
     ['batalla', batalla.rehacer],
     ['colina', colina.rehacer],
     ['nombres', ruletachat.rehacer],

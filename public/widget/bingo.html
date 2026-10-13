@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bingo · widget</title>
+<link rel="icon" href="data:," />
+<!--
+  El widget del bingo, para OBS.  /widget/bingo.html?clave=XXXX
+
+  Enseña la bola que acaba de salir, el tablero con todas las que han salido,
+  quién ha cantado y dónde mira cada uno su cartón. Los cartones NO salen aquí:
+  quién está a punto lo ve el streamer en su panel, y en pantalla destriparía
+  la emoción.
+
+  La bola, el tablero y los colores son los mismos que los de la página
+  (js/bingo-dibujo.js y css/bingo.css).
+-->
+<link rel="stylesheet" href="/css/widget.css" />
+<link rel="stylesheet" href="/css/bingo.css" />
+<style>
+  .mesa { display: flex; align-items: center; gap: 1.6rem; }
+  .mesa .bingo-tablero { width: 34rem; }
+  .pie { margin-top: .9rem; font-size: 1rem; color: #9fb3c8; }
+  .pie b { color: #6ee7b7; letter-spacing: .08em; }
+  .entrada .donde { margin-top: .8rem; font-size: 1.05rem; }
+  .entrada .donde b { color: #6ee7b7; }
+
+  /* Lo último que se ha cantado, encima de todo un rato. Los que ganan van en
+     grande; los que cantan en falso, más discretos: es un aviso, no la noticia. */
+  .canto {
+    margin-top: .9rem;
+    font-size: 1.5rem;
+    font-weight: 900;
+    animation: canto-entra .5s cubic-bezier(.2, 1.4, .4, 1);
+  }
+  .canto[hidden] { display: none; }
+  .canto.linea, .canto.bingo { color: #6ee7b7; font-size: 2.2rem; }
+  .canto.falso { color: #fca5a5; font-size: 1.2rem; }
+  .canto.tarde { color: #fcd34d; font-size: 1.2rem; }
+  @keyframes canto-entra { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .canto { animation: none; } }
+</style>
+</head>
+<body>
+  <div id="todo">
+    <div class="panel entrada" id="panelEntrada" hidden>
+      <div class="cifra" id="cuantos">0</div>
+      <div class="rotulo" id="rotulo">cartones</div>
+      <div class="quienes" id="quienes"></div>
+      <div class="donde" id="dondeEntrada"></div>
+      <div class="cuenta" id="cuenta" hidden></div>
+    </div>
+    <div class="panel" id="panelJuego" hidden>
+      <div class="mesa">
+        <div class="bingo-bola vacia" id="bola"><span class="numero">?</span></div>
+        <div id="tablero"></div>
+      </div>
+      <div class="canto" id="canto" hidden></div>
+      <div class="pie" id="pie"></div>
+    </div>
+  </div>
+  <div id="espera" hidden>Widget conectado · esperando a que abras un bingo</div>
+  <div id="fallo" hidden></div>
+
+  <script src="/js/eventos.js"></script>
+  <script src="/js/bingo-dibujo.js"></script>
+  <script src="/js/widget-base.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    // Cuánto se queda en pantalla un canto que no termina la partida.
+    const CANTO_MS = 9000;
+    let ultimaPintada = 0;
+    let cantosVistos = -1;
+    let quitarCanto = null;
+
+    function dondeCartones(e) {
+      return 'Mira tu cartón en <b>' + location.host + '/bingo</b> · código <b>' + e.codigo + '</b>';
+    }
+
+    function escapar(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    }
+
+    function pinta(e) {
+      const entrada = Widget.caja('panelEntrada');
+      const juego = Widget.caja('panelJuego');
+      if (!e.hay) {
+        entrada.hidden = true;
+        juego.hidden = true;
+        ultimaPintada = 0;
+        cantosVistos = -1;
+        return false;
+      }
+
+      // Antes de la primera bola: quién va pidiendo cartón.
+      if (!e.salidas.length) {
+        juego.hidden = true;
+        entrada.hidden = false;
+        Widget.pintarApuntados(
+          { cuantos: 'cuantos', rotulo: 'rotulo', quienes: 'quienes', cuenta: 'cuenta' },
+          e.jugadores, e.abierta ? e.palabra : '', e.abierta ? e.cierraEn : 0);
+        Widget.caja('rotulo').textContent = e.jugadores.length === 1 ? 'cartón' : 'cartones';
+        Widget.caja('dondeEntrada').innerHTML = dondeCartones(e);
+        cantosVistos = e.cantos.length;
+        return true;
+      }
+
+      entrada.hidden = true;
+      juego.hidden = false;
+      const ultima = e.salidas[e.salidas.length - 1];
+      BingoDibujo.bola(Widget.caja('bola'), ultima, ultima !== ultimaPintada);
+      ultimaPintada = ultima;
+      BingoDibujo.tablero(Widget.caja('tablero'), e.salidas);
+
+      Widget.caja('pie').innerHTML = e.fase === 'fin'
+        ? 'Partida terminada · ' + e.salidas.length + ' bolas'
+        : 'Bola ' + e.salidas.length + ' de 75 · se juega ' + (e.fase === 'linea' ? 'la línea' : 'el cartón lleno')
+          + ' · canta con <b>' + escapar(e.cantar) + '</b><br>' + dondeCartones(e);
+
+      // El canto: el último, si es nuevo. Al abrir el widget a media partida no
+      // se repite uno viejo, salvo el que la terminó, que es el resultado.
+      const canto = Widget.caja('canto');
+      const nuevo = cantosVistos >= 0 && e.cantos.length > cantosVistos;
+      cantosVistos = e.cantos.length;
+      const ganadores = e.cantos.filter((c) => c.que === 'bingo');
+      if (e.fase === 'fin' && ganadores.length) {
+        clearTimeout(quitarCanto);
+        canto.className = 'canto bingo';
+        canto.textContent = '¡BINGO! ' + ganadores.map((c) => c.nombre).join(' y ');
+        canto.hidden = false;
+      } else if (nuevo) {
+        const c = e.cantos[e.cantos.length - 1];
+        clearTimeout(quitarCanto);
+        canto.className = 'canto ' + c.que;
+        canto.textContent = BingoDibujo.textoCanto(c);
+        canto.hidden = false;
+        quitarCanto = setTimeout(() => { canto.hidden = true; }, CANTO_MS);
+      } else if (e.fase !== 'fin' && !quitarCanto) {
+        canto.hidden = true;
+      }
+      return true;
+    }
+
+    Widget.arranca({ ruta: 'bingo', pinta });
+  })();
+  </script>
+</body>
+</html>

@@ -22,7 +22,7 @@
 
 import fs from 'fs';
 
-export const JUEGOS = ['sorteo', 'nombres', 'carrera', 'batalla', 'plinko', 'colina'] as const;
+export const JUEGOS = ['sorteo', 'nombres', 'carrera', 'batalla', 'plinko', 'colina', 'bingo'] as const;
 export type Juego = typeof JUEGOS[number];
 
 export const NOMBRES: Record<Juego, string> = {
@@ -31,7 +31,8 @@ export const NOMBRES: Record<Juego, string> = {
   carrera: 'Carrera de balineras',
   batalla: 'Batalla Dofus',
   plinko: 'Tablero de clavijas',
-  colina: 'Rey de la colina'
+  colina: 'Rey de la colina',
+  bingo: 'Bingo'
 };
 
 // Cuantas partidas se guardan con detalle. Con 20.000 hay de sobra para anos

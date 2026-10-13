@@ -22,6 +22,7 @@
 import { Router, Request, Response } from 'express';
 import * as carrera from '../carrera';
 import * as plinko from '../plinko';
+import * as bingo from '../bingo';
 import * as colina from '../colina';
 import * as batalla from '../batalla';
 import * as ruletachat from '../ruletachat';
@@ -274,6 +275,80 @@ router.post('/api/plinko/config', (req: Request, res: Response) => {
   } catch (err) {
     console.error('Failed to save plinko settings:', err);
     res.status(500).json({ error: 'failed to save plinko settings' });
+  }
+});
+
+// --- Bingo --------------------------------------------------------------
+// Las bolas las saca el servidor y los cartones los reparte el servidor. La
+// pagina solo ensena lo que hay y pide la siguiente bola. Ver bingo.ts.
+
+// GET /api/bingo -> la partida, los cartones y cuanto le falta a cada uno
+router.get('/api/bingo', (req: Request, res: Response) => {
+  res.json(bingo.estado(ctx.requireUid(req)));
+});
+
+// POST /api/bingo/abrir  Body: { segundos? } -> partida nueva, se piden cartones
+router.post('/api/bingo/abrir', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  const canal = ctx.canalDe(uid);
+  if (!canal) {
+    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  }
+  try {
+    bingo.abrir(uid, canal, req.body?.segundos);
+    res.json(bingo.estado(uid));
+  } catch (err) {
+    console.error('Failed to open bingo:', err);
+    res.status(500).json({ error: (err as Error).message || 'failed to open bingo' });
+  }
+});
+
+// POST /api/bingo/apuntar  Body: { nombre }  (para dar carton a mano)
+router.post('/api/bingo/apuntar', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  if (!bingo.apuntar(uid, String(req.body?.nombre || ''))) {
+    return res.status(409).json({ error: 'no se pudo dar carton: repetido, vacio o inscripcion cerrada' });
+  }
+  res.json(bingo.estado(uid));
+});
+
+// POST /api/bingo/sacar -> la siguiente bola
+router.post('/api/bingo/sacar', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  const primera = !bingo.estado(uid).salidas.length;
+  const r = bingo.sacar(uid);
+  if ('error' in r) return res.status(409).json({ error: r.error });
+  // La partida cuenta para la estadistica al empezar a jugarse, no al abrir:
+  // abrir y cancelar sin sacar ninguna bola no es haber jugado.
+  if (primera) estadisticas.apuntar('bingo', uid, bingo.estado(uid).jugadores.length);
+  res.json(bingo.estado(uid));
+});
+
+// POST /api/bingo/cantar  Body: { nombre }  -> cantar por alguien a mano
+// Se juzga igual que si lo hubiera escrito en el chat: si no lo tiene, fuera.
+router.post('/api/bingo/cantar', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  const canto = bingo.cantarBingo(uid, String(req.body?.nombre || ''));
+  if (!canto) return res.status(409).json({ error: 'ese nombre no tiene carton en juego, o no hay nada que cantar' });
+  res.json(bingo.estado(uid));
+});
+
+// POST /api/bingo/cancelar
+router.post('/api/bingo/cancelar', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  bingo.cancelar(uid);
+  res.json(bingo.estado(uid));
+});
+
+// POST /api/bingo/config  Body: { palabra?, cantar?, puntosLinea?, puntosBingo? }
+router.post('/api/bingo/config', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  try {
+    bingo.guardarAjustes(uid, req.body || {});
+    res.json(bingo.estado(uid));
+  } catch (err) {
+    console.error('Failed to save bingo settings:', err);
+    res.status(500).json({ error: 'failed to save bingo settings' });
   }
 });
 
