@@ -2680,7 +2680,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const boton = document.getElementById('respaldoSubir');
       if (!archivo) { estado.textContent = 'Elige primero el archivo de la copia.'; return; }
       if (!password) { estado.textContent = 'Escribe tu contraseña para confirmar.'; return; }
-      if (!confirm(`Se van a reemplazar TODOS los datos de esta instalación por los de «${archivo.name}».\n\nTu sesión se cerrará y tendrás que entrar con una cuenta de la copia.\n\n¿Seguir?`)) return;
+      const seguir = await showConfirm('Restaurar la copia',
+        `Se van a reemplazar TODOS los datos de esta instalación por los de «${archivo.name}». Tu sesión se cerrará y tendrás que entrar con una cuenta de la copia.`,
+        'Reemplazar todo', true);
+      if (!seguir) return;
 
       boton.disabled = true;
       estado.textContent = 'Subiendo y restaurando…';

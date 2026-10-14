@@ -188,8 +188,11 @@
     });
 
     document.getElementById('bingoAbrir').addEventListener('click', async () => {
-      if (bingo.hay && bingo.fase !== 'fin' && bingo.salidas.length
-          && !confirm('Hay una partida a medias. ¿Empezar otra? Los cartones de ahora se pierden.')) return;
+      if (bingo.hay && bingo.fase !== 'fin' && bingo.salidas.length) {
+        const ok = await showConfirm('Hay una partida a medias',
+          'Si empiezas otra, los cartones y las bolas de ahora se pierden.', 'Empezar otra', true);
+        if (!ok) return;
+      }
       bingoAbiertos.clear();
       bingoUltimaPintada = 0;
       if (await bingoPedir('/api/bingo/abrir', { segundos: segundosDe('bingoMinutos') }, 'No se pudo abrir el bingo')) {
@@ -206,7 +209,11 @@
     });
 
     document.getElementById('bingoCancelar').addEventListener('click', async () => {
-      if (bingo.fase !== 'fin' && bingo.salidas.length && !confirm('¿Cancelar la partida? Nadie se lleva nada.')) return;
+      if (bingo.fase !== 'fin' && bingo.salidas.length) {
+        const ok = await showConfirm('Cancelar la partida',
+          'Se acaba aquí y nadie se lleva nada. Los puntos ya repartidos se quedan.', 'Cancelar partida', true);
+        if (!ok) return;
+      }
       await bingoPedir('/api/bingo/cancelar', undefined, 'No se pudo cancelar');
       bingoVigilar(false);
     });
@@ -222,7 +229,9 @@
       const campo = document.getElementById('bingoNombre');
       const nombre = campo.value.trim();
       if (!nombre) return;
-      if (!confirm(`¿Cantar por ${nombre}? Si no lo tiene, queda descalificado.`)) return;
+      const ok = await showConfirm(`Cantar por ${nombre}`,
+        'Se juzga igual que si lo hubiera escrito en el chat: si no lo tiene, queda descalificado.', 'Cantar', true);
+      if (!ok) return;
       if (await bingoPedir('/api/bingo/cantar', { nombre }, 'No se pudo cantar')) campo.value = '';
     });
 
