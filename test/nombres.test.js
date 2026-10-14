@@ -350,3 +350,36 @@ test('un premio absurdo se recorta', (t) => {
   nombres.guardarDoble('u1', { quien: 'Ana', gana: true, premio: -5 });
   assert.strictEqual(nombres.estado('u1').doble.premio, 0);
 });
+
+// --- Los kamas que se juegan --------------------------------------------------
+//
+// La ruleta puede sortear kamas. El giro lleva la cantidad para que el widget la
+// diga con el ganador; la pagina es la que la apunta en Ganadores al cobrar.
+
+test('el giro lleva los kamas que se juegan, limpios', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+  const kamasDe = (k) => {
+    nombres.guardarSorteo(uid, { cuantos: 2, quien: 'Ana', ganador: 'Ana', quedan: 1, duracion: 0, kamas: k });
+    return nombres.estado(uid).sorteo.kamas;
+  };
+
+  assert.strictEqual(kamasDe(50000), 50000);
+  assert.strictEqual(kamasDe(1234.9), 1234, 'sin decimales');
+  assert.strictEqual(kamasDe(undefined), 0, 'sin kamas, 0: la ruleta de siempre');
+  assert.strictEqual(kamasDe(-5), 0, 'nada de negativos');
+  assert.strictEqual(kamasDe('mucho'), 0, 'ni cosas que no son numeros');
+  assert.strictEqual(kamasDe(1e20), 1e12, 'con tope');
+});
+
+test('los kamas del giro sobreviven a un reinicio', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const uid = 'u1';
+  minijuegos(c.raiz).nombres.guardarSorteo(uid, { cuantos: 2, quien: 'Ana', ganador: 'Ana', quedan: 1, duracion: 0, kamas: 7000 });
+  const otra = minijuegos(c.raiz).nombres;
+  otra.rehacer(uid);
+  assert.strictEqual(otra.estado(uid).sorteo.kamas, 7000);
+});

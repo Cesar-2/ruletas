@@ -98,6 +98,11 @@ export interface Sorteo {
   // sacar es solo lo que dura el giro.
   nombres: string[];
   elegido: number;
+  // Los kamas que se juegan en este giro, o 0 si no se juega nada. Es lo que el
+  // dueño escribio antes de girar; el widget lo ensena con el ganador, y lo
+  // dobla si sale bien el doble o nada. Aqui no se guarda ningun premio: quien
+  // lo apunta en Ganadores es la pagina, al cobrar.
+  kamas: number;
 }
 
 // Lo que se manda afuera: igual, pero sin decir quien es mientras gira.
@@ -113,6 +118,14 @@ export interface SorteoVisible {
   // Para pintar la ruleta girando. Ver el comentario de Sorteo.
   nombres: string[];
   elegido: number;
+  kamas: number;
+}
+
+// Los kamas de un giro, limpios: un entero, sin negativos y con un tope para
+// que un numero absurdo no rompa el cartel.
+function limpiarKamas(n: unknown): number {
+  const v = Math.floor(Number(n));
+  return Number.isFinite(v) && v > 0 ? Math.min(v, 1e12) : 0;
 }
 
 // El doble o nada: el que ha ganado se juega el premio.
@@ -191,7 +204,8 @@ function sorteoVisible(uid: string): SorteoVisible | null {
     terminaEn: s.terminaEn,
     cuando: s.cuando,
     nombres: s.nombres,
-    elegido: s.elegido
+    elegido: s.elegido,
+    kamas: s.kamas || 0
   };
 }
 
@@ -236,6 +250,7 @@ export function guardarSorteo(uid: string, datos: unknown): Sorteo | null {
     terminaEn: Date.now() + gira,
     cuando: new Date().toISOString(),
     nombres: lista,
+    kamas: limpiarKamas(d.kamas),
     // Si el sitio no cuadra con la lista, se busca por nombre; y si tampoco, 0.
     // Una parada fuera de la lista dejaria la cinta parada en un hueco vacio.
     elegido: (() => {
@@ -409,7 +424,8 @@ export function rehacer(uid: string): boolean {
       terminaEn: Number(s.terminaEn) || 0,
       cuando: String(s.cuando || new Date().toISOString()),
       nombres: Array.isArray(s.nombres) ? s.nombres.filter((n: unknown) => typeof n === 'string') : [],
-      elegido: Number(s.elegido) || 0
+      elegido: Number(s.elegido) || 0,
+      kamas: limpiarKamas((s as any).kamas)
     });
   }
 

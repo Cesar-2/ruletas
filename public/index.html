@@ -1561,6 +1561,7 @@
               <button type="button" id="nameDouble">🎲 Doble o nada (50%)</button>
               <button type="button" id="nameCashOut" class="btn-cancel">Retirarse con el premio</button>
               <button type="button" id="useNameWinner">Usar este nombre en el sorteo</button>
+              <span class="meta" id="nameKamasEstado"></span>
             </div>
             <h3>🎡 Ruleta de nombres</h3>
             <p class="meta">Escribe un nombre por línea y gira: uno de ellos sale ganador. La lista se guarda en este navegador, por servidor.</p>
@@ -1583,6 +1584,11 @@
                 <!-- La escena se lleva estos mandos mientras esté a pantalla
                      completa: si no, girar y doblar se quedan fuera y no hay
                      forma de lanzar nada sin salirse. -->
+                <div class="controls">
+                  <label class="meta" for="nameKamas">Kamas en juego</label>
+                  <input id="nameKamas" type="number" min="0" step="1" value="0" style="width:140px" title="Lo que se lleva quien gane. 0 = no se juegan kamas" />
+                  <span class="meta">0 = sin kamas</span>
+                </div>
                 <div class="controls" id="nombresMandos">
                   <button type="button" id="spinNames">Girar</button>
                   <button type="button" class="btn-cancel" id="clearNames">Vaciar lista</button>
@@ -8608,6 +8614,94 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // envite antes de que cargue no salga con otras posibilidades.
     let doblePct = 50;
     let premioNombres = 1;      // por cuanto se multiplica el premio
+    // Los kamas que se jugaban en el giro que hay en pantalla. Se fijan al
+    // girar: cambiar el campo después no cambia lo que ya se sorteó.
+    let kamasNombres = 0;
+    // Si el premio en kamas de ese giro ya está apuntado en Ganadores.
+    let kamasCobrados = false;
+
+    // Lo que se lleva ahora mismo el ganador, en kamas: lo del giro por lo que
+    // haya doblado. 0 si no se jugaban kamas o si lo ha perdido.
+    function kamasEnJuego() {
+      return kamasNombres > 0 && nombreGanador ? kamasNombres * premioNombres : 0;
+    }
+
+    // Lo que hay escrito en el campo, limpio.
+    function leerKamasNombres() {
+      const n = Math.floor(Number(document.getElementById('nameKamas').value));
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+
+    // Antes de girar otra vez o de vaciar la lista, si quedaba un premio en
+    // kamas sin cobrar se pregunta qué hacer con él: un premio ganado no se
+    // puede perder por pulsar Girar sin querer. Guardar es lo de por defecto
+    // (también con Enter); tirarlo hay que elegirlo.
+    //
+    // Devuelve si se puede seguir con lo que se iba a hacer.
+    async function premioPendienteNombres(accion) {
+      const total = kamasEnJuego();
+      if (!total || kamasCobrados) return true;
+      const eleccion = await showModal({
+        title: 'Hay un premio sin guardar',
+        messageHtml: escapeHtml(nombreGanador) + ' ganó ' + kamasHtml(total)
+          + ' y todavía no está en Ganadores. ¿Seguro que quieres ' + accion + ' sin guardarlo?',
+        okText: 'Guardar y ' + accion,
+        extraText: accion.charAt(0).toUpperCase() + accion.slice(1) + ' sin guardar',
+        cancelText: 'Cancelar'
+      });
+      if (eleccion === 'extra') {
+        // Tirado a propósito: ya no hay nada pendiente.
+        kamasNombres = 0;
+        return true;
+      }
+      if (!eleccion) return false;
+      return cobrarKamasNombres();
+    }
+
+    // Apunta el premio en Ganadores: al pulsar Cobrar, o al elegir «Guardar» en
+    // la pregunta de arriba.
+    //
+    // Lo que NO se apunta es lo que se pierde en el doble o nada: ahí
+    // kamasEnJuego() ya es cero.
+    async function cobrarKamasNombres() {
+      const total = kamasEnJuego();
+      if (!total || kamasCobrados) return true;
+      const estado = document.getElementById('nameKamasEstado');
+      // Se marca ya, antes de contestar el servidor: dos clics seguidos no
+      // pueden apuntar el premio dos veces.
+      kamasCobrados = true;
+      const quien = nombreGanador;
+      try {
+        const data = await api('/api/winners', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: quien,
+            total,
+            items: [{
+              id: 'kamas',
+              name: 'Kamas · Ruleta de nombres' + (premioNombres > 1 ? ' (x' + premioNombres + ')' : ''),
+              value: total,
+              icon: '/assets/kama.png'
+            }]
+          })
+        });
+        winners = data.winners || [];
+        renderWinners();
+        loadRanking();
+        loadHistory();
+        estado.textContent = data.merged
+          ? 'Sumado a ' + quien + ' en Ganadores: ' + total.toLocaleString('es-ES') + ' kamas.'
+          : quien + ' guardado en Ganadores con ' + total.toLocaleString('es-ES') + ' kamas.';
+        return true;
+      } catch (e) {
+        kamasCobrados = false;
+        estado.textContent = '';
+        showAlert('No se pudo guardar en Ganadores', quien + ' ganó ' + total.toLocaleString('es-ES')
+          + ' kamas, pero no se han podido apuntar: ' + e.message + '. Vuelve a pulsar Cobrar.');
+        return false;
+      }
+    }
     let jugandoDoble = false;   // mientras corre la animacion no se toca nada
 
     function clave_nombres() {
@@ -8808,12 +8902,17 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const banner = document.getElementById('nameWinnerBanner');
       banner.className = 'ganador-grande' + (estado === 'pierde' ? ' pierde' : '');
       const cara = estado === 'pierde' ? '😵' : '🎉';
+      // Con kamas en juego se dice la cantidad, que es lo que se lleva; sin
+      // ellos, solo por cuánto va multiplicado, como siempre.
+      const kamas = kamasEnJuego();
       const pie = estado === 'pierde'
         ? 'Se queda sin nada'
-        : (premioNombres > 1 ? 'Premio x' + premioNombres : '');
+        : kamas
+          ? kamasHtml(kamas) + (premioNombres > 1 ? ' x' + premioNombres : '')
+          : (premioNombres > 1 ? 'Premio x' + premioNombres : '');
       banner.innerHTML = '<span class="corona">' + cara + '</span>'
         + '<span class="quien-gana">' + escapeHtml(nombreGanador) + '</span>'
-        + (pie ? '<span class="premio">' + escapeHtml(pie) + '</span>' : '');
+        + (pie ? '<span class="premio">' + pie + '</span>' : '');
       banner.hidden = false;
     }
 
@@ -8838,13 +8937,21 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       retirar.hidden = !puedeDoblar;
       doble.disabled = jugandoDoble;
       retirar.disabled = jugandoDoble;
-      doble.textContent = premioNombres > 1
-        ? '🎲 Doblar otra vez: x' + (premioNombres * 2) + ' (' + doblePct + '%)'
-        : '🎲 Doble o nada (' + doblePct + '%)';
+      const kamas = kamasEnJuego();
+      // Cobrado ya no hay nada que jugarse: el premio está apuntado.
+      if (kamasCobrados) { doble.hidden = true; retirar.hidden = true; }
+      doble.textContent = kamas
+        ? '🎲 Doble o nada: ' + (kamas * 2).toLocaleString('es-ES') + ' kamas (' + doblePct + '%)'
+        : premioNombres > 1
+          ? '🎲 Doblar otra vez: x' + (premioNombres * 2) + ' (' + doblePct + '%)'
+          : '🎲 Doble o nada (' + doblePct + '%)';
+      retirar.textContent = kamas
+        ? '💰 Cobrar ' + kamas.toLocaleString('es-ES') + ' kamas'
+        : 'Retirarse con el premio';
     }
 
     async function dobleONada() {
-      if (jugandoDoble || !nombreGanador) return;
+      if (jugandoDoble || !nombreGanador || kamasCobrados) return;
       jugandoDoble = true;
       mandosNombres(true);
 
@@ -8885,7 +8992,15 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const nombres = leerNombres();
       if (nombres.length < 2 || girandoNombres || jugandoDoble) return;
 
+      // Si quedaba un premio en kamas sin cobrar, se pregunta qué hacer con él.
+      // Si se cancela, o se quiere guardar y no se puede, no se gira: girar lo
+      // borraría de la pantalla.
+      if (!(await premioPendienteNombres('girar'))) return;
+      if (girandoNombres) return;
+
       girandoNombres = true;
+      const kamasDeEsteGiro = leerKamasNombres();
+      document.getElementById('nameKamasEstado').textContent = '';
       document.getElementById('spinNames').disabled = true;
       document.getElementById('nameWinnerBanner').hidden = true;
       document.getElementById('nameWinnerActions').hidden = true;
@@ -8924,7 +9039,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           // cinta girando y no un cartel de «girando». Va con la lista de ESTE
           // giro y no con la de ahora: eliminando, la lista cambia al acabar.
           nombres,
-          elegido
+          elegido,
+          // Lo que se juega, para que el widget lo diga con el ganador.
+          kamas: kamasDeEsteGiro
         })
       }).catch(() => {});
 
@@ -8951,6 +9068,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       // Cada giro empieza con el premio sin doblar.
       premioNombres = 1;
+      kamasNombres = kamasDeEsteGiro;
+      kamasCobrados = false;
       const resto = nombres.filter((_, i) => i !== elegido);
       const elimina = modoEliminaNombres();
       // El que ha parado en la banda: se enciende si gana, se tacha si se va.
@@ -9001,12 +9120,20 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (jugandoDoble || !nombreGanador) return;
       pintarGanadorNombres('gana');
       mandosNombres(false);
+      // Con kamas en juego, retirarse es cobrar: va a Ganadores. Si no se puede
+      // apuntar, vuelven los botones para reintentarlo.
+      cobrarKamasNombres().then((ok) => { if (!ok) mandosNombres(true); });
     });
 
     document.getElementById('clearNames').addEventListener('click', async () => {
       if (!leerNombres().length) return;
       const ok = await showConfirm('Vaciar la lista', 'Se borran todos los nombres de esta ruleta.', 'Vaciar', true);
       if (!ok) return;
+      // Lo que estuviera ganado y sin cobrar: se pregunta antes de borrar nada.
+      if (!(await premioPendienteNombres('vaciar la lista'))) return;
+      kamasNombres = 0;
+      kamasCobrados = false;
+      document.getElementById('nameKamasEstado').textContent = '';
       document.getElementById('nameList').value = '';
       guardarNombres();
       document.getElementById('nameWinnerBanner').hidden = true;
