@@ -762,6 +762,17 @@
     .bingo-jugador.fuera{opacity:.55}
     .bingo-jugador.fuera .quien{text-decoration:line-through}
     .bingo-mini{padding:.5rem 0 .3rem .7rem}
+    /* Configuración › Twitch */
+    .twitch-estado{font-weight:700;margin:.4rem 0 .6rem}
+    .twitch-estado.va{color:var(--accent)}
+    .twitch-estado.no{color:var(--muted)}
+    .twitch-ultimo.va{color:var(--accent)}
+    .twitch-ultimo.no{color:#fca5a5}
+    .twitch-pasos{padding-left:1.2rem;line-height:1.6}
+    .twitch-pasos a{color:var(--accent)}
+    .twitch-redir{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.35rem 0}
+    .twitch-redir code{padding:.3rem .5rem;border-radius:6px;background:rgba(255,255,255,0.06);word-break:break-all}
+    .twitch-redir button{padding:.25rem .7rem;font-size:13px}
     /* El editor de premios: una tarjeta por casilla, con su imagen y su nombre. */
     .premios-cosas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.6rem;margin:.8rem 0}
     .premios-cosas[hidden]{display:none}
@@ -1879,6 +1890,7 @@
             <button type="button" class="subtab cfgtab" data-cfgtab="aspecto">🎨 Apariencia</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="minijuegos">🕹️ Minijuegos</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="widgets">📺 Widgets</button>
+            <button type="button" class="subtab cfgtab" data-cfgtab="twitch">📡 Twitch</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="datos">📦 Datos</button>
             <button type="button" class="subtab cfgtab" data-cfgtab="acceso" id="cfgtabAcceso" hidden>🔑 Acceso</button>
           </div>
@@ -2118,6 +2130,38 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 <div class="quienes">Ana · Beto · Carla</div>
               </div>
             </div>
+          </div>
+          </div>
+
+          <div class="cfg-tabpanel" id="cfgtab-twitch">
+          <div class="config-section">
+            <h4>Avisos en tu chat</h4>
+            <p class="meta">Con tu cuenta de Twitch conectada, al abrir la inscripción de cualquier minijuego se escribe en tu chat <strong>«Escribe !comando para participar en el minijuego»</strong> y se fija arriba. Sale con tu propia cuenta, que es la dueña del canal. Para leer el chat no hace falta nada de esto: los minijuegos funcionan igual sin conectar.</p>
+            <p class="twitch-estado" id="twitchEstado">Cargando…</p>
+            <label class="names-check"><input type="checkbox" id="twitchFijar" checked /> <span>Fijar el aviso en el chat al abrir una inscripción</span></label>
+            <p class="meta twitch-ultimo" id="twitchUltimo" hidden></p>
+          </div>
+
+          <div class="config-section">
+            <h4>Conectar tu cuenta</h4>
+            <ol class="meta twitch-pasos">
+              <li>Entra en <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener">dev.twitch.tv › Your Console › Applications</a> y pulsa <strong>Register Your Application</strong>.</li>
+              <li>Ponle un nombre cualquiera, categoría <em>Chat Bot</em>, tipo de cliente <em>Confidential</em>, y como <strong>OAuth Redirect URL</strong> exactamente esta:
+                <div class="twitch-redir"><code id="twitchRedireccion"></code> <button type="button" id="twitchCopiar">Copiar</button></div>
+              </li>
+              <li>Copia aquí el <strong>Client ID</strong> y genera un <strong>Client Secret</strong> (New Secret). Guarda, y pulsa <strong>Conectar con Twitch</strong>.</li>
+            </ol>
+            <div class="config-actions" style="flex-wrap:wrap">
+              <input type="text" id="twitchClientId" placeholder="Client ID" autocomplete="off" style="width:260px" />
+              <input type="password" id="twitchSecret" placeholder="Client Secret de tu app" autocomplete="off" style="width:260px" />
+              <button type="button" id="twitchGuardar">Guardar</button>
+              <span class="meta" id="twitchGuardado"></span>
+            </div>
+            <div class="config-actions">
+              <button type="button" id="twitchConectar" disabled>Conectar con Twitch</button>
+              <button type="button" id="twitchDesconectar" class="btn-cancel" hidden>Desconectar</button>
+            </div>
+            <p class="meta">Si conectaste antes de que existieran los avisos, pulsa <strong>Volver a conectar</strong>: hace falta un permiso nuevo para escribir en el chat. Los canjes de puntos de canal no hacen nada mientras no haya una recompensa configurada.</p>
           </div>
           </div>
 
@@ -6577,6 +6621,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
   <script src="/js/plinko-panel.js"></script>
   <script src="/js/bingo-dibujo.js"></script>
   <script src="/js/bingo-panel.js"></script>
+  <script src="/js/twitch-panel.js"></script>
   <script>
     // --- Buscador de objetos del catálogo ---
     // Busca sobre el catálogo del juego activo. Se pide una sola vez y se
@@ -7931,6 +7976,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (cual === 'acceso') cargarAcceso();
         if (cual === 'minijuegos') cargarMinijuegos();
         if (cual === 'widgets') cargarWidgets();
+        if (cual === 'twitch') cargarTwitch();
       });
     });
     pintarCfgGuardar();

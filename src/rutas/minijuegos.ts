@@ -38,6 +38,14 @@ export interface Contexto {
   canalDe(uid: string): string;
   // Guarda una imagen subida en la carpeta de datos y devuelve su ruta.
   guardarImagen(dataUrl: unknown, prefijo: string): { url?: string; error?: string; code?: number };
+  // Fija en el chat el aviso de una inscripcion recien abierta. No espera ni
+  // falla: si Twitch no esta conectado no hace nada. Ver twitch.ts.
+  fijarAviso(uid: string, canal: string, texto: string, segundos?: unknown): void;
+}
+
+// El aviso que se fija al abrir la inscripcion de cada minijuego.
+export function aviso(palabra: string, juego: string, extra = ''): string {
+  return 'Escribe ' + palabra + ' para participar en ' + juego + (extra ? ' · ' + extra : '');
 }
 
 let ctx: Contexto;
@@ -69,7 +77,9 @@ router.post('/api/ruleta-chat/abrir', (req: Request, res: Response) => {
       ruletachat.guardarAjustes(uid, { palabra: req.body.palabra });
     }
     // Con «segundos», la inscripcion se cierra sola cuando se acaban.
-    res.json(ruletachat.abrir(uid, canal, undefined, req.body?.segundos));
+    const abierta = ruletachat.abrir(uid, canal, undefined, req.body?.segundos);
+    ctx.fijarAviso(uid, canal, aviso(ruletachat.estado(uid).palabra, 'la Ruleta de nombres'), req.body?.segundos);
+    res.json(abierta);
   } catch (err) {
     console.error('Failed to open wheel signup:', err);
     res.status(500).json({ error: (err as Error).message || 'failed to open wheel signup' });
@@ -140,7 +150,9 @@ router.post('/api/carrera/abrir', (req: Request, res: Response) => {
       carrera.guardarAjustes(uid, { palabra: req.body.palabra });
     }
     carrera.abrir(uid, canal, undefined, req.body?.segundos);
-    res.json(carrera.estado(uid));
+    const e = carrera.estado(uid);
+    ctx.fijarAviso(uid, canal, aviso(e.ajustes.palabra, 'la Carrera de balineras'), req.body?.segundos);
+    res.json(e);
   } catch (err) {
     console.error('Failed to open race:', err);
     res.status(500).json({ error: (err as Error).message || 'failed to open race' });
@@ -209,7 +221,9 @@ router.post('/api/plinko/abrir', (req: Request, res: Response) => {
       plinko.guardarAjustes(uid, { palabra: req.body.palabra });
     }
     plinko.abrir(uid, canal, undefined, req.body?.segundos);
-    res.json(plinko.estado(uid));
+    const e = plinko.estado(uid);
+    ctx.fijarAviso(uid, canal, aviso(e.ajustes.palabra, 'el Tablero de clavijas'), req.body?.segundos);
+    res.json(e);
   } catch (err) {
     console.error('Failed to open plinko:', err);
     res.status(500).json({ error: (err as Error).message || 'failed to open plinko' });
@@ -296,7 +310,12 @@ router.post('/api/bingo/abrir', (req: Request, res: Response) => {
   }
   try {
     bingo.abrir(uid, canal, req.body?.segundos);
-    res.json(bingo.estado(uid));
+    const e = bingo.estado(uid);
+    // La direccion de los cartones, con el dominio por el que ha entrado el
+    // streamer: es el mismo por el que entraran los espectadores.
+    const donde = req.protocol + '://' + req.get('host') + '/bingo?p=' + e.codigo;
+    ctx.fijarAviso(uid, canal, aviso(e.ajustes.palabra, 'el Bingo', 'mira tu cartón en ' + donde), req.body?.segundos);
+    res.json(e);
   } catch (err) {
     console.error('Failed to open bingo:', err);
     res.status(500).json({ error: (err as Error).message || 'failed to open bingo' });
@@ -382,7 +401,9 @@ router.post('/api/batalla/abrir', (req: Request, res: Response) => {
       batalla.guardarAjustes(uid, { palabra: req.body.palabra });
     }
     batalla.abrir(uid, canal, req.body?.segundos);
-    res.json(batalla.estado(uid));
+    const e = batalla.estado(uid);
+    ctx.fijarAviso(uid, canal, aviso(e.palabra, 'la Batalla Dofus'), req.body?.segundos);
+    res.json(e);
   } catch (err) {
     console.error('Failed to open battle:', err);
     res.status(500).json({ error: (err as Error).message || 'failed to open battle' });
@@ -419,6 +440,7 @@ router.post('/api/colina/abrir', (req: Request, res: Response) => {
     }
     colina.abrir(uid, canal);
     estadisticas.apuntar('colina', uid, 0);
+    ctx.fijarAviso(uid, canal, aviso(colina.estado(uid).palabra, 'el Rey de la colina'));
     res.json({ ...colina.estado(uid), arte: arte.deBatalla() });
   } catch (err) {
     console.error('Failed to open hill:', err);

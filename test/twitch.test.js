@@ -1,0 +1,210 @@
+// La conexion con Twitch: el aviso que se fija en el chat y los canjes.
+//
+// Aqui no se habla con Twitch de verdad: se cambia fetch por uno de mentira que
+// apunta lo que se le pide y contesta lo que toca. Lo que se comprueba:
+//
+//  - Sin conectar, o con el aviso apagado, no se manda nada.
+//  - Conectado, se escribe el aviso y se fija ese mismo mensaje, en el canal
+//    de la cuenta y el tiempo que dure la inscripcion.
+//  - Si la cuenta conectada no es la del canal que escuchan los minijuegos, no
+//    se escribe en un chat donde nadie se esta apuntando.
+//  - Un token caducado se refresca y se reintenta.
+//  - Conectar Twitch no pone a regalar objetos por cualquier canje.
+
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+const { carpeta, cargar, deps } = require('./ayuda');
+
+const CUENTA = {
+  clientId: 'cid', clientSecret: 'secreto', accessToken: 'tok', refreshToken: 'ref',
+  login: 'micanal', userId: '123', servidor: 's1', recompensa: '', objetos: 1
+};
+
+function montar(raiz, cuenta, sorteados) {
+  const d = deps(raiz);
+  d.sortearPara = async (uid, sid, nombre) => { if (sorteados) sorteados.push(nombre); return ['algo']; };
+  d.servidoresDe = () => [{ id: 's1', name: 'Principal' }];
+  const twitch = cargar('twitch');
+  twitch.iniciar(d, { usuarios: [] });
+  if (cuenta) {
+    fs.mkdirSync(path.join(raiz, 'u1'), { recursive: true });
+    fs.writeFileSync(path.join(raiz, 'u1', 'twitch.json'), JSON.stringify(cuenta));
+  }
+  return twitch;
+}
+
+// Un fetch de mentira. `respuestas` son funciones (url, opciones) => {status,
+// json}, una por llamada y en orden.
+function fetchFalso(t, respuestas) {
+  const antes = globalThis.fetch;
+  const llamadas = [];
+  globalThis.fetch = async (url, op = {}) => {
+    // Helix va en JSON; el refresco del token, como formulario.
+    let cuerpo = op.body ? String(op.body) : null;
+    try { cuerpo = cuerpo && JSON.parse(cuerpo); } catch (e) { /* formulario */ }
+    llamadas.push({ url: String(url), metodo: op.method || 'GET', cuerpo, cabeceras: op.headers || {} });
+    const r = respuestas.shift();
+    if (!r) throw new Error('llamada de mas: ' + url);
+    const { status = 200, json = {} } = r(String(url), op) || {};
+    return { ok: status >= 200 && status < 300, status, json: async () => json, text: async () => JSON.stringify(json) };
+  };
+  t.after(() => { globalThis.fetch = antes; });
+  return llamadas;
+}
+
+const ENVIADO = () => ({ json: { data: [{ message_id: 'm-1', is_sent: true }] } });
+const FIJADO = () => ({ status: 204 });
+
+test('sin conectar no se manda nada', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, null);
+  const llamadas = fetchFalso(t, []);
+  const a = await twitch.fijarAviso('u1', 'micanal', 'Escribe !correr');
+  assert.strictEqual(a.ok, false);
+  assert.strictEqual(a.error, '', 'no es un fallo: es que no toca');
+  assert.strictEqual(llamadas.length, 0);
+});
+
+test('conectado, escribe el aviso y fija ese mismo mensaje', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const llamadas = fetchFalso(t, [ENVIADO, FIJADO]);
+
+  const a = await twitch.fijarAviso('u1', 'MiCanal', 'Escribe !correr para participar en la Carrera de balineras', 120);
+  assert.strictEqual(a.ok, true, a.error);
+
+  const [envio, fijo] = llamadas;
+  assert.strictEqual(envio.metodo, 'POST');
+  assert.ok(envio.url.endsWith('/helix/chat/messages'));
+  assert.deepStrictEqual(envio.cuerpo, {
+    broadcaster_id: '123', sender_id: '123',
+    message: 'Escribe !correr para participar en la Carrera de balineras'
+  });
+  assert.strictEqual(envio.cabeceras.Authorization, 'Bearer tok');
+
+  assert.strictEqual(fijo.metodo, 'PUT');
+  const q = new URL(fijo.url).searchParams;
+  assert.ok(fijo.url.includes('/helix/chat/pins?'));
+  assert.strictEqual(q.get('message_id'), 'm-1', 'el mensaje que se acaba de escribir');
+  assert.strictEqual(q.get('broadcaster_id'), '123');
+  assert.strictEqual(q.get('moderator_id'), '123');
+  assert.strictEqual(q.get('duration_seconds'), '120', 'lo que dura la inscripcion');
+  assert.strictEqual(twitch.estado('u1').ultimoAviso.ok, true, 'y queda en el estado');
+});
+
+test('la duracion del fijado se queda entre lo que admite Twitch', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const duracion = async (segundos) => {
+    const llamadas = fetchFalso(t, [ENVIADO, FIJADO]);
+    await twitch.fijarAviso('u1', 'micanal', 'x', segundos);
+    return new URL(llamadas[1].url).searchParams.get('duration_seconds');
+  };
+  assert.strictEqual(await duracion(undefined), '1200', 'sin cronometro, 20 minutos');
+  assert.strictEqual(await duracion(5), '30', 'menos de 30 s no se puede');
+  assert.strictEqual(await duracion(3600), '1800', 'ni mas de 30 min');
+});
+
+test('con el aviso apagado no se manda nada', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, { ...CUENTA, fijarAviso: false });
+  const llamadas = fetchFalso(t, []);
+  await twitch.fijarAviso('u1', 'micanal', 'x');
+  assert.strictEqual(llamadas.length, 0);
+  assert.strictEqual(twitch.estado('u1').fijarAviso, false);
+});
+
+test('si la cuenta conectada no es la del canal, no escribe en otro chat', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const llamadas = fetchFalso(t, []);
+  const a = await twitch.fijarAviso('u1', 'otrocanal', 'x');
+  assert.strictEqual(a.ok, false);
+  assert.match(a.error, /micanal.*otrocanal/);
+  assert.strictEqual(llamadas.length, 0);
+});
+
+test('un token caducado se refresca y se reintenta', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const llamadas = fetchFalso(t, [
+    () => ({ status: 401 }),
+    () => ({ json: { access_token: 'nuevo', refresh_token: 'ref2' } }),
+    ENVIADO,
+    FIJADO
+  ]);
+  const a = await twitch.fijarAviso('u1', 'micanal', 'x');
+  assert.strictEqual(a.ok, true, a.error);
+  assert.strictEqual(llamadas[2].cabeceras.Authorization, 'Bearer nuevo', 'con el token nuevo');
+  assert.strictEqual(twitch.leerCuenta('u1').accessToken, 'nuevo', 'y queda guardado');
+});
+
+test('sin permiso para escribir lo dice claro, para volver a conectar', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  fetchFalso(t, [() => ({ status: 403, json: { message: 'Missing scope: user:write:chat' } })]);
+  const a = await twitch.fijarAviso('u1', 'micanal', 'x');
+  assert.strictEqual(a.ok, false);
+  assert.match(a.error, /vuelve a conectar/);
+});
+
+test('si no se puede fijar, dice que el aviso si salio', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  fetchFalso(t, [ENVIADO, () => ({ status: 403, json: { message: 'nope' } })]);
+  const a = await twitch.fijarAviso('u1', 'micanal', 'x');
+  assert.strictEqual(a.ok, false);
+  assert.match(a.error, /salio en el chat/);
+});
+
+test('un fallo de red no rompe nada: se cuenta y ya', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  fetchFalso(t, [() => { throw new Error('sin red'); }]);
+  const a = await twitch.fijarAviso('u1', 'micanal', 'x');
+  assert.strictEqual(a.ok, false);
+  assert.match(a.error, /sin red/);
+});
+
+test('sin recompensa configurada, los canjes no regalan nada', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const sorteados = [];
+  const twitch = montar(c.raiz, CUENTA, sorteados);
+  const evento = { reward: { title: 'Hidratate' }, user_name: 'Ana' };
+  assert.strictEqual(await twitch.alCanjear('u1', evento), false);
+  assert.deepStrictEqual(sorteados, [], 'conectar para los avisos no reparte objetos');
+
+  // Con la suya puesta, solo esa.
+  fs.writeFileSync(path.join(c.raiz, 'u1', 'twitch.json'), JSON.stringify({ ...CUENTA, recompensa: 'Regalo' }));
+  assert.strictEqual(await twitch.alCanjear('u1', evento), false, 'otra recompensa, nada');
+  assert.strictEqual(await twitch.alCanjear('u1', { reward: { title: 'regalo' }, user_name: 'Ana' }), true);
+  assert.deepStrictEqual(sorteados, ['Ana']);
+});
+
+test('se piden los permisos de escribir y fijar', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const scope = new URL(twitch.urlDeAutorizacion('u1')).searchParams.get('scope').split(' ');
+  for (const p of ['channel:read:redemptions', 'user:write:chat', 'moderator:manage:chat_messages']) {
+    assert.ok(scope.includes(p), 'pide ' + p);
+  }
+});
+
+test('el aviso dice que escribir y en que minijuego', () => {
+  const { aviso } = cargar('rutas/minijuegos');
+  assert.strictEqual(aviso('!correr', 'la Carrera de balineras'), 'Escribe !correr para participar en la Carrera de balineras');
+  assert.strictEqual(aviso('!carton', 'el Bingo', 'mira tu cartón en x'), 'Escribe !carton para participar en el Bingo · mira tu cartón en x');
+});

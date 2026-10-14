@@ -3154,7 +3154,7 @@ app.post('/api/twitch/credentials', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/twitch/config  Body: { canal?, servidor?, recompensa?, objetos? }
+// POST /api/twitch/config  Body: { servidor?, recompensa?, objetos?, fijarAviso? }
 // El canal se puede poner sin haber conectado nada: leer un chat publico no
 // necesita credenciales.
 app.post('/api/twitch/config', (req: Request, res: Response) => {
@@ -3341,7 +3341,12 @@ bingo.iniciar({
   alCambiar: (uid) => avisos.cambio(uid, 'bingo')
 });
 // Y lo que las rutas de los minijuegos necesitan de aqui y no se pudo llevar.
-minijuegos.iniciar({ requireUid, canalDe, guardarImagen });
+minijuegos.iniciar({
+  requireUid, canalDe, guardarImagen,
+  // Va por detras: abrir la inscripcion no espera a Twitch. Lo que pase queda
+  // en el estado de Twitch para ensenarlo en Configuracion.
+  fijarAviso: (uid, canal, texto, segundos) => { void twitch.fijarAviso(uid, canal, texto, segundos); }
+});
 // El rey de la colina no reparte nada: solo guarda su palabra y su record.
 colina.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'colina') });
 // La batalla reparte en el mismo marcador que la carrera.

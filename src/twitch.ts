@@ -1,5 +1,9 @@
-// Conexion con Twitch: cuando alguien canjea una recompensa de puntos de
-// canal, se sortea un objeto y ese espectador queda como ganador.
+// Conexion con Twitch, con la cuenta del propio streamer. Sirve para dos cosas:
+//
+//  - Fijar en el chat el aviso de cada minijuego al abrir su inscripcion
+//    («Escribe !correr para participar en la Carrera de balineras»).
+//  - Los canjes de puntos de canal: cuando alguien canjea la recompensa que se
+//    haya configurado, se sortea un objeto y ese espectador queda como ganador.
 //
 // Casi todo vive aqui a proposito, para tocar server.ts lo menos posible.
 //
@@ -13,7 +17,13 @@
 // NO sale nunca hacia el navegador: del estado solo se dice si esta puesto.
 //
 // Los permisos que se piden son los minimos para esto: leer los canjes del
-// canal. No se pide nada de escribir ni de leer el chat.
+// canal, escribir en el chat y fijar mensajes. El aviso sale con la cuenta del
+// streamer, que es la duena del canal y por eso puede fijar. Leer el chat no se
+// pide: los minijuegos lo leen como anonimos (ver chat.ts).
+//
+// Quien conecto antes de que se pidiera escribir tiene un token sin esos
+// permisos. No se nota hasta que se intenta fijar algo: entonces Twitch dice
+// que no, y el estado lo cuenta para que vuelva a conectar.
 
 import fs from 'fs';
 import path from 'path';
@@ -23,7 +33,7 @@ const AUTORIZAR = 'https://id.twitch.tv/oauth2/authorize';
 const TOKEN = 'https://id.twitch.tv/oauth2/token';
 const HELIX = 'https://api.twitch.tv/helix';
 const EVENTSUB_WS = 'wss://eventsub.wss.twitch.tv/ws';
-const PERMISOS = ['channel:read:redemptions'];
+const PERMISOS = ['channel:read:redemptions', 'user:write:chat', 'moderator:manage:chat_messages'];
 
 // Lo que se guarda de cada usuario. Va en su carpeta, nunca en settings.json,
 // porque eso se le manda al navegador y aqui hay credenciales.
@@ -35,8 +45,14 @@ interface TwitchCuenta {
   login: string;        // el canal que salio al autorizar, en minusculas
   userId: string;       // el id del canal en Twitch
   servidor: string;     // en que servidor del Ruleton se apuntan los premios
-  recompensa: string;   // titulo de la recompensa; vacio = cualquiera
+  // El titulo de la recompensa que sortea objetos. Vacio = apagado: conectar
+  // Twitch para fijar avisos no puede ponerse a regalar objetos por cualquier
+  // canje sin que nadie lo haya pedido.
+  recompensa: string;
   objetos: number;      // cuantos objetos se sortean por canje
+  // Si se fija el aviso en el chat al abrir una inscripcion. Sin decir nada,
+  // si: es para lo que se conecta casi siempre.
+  fijarAviso?: boolean;
 }
 
 // Lo que server.ts tiene que prestarle a este modulo. Se pasa asi para no
@@ -206,7 +222,7 @@ async function refrescar(uid: string, cuenta: TwitchCuenta): Promise<TwitchCuent
 
 // --- Ajustes que toca el usuario ---------------------------------------
 
-export function guardarAjustes(uid: string, ajustes: { servidor?: string; recompensa?: string; objetos?: number }): TwitchCuenta {
+export function guardarAjustes(uid: string, ajustes: { servidor?: string; recompensa?: string; objetos?: number; fijarAviso?: boolean }): TwitchCuenta {
   const cuenta = leerCuenta(uid) || {
     clientId: '', clientSecret: '', accessToken: '', refreshToken: '',
     login: '', userId: '', servidor: deps.servidoresDe(uid)[0]?.id || '', recompensa: '', objetos: 1
@@ -214,6 +230,7 @@ export function guardarAjustes(uid: string, ajustes: { servidor?: string; recomp
   if (typeof ajustes.servidor === 'string') cuenta.servidor = ajustes.servidor;
   if (typeof ajustes.recompensa === 'string') cuenta.recompensa = ajustes.recompensa.trim().slice(0, 80);
   if (ajustes.objetos != null) cuenta.objetos = Math.max(1, Math.min(10, Math.floor(Number(ajustes.objetos) || 1)));
+  if (typeof ajustes.fijarAviso === 'boolean') cuenta.fijarAviso = ajustes.fijarAviso;
   guardarCuenta(uid, cuenta);
   return cuenta;
 }
@@ -233,7 +250,14 @@ export function estado(uid: string) {
     login: cuenta?.login || '',
     servidor: cuenta?.servidor || '',
     recompensa: cuenta?.recompensa || '',
-    objetos: cuenta?.objetos || 1
+    objetos: cuenta?.objetos || 1,
+    fijarAviso: cuenta?.fijarAviso !== false,
+    // La «OAuth Redirect URL» que hay que poner en la app de Twitch. Se dice
+    // la que usa el servidor de verdad: si no coincide letra a letra, Twitch
+    // rechaza la autorizacion con un error que no explica nada.
+    redireccion,
+    // Como fue el ultimo aviso, para poder decir en pantalla por que no sale.
+    ultimoAviso: ultimosAvisos.get(uid) || null
   };
 }
 
@@ -330,9 +354,11 @@ export async function alCanjear(uid: string, evento: any): Promise<boolean> {
   const cuenta = leerCuenta(uid);
   if (!cuenta?.refreshToken || !evento) return false;
 
-  // Si se ha puesto una recompensa concreta, las demas se ignoran.
+  // Solo la recompensa que se haya puesto. Sin ninguna puesta, ninguna: antes
+  // vacio era «cualquiera», y conectar Twitch para fijar avisos habria puesto a
+  // regalar objetos por cada canje del canal.
   const titulo = String(evento.reward?.title || '');
-  if (cuenta.recompensa && titulo.trim().toLowerCase() !== cuenta.recompensa.trim().toLowerCase()) return false;
+  if (!cuenta.recompensa || titulo.trim().toLowerCase() !== cuenta.recompensa.trim().toLowerCase()) return false;
 
   const quien = String(evento.user_name || evento.user_login || 'Espectador');
   if (!cuenta.servidor) {
@@ -347,6 +373,118 @@ export async function alCanjear(uid: string, evento: any): Promise<boolean> {
   } catch (err) {
     console.error('Twitch: fallo al sortear para', quien, err);
     return false;
+  }
+}
+
+// --- El aviso fijado en el chat -----------------------------------------
+//
+// Al abrir la inscripcion de un minijuego se escribe en el chat que hay que
+// escribir para participar, y se fija arriba. Va con la cuenta del streamer:
+// es la duena del canal, asi que puede fijar sin que haga falta un bot ni
+// hacerlo moderador.
+//
+// Se fija con su propia llamada y no con el «pin» de enviar, porque ese lo deja
+// siempre 20 minutos; aparte se puede decir cuanto. Si la inscripcion tiene
+// cronometro, lo que dure (entre 30 s y 30 min, que es lo que admite Twitch);
+// si no, 20 minutos.
+
+export interface Aviso {
+  ok: boolean;
+  texto: string;
+  error: string;        // '' si ha ido bien
+  cuando: string;
+}
+
+const ultimosAvisos = new Map<string, Aviso>();
+
+// Lo que se fija por defecto, sin cronometro.
+const FIJADO_POR_DEFECTO_S = 20 * 60;
+
+// Una peticion a Helix con el token de la cuenta. Si el token ha caducado se
+// refresca y se reintenta una vez, como al suscribirse a los canjes.
+async function helix(uid: string, metodo: string, ruta: string, cuerpo?: unknown): Promise<Response> {
+  let cuenta = leerCuenta(uid);
+  if (!cuenta?.refreshToken) throw new Error('Twitch no esta conectado');
+  const pedir = (c: TwitchCuenta) => fetch(HELIX + ruta, {
+    method: metodo,
+    headers: {
+      Authorization: `Bearer ${c.accessToken}`,
+      'Client-Id': c.clientId,
+      ...(cuerpo ? { 'Content-Type': 'application/json' } : {})
+    },
+    ...(cuerpo ? { body: JSON.stringify(cuerpo) } : {})
+  });
+  let r = await pedir(cuenta);
+  if (r.status === 401) {
+    const nueva = await refrescar(uid, cuenta);
+    if (!nueva) return r;
+    cuenta = nueva;
+    r = await pedir(cuenta);
+  }
+  return r;
+}
+
+// Lo que Twitch dice cuando algo falla, ya para ensenarlo al streamer.
+async function porQue(r: Response): Promise<string> {
+  let detalle = '';
+  try { detalle = String(((await r.json()) as any)?.message || ''); } catch (e) { /* sin cuerpo */ }
+  if (r.status === 401 || (r.status === 403 && /scope|token/i.test(detalle))) {
+    return 'a la conexion con Twitch le faltan permisos para escribir en el chat: vuelve a conectarla en Configuracion › Twitch';
+  }
+  if (r.status === 403) return 'Twitch no deja escribir o fijar en ese canal' + (detalle ? ': ' + detalle : '');
+  if (r.status === 429) return 'Twitch pide esperar un poco antes de volver a escribir';
+  return 'Twitch contesto ' + r.status + (detalle ? ': ' + detalle : '');
+}
+
+// Escribe el aviso y lo fija. «canal» es el que tiene puesto en su perfil, que
+// es el chat que escuchan los minijuegos: si la cuenta conectada es otra, el
+// aviso saldria en un chat donde nadie se esta apuntando, y no se manda.
+//
+// No lanza nunca: abrir la inscripcion no puede fallar porque Twitch no conteste.
+// Lo que pase se queda en el estado (ultimoAviso) para ensenarlo.
+export async function fijarAviso(uid: string, canal: string, texto: string, segundos?: unknown): Promise<Aviso> {
+  const apunta = (ok: boolean, error: string): Aviso => {
+    const a = { ok, texto, error, cuando: new Date().toISOString() };
+    ultimosAvisos.set(uid, a);
+    if (!ok) console.error('Twitch: no se pudo fijar el aviso de', uid + ':', error);
+    return a;
+  };
+  try {
+    const cuenta = leerCuenta(uid);
+    if (!cuenta?.refreshToken || cuenta.fijarAviso === false) {
+      // Sin conectar, o con el aviso apagado: no es un fallo, es que no toca.
+      return { ok: false, texto, error: '', cuando: new Date().toISOString() };
+    }
+    if (canal && cuenta.login && canal.trim().toLowerCase() !== cuenta.login.toLowerCase()) {
+      return apunta(false, 'la cuenta de Twitch conectada (' + cuenta.login + ') no es la del canal de tu perfil (' + canal + ')');
+    }
+
+    const enviado = await helix(uid, 'POST', '/chat/messages', {
+      broadcaster_id: cuenta.userId,
+      sender_id: cuenta.userId,
+      message: texto.slice(0, 500)
+    });
+    if (!enviado.ok) return apunta(false, await porQue(enviado));
+    const dato = ((await enviado.json()) as any)?.data?.[0];
+    if (!dato?.is_sent) {
+      return apunta(false, 'Twitch no publico el mensaje' + (dato?.drop_reason?.message ? ': ' + dato.drop_reason.message : ''));
+    }
+
+    const s = Math.floor(Number(segundos) || 0);
+    const duracion = Math.max(30, Math.min(1800, s > 0 ? s : FIJADO_POR_DEFECTO_S));
+    const q = new URLSearchParams({
+      broadcaster_id: cuenta.userId,
+      moderator_id: cuenta.userId,
+      message_id: String(dato.message_id),
+      duration_seconds: String(duracion)
+    });
+    const fijado = await helix(uid, 'PUT', '/chat/pins?' + q.toString());
+    // El mensaje ya esta en el chat aunque no se haya podido fijar: se dice,
+    // pero es medio exito.
+    if (!fijado.ok) return apunta(false, 'el aviso salio en el chat, pero no se pudo fijar: ' + await porQue(fijado));
+    return apunta(true, '');
+  } catch (err) {
+    return apunta(false, (err as Error).message || 'fallo de conexion con Twitch');
   }
 }
 
