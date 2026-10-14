@@ -8,21 +8,26 @@
 <!--
   El widget del bingo, para OBS.  /widget/bingo.html?clave=XXXX
 
-  Enseña la bola que acaba de salir, el tablero con todas las que han salido,
-  quién ha cantado y dónde mira cada uno su cartón. Los cartones NO salen aquí:
-  quién está a punto lo ve el streamer en su panel, y en pantalla destriparía
-  la emoción.
+  Durante la partida enseña SOLO la última bola que ha salido, y quién canta
+  cuando alguien canta. Ni el tablero de las 75 ni los cartones: el tablero
+  lo tiene el streamer en su panel y cada uno mira su cartón en /bingo.
 
-  La bola, el tablero y los colores son los mismos que los de la página
+  Antes de la primera bola enseña quién va pidiendo cartón y dónde se mira,
+  que es cuando hace falta decírselo al chat.
+
+  La bola y los colores son los mismos que los de la página
   (js/bingo-dibujo.js y css/bingo.css).
 -->
 <link rel="stylesheet" href="/css/widget.css" />
 <link rel="stylesheet" href="/css/bingo.css" />
 <style>
-  .mesa { display: flex; align-items: center; gap: 1.6rem; }
-  .mesa .bingo-tablero { width: 34rem; }
-  .pie { margin-top: .9rem; font-size: 1rem; color: #9fb3c8; }
-  .pie b { color: #6ee7b7; letter-spacing: .08em; }
+  /* La bola va suelta, sin caja detrás: es redonda y ya se lee sola encima de
+     cualquier juego. */
+  .juego { display: flex; flex-direction: column; align-items: center; }
+  .juego[hidden] { display: none; }
+  .juego .bingo-bola { width: 11rem; height: 11rem; }
+  .juego .bingo-bola .letra { font-size: 2rem; }
+  .juego .bingo-bola .numero { font-size: 4.8rem; }
   .entrada .donde { margin-top: .8rem; font-size: 1.05rem; }
   .entrada .donde b { color: #6ee7b7; }
 
@@ -32,6 +37,8 @@
     margin-top: .9rem;
     font-size: 1.5rem;
     font-weight: 900;
+    /* Sin caja detrás, el borde oscuro es lo que lo deja leerse. */
+    text-shadow: 0 2px 6px #000, 0 0 14px rgba(0, 0, 0, .9);
     animation: canto-entra .5s cubic-bezier(.2, 1.4, .4, 1);
   }
   .canto[hidden] { display: none; }
@@ -51,13 +58,9 @@
       <div class="donde" id="dondeEntrada"></div>
       <div class="cuenta" id="cuenta" hidden></div>
     </div>
-    <div class="panel" id="panelJuego" hidden>
-      <div class="mesa">
-        <div class="bingo-bola vacia" id="bola"><span class="numero">?</span></div>
-        <div id="tablero"></div>
-      </div>
+    <div class="juego" id="panelJuego" hidden>
+      <div class="bingo-bola vacia" id="bola"><span class="numero">?</span></div>
       <div class="canto" id="canto" hidden></div>
-      <div class="pie" id="pie"></div>
     </div>
   </div>
   <div id="espera" hidden>Widget conectado · esperando a que abras un bingo</div>
@@ -78,10 +81,6 @@
 
     function dondeCartones(e) {
       return 'Mira tu cartón en <b>' + location.host + '/bingo</b> · código <b>' + e.codigo + '</b>';
-    }
-
-    function escapar(s) {
-      return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     }
 
     function pinta(e) {
@@ -113,12 +112,6 @@
       const ultima = e.salidas[e.salidas.length - 1];
       BingoDibujo.bola(Widget.caja('bola'), ultima, ultima !== ultimaPintada);
       ultimaPintada = ultima;
-      BingoDibujo.tablero(Widget.caja('tablero'), e.salidas);
-
-      Widget.caja('pie').innerHTML = e.fase === 'fin'
-        ? 'Partida terminada · ' + e.salidas.length + ' bolas'
-        : 'Bola ' + e.salidas.length + ' de 75 · se juega ' + (e.fase === 'linea' ? 'la línea' : 'el cartón lleno')
-          + ' · canta con <b>' + escapar(e.cantar) + '</b><br>' + dondeCartones(e);
 
       // El canto: el último, si es nuevo. Al abrir el widget a media partida no
       // se repite uno viejo, salvo el que la terminó, que es el resultado.
