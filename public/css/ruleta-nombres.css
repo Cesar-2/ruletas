@@ -45,6 +45,11 @@
 .names-reel .tira { will-change: transform }
 
 .names-reel .fila {
+  /* El borde de abajo va DENTRO del alto: la fila mide --fila justo, igual que
+     la banda del centro. La página ya lo tenía por su regla general; el widget
+     no, y sus filas medían un píxel más que la banda, así que el nombre no
+     quedaba centrado en ella. */
+  box-sizing: border-box;
   height: var(--fila);
   display: flex;
   align-items: center;

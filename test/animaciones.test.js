@@ -775,3 +775,45 @@ test('la hoja del combate trae TODO lo que el combate necesita', () => {
     assert.ok(sinComentarios.includes(clase), clase + ' tiene estilo en la hoja compartida');
   }
 });
+
+// --- La cinta con el widget escalado -----------------------------------------
+//
+// El tamaño de los widgets es un scale() sobre el widget entero. Lo que se mide
+// en pantalla sale escalado, pero la cinta se movía en píxeles sin escalar: al
+// 150 % recorría vez y media y paraba en otro nombre, o pasado el final. El
+// cartel decía un ganador y la cinta otro.
+
+// Como domFalso, pero con todo lo medido multiplicado por una escala.
+function domEscalado(escala) {
+  const tira = {
+    innerHTML: '',
+    style: {},
+    offsetHeight: 0,
+    querySelector: () => ({ getBoundingClientRect: () => ({ height: 46 * escala }) })
+  };
+  const caja = { getBoundingClientRect: () => ({ height: 46 * 7 * escala }) };
+  return { caja, tira };
+}
+
+test('la cinta para en el mismo sitio sea cual sea el tamaño del widget', () => {
+  const lista = Array.from({ length: 30 }, (_, i) => 'Jugador' + (i + 1));
+  const paradas = [0.5, 0.6, 1, 1.5, 2].map((escala) => {
+    const d = domEscalado(escala);
+    const cual = Cinta.girar({ caja: d.caja, tira: d.tira, lista, elegido: 16, ms: 1000 });
+    return { cual, transform: d.tira.style.transform };
+  });
+  for (const p of paradas) {
+    assert.strictEqual(p.cual, paradas[0].cual, 'la misma fila en la banda');
+    assert.ok(p.transform.endsWith('%)'), 'en tanto por ciento, no en píxeles: ' + p.transform);
+    assert.strictEqual(p.transform, paradas[0].transform, 'y la misma parada');
+  }
+});
+
+test('el tanto por ciento deja la fila elegida centrada en la ventana', () => {
+  // 100 filas de 46 y una ventana de siete: para dejar la fila 50 en el centro
+  // hay que subir 50 filas y bajar 3, o sea 47 de 100.
+  const caja = { getBoundingClientRect: () => ({ height: 7 * 46 }) };
+  const pct = Cinta.enPorcentaje(Cinta.parada(caja, 50, 46), 46, 100);
+  assert.ok(Math.abs(pct - (-47)) < 1e-9, 'sale ' + pct);
+  assert.strictEqual(Cinta.enPorcentaje(100, 0, 0), 0, 'y sin filas no divide entre cero');
+});

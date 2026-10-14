@@ -63,6 +63,21 @@
     return -i * altoFila + altoFila * (visibles(caja, altoFila) - 1) / 2;
   }
 
+  // La parada, como tanto por ciento del alto de la propia cinta en vez de en
+  // píxeles. Hace falta porque lo que se mide es lo que se VE, y lo que se ve
+  // puede estar escalado: el tamaño de los widgets (Configuración › Widgets) es
+  // un transform: scale() sobre todo el widget. Entonces una fila de 46 mide 69
+  // al 150 %, pero la cinta se mueve en píxeles de antes de escalar: recorría
+  // vez y media de lo debido y paraba en otro nombre, o pasado el final, en
+  // blanco. El cartel de debajo decía el ganador bueno y la cinta otro.
+  //
+  // En tanto por ciento no hay píxeles que convertir: la parada y el alto de la
+  // cinta se miden los dos igual de escalados, y al dividir el escalado se va.
+  function enPorcentaje(paradaPx, altoFila, cuantasFilas) {
+    const total = altoFila * cuantasFilas;
+    return total ? paradaPx / total * 100 : 0;
+  }
+
   // Cuántas veces se repite la lista. Se ajusta a su tamaño: con cuatro nombres
   // un giro de cuatro filas no se vería, y con doscientos no hacen falta miles
   // de filas. Pase lo que pase, delante de la banda desfilan todos al menos dos
@@ -111,13 +126,15 @@
     if (opciones.panel) opciones.panel.hidden = false;
 
     const n = vueltas(lista.length);
-    const altoCaja = caja.getBoundingClientRect().height || 0;
-    // La cola se mide en filas visibles, así que hace falta un alto de fila
-    // aproximado antes de pintar: sirve el de --fila, que es lo que dice el CSS.
-    const aprox = altoCaja ? altoCaja / Math.max(1, Math.round(altoCaja / 46)) : 46;
-    tira.innerHTML = filas(repetir(lista, n).concat(cola(lista, Math.max(1, Math.round(altoCaja / aprox)) + 1)));
-
+    // Primero las vueltas, para poder medir una fila de verdad; y con ella, la
+    // cola: tantas filas como se ven, y una más. Antes la cola se echaba a ojo
+    // suponiendo filas de 46 píxeles, y con el widget escalado no lo son: al 50 %
+    // salían menos filas de las que caben y quedaba un hueco debajo del último.
+    const base = repetir(lista, n);
+    tira.innerHTML = filas(base);
     const altoFila = alto(tira);
+    const todas = base.concat(cola(lista, visibles(caja, altoFila) + 1));
+    tira.innerHTML = filas(todas);
     const cual = (n - 1) * lista.length + Math.max(0, Math.min(opciones.elegido || 0, lista.length - 1));
 
     // Se arranca desde arriba sin transición y se fuerza el recálculo: si no, el
@@ -126,7 +143,7 @@
     tira.style.transform = 'translateY(0px)';
     void tira.offsetHeight;
     tira.style.transition = 'transform ' + Math.max(200, opciones.ms || 0) + 'ms ' + CURVA;
-    tira.style.transform = 'translateY(' + parada(caja, cual, altoFila) + 'px)';
+    tira.style.transform = 'translateY(' + enPorcentaje(parada(caja, cual, altoFila), altoFila, todas.length) + '%)';
     return cual;
   }
 
@@ -202,7 +219,7 @@
   // cargar este archivo tal cual para comprobar la cuenta. Ver rutas.js.
   globalThis.CintaNombres = {
     girar, quieta, marcar, animacion,
-    filas, alto, parada, vueltas, repetir, cola, visibles,
+    filas, alto, parada, enPorcentaje, vueltas, repetir, cola, visibles,
     CURVA, SEGURO_VIDEO
   };
 })();
