@@ -4,6 +4,11 @@
 //    («Escribe !correr para participar en la Carrera de balineras»).
 //  - Los canjes de puntos de canal: cuando alguien canjea la recompensa que se
 //    haya configurado, se sortea un objeto y ese espectador queda como ganador.
+//  - Los cartones del bingo: se compran canjeando una recompensa que crea el
+//    propio Ruleton. La crea el, y no el streamer a mano, porque Twitch solo
+//    deja devolver los puntos de las recompensas creadas por la misma app: si
+//    no se le puede dar carton (no hay partida, esta cerrada, o ya tiene el
+//    maximo), se le devuelven.
 //
 // Casi todo vive aqui a proposito, para tocar server.ts lo menos posible.
 //
@@ -33,7 +38,7 @@ const AUTORIZAR = 'https://id.twitch.tv/oauth2/authorize';
 const TOKEN = 'https://id.twitch.tv/oauth2/token';
 const HELIX = 'https://api.twitch.tv/helix';
 const EVENTSUB_WS = 'wss://eventsub.wss.twitch.tv/ws';
-const PERMISOS = ['channel:read:redemptions', 'user:write:chat', 'moderator:manage:chat_messages'];
+const PERMISOS = ['channel:read:redemptions', 'channel:manage:redemptions', 'user:write:chat', 'moderator:manage:chat_messages'];
 
 // Lo que se guarda de cada usuario. Va en su carpeta, nunca en settings.json,
 // porque eso se le manda al navegador y aqui hay credenciales.
@@ -53,6 +58,14 @@ interface TwitchCuenta {
   // Si se fija el aviso en el chat al abrir una inscripcion. Sin decir nada,
   // si: es para lo que se conecta casi siempre.
   fijarAviso?: boolean;
+  // La recompensa que vende cartones del bingo, tal como se creo en Twitch.
+  bingoRecompensa?: RecompensaBingo;
+}
+
+export interface RecompensaBingo {
+  id: string;
+  titulo: string;
+  coste: number;
 }
 
 // Lo que server.ts tiene que prestarle a este modulo. Se pasa asi para no
@@ -65,6 +78,9 @@ export interface Dependencias {
   // nombres de lo que ha tocado, para poder decirlo por consola.
   sortearPara(uid: string, sid: string, nombre: string, n: number): Promise<string[]>;
   servidoresDe(uid: string): { id: string; name: string }[];
+  // Le da un carton del bingo. Si no puede, dice por que (y se devuelven los
+  // puntos). Ver bingo.ts.
+  darCarton?(uid: string, nombre: string, login: string): { ok: boolean; motivo?: string };
 }
 
 let deps: Dependencias;
@@ -183,6 +199,9 @@ export async function completarAlta(uid: string, code: string): Promise<TwitchCu
 
   const anterior = previa;
   const cuenta: TwitchCuenta = {
+    // Lo demas (el aviso, la recompensa del bingo...) se queda como estaba:
+    // volver a conectar para un permiso nuevo no puede borrarlo.
+    ...anterior,
     clientId: previa.clientId,
     clientSecret: previa.clientSecret,
     accessToken: t.access_token,
@@ -252,6 +271,7 @@ export function estado(uid: string) {
     recompensa: cuenta?.recompensa || '',
     objetos: cuenta?.objetos || 1,
     fijarAviso: cuenta?.fijarAviso !== false,
+    bingoRecompensa: cuenta?.bingoRecompensa || null,
     // La «OAuth Redirect URL» que hay que poner en la app de Twitch. Se dice
     // la que usa el servidor de verdad: si no coincide letra a letra, Twitch
     // rechaza la autorizacion con un error que no explica nada.
@@ -354,6 +374,12 @@ export async function alCanjear(uid: string, evento: any): Promise<boolean> {
   const cuenta = leerCuenta(uid);
   if (!cuenta?.refreshToken || !evento) return false;
 
+  // La de los cartones del bingo va por su id, no por el titulo: es la que creo
+  // el Ruleton, y el streamer le puede cambiar el nombre desde Twitch.
+  if (cuenta.bingoRecompensa && evento.reward?.id === cuenta.bingoRecompensa.id) {
+    return venderCarton(uid, cuenta, evento);
+  }
+
   // Solo la recompensa que se haya puesto. Sin ninguna puesta, ninguna: antes
   // vacio era «cualquiera», y conectar Twitch para fijar avisos habria puesto a
   // regalar objetos por cada canje del canal.
@@ -374,6 +400,86 @@ export async function alCanjear(uid: string, evento: any): Promise<boolean> {
     console.error('Twitch: fallo al sortear para', quien, err);
     return false;
   }
+}
+
+// --- Los cartones del bingo, con puntos de canal -------------------------
+
+// Alguien ha canjeado la recompensa de los cartones: se le da uno. Si se pudo,
+// el canje se marca como cumplido; si no, se cancela, que es lo que le devuelve
+// los puntos.
+async function venderCarton(uid: string, cuenta: TwitchCuenta, evento: any): Promise<boolean> {
+  const quien = String(evento.user_name || evento.user_login || '').trim();
+  let r: { ok: boolean; motivo?: string } = { ok: false, motivo: 'el bingo no esta listo' };
+  try {
+    // El login va aparte: es como sale en el chat cuando cante.
+    if (quien && deps.darCarton) r = deps.darCarton(uid, quien, String(evento.user_login || ''));
+  } catch (err) {
+    console.error('Twitch: fallo al dar carton a', quien, err);
+  }
+  const estado = r.ok ? 'FULFILLED' : 'CANCELED';
+  try {
+    const q = new URLSearchParams({
+      broadcaster_id: cuenta.userId,
+      reward_id: String(evento.reward?.id || ''),
+      id: String(evento.id || '')
+    });
+    const resp = await helix(uid, 'PATCH', '/channel_points/custom_rewards/redemptions?' + q.toString(), { status: estado });
+    if (!resp.ok) console.error('Twitch: no se pudo marcar el canje de', quien, 'como', estado + ':', resp.status);
+  } catch (err) {
+    console.error('Twitch: no se pudo marcar el canje de', quien, err);
+  }
+  if (!r.ok) console.log(`Twitch: ${quien} canjeo un carton y no se le dio (${r.motivo}); puntos devueltos`);
+  return r.ok;
+}
+
+// Crea en Twitch la recompensa que vende cartones, o la actualiza si ya existe.
+// Twitch solo deja crearlas a canales afiliados o partner.
+export async function recompensaBingo(uid: string, titulo: unknown, coste: unknown): Promise<{ ok: boolean; error?: string }> {
+  const cuenta = leerCuenta(uid);
+  if (!cuenta?.refreshToken) return { ok: false, error: 'conecta primero tu cuenta de Twitch en Configuracion › Twitch' };
+  const t = String(titulo ?? '').trim().slice(0, 45) || 'Cartón de bingo';
+  const c = Math.max(1, Math.min(10000000, Math.floor(Number(coste) || 0)));
+  if (!Number(coste)) return { ok: false, error: 'pon cuantos puntos cuesta el carton' };
+  const cuerpo = {
+    title: t,
+    cost: c,
+    prompt: 'Te da un cartón para el bingo. Si no se puede dar (no hay partida o ya tienes el máximo), se te devuelven los puntos.',
+    is_enabled: true,
+    // Por la cola, para poder devolver los puntos si no se le puede dar.
+    should_redemptions_skip_request_queue: false
+  };
+  try {
+    const previa = cuenta.bingoRecompensa;
+    let r: Response | null = null;
+    if (previa?.id) {
+      const q = new URLSearchParams({ broadcaster_id: cuenta.userId, id: previa.id });
+      r = await helix(uid, 'PATCH', '/channel_points/custom_rewards?' + q.toString(), cuerpo);
+      // La borraron desde Twitch: se crea otra.
+      if (r.status === 404) r = null;
+    }
+    if (!r) {
+      const q = new URLSearchParams({ broadcaster_id: cuenta.userId });
+      r = await helix(uid, 'POST', '/channel_points/custom_rewards?' + q.toString(), cuerpo);
+    }
+    if (!r.ok) return { ok: false, error: await porQueRecompensa(r) };
+    const dato = ((await r.json()) as any)?.data?.[0];
+    const nueva: RecompensaBingo = { id: String(dato?.id || previa?.id || ''), titulo: t, coste: c };
+    guardarCuenta(uid, { ...(leerCuenta(uid) || cuenta), bingoRecompensa: nueva });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'fallo de conexion con Twitch' };
+  }
+}
+
+async function porQueRecompensa(r: Response): Promise<string> {
+  let detalle = '';
+  try { detalle = String(((await r.json()) as any)?.message || ''); } catch (e) { /* sin cuerpo */ }
+  if (r.status === 401 || (r.status === 403 && /scope|token|permission/i.test(detalle))) {
+    return 'a la conexion con Twitch le falta el permiso de recompensas: vuelve a conectarla en Configuracion › Twitch';
+  }
+  if (r.status === 403) return 'Twitch solo deja crear recompensas a canales afiliados o partner' + (detalle ? ' (' + detalle + ')' : '');
+  if (/DUPLICATE/i.test(detalle)) return 'ya hay una recompensa con ese nombre en tu canal: ponle otro nombre aqui, o borra la de Twitch';
+  return 'Twitch contesto ' + r.status + (detalle ? ': ' + detalle : '');
 }
 
 // --- El aviso fijado en el chat -----------------------------------------

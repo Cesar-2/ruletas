@@ -65,14 +65,12 @@
     });
   }
 
-  // Las doce lineas, como en el servidor: cinco filas, cinco columnas y las
-  // dos diagonales, en casillas [columna, fila].
+  // Las diez lineas, como en el servidor: cinco filas y cinco columnas, en
+  // casillas [columna, fila]. Las diagonales no cuentan.
   const LINEAS = (() => {
     const l = [];
     for (let f = 0; f < 5; f++) l.push([0, 1, 2, 3, 4].map((c) => [c, f]));
     for (let c = 0; c < 5; c++) l.push([0, 1, 2, 3, 4].map((f) => [c, f]));
-    l.push([0, 1, 2, 3, 4].map((i) => [i, i]));
-    l.push([0, 1, 2, 3, 4].map((i) => [i, 4 - i]));
     return l;
   })();
 
@@ -96,20 +94,55 @@
         if (marcada(c, f)) clases.push('marcada');
         if (n === LIBRE) clases.push('libre');
         if (enLinea.has(c + ',' + f)) clases.push('en-linea');
-        html += '<div class="' + clases.join(' ') + '">' + (n === LIBRE ? '★' : n) + '</div>';
+        // El número va en data-n para saber qué casilla se toca al marcar a mano.
+        html += '<div class="' + clases.join(' ') + '" data-n="' + n + '">' + (n === LIBRE ? '★' : n) + '</div>';
       }
     }
     el.className = 'bingo-carton' + (op.mini ? ' mini' : '') + (op.fuera ? ' fuera' : '');
     el.innerHTML = html;
   }
 
+  // Todos los cartones de una persona, uno al lado de otro: se pueden comprar
+  // varios. Devuelve cuántos tienen ya lo que se pide en «que» ('linea' o
+  // 'bingo'), para poder decirle que cante.
+  //
+  // «salidas» es lo que se da por marcado: las bolas que han salido (el panel)
+  // o, si es una lista por cartón (opciones.porCarton), lo que el espectador
+  // ha marcado a mano en cada uno.
+  function cartones(el, lista, salidas, opciones) {
+    if (!el) return 0;
+    el.className = 'bingo-cartones';
+    el.innerHTML = '';
+    let loTienen = 0;
+    (lista || []).forEach((numeros, i) => {
+      const uno = document.createElement('div');
+      el.appendChild(uno);
+      carton(uno, numeros, (opciones || {}).porCarton ? (salidas || [])[i] : salidas, opciones);
+      uno.dataset.indice = String(i);
+      if ((lista || []).length > 1) uno.dataset.numero = '#' + (i + 1);
+      const op = opciones || {};
+      if (op.que === 'linea' && uno.querySelector('.en-linea')) loTienen++;
+      if (op.que === 'bingo' && uno.querySelectorAll('.casilla.marcada').length === 25) loTienen++;
+    });
+    return loTienen;
+  }
+
   // Lo que se dice de un canto, igual en todas partes.
+  // Lo que se lleva, si hay premio: «5.000.000 kamas», «Dofus Ocre», o los dos.
+  function textoPremio(p) {
+    if (!p) return '';
+    const partes = [];
+    if (p.texto) partes.push(p.texto);
+    if (p.kamas > 0) partes.push(Number(p.kamas).toLocaleString('es-ES') + ' kamas');
+    return partes.length ? ' · se lleva ' + partes.join(' + ') : '';
+  }
+
   function textoCanto(c) {
-    if (c.que === 'linea') return '¡LÍNEA! ' + c.nombre + (c.puntos ? ' +' + c.puntos : '');
-    if (c.que === 'bingo') return '¡BINGO! ' + c.nombre + (c.puntos ? ' +' + c.puntos : '');
+    if (c.que === 'linea') return '¡LÍNEA! ' + c.nombre + (c.puntos ? ' +' + c.puntos : '') + textoPremio(c.premio);
+    if (c.que === 'bingo') return '¡BINGO! ' + c.nombre + (c.puntos ? ' +' + c.puntos : '') + textoPremio(c.premio);
     if (c.que === 'tarde') return c.nombre + ' cantó tarde: se le pasó';
     return c.nombre + ' cantó en falso: descalificado';
   }
 
-  window.BingoDibujo = { LETRAS, LIBRE, letraDe, bola, tablero, carton, textoCanto };
+  window.BingoDibujo = { LETRAS, LIBRE, letraDe, bola, tablero, carton, cartones, textoCanto };
 })();

@@ -13,9 +13,16 @@
   que escribir en el chat, que es lo único que demuestra quién eres. Ver
   src/bingo.ts.
 
-  Lo marcado lo marca el servidor con las bolas que han salido. Lo que el
-  espectador tiene que hacer es darse cuenta a tiempo de que ha hecho línea o
-  bingo, y cantarlo.
+  Se pueden comprar varios cartones (canjeando la recompensa de puntos del
+  canal) y aquí se ven todos.
+
+  El cartón lo marca el PROPIO espectador: toca una casilla para marcarla y
+  otra vez para desmarcarla. Las marcas se guardan en su navegador (no hay
+  cuenta), y con ellas se resaltan las líneas y se le avisa de que cante.
+
+  Quien decide si gana es el servidor, y lo hace con las bolas que han salido
+  de verdad, no con lo marcado: marcar un número que no ha salido y cantar es
+  cantar en falso, y descalifica. Marcar de más no sirve para hacer trampa.
 -->
 <link rel="stylesheet" href="/css/bingo.css" />
 <style>
@@ -76,6 +83,11 @@
     font-weight: 800;
   }
   .cantar[hidden] { display: none; }
+  /* Las casillas se marcan a mano: se tocan. */
+  #carton .casilla { cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+  #carton .casilla:not(.libre):hover { outline: 2px solid rgba(110, 231, 183, .55); outline-offset: -2px; }
+  #carton .bingo-carton.fuera .casilla { cursor: default; }
+  .previas { color: #9fb3c8; font-size: .9rem; text-align: center; }
   .ganadores { list-style: none; padding: 0; margin: 0; text-align: center; color: #6ee7b7; font-weight: 700; }
   [hidden] { display: none !important; }
 </style>
@@ -100,7 +112,9 @@
         <div class="bingo-bola vacia" id="bola"><span class="numero">?</span></div>
         <div class="aviso" id="fase"></div>
       </div>
+      <div class="previas" id="previas"></div>
       <div class="cantar" id="cantar" hidden></div>
+      <p class="aviso" id="pista">Toca los números que vayan saliendo para marcarlos.</p>
       <div id="carton"></div>
       <ul class="ganadores" id="ganadores"></ul>
       <button type="button" class="suave" id="cambiar">Ver otro cartón</button>
@@ -125,6 +139,21 @@
   try { if (!nombre) nombre = localStorage.getItem(GUARDADO) || ''; } catch (e) { /* sin almacenamiento */ }
   let reloj = null;
   let ultimaPintada = 0;
+  // Lo último que contestó el servidor, para repintar al marcar sin esperar.
+  let ultimo = null;
+
+  // Lo que ha marcado a mano, por cartón: { "0": [12, 34], "1": [...] }. Va en
+  // su navegador, una entrada por partida y nombre.
+  function claveMarcas() {
+    return 'bingo.marcas:' + codigo + ':' + nombre.toLowerCase();
+  }
+  function leerMarcas() {
+    try { return JSON.parse(localStorage.getItem(claveMarcas()) || '{}') || {}; } catch (e) { return {}; }
+  }
+  let marcas = {};
+  function guardarMarcas() {
+    try { localStorage.setItem(claveMarcas(), JSON.stringify(marcas)); } catch (e) { /* sin almacenamiento: duran lo que la página */ }
+  }
 
   $('codigo').value = codigo;
   $('nombre').value = nombre;
@@ -169,21 +198,39 @@
     $('juego').hidden = false;
     $('quien').textContent = nombre;
 
+    ultimo = r;
     const ultima = r.salidas[r.salidas.length - 1] || 0;
     BingoDibujo.bola($('bola'), ultima, ultima && ultima !== ultimaPintada);
     ultimaPintada = ultima;
+    // Las anteriores, por si se le pasó alguna mientras miraba el directo.
+    const previas = r.salidas.slice(-6, -1).reverse();
+    $('previas').textContent = previas.length
+      ? 'Antes: ' + previas.map((n) => BingoDibujo.letraDe(n) + n).join(' · ')
+      : '';
+
+    // Cómo se compra: canjeando la recompensa de puntos del canal.
+    const comprar = r.recompensa
+      ? 'Canjea <b>' + escapar(r.recompensa) + '</b> con tus puntos del canal'
+      : 'Canjea la recompensa del bingo con tus puntos del canal';
 
     if (!r.jugador) {
       $('carton').innerHTML = '';
       $('cantar').hidden = true;
+      $('pista').hidden = true;
       $('fase').textContent = '';
       avisar(r.abierta
-        ? '<b>' + escapar(nombre) + '</b> aún no tiene cartón. Escribe <b>' + escapar(r.palabra) + '</b> en el chat y aparecerá aquí.'
-        : '<b>' + escapar(nombre) + '</b> no tiene cartón en esta partida, y ya no se pueden pedir. ¿Está bien escrito el nombre?', !r.abierta);
+        ? '<b>' + escapar(nombre) + '</b> aún no tiene cartón. ' + comprar + ' y aparecerá aquí.'
+        : '<b>' + escapar(nombre) + '</b> no tiene cartón en esta partida, y ya no se venden. ¿Está bien escrito el nombre?', !r.abierta);
       return;
     }
 
-    BingoDibujo.carton($('carton'), r.jugador.carton, r.salidas, { fuera: r.jugador.descalificado });
+    // Puede tener varios: se ven todos, cada uno con lo que ÉL ha marcado. Las
+    // líneas resaltadas salen de sus marcas, no de las bolas: es su cartón.
+    const que = r.fase === 'linea' ? 'linea' : 'bingo';
+    const suyas = r.jugador.cartones.map((_, i) => marcas[i] || []);
+    const conLoQueSeJuega = BingoDibujo.cartones($('carton'), r.jugador.cartones, suyas,
+      { fuera: r.jugador.descalificado, que, porCarton: true });
+    $('pista').hidden = r.jugador.descalificado || r.fase === 'fin';
 
     $('fase').innerHTML = r.fase === 'fin'
       ? 'Partida terminada'
@@ -191,17 +238,15 @@
         ? 'Esperando la primera bola…'
         : 'Bola ' + r.salidas.length + ' de 75<br>Se juega ' + (r.fase === 'linea' ? '<b>la línea</b>' : '<b>el cartón lleno</b>');
 
-    // Si lo tiene, se le dice qué escribir. Es lo único que de verdad tiene que
-    // hacer, y se le puede pasar mirando el directo.
-    const salidas = new Set(r.salidas);
-    const marcada = (c, f) => r.jugador.carton[c][f] === BingoDibujo.LIBRE || salidas.has(r.jugador.carton[c][f]);
-    let lleno = true;
-    for (let c = 0; c < 5; c++) for (let f = 0; f < 5; f++) if (!marcada(c, f)) lleno = false;
-    const linea = $('carton').querySelector('.en-linea') !== null;
-    const loTiene = r.fase === 'linea' ? linea : r.fase === 'bingo' ? lleno : false;
+    // Si SUS marcas hacen lo que se juega, se le recuerda qué escribir. Es lo
+    // que él ha marcado: si marcó algo que no salió, cantar le descalifica.
+    const loTiene = r.fase !== 'fin' && conLoQueSeJuega > 0;
     const yaGano = r.cantos.some((c) => c.nombre.toLowerCase() === nombre.toLowerCase() && c.que === r.fase);
     $('cantar').hidden = !loTiene || yaGano || r.jugador.descalificado;
-    $('cantar').innerHTML = '¡Lo tienes! Escribe <b>' + escapar(r.cantar) + '</b> en el chat, ya';
+    const palabraCantar = r.fase === 'linea' ? (r.cantarLinea || '!linea') : r.cantar;
+    $('cantar').innerHTML = (que === 'linea' ? '¡Tus marcas hacen línea!' : '¡Tus marcas llenan el cartón!')
+      + ' Escribe <b>' + escapar(palabraCantar) + '</b> en el chat, ya'
+      + '<br><small>Si marcaste alguno que no ha salido, te descalifican.</small>';
 
     avisar(r.jugador.descalificado
       ? 'Cantaste sin tenerlo: estás <b>descalificado</b> en esta partida.'
@@ -209,6 +254,22 @@
 
     $('ganadores').innerHTML = r.cantos.map((c) => '<li>' + escapar(BingoDibujo.textoCanto(c)) + '</li>').join('');
   }
+
+  // Tocar una casilla la marca, y tocarla otra vez la desmarca.
+  $('carton').addEventListener('click', (ev) => {
+    const casilla = ev.target.closest('.casilla');
+    const uno = ev.target.closest('[data-indice]');
+    if (!casilla || !uno || !ultimo || !ultimo.jugador) return;
+    if (ultimo.jugador.descalificado || ultimo.fase === 'fin') return;
+    const n = Number(casilla.dataset.n);
+    if (!n) return;   // el hueco del centro va marcado siempre
+    const i = uno.dataset.indice;
+    const lista = new Set(marcas[i] || []);
+    if (lista.has(n)) lista.delete(n); else lista.add(n);
+    marcas[i] = Array.from(lista);
+    guardarMarcas();
+    pintar(ultimo);
+  });
 
   $('entrar').addEventListener('submit', (ev) => {
     ev.preventDefault();
@@ -231,6 +292,7 @@
   function empezar() {
     clearInterval(reloj);
     ultimaPintada = 0;
+    marcas = leerMarcas();
     mirar();
     reloj = setInterval(mirar, CADA_MS);
   }

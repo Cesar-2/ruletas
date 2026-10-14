@@ -193,12 +193,98 @@ test('sin recompensa configurada, los canjes no regalan nada', async (t) => {
   assert.deepStrictEqual(sorteados, ['Ana']);
 });
 
+// --- Los cartones del bingo con puntos de canal ---
+
+const CON_BINGO = { ...CUENTA, bingoRecompensa: { id: 'rw-1', titulo: 'Cartón', coste: 500 } };
+const CANJE = { id: 'red-9', reward: { id: 'rw-1', title: 'Cartón' }, user_name: 'Ana', user_login: 'ana' };
+
+function montarBingo(raiz, cuenta, respuesta) {
+  const twitch = montar(raiz, cuenta);
+  const dados = [];
+  // montar() ya llamo a iniciar: se le vuelve a llamar con darCarton.
+  const d = deps(raiz);
+  d.servidoresDe = () => [{ id: 's1', name: 'Principal' }];
+  d.sortearPara = async () => [];
+  d.darCarton = (uid, nombre) => { dados.push(nombre); return respuesta; };
+  twitch.iniciar(d, { usuarios: [] });
+  return { twitch, dados };
+}
+
+test('canjear la recompensa del bingo da carton y marca el canje como cumplido', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { twitch, dados } = montarBingo(c.raiz, CON_BINGO, { ok: true, cartones: 1 });
+  const llamadas = fetchFalso(t, [() => ({ status: 200, json: { data: [] } })]);
+  assert.strictEqual(await twitch.alCanjear('u1', CANJE), true);
+  assert.deepStrictEqual(dados, ['Ana']);
+  assert.strictEqual(llamadas[0].metodo, 'PATCH');
+  const q = new URL(llamadas[0].url).searchParams;
+  assert.ok(llamadas[0].url.includes('/channel_points/custom_rewards/redemptions?'));
+  assert.strictEqual(q.get('id'), 'red-9', 'ese canje');
+  assert.strictEqual(q.get('reward_id'), 'rw-1');
+  assert.deepStrictEqual(llamadas[0].cuerpo, { status: 'FULFILLED' });
+});
+
+test('si no se le puede dar carton, el canje se cancela: se le devuelven los puntos', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { twitch } = montarBingo(c.raiz, CON_BINGO, { ok: false, motivo: 'la venta de cartones esta cerrada' });
+  const llamadas = fetchFalso(t, [() => ({ status: 200, json: { data: [] } })]);
+  assert.strictEqual(await twitch.alCanjear('u1', CANJE), false);
+  assert.deepStrictEqual(llamadas[0].cuerpo, { status: 'CANCELED' });
+});
+
+test('la recompensa del bingo va por su id, no por el titulo', async (t) => {
+  // El streamer le puede cambiar el nombre desde Twitch y tiene que seguir
+  // vendiendo cartones; y otra recompensa con el mismo nombre no los vende.
+  const c = carpeta();
+  t.after(c.quitar);
+  const { twitch, dados } = montarBingo(c.raiz, CON_BINGO, { ok: true, cartones: 1 });
+  fetchFalso(t, [() => ({ status: 200, json: { data: [] } })]);
+  await twitch.alCanjear('u1', { ...CANJE, reward: { id: 'otra', title: 'Cartón' } });
+  assert.deepStrictEqual(dados, [], 'otra recompensa con el mismo nombre, nada');
+  await twitch.alCanjear('u1', { ...CANJE, reward: { id: 'rw-1', title: 'Renombrada' } });
+  assert.deepStrictEqual(dados, ['Ana']);
+});
+
+test('crear la recompensa la guarda con su id, y la segunda vez la actualiza', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const llamadas = fetchFalso(t, [
+    () => ({ json: { data: [{ id: 'rw-nueva' }] } }),
+    () => ({ json: { data: [{ id: 'rw-nueva' }] } })
+  ]);
+  assert.deepStrictEqual(await twitch.recompensaBingo('u1', 'Cartón de bingo', 300), { ok: true });
+  assert.strictEqual(llamadas[0].metodo, 'POST');
+  assert.ok(llamadas[0].url.includes('/channel_points/custom_rewards?'));
+  assert.strictEqual(llamadas[0].cuerpo.cost, 300);
+  assert.strictEqual(llamadas[0].cuerpo.should_redemptions_skip_request_queue, false,
+    'por la cola: si no, no se pueden devolver los puntos');
+  assert.deepStrictEqual(twitch.leerCuenta('u1').bingoRecompensa, { id: 'rw-nueva', titulo: 'Cartón de bingo', coste: 300 });
+
+  await twitch.recompensaBingo('u1', 'Cartón', 450);
+  assert.strictEqual(llamadas[1].metodo, 'PATCH', 'ya existe: se actualiza, no se crea otra');
+  assert.strictEqual(new URL(llamadas[1].url).searchParams.get('id'), 'rw-nueva');
+  assert.strictEqual(twitch.leerCuenta('u1').bingoRecompensa.coste, 450);
+});
+
+test('sin ser afiliado, crear la recompensa lo dice claro', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  fetchFalso(t, [() => ({ status: 403, json: { message: 'The broadcaster must have partner or affiliate status.' } })]);
+  const r = await twitch.recompensaBingo('u1', 'Cartón', 300);
+  assert.strictEqual(r.ok, false);
+  assert.match(r.error, /afiliados o partner/);
+});
+
 test('se piden los permisos de escribir y fijar', (t) => {
   const c = carpeta();
   t.after(c.quitar);
   const twitch = montar(c.raiz, CUENTA);
   const scope = new URL(twitch.urlDeAutorizacion('u1')).searchParams.get('scope').split(' ');
-  for (const p of ['channel:read:redemptions', 'user:write:chat', 'moderator:manage:chat_messages']) {
+  for (const p of ['channel:read:redemptions', 'channel:manage:redemptions', 'user:write:chat', 'moderator:manage:chat_messages']) {
     assert.ok(scope.includes(p), 'pide ' + p);
   }
 });

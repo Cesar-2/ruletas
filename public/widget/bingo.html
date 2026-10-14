@@ -100,8 +100,17 @@
         entrada.hidden = false;
         Widget.pintarApuntados(
           { cuantos: 'cuantos', rotulo: 'rotulo', quienes: 'quienes', cuenta: 'cuenta' },
-          e.jugadores, e.abierta ? e.palabra : '', e.abierta ? e.cierraEn : 0);
-        Widget.caja('rotulo').textContent = e.jugadores.length === 1 ? 'cartón' : 'cartones';
+          e.jugadores, '', e.abierta ? e.cierraEn : 0);
+        // Se cuentan cartones, no personas: cada uno puede comprar varios.
+        const vendidos = e.cartones || 0;
+        Widget.caja('cuantos').textContent = vendidos;
+        Widget.caja('rotulo').textContent = vendidos === 1 ? 'cartón' : 'cartones';
+        // Sin nadie todavía, lo útil es cómo se compran.
+        if (!e.jugadores.length && e.abierta) {
+          Widget.caja('quienes').textContent = e.recompensa
+            ? 'Canjea «' + e.recompensa + '» con tus puntos del canal'
+            : 'Compra tu cartón con puntos del canal';
+        }
         Widget.caja('dondeEntrada').innerHTML = dondeCartones(e);
         cantosVistos = e.cantos.length;
         return true;

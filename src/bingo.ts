@@ -1,9 +1,13 @@
-// Bingo de 75 bolas. Los espectadores piden carton por el chat y el streamer
-// va sacando bolas con un boton. Nadie marca nada a mano: el servidor sabe que
+// Bingo de 75 bolas. Los espectadores COMPRAN cartones canjeando una recompensa
+// de puntos de canal (ver twitch.ts) y el streamer va sacando bolas con un
+// boton. Cada canje es un carton mas, hasta un maximo por persona; si no se le
+// puede dar (no hay partida, la inscripcion esta cerrada, o ya tiene el
+// maximo), twitch.ts le devuelve los puntos. Nadie marca nada a mano: el servidor sabe que
 // numeros han salido y que tiene cada carton.
 //
-// Lo que si tiene que hacer el jugador es CANTAR. Escribe la palabra de cantar
-// (por defecto !bingo) en el chat y aqui se mira su carton:
+// Lo que si tiene que hacer el jugador es CANTAR, y decir QUE canta: !linea
+// para una linea (cualquier fila o columna; las diagonales no cuentan) y !bingo
+// para el carton lleno. Aqui se mira su carton:
 //
 //  - Si tiene lo que se esta jugando (la linea, o el carton lleno cuando la
 //    linea ya se la llevo alguien) y lo canta a tiempo, gana.
@@ -21,7 +25,11 @@
 // codigo que se inventa en cada partida. Solo sirve para MIRAR cartones de esa
 // partida: no deja cantar ni tocar nada.
 //
-// Los puntos van al mismo marcador que la carrera y la batalla.
+// Los puntos van al mismo marcador que la carrera y la batalla. Ademas, la
+// linea y el bingo pueden llevar un PREMIO de verdad (kamas, o lo que diga el
+// streamer): ese se apunta solo en Ganadores, en el servidor en el que se abrio
+// la partida. Lo apunta el servidor y no el panel porque quien gana lo decide
+// el chat, y el panel puede no estar mirando en ese momento.
 
 import fs from 'fs';
 import path from 'path';
@@ -64,14 +72,12 @@ export function cartonNuevo(azar: () => number = Math.random): Carton {
   });
 }
 
-// Las doce lineas: cinco filas, cinco columnas y las dos diagonales. Cada una
-// es la lista de casillas [columna, fila] que la forman.
+// Las diez lineas: cinco filas y cinco columnas. Las diagonales NO cuentan.
+// Cada una es la lista de casillas [columna, fila] que la forman.
 export const LINEAS: [number, number][][] = (() => {
   const l: [number, number][][] = [];
   for (let f = 0; f < 5; f++) l.push([0, 1, 2, 3, 4].map((c) => [c, f] as [number, number]));
   for (let c = 0; c < 5; c++) l.push([0, 1, 2, 3, 4].map((f) => [c, f] as [number, number]));
-  l.push([0, 1, 2, 3, 4].map((i) => [i, i] as [number, number]));
-  l.push([0, 1, 2, 3, 4].map((i) => [i, 4 - i] as [number, number]));
   return l;
 })();
 
@@ -96,6 +102,29 @@ export function faltan(carton: Carton, salidas: Set<number>): { linea: number; b
 
 // Con que bola completo un carton la linea o el bingo: cuantas bolas habian
 // salido en ese momento. 0 si todavia no lo tiene.
+// Con que bola se completo cada una de las lineas que tiene hechas. Hace falta
+// mirarlas todas: quien hizo una fila hace bolas sin darse cuenta y ahora
+// completa una columna con la ultima, canta a tiempo por la columna. Mirando
+// solo la primera linea se le decia «tarde».
+export function lineasCon(carton: Carton, salidas: number[]): number[] {
+  const cuando = new Map<number, number>();
+  salidas.forEach((n, i) => { if (!cuando.has(n)) cuando.set(n, i + 1); });
+  const hechas: number[] = [];
+  for (const l of LINEAS) {
+    let k = 0;
+    let completa = true;
+    for (const [c, f] of l) {
+      const n = carton[c][f];
+      if (n === LIBRE) continue;
+      const i = cuando.get(n);
+      if (!i) { completa = false; break; }
+      if (i > k) k = i;
+    }
+    if (completa && k > 0) hechas.push(k);
+  }
+  return hechas;
+}
+
 export function completadoCon(carton: Carton, salidas: number[], que: 'linea' | 'bingo'): number {
   const vistas = new Set<number>();
   for (let i = 0; i < salidas.length; i++) {
@@ -109,17 +138,33 @@ export function completadoCon(carton: Carton, salidas: number[], que: 'linea' | 
 // --- Ajustes ------------------------------------------------------------
 
 export interface Ajustes {
-  palabra: string;      // lo que se escribe para pedir carton
-  cantar: string;       // lo que se escribe para cantar
-  puntosLinea: number;  // a quien cante la primera linea; 0 = no se juega linea
+  maxCartones: number;  // cuantos cartones puede comprar cada persona
+  cantar: string;       // lo que se escribe para cantar el carton lleno
+  cantarLinea: string;  // lo que se escribe para cantar linea
+  puntosLinea: number;  // a quien cante la primera linea
   puntosBingo: number;  // a quien cante carton lleno
+  // El premio que va a Ganadores. Kamas, un texto ("Dofus Ocre"), o las dos
+  // cosas. Sin nada no se apunta nada. La linea solo se juega si da puntos o
+  // premio.
+  premioLinea: Premio;
+  premioBingo: Premio;
 }
 
+export interface Premio {
+  kamas: number;
+  texto: string;
+}
+
+const SIN_PREMIO: Premio = { kamas: 0, texto: '' };
+
 export const AJUSTES_POR_DEFECTO: Ajustes = {
-  palabra: '!carton',
+  maxCartones: 5,
   cantar: '!bingo',
+  cantarLinea: '!linea',
   puntosLinea: 10,
-  puntosBingo: 50
+  puntosBingo: 50,
+  premioLinea: SIN_PREMIO,
+  premioBingo: SIN_PREMIO
 };
 
 // Lo que se le deja a quien canta despues de que salga la bola siguiente. El
@@ -130,11 +175,38 @@ export const GRACIA_MS = 8000;
 
 // --- Estado -------------------------------------------------------------
 
+// Una persona, con todos los cartones que ha comprado. Se canta por persona:
+// gana si ALGUNO de sus cartones lo tiene, y si canta en falso se queda fuera
+// con todos.
 export interface Jugador {
   nombre: string;
   clave: string;          // en minusculas, para no duplicar a la misma persona
-  carton: Carton;
+  // El login de Twitch de quien compro (en minusculas). En el chat la gente
+  // sale con el login, no con el nombre visible, y no siempre coinciden: un
+  // nombre en otro alfabeto, por ejemplo, tiene un login distinto.
+  login?: string;
+  cartones: Carton[];
   descalificado: boolean;
+}
+
+export const MAX_CARTONES = 50;
+
+// Si «quien» (un nombre o un login, como venga) es esta persona.
+function esEl(j: Jugador, quien: string): boolean {
+  const q = String(quien || '').trim().toLowerCase().replace(/^@/, '');
+  return Boolean(q) && (j.clave === q || j.login === q);
+}
+
+// Lo que le falta a la persona: lo de su mejor carton.
+function faltanJugador(j: Jugador, salidas: Set<number>): { linea: number; bingo: number } {
+  let linea = 5;
+  let bingo = 25;
+  for (const c of j.cartones) {
+    const f = faltan(c, salidas);
+    if (f.linea < linea) linea = f.linea;
+    if (f.bingo < bingo) bingo = f.bingo;
+  }
+  return { linea, bingo };
 }
 
 // Lo que se va contando en pantalla: quien canto y que paso.
@@ -143,6 +215,9 @@ export interface Canto {
   que: 'linea' | 'bingo' | 'falso' | 'tarde';
   bola: number;           // cuantas bolas habian salido cuando canto
   puntos: number;
+  // Lo que se lleva y si quedo apuntado en Ganadores. Solo en linea y bingo.
+  premio?: Premio;
+  apuntado?: boolean;
   en: string;
 }
 
@@ -165,6 +240,11 @@ export interface Bingo {
   // partida no cambia lo que ya se prometio.
   puntosLinea: number;
   puntosBingo: number;
+  premioLinea: Premio;
+  premioBingo: Premio;
+  // En que servidor del Ruleton se apuntan los premios: en el que estaba el
+  // streamer al abrir la partida.
+  ambito: string;
   empezadaEn: string;
 }
 
@@ -176,6 +256,11 @@ export interface Dependencias {
   alCambiar?(uid: string): void;
   // El marcador es el mismo que el de la carrera.
   sumarPuntos(uid: string, nombre: string, cuantos: number): number;
+  // Apunta el premio en Ganadores del servidor "ambito". Devuelve si se pudo.
+  apuntarGanador?(ambito: string, nombre: string, premio: Premio, que: 'linea' | 'bingo'): boolean;
+  // El titulo de la recompensa de puntos con la que se compran cartones, para
+  // decirlo en pantalla. '' si no hay ninguna creada. Ver twitch.ts.
+  recompensa?(uid: string): string;
 }
 
 let deps: Dependencias;
@@ -187,7 +272,9 @@ const partidas = new Map<string, Bingo>();
 const vivo = new Vivo<Bingo>('bingo', () => deps);
 // Las palabras con las que se abrio cada partida, para rehacer la escucha tal
 // cual estaba tras un reinicio: los ajustes pueden haber cambiado desde entonces.
-const palabras = new Map<string, { palabra: string; cantar: string }>();
+const palabras = new Map<string, Palabras>();
+
+interface Palabras { cantar: string; cantarLinea: string }
 const escuchas = new Map<string, chat.Conexion>();
 // El cronometro cierra la inscripcion, no la partida: el chat se sigue
 // escuchando porque hace falta para cantar.
@@ -221,6 +308,31 @@ function limpiarPuntos(n: unknown, siNo: number): number {
   return Math.max(0, Math.min(1000000, Math.floor(v)));
 }
 
+function limpiarPremio(x: unknown, siNo: Premio = SIN_PREMIO): Premio {
+  if (!x || typeof x !== 'object') return { ...siNo };
+  const p = x as Record<string, unknown>;
+  return {
+    // Las kamas no caben en el tope de los puntos: 5m es un premio normal.
+    kamas: p.kamas === undefined ? siNo.kamas
+      : Math.max(0, Math.min(1e10, Math.floor(Number(p.kamas) || 0))),
+    texto: p.texto === undefined ? siNo.texto : String(p.texto ?? '').trim().slice(0, 80)
+  };
+}
+
+export function hayPremio(p: Premio | undefined): boolean {
+  return Boolean(p && (p.kamas > 0 || p.texto));
+}
+
+// La linea se juega si da algo: puntos o premio. Si no, directo al bingo.
+function juegaLinea(x: { puntosLinea: number; premioLinea: Premio }): boolean {
+  return x.puntosLinea > 0 || hayPremio(x.premioLinea);
+}
+
+function limpiarMax(n: unknown, siNo: number): number {
+  const v = Math.floor(Number(n));
+  return Number.isFinite(v) && v >= 1 ? Math.min(MAX_CARTONES, v) : siNo;
+}
+
 function limpiarPalabra(p: unknown, siNo: string): string {
   return String(p ?? '').trim().slice(0, 30) || siNo;
 }
@@ -230,10 +342,13 @@ export function leerAjustes(uid: string): Ajustes {
     const f = archivoAjustes(uid);
     const g = fs.existsSync(f) ? (JSON.parse(fs.readFileSync(f, 'utf8'))?.bingo || {}) : {};
     return {
-      palabra: limpiarPalabra(g.palabra, AJUSTES_POR_DEFECTO.palabra),
+      maxCartones: limpiarMax(g.maxCartones, AJUSTES_POR_DEFECTO.maxCartones),
       cantar: limpiarPalabra(g.cantar, AJUSTES_POR_DEFECTO.cantar),
+      cantarLinea: limpiarPalabra(g.cantarLinea, AJUSTES_POR_DEFECTO.cantarLinea),
       puntosLinea: limpiarPuntos(g.puntosLinea, AJUSTES_POR_DEFECTO.puntosLinea),
-      puntosBingo: limpiarPuntos(g.puntosBingo, AJUSTES_POR_DEFECTO.puntosBingo)
+      puntosBingo: limpiarPuntos(g.puntosBingo, AJUSTES_POR_DEFECTO.puntosBingo),
+      premioLinea: limpiarPremio(g.premioLinea),
+      premioBingo: limpiarPremio(g.premioBingo)
     };
   } catch (err) {
     console.error('Failed to read minigame settings:', err);
@@ -243,17 +358,29 @@ export function leerAjustes(uid: string): Ajustes {
 
 export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes {
   const actual = leerAjustes(uid);
-  const antesCantar = actual.cantar;
-  if (typeof ajustes.palabra === 'string') actual.palabra = limpiarPalabra(ajustes.palabra, actual.palabra);
+  const antes = { cantar: actual.cantar, cantarLinea: actual.cantarLinea };
+  if (ajustes.maxCartones != null) actual.maxCartones = limpiarMax(ajustes.maxCartones, actual.maxCartones);
   if (typeof ajustes.cantar === 'string') actual.cantar = limpiarPalabra(ajustes.cantar, actual.cantar);
+  if (typeof ajustes.cantarLinea === 'string') actual.cantarLinea = limpiarPalabra(ajustes.cantarLinea, actual.cantarLinea);
   if (ajustes.puntosLinea != null) actual.puntosLinea = limpiarPuntos(ajustes.puntosLinea, actual.puntosLinea);
   if (ajustes.puntosBingo != null) actual.puntosBingo = limpiarPuntos(ajustes.puntosBingo, actual.puntosBingo);
-  // Pedir carton y cantar con la misma palabra haria que pedir carton fuera
-  // cantar en falso. Se deja la de cantar como estaba.
-  if (actual.cantar.toLowerCase() === actual.palabra.toLowerCase()) {
-    actual.cantar = antesCantar.toLowerCase() !== actual.palabra.toLowerCase()
-      ? antesCantar
-      : (actual.palabra.toLowerCase() === AJUSTES_POR_DEFECTO.cantar ? '!linea' : AJUSTES_POR_DEFECTO.cantar);
+  if (ajustes.premioLinea != null) actual.premioLinea = limpiarPremio(ajustes.premioLinea, actual.premioLinea);
+  if (ajustes.premioBingo != null) actual.premioBingo = limpiarPremio(ajustes.premioBingo, actual.premioBingo);
+  // Las dos palabras tienen que ser distintas: cantar linea con la de bingo no
+  // diria que se canta. La que choca vuelve a como estaba, y si aun choca, a una
+  // libre.
+  const usadas = () => [actual.cantar, actual.cantarLinea].map((x) => x.toLowerCase());
+  const libre = (opciones: string[]) => opciones.find((o) => !usadas().includes(o.toLowerCase())) || opciones[0];
+  // Primero la que se acaba de cambiar: es esa la que vuelve atras, no la otra.
+  const orden = (['cantar', 'cantarLinea'] as const).slice()
+    .sort((x, y) => Number(typeof ajustes[y] === 'string') - Number(typeof ajustes[x] === 'string'));
+  for (const k of orden) {
+    const otras = usadas().filter((_, i) => i !== (k === 'cantar' ? 0 : 1));
+    if (otras.includes(actual[k].toLowerCase())) {
+      actual[k] = !otras.includes(antes[k].toLowerCase())
+        ? antes[k]
+        : libre(k === 'cantar' ? ['!bingo', '!lleno', '!cantar'] : ['!linea', '!fila', '!raya']);
+    }
   }
 
   deps.ensureUserDir(uid);
@@ -290,12 +417,16 @@ export function estado(uid: string) {
     cantos: p ? p.cantos : [],
     puntosLinea: p ? p.puntosLinea : ajustes.puntosLinea,
     puntosBingo: p ? p.puntosBingo : ajustes.puntosBingo,
+    premioLinea: p ? p.premioLinea : ajustes.premioLinea,
+    premioBingo: p ? p.premioBingo : ajustes.premioBingo,
     jugadores: p ? p.jugadores.map((j) => ({
       nombre: j.nombre,
       descalificado: j.descalificado,
-      carton: j.carton,
-      ...faltan(j.carton, salidas)
+      cartones: j.cartones,
+      ...faltanJugador(j, salidas)
     })) : [],
+    cartones: p ? p.jugadores.reduce((n, j) => n + j.cartones.length, 0) : 0,
+    recompensa: deps.recompensa?.(uid) || '',
     escuchando: escuchas.get(uid)?.canal || '',
     chat: saludChat(uid),
     ajustes,
@@ -313,7 +444,7 @@ function codigoNuevo(): string {
   return Array.from(b, (x) => letras[x % letras.length]).join('');
 }
 
-export function abrir(uid: string, canal: string, segundos?: unknown): Bingo {
+export function abrir(uid: string, canal: string, segundos?: unknown, ambito = ''): Bingo {
   cerrarEscucha(uid);
   crono.poner(uid, segundos);
   const ajustes = leerAjustes(uid);
@@ -323,30 +454,37 @@ export function abrir(uid: string, canal: string, segundos?: unknown): Bingo {
     jugadores: [],
     salidas: [],
     salidasEn: [],
-    // Con la linea a 0 puntos no se juega linea: se va directo al bingo.
-    fase: ajustes.puntosLinea > 0 ? 'linea' : 'bingo',
+    // Si la linea no da nada (ni puntos ni premio) no se juega: directo al bingo.
+    fase: juegaLinea(ajustes) ? 'linea' : 'bingo',
     cantos: [],
     lineaBola: 0,
     bingoBola: 0,
     puntosLinea: ajustes.puntosLinea,
     puntosBingo: ajustes.puntosBingo,
+    premioLinea: { ...ajustes.premioLinea },
+    premioBingo: { ...ajustes.premioBingo },
+    ambito,
     empezadaEn: new Date().toISOString()
   };
   partidas.set(uid, partida);
-  escuchar(uid, canal, ajustes.palabra, ajustes.cantar);
+  escuchar(uid, canal, ajustes);
   apuntarEnDisco(uid);
   return partida;
 }
 
 // Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
 // rehacer la escucha de una partida que se abrio antes del reinicio.
-function escuchar(uid: string, canal: string, palabra: string, cantar: string): void {
-  const p = { palabra: palabra.trim().toLowerCase(), cantar: cantar.trim().toLowerCase() };
+// El chat ya solo sirve para cantar: los cartones se compran con puntos.
+function escuchar(uid: string, canal: string, w: Palabras): void {
+  const p: Palabras = {
+    cantar: w.cantar.trim().toLowerCase(),
+    cantarLinea: w.cantarLinea.trim().toLowerCase()
+  };
   palabras.set(uid, p);
   if (!canal) return;
   escuchas.set(uid, chat.conectar(canal, (m) => {
-    if (chat.esLaPalabra(m.texto, p.cantar)) { cantarBingo(uid, m.autor); return; }
-    if (chat.esLaPalabra(m.texto, p.palabra)) apuntar(uid, m.autor);
+    if (chat.esLaPalabra(m.texto, p.cantarLinea)) { cantar(uid, m.autor, 'linea'); return; }
+    if (chat.esLaPalabra(m.texto, p.cantar)) cantar(uid, m.autor, 'bingo');
   }, () => deps.alCambiar?.(uid)));
 }
 
@@ -365,7 +503,14 @@ export function rehacer(uid: string): boolean {
   const partida: Bingo = {
     abierta: Boolean(e.abierta),
     codigo: String(e.codigo || codigoNuevo()),
-    jugadores: e.jugadores,
+    // Las partidas de antes de poder comprar varios traen un solo «carton».
+    jugadores: e.jugadores.map((j: any) => ({
+      nombre: j.nombre,
+      clave: j.clave,
+      ...(j.login ? { login: String(j.login) } : {}),
+      cartones: Array.isArray(j.cartones) ? j.cartones : (j.carton ? [j.carton] : []),
+      descalificado: Boolean(j.descalificado)
+    })),
     salidas: Array.isArray(e.salidas) ? e.salidas : [],
     salidasEn: Array.isArray(e.salidasEn) ? e.salidasEn : [],
     fase: e.fase === 'bingo' || e.fase === 'fin' ? e.fase : 'linea',
@@ -374,11 +519,14 @@ export function rehacer(uid: string): boolean {
     bingoBola: Math.max(0, Math.floor(Number(e.bingoBola) || 0)),
     puntosLinea: limpiarPuntos(e.puntosLinea, 0),
     puntosBingo: limpiarPuntos(e.puntosBingo, 0),
+    premioLinea: limpiarPremio(e.premioLinea),
+    premioBingo: limpiarPremio(e.premioBingo),
+    ambito: String(e.ambito || ''),
     empezadaEn: String(e.empezadaEn || '')
   };
   partidas.set(uid, partida);
 
-  let p = { palabra: '', cantar: '' };
+  let p: Partial<Palabras> = {};
   try { p = JSON.parse(foto.palabra || '{}'); } catch (err) { /* se queda en blanco */ }
   const ajustes = leerAjustes(uid);
   // El cronometro sigue contando desde la hora que se guardo: si se le paso
@@ -389,23 +537,45 @@ export function rehacer(uid: string): boolean {
   // Una partida terminada no necesita chat; cualquier otra si, aunque la
   // inscripcion este cerrada: es por donde se canta.
   if (partida.fase !== 'fin' && foto.canal) {
-    escuchar(uid, foto.canal, p.palabra || ajustes.palabra, p.cantar || ajustes.cantar);
+    escuchar(uid, foto.canal, {
+      cantar: p.cantar || ajustes.cantar,
+      // Las partidas de antes de que hubiera !linea no la traen.
+      cantarLinea: p.cantarLinea || ajustes.cantarLinea
+    });
   }
   apuntarEnDisco(uid);
   return true;
 }
 
-export function apuntar(uid: string, nombre: string, azar: () => number = Math.random): boolean {
+// Le da un carton mas a alguien. Lo llama el canje de puntos (twitch.ts) y el
+// boton del panel. Si no se puede, dice por que: con eso twitch.ts decide
+// devolverle los puntos.
+export function darCarton(uid: string, nombre: string, login = '', azar: () => number = Math.random):
+    { ok: true; cartones: number } | { ok: false; motivo: string } {
   const partida = partidas.get(uid);
-  if (!partida || !partida.abierta) return false;
-  if (crono.vencido(uid)) return false;
+  if (!partida) return { ok: false, motivo: 'no hay ninguna partida de bingo abierta' };
+  if (!partida.abierta || crono.vencido(uid)) return { ok: false, motivo: 'la venta de cartones esta cerrada' };
   const limpio = String(nombre || '').trim().slice(0, 40);
-  if (!limpio) return false;
+  if (!limpio) return { ok: false, motivo: 'falta el nombre' };
   const clave = limpio.toLowerCase();
-  if (partida.jugadores.some((j) => j.clave === clave)) return false;
-  partida.jugadores.push({ nombre: limpio, clave, carton: cartonNuevo(azar), descalificado: false });
+  const max = leerAjustes(uid).maxCartones;
+  const suLogin = String(login || '').trim().toLowerCase();
+  let jugador = partida.jugadores.find((j) => esEl(j, clave) || Boolean(suLogin && esEl(j, suLogin)));
+  if (jugador && jugador.cartones.length >= max) {
+    return { ok: false, motivo: 'ya tiene el maximo de ' + max + ' carton(es)' };
+  }
+  if (!jugador) {
+    jugador = { nombre: limpio, clave, cartones: [], descalificado: false };
+    if (suLogin && suLogin !== clave) jugador.login = suLogin;
+    partida.jugadores.push(jugador);
+  }
+  jugador.cartones.push(cartonNuevo(azar));
   apuntarEnDisco(uid);
-  return true;
+  return { ok: true, cartones: jugador.cartones.length };
+}
+
+export function apuntar(uid: string, nombre: string, azar: () => number = Math.random): boolean {
+  return darCarton(uid, nombre, '', azar).ok;
 }
 
 // Saca una bola. La primera cierra la inscripcion: con bolas fuera, entrar
@@ -434,6 +604,10 @@ export function sacar(uid: string, azar: () => number = Math.random): { bola: nu
 // Lo que pasa cuando alguien canta. Se llama desde el chat, y tambien desde el
 // panel por si el streamer quiere cantar por alguien.
 //
+// Se canta una cosa concreta: «linea» (!linea) o «bingo» (!bingo). Se juzga SOLO
+// eso: cantar linea con el carton lleno vale, porque tiene linea; cantar bingo
+// con solo una linea es cantar en falso, y descalifica.
+//
 // Se juzga por la bola con la que completo, no por lo que tiene ahora:
 //
 //  - A tiempo es haberlo completado con la ultima bola, o con la penultima si
@@ -442,14 +616,14 @@ export function sacar(uid: string, azar: () => number = Math.random): { bola: nu
 //  - Si dos completan con la misma bola, ganan los dos. Por eso, cuando alguien
 //    gana, la fase no se cierra para los que completaron con esa misma bola:
 //    se les sigue dejando cantar mientras sigan a tiempo.
-export function cantarBingo(uid: string, nombre: string, ahora: number = Date.now()): Canto | null {
+export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahora: number = Date.now()): Canto | null {
   const partida = partidas.get(uid);
   if (!partida) return null;
   // Sin bolas no hay nada que cantar: es alguien que escribio la palabra antes
   // de tiempo, no alguien que miente sobre su carton.
   if (!partida.salidas.length) return null;
-  const clave = String(nombre || '').trim().toLowerCase();
-  const jugador = partida.jugadores.find((j) => j.clave === clave);
+  // En el chat sale con su login; desde el panel, con el nombre que se teclee.
+  const jugador = partida.jugadores.find((j) => esEl(j, nombre));
   if (!jugador || jugador.descalificado) return null;
 
   const total = partida.salidas.length;
@@ -458,33 +632,59 @@ export function cantarBingo(uid: string, nombre: string, ahora: number = Date.no
   const aTiempo = (k: number) => k > 0 && (k === total || (enGracia && k === total - 1));
   const yaGano = (que: 'linea' | 'bingo') => partida.cantos.some((c) => c.nombre === jugador.nombre && c.que === que);
 
-  const conBingo = completadoCon(jugador.carton, partida.salidas, 'bingo');
-  const conLinea = completadoCon(jugador.carton, partida.salidas, 'linea');
+  // Volverlo a escribir despues de ganarlo (el chat repite mucho) no es
+  // cantar en falso: es celebrar.
+  if (yaGano(que)) return null;
+  // Cantar linea cuando no se juega linea no es mentir: no hay nada que ganar.
+  if (que === 'linea' && !juegaLinea(partida)) return null;
+
+  const bolaGanadora = que === 'linea' ? partida.lineaBola : partida.bingoBola;
+  // Con varios cartones se mira cada uno: si alguno lo tiene a tiempo, gana con
+  // ese; si no, el que lo completo mas tarde, para decir si llega tarde.
+  const vale = (k: number) => aTiempo(k) && (!bolaGanadora || k === bolaGanadora);
+  // En la linea, TODAS las lineas de cada carton: vale cualquiera que se haya
+  // completado a tiempo, no solo la primera.
+  const todos = que === 'linea'
+    ? jugador.cartones.flatMap((c) => lineasCon(c, partida.salidas))
+    : jugador.cartones.map((c) => completadoCon(c, partida.salidas, que));
+  const con = todos.find(vale) ?? Math.max(0, ...todos);
 
   let resultado: Canto['que'];
-  if (aTiempo(conBingo) && (!partida.bingoBola || conBingo === partida.bingoBola) && !yaGano('bingo')) {
-    resultado = 'bingo';
-  } else if (partida.puntosLinea > 0 && aTiempo(conLinea)
-      && (!partida.lineaBola || conLinea === partida.lineaBola) && !yaGano('linea')) {
-    resultado = 'linea';
+  if (vale(con)) {
+    // A tiempo, y nadie lo habia ganado antes (o lo gano con la misma bola).
+    resultado = que;
   } else if (partida.fase === 'fin') {
     // Ya se canto bingo: lo que llegue ahora no es mentir, es llegar tarde a
     // una partida acabada. Ni se apunta.
     return null;
-  } else if (yaGano('linea') && !conBingo) {
-    // El que gano la linea y lo vuelve a escribir (el chat repite mucho): no
-    // es cantar bingo en falso, es celebrar.
-    return null;
-  } else if (partida.fase === 'linea' ? conLinea > 0 : conBingo > 0) {
+  } else if (con > 0) {
+    // Lo tiene, pero se le paso, o ya se lo llevo otro antes.
     resultado = 'tarde';
   } else {
     resultado = 'falso';
     jugador.descalificado = true;
   }
+  const conLinea = que === 'linea' ? con : 0;
+  const conBingo = que === 'bingo' ? con : 0;
 
   const puntos = resultado === 'linea' ? partida.puntosLinea : resultado === 'bingo' ? partida.puntosBingo : 0;
   if (puntos > 0) deps.sumarPuntos(uid, jugador.nombre, puntos);
   const canto: Canto = { nombre: jugador.nombre, que: resultado, bola: total, puntos, en: new Date(ahora).toISOString() };
+  // El premio de verdad, a Ganadores. Si no se pudo (sin servidor, o falla al
+  // escribir), el canto lo dice para que el streamer lo apunte a mano.
+  if (resultado === 'linea' || resultado === 'bingo') {
+    const premio = resultado === 'linea' ? partida.premioLinea : partida.premioBingo;
+    if (hayPremio(premio)) {
+      canto.premio = { ...premio };
+      let ok = false;
+      try {
+        ok = Boolean(partida.ambito && deps.apuntarGanador?.(partida.ambito, jugador.nombre, premio, resultado));
+      } catch (err) {
+        console.error('Failed to save bingo winner:', err);
+      }
+      canto.apuntado = ok;
+    }
+  }
   partida.cantos.push(canto);
 
   if (resultado === 'bingo') {
@@ -526,17 +726,18 @@ export function cartonPublico(codigo: unknown, nombre: unknown) {
   const hallada = porCodigo(codigo);
   if (!hallada) return null;
   const { uid, partida } = hallada;
-  const clave = String(nombre ?? '').trim().toLowerCase();
-  const j = clave ? partida.jugadores.find((x) => x.clave === clave) : undefined;
+  const j = partida.jugadores.find((x) => esEl(x, String(nombre ?? '')));
   const p = palabras.get(uid);
   return {
     abierta: partida.abierta,
-    palabra: p?.palabra || AJUSTES_POR_DEFECTO.palabra,
+    recompensa: deps.recompensa?.(uid) || '',
+    maxCartones: leerAjustes(uid).maxCartones,
     cantar: p?.cantar || AJUSTES_POR_DEFECTO.cantar,
+    cantarLinea: p?.cantarLinea || AJUSTES_POR_DEFECTO.cantarLinea,
     fase: partida.fase,
     salidas: partida.salidas,
     cantos: partida.cantos.filter((c) => c.que === 'linea' || c.que === 'bingo'),
-    jugador: j ? { nombre: j.nombre, carton: j.carton, descalificado: j.descalificado } : null
+    jugador: j ? { nombre: j.nombre, cartones: j.cartones, descalificado: j.descalificado } : null
   };
 }
 

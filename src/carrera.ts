@@ -197,8 +197,7 @@ export function sumarPuntos(uid: string, nombre: string, cuantos: number): numbe
   return m[clave].puntos;
 }
 
-// Descuenta si llega; devuelve false y no toca nada si no hay bastante. Es lo
-// que usara el canje de tiradas cuando este el paqueton.
+// Descuenta si llega; devuelve false y no toca nada si no hay bastante.
 export function gastarPuntos(uid: string, nombre: string, cuantos: number): boolean {
   const m = leerPuntos(uid);
   const clave = nombre.trim().toLowerCase();

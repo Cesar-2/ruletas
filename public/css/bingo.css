@@ -101,6 +101,24 @@
 .bingo-carton.mini .cab { font-size: .8rem; }
 .bingo-carton.mini .casilla { font-size: .7rem; border-radius: 5px; }
 
+/* Varios cartones de la misma persona, uno al lado de otro. Con más de uno
+   cada cartón lleva su número encima. */
+.bingo-cartones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  width: 100%;
+}
+.bingo-cartones > .bingo-carton { flex: 1 1 14rem; }
+.bingo-cartones > .bingo-carton.mini { flex: 0 1 11rem; }
+.bingo-cartones > .bingo-carton[data-numero]::before {
+  content: attr(data-numero);
+  grid-column: 1 / -1;
+  font-size: .8rem;
+  color: #9fb3c8;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bingo-bola.nueva { animation: none; }
 }

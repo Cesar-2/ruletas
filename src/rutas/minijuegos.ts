@@ -41,6 +41,11 @@ export interface Contexto {
   // Fija en el chat el aviso de una inscripcion recien abierta. No espera ni
   // falla: si Twitch no esta conectado no hace nada. Ver twitch.ts.
   fijarAviso(uid: string, canal: string, texto: string, segundos?: unknown): void;
+  // El servidor del Ruleton en el que esta el streamer (uid/juego/servidor).
+  // El bingo apunta ahi los premios.
+  resolveServer(req: Request): string;
+  // Crea o actualiza en Twitch la recompensa que vende cartones. Ver twitch.ts.
+  recompensaBingo(uid: string, titulo: unknown, coste: unknown): Promise<{ ok: boolean; error?: string }>;
 }
 
 // El aviso que se fija al abrir la inscripcion de cada minijuego.
@@ -309,12 +314,17 @@ router.post('/api/bingo/abrir', (req: Request, res: Response) => {
     return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
   }
   try {
-    bingo.abrir(uid, canal, req.body?.segundos);
+    // Los premios van a Ganadores del servidor en el que se abre la partida.
+    bingo.abrir(uid, canal, req.body?.segundos, ctx.resolveServer(req));
     const e = bingo.estado(uid);
     // La direccion de los cartones, con el dominio por el que ha entrado el
     // streamer: es el mismo por el que entraran los espectadores.
     const donde = req.protocol + '://' + req.get('host') + '/bingo?p=' + e.codigo;
-    ctx.fijarAviso(uid, canal, aviso(e.ajustes.palabra, 'el Bingo', 'mira tu cartón en ' + donde), req.body?.segundos);
+    // Los cartones se compran con puntos de canal: el aviso dice que canjear.
+    const comprar = e.recompensa
+      ? 'Canjea «' + e.recompensa + '» con tus puntos del canal para comprar cartón del Bingo'
+      : 'Se abre el Bingo';
+    ctx.fijarAviso(uid, canal, comprar + ' · mira tu cartón en ' + donde, req.body?.segundos);
     res.json(e);
   } catch (err) {
     console.error('Failed to open bingo:', err);
@@ -322,12 +332,20 @@ router.post('/api/bingo/abrir', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/bingo/apuntar  Body: { nombre }  (para dar carton a mano)
+// POST /api/bingo/apuntar  Body: { nombre }  (para dar un carton mas a mano)
 router.post('/api/bingo/apuntar', (req: Request, res: Response) => {
   const uid = ctx.requireUid(req);
-  if (!bingo.apuntar(uid, String(req.body?.nombre || ''))) {
-    return res.status(409).json({ error: 'no se pudo dar carton: repetido, vacio o inscripcion cerrada' });
-  }
+  const r = bingo.darCarton(uid, String(req.body?.nombre || ''));
+  if (!r.ok) return res.status(409).json({ error: 'no se pudo dar carton: ' + r.motivo });
+  res.json(bingo.estado(uid));
+});
+
+// POST /api/bingo/recompensa  Body: { titulo, coste } -> crea (o actualiza) en
+// Twitch la recompensa de puntos con la que se compran cartones.
+router.post('/api/bingo/recompensa', async (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  const r = await ctx.recompensaBingo(uid, req.body?.titulo, req.body?.coste);
+  if (!r.ok) return res.status(409).json({ error: r.error });
   res.json(bingo.estado(uid));
 });
 
@@ -343,11 +361,13 @@ router.post('/api/bingo/sacar', (req: Request, res: Response) => {
   res.json(bingo.estado(uid));
 });
 
-// POST /api/bingo/cantar  Body: { nombre }  -> cantar por alguien a mano
-// Se juzga igual que si lo hubiera escrito en el chat: si no lo tiene, fuera.
+// POST /api/bingo/cantar  Body: { nombre, que: 'linea' | 'bingo' }  -> cantar por
+// alguien a mano. Se juzga igual que si lo hubiera escrito en el chat: si no lo
+// tiene, fuera.
 router.post('/api/bingo/cantar', (req: Request, res: Response) => {
   const uid = ctx.requireUid(req);
-  const canto = bingo.cantarBingo(uid, String(req.body?.nombre || ''));
+  const que = req.body?.que === 'linea' ? 'linea' : 'bingo';
+  const canto = bingo.cantar(uid, String(req.body?.nombre || ''), que);
   if (!canto) return res.status(409).json({ error: 'ese nombre no tiene carton en juego, o no hay nada que cantar' });
   res.json(bingo.estado(uid));
 });
@@ -359,7 +379,8 @@ router.post('/api/bingo/cancelar', (req: Request, res: Response) => {
   res.json(bingo.estado(uid));
 });
 
-// POST /api/bingo/config  Body: { palabra?, cantar?, puntosLinea?, puntosBingo? }
+// POST /api/bingo/config  Body: { maxCartones?, cantar?, cantarLinea?, puntosLinea?, puntosBingo?,
+//                                 premioLinea?: { kamas, texto }, premioBingo? }
 router.post('/api/bingo/config', (req: Request, res: Response) => {
   const uid = ctx.requireUid(req);
   try {

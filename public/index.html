@@ -1016,23 +1016,6 @@
     }
     .draw-subpanel{display:none}
     .draw-subpanel.active{display:block}
-    /* Editor de paquetes: una fila por premio, imagen + nombre + peso. */
-    .pack-row{display:flex;gap:.7rem;align-items:center;padding:.6rem;margin-bottom:.6rem;border-radius:12px;background:var(--card);border:1px solid rgba(255,255,255,0.1)}
-    .pack-row img{width:56px;height:56px;object-fit:cover;border-radius:8px;background:rgba(255,255,255,0.06);flex:none}
-    .pack-row .sin-imagen{width:56px;height:56px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font-size:22px;background:rgba(255,255,255,0.06);color:var(--muted)}
-    .pack-row .pack-nombre{flex:1;min-width:120px}
-    .pack-row .pack-peso{width:78px;flex:none}
-    .pack-row input[type=text],.pack-row input[type=number]{width:100%;padding:.45rem .55rem;border-radius:8px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.06);color:inherit;font-size:14px}
-    .pack-row .pack-acciones{display:flex;flex-direction:column;gap:.3rem;flex:none}
-    .pack-row .pack-acciones button{padding:.3rem .55rem;font-size:12px}
-    .pack-prob{font-size:12px;color:var(--muted);width:52px;text-align:right;flex:none}
-    /* El contenido del lote cuelga debajo de su fila. */
-    .pack-bloque{margin-bottom:.6rem;border-radius:12px;background:var(--card);border:1px solid rgba(255,255,255,0.1)}
-    .pack-bloque .pack-row{margin:0;background:none;border:none}
-    .pack-items{padding:0 .7rem .7rem 4.6rem}
-    .pack-item{display:flex;gap:.5rem;align-items:center;margin-bottom:.35rem}
-    .pack-item input[type=text]{flex:1;padding:.35rem .5rem;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.05);color:inherit;font-size:13px}
-    .pack-item button{padding:.25rem .5rem;font-size:12px}
     /* Banners y redes de la cuenta. */
     .banner-lista,.social-lista{display:flex;flex-direction:column;gap:.5rem;margin:.5rem 0}
     .banner-fila,.social-fila{display:flex;gap:.5rem;align-items:center;padding:.5rem;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,0.1)}
@@ -1041,27 +1024,6 @@
     .banner-fila input,.social-fila input{flex:1;padding:.35rem .5rem;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.05);color:inherit;font-size:13px}
     .social-fila select{padding:.35rem .5rem;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:var(--card);color:inherit;font-size:13px;width:130px;flex:none}
     .banner-fila button,.social-fila button{padding:.3rem .6rem;font-size:12px;box-shadow:none;background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
-    /* Cabecera de columnas: mismas anchuras que la fila de abajo. */
-    .pack-cabecera{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.15rem}
-    .pack-cabecera .col-nombre{flex:1}
-    .pack-cabecera .col-color{width:92px;flex:none}
-    .pack-cabecera .col-quitar{width:26px;flex:none}
-    /* Los cuatro colores del objeto, en la propia fila. */
-    .item-colores{display:flex;gap:3px;flex:none;width:92px;margin:0}
-    .item-colores .tag-color{height:16px}
-    .anadir-objeto{padding:.3rem .6rem;font-size:12px;box-shadow:none;
-      background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
-    /* El % por color del paquetón, debajo de sus objetos. */
-    .punto-premio{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:.3rem;vertical-align:middle}
-    .pack-items .meta{font-size:12px;margin:.1rem 0 .4rem}
-    .code-list{margin-top:.8rem;display:flex;flex-direction:column;gap:.5rem}
-    .code-row{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;padding:.55rem .7rem;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,0.1)}
-    .code-row .clave{font-family:ui-monospace,Menlo,monospace;font-size:16px;letter-spacing:.06em}
-    .code-row .estado{font-size:12px;padding:.15rem .5rem;border-radius:999px}
-    .code-row .estado.libre{color:#6ee7b7;background:rgba(110,231,183,0.14)}
-    .code-row .estado.usado{color:#fbbf24;background:rgba(251,191,36,0.14)}
-    .code-row .hueco{margin-left:auto;display:flex;gap:.4rem}
-    .code-row button{padding:.3rem .6rem;font-size:12px}
     .font-dock{position:fixed;right:1rem;bottom:1rem;z-index:70;display:flex;flex-direction:column;gap:.35rem;padding:.7rem .9rem;border-radius:12px;background:rgba(9,15,28,0.94);border:1px solid rgba(255,255,255,0.14);box-shadow:0 10px 30px rgba(2,6,23,0.6);backdrop-filter:blur(8px)}
     .font-dock[hidden]{display:none}
     .font-dock label{font-size:13px;color:var(--muted)}
@@ -1281,12 +1243,24 @@
           <div class="game-subpanel" id="game-bingo-panel">
           <section>
             <h3>🎱 Bingo</h3>
-            <p class="meta">Los espectadores piden cartón escribiendo en tu chat de Twitch y tú vas sacando bolas. Cada uno ve su cartón en la página que sale abajo, con el código de la partida. <strong>Para ganar hay que cantar en el chat</strong>: si lo tiene, se lleva los puntos; si canta sin tenerlo, queda descalificado; si se le pasó (ya salió otra bola), no gana pero sigue jugando. Primero se juega la línea (fila, columna o diagonal) y después el cartón lleno. Con la línea a 0 puntos se juega solo el cartón lleno.</p>
+            <p class="meta">Los espectadores <strong>compran cartones con puntos del canal</strong>, canjeando la recompensa de abajo, y tú vas sacando bolas. Cada canje es un cartón más, hasta el máximo por persona; si no se le puede dar (no hay partida, ya cerró la venta o tiene el máximo), Twitch le devuelve los puntos. Cada uno ve sus cartones en la página que sale abajo, con el código de la partida, y <strong>los marca a mano</strong> según van saliendo las bolas (aquí tú ves cómo van de verdad). <strong>Para ganar hay que cantar en el chat</strong>: si lo tiene, se lleva los puntos; si canta sin tenerlo, queda descalificado; si se le pasó (ya salió otra bola), no gana pero sigue jugando. Primero se juega la línea, que se canta con su propio comando: vale cualquier fila o columna, pero no las diagonales. Después se juega el cartón lleno. Cantar línea sin tener línea, o bingo sin tener el cartón lleno, descalifica. Si la línea no da ni puntos ni premio, se juega solo el cartón lleno.</p>
 
+            <!-- La recompensa la crea el Ruleton en Twitch: solo así se pueden
+                 devolver los puntos cuando no se puede dar cartón. -->
             <div class="draw-controls">
-              <label class="meta" for="bingoPalabra">Piden cartón con</label>
-              <input id="bingoPalabra" type="text" value="!carton" style="width:110px" />
-              <label class="meta" for="bingoCantar">Cantan con</label>
+              <label class="meta" for="bingoRecompensaTitulo">Recompensa</label>
+              <input id="bingoRecompensaTitulo" type="text" maxlength="45" placeholder="Cartón de bingo" style="width:170px" />
+              <label class="meta" for="bingoRecompensaCoste">Cuesta</label>
+              <input id="bingoRecompensaCoste" type="number" min="1" max="10000000" placeholder="puntos" style="width:100px" />
+              <button type="button" id="bingoRecompensaCrear">Crear en Twitch</button>
+            </div>
+            <p class="meta" id="bingoRecompensaEstado"></p>
+            <div class="draw-controls">
+              <label class="meta" for="bingoMaxCartones">Cartones por persona</label>
+              <input id="bingoMaxCartones" type="number" min="1" max="50" value="5" style="width:70px" />
+              <label class="meta" for="bingoCantarLinea">Cantan línea con</label>
+              <input id="bingoCantarLinea" type="text" value="!linea" style="width:110px" />
+              <label class="meta" for="bingoCantar">Cantan bingo con</label>
               <input id="bingoCantar" type="text" value="!bingo" style="width:110px" />
             </div>
             <div class="draw-controls">
@@ -1294,9 +1268,22 @@
               <input id="bingoPuntosLinea" type="number" min="0" max="1000000" value="10" style="width:90px" />
               <label class="meta" for="bingoPuntosBingo">Puntos bingo</label>
               <input id="bingoPuntosBingo" type="number" min="0" max="1000000" value="50" style="width:90px" />
+            </div>
+            <!-- El premio de verdad: va solo a Ganadores, en el servidor en el
+                 que abras la partida. Kamas, un texto, o las dos cosas. -->
+            <div class="draw-controls">
+              <label class="meta" for="bingoKamasLinea">Premio línea</label>
+              <input id="bingoKamasLinea" type="number" min="0" max="10000000000" placeholder="kamas" style="width:110px" />
+              <input id="bingoTextoLinea" type="text" maxlength="80" placeholder="o un objeto (opcional)" style="width:170px" />
+            </div>
+            <div class="draw-controls">
+              <label class="meta" for="bingoKamasBingo">Premio bingo</label>
+              <input id="bingoKamasBingo" type="number" min="0" max="10000000000" placeholder="kamas" style="width:110px" />
+              <input id="bingoTextoBingo" type="text" maxlength="80" placeholder="o un objeto (opcional)" style="width:170px" />
               <button type="button" id="bingoGuardar">Guardar</button>
               <span class="meta" id="bingoGuardado"></span>
             </div>
+            <p class="meta">El premio se apunta solo en Ganadores cuando alguien canta bien, en el servidor en el que estés al abrir la partida. Sin premio ni puntos de línea, se juega directo al bingo.</p>
 
             <div class="draw-controls">
               <button type="button" id="bingoAbrir">Nueva partida</button>
@@ -1527,7 +1514,6 @@
               <button type="button" class="subtab active" data-draw="normal">🎰 Ruletas</button>
               <button type="button" class="subtab" data-draw="custom">🎡 Personalizada</button>
               <button type="button" class="subtab" data-draw="catalog">📦 Catálogo</button>
-              <button type="button" class="subtab" data-draw="packs">🎁 Paquetones</button>
             </div>
 
             <div class="draw-subpanel active" id="draw-normal-panel">
@@ -1619,27 +1605,6 @@
             </div>
 
             <!-- El catálogo es de lo que sale en la ruleta: vive con ella. -->
-            <div class="draw-subpanel" id="draw-packs-panel">
-            <h3>🎁 Paquetones para invitados</h3>
-            <p class="meta">El invitado <strong>elige un paquetón</strong> y gira: sale <strong>uno</strong> de los objetos que lleva dentro. Cada objeto se clasifica por color y el <strong>% se pone por color</strong>, dentro de cada paquetón: primero se sortea el color y después, entre los objetos de ese color, uno al azar. Un color sin objetos no sale por mucho % que tenga. Son los de este servidor.</p>
-
-            <div class="pack-list" id="packList"></div>
-            <div class="controls">
-              <button type="button" id="addPack">+ Añadir paquetón</button>
-              <button type="button" id="savePacks">Guardar paquetones</button>
-              <span class="meta" id="packStatus"></span>
-            </div>
-
-            <h3 style="margin-top:1.8rem">🎟️ Códigos de acceso</h3>
-            <p class="meta">Cada código sirve para entrar <strong>una sola vez</strong> y trae las tiradas que le pongas. Al entrar, la persona <strong>elige en qué servidor juega</strong> entre los tuyos que tengan paquetones, y ahí se apuntan sus premios. Si cierra la página pierde lo que le quedara y necesita otro código. La lista es de toda tu cuenta, no solo de este servidor.</p>
-            <div class="controls">
-              <label for="codeSpins" class="meta">Tiradas</label>
-              <input id="codeSpins" type="number" value="1" min="1" max="50" style="width:80px" />
-              <button type="button" id="newCode">Crear código</button>
-              <span class="meta" id="codeStatus"></span>
-            </div>
-            <div id="codeList" class="code-list"></div>
-            </div>
             <div class="draw-subpanel" id="draw-catalog-panel">
 
             <!-- Dos familias de la API de Dofus. Los recursos son los que se
@@ -1769,12 +1734,6 @@
 
         <div class="tab-panel" id="winners-panel">
           <div class="subtabs" id="winnersServers"></div>
-
-          <section>
-            <h3>🎁 Ganadores por código</h3>
-            <p class="meta">Los que han jugado con un código de invitado. Son de este servidor: los premios pertenecen a él, como el resto de ganadores.</p>
-            <div id="guestWinners"></div>
-          </section>
 
           <section>
             <h3>🏆 Top 3</h3>
@@ -2293,7 +2252,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           <div class="cfg-tabpanel" id="cfgtab-datos">
           <div class="config-section">
             <h4>Ratio de salida de cada color</h4>
-            <p class="meta">Cuánto sale cada color, tanto en la ruleta de objetos como en los paquetones de invitados. No hace falta que sumen 100: cuenta lo que pesa cada uno frente a los demás. Con todo a cero se sortea sin mirar el color. Son los de este servidor.</p>
+            <p class="meta">Cuánto sale cada color en la ruleta de objetos. No hace falta que sumen 100: cuenta lo que pesa cada uno frente a los demás. Con todo a cero se sortea sin mirar el color. Son los de este servidor.</p>
             <p class="meta"><strong>Los dos números dicen cosas distintas.</strong> El de la izquierda es por objeto: con el rojo al 2%, cada objeto que sale tiene 2 posibilidades entre 100 de ser rojo. El de la derecha es por sorteo: en una tirada de diez objetos hay diez oportunidades, así que ver alguno rojo es mucho más fácil que eso.</p>
             <p class="meta">Leído en voz alta, <strong>«18% en 10»</strong> quiere decir: <strong>de cada 100 sorteos de diez objetos, en unos 18 aparece al menos un rojo</strong>; en los otros 82 no sale ninguno. No es multiplicar el 2% por diez (eso daría 20%), porque en un mismo sorteo pueden tocar dos rojos y eso sigue contando como uno solo. Cuantos más objetos por sorteo, más a menudo se ve un color raro.</p>
             <p class="meta"><strong>Un color sin objetos marcados no sale nunca, y su peso se reparte entre los demás.</strong> Si tienes todo el catálogo marcado de un mismo color, ese color sale siempre por mucho que le bajes el ratio. Marca las rarezas en el catálogo antes de afinar estos números.</p>
@@ -4161,53 +4120,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           winnersServer = sv.id;
           renderWinnersServers();
           loadWinners();
-          loadGuestWinners();
           loadRanking();
         });
         cont.appendChild(boton);
-      });
-    }
-
-    // Los ganadores por código van aparte de los del sorteo normal: ni suman
-    // en el ranking ni se entregan por kamas, son premios de los paquetes.
-    async function loadGuestWinners() {
-      const cont = document.getElementById('guestWinners');
-      let lista = [];
-      try {
-        lista = (await api(rutaGanadores('/api/guest-winners'))).winners || [];
-      } catch (e) {
-        cont.innerHTML = '<div class="meta">No se pudieron cargar.</div>';
-        return;
-      }
-      if (!lista.length) {
-        cont.innerHTML = '<div class="meta">Nadie ha jugado todavía con un código en este servidor.</div>';
-        return;
-      }
-      cont.innerHTML = '';
-      lista.forEach((w) => {
-        const fila = document.createElement('div');
-        fila.className = 'code-row';
-        // Lo que hay que entregarle: el objeto que le salió y de qué paquete.
-        const premios = w.premios.map((p) => {
-          const color = RARITY_COLOR[p.rarity] || RARITY_COLOR.common;
-          return `<span class="punto-premio" style="background:${color}" title="${RARITY_COLOR_NAME[p.rarity] || 'Gris'}"></span>`
-            + `${escapeHtml(p.name)} <span class="meta">(${escapeHtml(p.pack)})</span>`;
-        }).join(' · ');
-        fila.innerHTML = `
-          <span><strong>${escapeHtml(w.nombre)}</strong> <span class="meta">· código ${escapeHtml(w.code)}</span></span>
-          <span class="meta">${w.premios.length} premio(s): ${premios}</span>
-          <span class="hueco"><button type="button" class="guest-del">Quitar</button></span>`;
-        fila.querySelector('.guest-del').addEventListener('click', async () => {
-          const ok = await showConfirm('Quitar de la lista', `Se borra lo que ganó ${w.nombre}. No se puede deshacer.`, 'Quitar', true);
-          if (!ok) return;
-          try {
-            await api(rutaGanadores(`/api/guest-winners/${encodeURIComponent(w.id)}`), { method: 'DELETE' });
-            await loadGuestWinners();
-          } catch (e) {
-            showAlert('No se pudo quitar', e.message);
-          }
-        });
-        cont.appendChild(fila);
       });
     }
 
@@ -4691,7 +4606,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       renderEditor();
       cargarNombres();
     retomarInscripcion();
-      await Promise.all([loadWinners(), loadGuestWinners(), loadRatios(), loadRanking(), loadHistory()]);
+      await Promise.all([loadWinners(), loadRatios(), loadRanking(), loadHistory()]);
     }
 
     async function loadItems(){
@@ -5245,7 +5160,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       await loadServers();
       cargarNombres();
       loadWinners();
-      loadGuestWinners();
       loadRatios();
       loadRanking();
       loadItems();
@@ -6822,7 +6736,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       });
     }
 
-    // La imagen se sube igual que el fondo o la de un paquetón.
+    // La imagen se sube igual que el fondo.
     function subirImagenBanner(i) {
       const file = document.createElement('input');
       file.type = 'file';
@@ -7105,286 +7019,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     window.addEventListener('pagehide', volcarRatios);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') volcarRatios();
-    });
-
-    // --- Paquetes y códigos de invitado -----------------------------------
-    let packs = [];
-    let codes = [];
-
-    async function loadPacks() {
-      try {
-        packs = (await api('/api/packs')).packs || [];
-      } catch (e) {
-        packs = [];
-        console.warn('No se pudieron cargar los paquetes:', e.message);
-      }
-      renderPacks();
-    }
-
-    function renderPacks() {
-      const cont = document.getElementById('packList');
-      if (!packs.length) {
-        cont.innerHTML = '<div class="meta">Todavía no hay paquetones. Añade uno para que los invitados tengan algo que ganar.</div>';
-        return;
-      }
-      cont.innerHTML = '';
-      packs.forEach((p, i) => {
-        if (!Array.isArray(p.items)) p.items = [];
-        const bloque = document.createElement('div');
-        bloque.className = 'pack-bloque';
-        const fila = document.createElement('div');
-        fila.className = 'pack-row';
-        const jugable = p.items.length > 0;
-        fila.innerHTML = `
-          ${p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="" />` : '<div class="sin-imagen">🎁</div>'}
-          <div class="pack-nombre"><input type="text" value="${escapeHtml(p.name || '')}" placeholder="Nombre del paquetón" maxlength="60" /></div>
-          <div class="pack-prob">${jugable ? '' : '<span title="Ningún objeto puede salir">sin premios</span>'}</div>
-          <div class="pack-acciones">
-            <button type="button" class="pack-img">Imagen</button>
-            <button type="button" class="pack-del">Quitar</button>
-          </div>`;
-
-        fila.querySelector('.pack-nombre input').addEventListener('input', (ev) => {
-          packs[i].name = ev.target.value;
-        });
-        fila.querySelector('.pack-img').addEventListener('click', () => elegirImagenPack(i));
-        fila.querySelector('.pack-del').addEventListener('click', async () => {
-          const ok = await showConfirm('Quitar paquetón', `«${p.name || 'Sin nombre'}» deja de estar en la ruleta de invitados.`, 'Quitar', true);
-          if (!ok) return;
-          packs.splice(i, 1);
-          renderPacks();
-        });
-        bloque.appendChild(fila);
-
-        // Los objetos del paquete: cada uno con su probabilidad. Al girar sale
-        // uno de estos, así que el % es lo que decide el sorteo.
-        const dentro = document.createElement('div');
-        dentro.className = 'pack-items';
-        const aviso = document.createElement('p');
-        aviso.className = 'meta';
-        dentro.appendChild(aviso);
-
-        // Cabecera de columnas, para saber qué es cada campo. Solo cuando hay
-        // filas debajo: sobre una lista vacía no diría nada.
-        if (p.items.length) {
-          const cabecera = document.createElement('div');
-          cabecera.className = 'pack-item pack-cabecera';
-          cabecera.innerHTML = `
-            <span class="col-nombre">Objeto</span>
-            <span class="col-color">Rareza</span>
-            <span class="col-quitar"></span>`;
-          dentro.appendChild(cabecera);
-        }
-
-        // Una fila por objeto: cuánto, qué es, y de qué color. El % no va
-        // aquí: se pone una sola vez en Configuración › Datos.
-        p.items.forEach((it, j) => {
-          if (!RARITIES.includes(it.rarity)) it.rarity = 'common';
-          const linea = document.createElement('div');
-          linea.className = 'pack-item';
-          linea.innerHTML = `
-            <input type="text" value="${escapeHtml(it.name || '')}" placeholder="Nombre del objeto" maxlength="60" />
-            <span class="item-colores tag-colores"></span>
-            <button type="button" class="item-del">✕</button>`;
-
-          linea.querySelector('input[type=text]').addEventListener('input', (ev) => {
-            packs[i].items[j].name = ev.target.value;
-          });
-
-          // Los mismos cuatro colores que en el catálogo, en pequeño.
-          const tira = linea.querySelector('.item-colores');
-          RARITIES.forEach((r) => {
-            const boton = document.createElement('button');
-            boton.type = 'button';
-            boton.className = 'tag-color';
-            boton.dataset.rarity = r;
-            boton.style.background = RARITY_COLOR[r];
-            boton.title = RARITY_COLOR_NAME[r];
-            boton.setAttribute('aria-label', RARITY_COLOR_NAME[r]);
-            boton.addEventListener('click', () => {
-              packs[i].items[j].rarity = r;
-              tira.querySelectorAll('.tag-color').forEach((b) => {
-                b.classList.toggle('puesto', b.dataset.rarity === r);
-              });
-            });
-            tira.appendChild(boton);
-          });
-          tira.querySelectorAll('.tag-color').forEach((b) => {
-            b.classList.toggle('puesto', b.dataset.rarity === it.rarity);
-          });
-
-          linea.querySelector('.item-del').addEventListener('click', () => {
-            packs[i].items.splice(j, 1);
-            renderPacks();
-          });
-          dentro.appendChild(linea);
-        });
-
-        const anadir = document.createElement('button');
-        anadir.type = 'button';
-        anadir.textContent = '+ Añadir objeto';
-        anadir.className = 'anadir-objeto';
-        anadir.addEventListener('click', () => {
-          packs[i].items.push({ name: '', rarity: 'common' });
-          renderPacks();
-        });
-        dentro.appendChild(anadir);
-
-        // El reparto por color no se enseña: las probabilidades se llevan solo
-        // en Configuración, y aquí sobran.
-        aviso.textContent = packs[i].items.length
-          ? 'Puede salir uno de estos:'
-          : 'Vacío: añade los objetos que pueden salir en este paquetón.';
-        fila.querySelector('.pack-prob').innerHTML = packs[i].items.length
-          ? ''
-          : '<span title="No tiene objetos">sin premios</span>';
-        bloque.appendChild(dentro);
-        cont.appendChild(bloque);
-      });
-    }
-
-    // La imagen se sube como el fondo: se lee en dataUrl y el servidor la deja
-    // en /assets, junto al resto de lo que sube el usuario.
-    function elegirImagenPack(i) {
-      const file = document.createElement('input');
-      file.type = 'file';
-      file.accept = 'image/*';
-      file.addEventListener('change', () => {
-        const f = file.files && file.files[0];
-        if (!f) return;
-        const lector = new FileReader();
-        lector.onload = async () => {
-          try {
-            const r = await api('/api/packs/image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ dataUrl: lector.result })
-            });
-            packs[i].imageUrl = r.url;
-            renderPacks();
-            document.getElementById('packStatus').textContent = 'Imagen puesta; recuerda guardar.';
-          } catch (e) {
-            showAlert('No se pudo subir la imagen', e.message);
-          }
-        };
-        lector.readAsDataURL(f);
-      });
-      file.click();
-    }
-
-    async function savePacks() {
-      const estado = document.getElementById('packStatus');
-      const sinNombre = packs.filter((p) => !String(p.name || '').trim()).length;
-      if (sinNombre) {
-        showAlert('Falta el nombre', `Hay ${sinNombre} paquetón(es) sin nombre. El servidor los descarta al guardar, así que ponles uno antes.`);
-        return;
-      }
-      try {
-        packs = (await api('/api/packs', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ packs })
-        })).packs || [];
-        renderPacks();
-        estado.textContent = `Guardados ${packs.length} paquetón(es).`;
-      } catch (e) {
-        estado.textContent = '';
-        showAlert('No se pudieron guardar los paquetones', e.message);
-      }
-    }
-
-    async function loadCodes() {
-      try {
-        codes = (await api('/api/codes')).codes || [];
-      } catch (e) {
-        codes = [];
-        console.warn('No se pudieron cargar los códigos:', e.message);
-      }
-      renderCodes();
-    }
-
-    function renderCodes() {
-      const cont = document.getElementById('codeList');
-      if (!codes.length) {
-        cont.innerHTML = '<div class="meta">Ningún código todavía.</div>';
-        return;
-      }
-      cont.innerHTML = '';
-      codes.forEach((c) => {
-        const fila = document.createElement('div');
-        fila.className = 'code-row';
-        const usado = Boolean(c.usado);
-        const quedan = c.tiradas - c.gastadas;
-        const detalle = usado
-          ? `${escapeHtml(c.nombre || 'Invitado')}${c.servidor ? ` · ${escapeHtml(c.servidor)}` : ' · sin elegir servidor'} · ${c.gastadas} de ${c.tiradas} tiradas${quedan > 0 ? ` (le quedaban ${quedan})` : ''}`
-          : `${c.tiradas} tirada(s)`;
-        fila.innerHTML = `
-          <span class="clave">${escapeHtml(c.code)}</span>
-          <span class="estado ${usado ? 'usado' : 'libre'}">${usado ? 'ya usado' : 'sin usar'}</span>
-          <span class="meta">${detalle}</span>
-          <span class="hueco">
-            ${usado ? '' : '<button type="button" class="code-copy">Copiar enlace</button>'}
-            <button type="button" class="code-del">Borrar</button>
-          </span>`;
-
-        const copiar = fila.querySelector('.code-copy');
-        if (copiar) {
-          copiar.addEventListener('click', () => {
-            copyToClipboard(`${location.origin}/invitado  ·  código: ${c.code}`).then((ok) => {
-              copiar.textContent = ok ? '¡Copiado!' : 'Error al copiar';
-              setTimeout(() => { copiar.textContent = 'Copiar enlace'; }, 1200);
-            });
-          });
-        }
-        fila.querySelector('.code-del').addEventListener('click', async () => {
-          const ok = await showConfirm(
-            'Borrar código',
-            usado
-              ? `El código ${c.code} ya se usó. Si esa persona sigue dentro, se queda fuera al instante. Sus premios no se borran.`
-              : `El código ${c.code} dejará de servir. No se puede deshacer.`,
-            'Borrar', true);
-          if (!ok) return;
-          try {
-            await api(`/api/codes/${encodeURIComponent(c.code)}`, { method: 'DELETE' });
-            await loadCodes();
-          } catch (e) {
-            showAlert('No se pudo borrar', e.message);
-          }
-        });
-        cont.appendChild(fila);
-      });
-    }
-
-    document.getElementById('addPack').addEventListener('click', () => {
-      packs.push({ id: '', name: '', imageUrl: '', items: [] });
-      renderPacks();
-      document.getElementById('packStatus').textContent = '';
-    });
-
-    document.getElementById('savePacks').addEventListener('click', savePacks);
-
-    document.getElementById('newCode').addEventListener('click', async () => {
-      const tiradas = Math.max(1, Math.min(50, Number(document.getElementById('codeSpins').value) || 1));
-      // Los paquetones pueden estar en otro servidor: el invitado elige. Solo
-      // se avisa si no hay ninguno en el que se está mirando, por si acaso.
-      if (!packs.filter((p) => (p.items || []).length).length) {
-        const seguir = await showConfirm(
-          'Este servidor no tiene paquetones',
-          'El invitado solo podrá elegir entre los servidores que sí tengan premios preparados. Si no hay ninguno, no podrá jugar.',
-          'Crear igualmente', false);
-        if (!seguir) return;
-      }
-      try {
-        const r = await api('/api/codes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tiradas })
-        });
-        await loadCodes();
-        document.getElementById('codeStatus').textContent = `Creado ${r.code} con ${r.tiradas} tirada(s).`;
-      } catch (e) {
-        showAlert('No se pudo crear el código', e.message);
-      }
     });
 
     // --- Copiar exclusiones y rarezas entre equipos -------------------------
@@ -7700,9 +7334,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // La ruleta de nombres se dibuja al mostrarla: en un panel oculto el SVG
       // no tiene tamaño y saldría descuadrada.
       if (cual === 'custom') renderNameWheel();
-      // Los paquetes y los códigos se piden al abrir la pestaña, no al cargar
-      // la página: así se ve al momento lo que haya gastado un invitado.
-      if (cual === 'packs') { loadPacks(); loadCodes(); }
 
       // El editor pertenece al sorteo de objetos: no pinta nada en la otra ruleta.
       if (cual === 'custom' && editandoResultado) {

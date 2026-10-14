@@ -13,6 +13,11 @@
     let bingoUltimaPintada = 0;
     // A quién se le está enseñando el cartón en la lista de «más cerca».
     const bingoAbiertos = new Set();
+    // Cuántos premios iban apuntados en Ganadores la última vez que se miró.
+    // Los apunta el servidor al cantar; cuando sube, se refresca Ganadores.
+    let bingoApuntados = -1;
+    const BINGO_CAMPOS = ['bingoMaxCartones', 'bingoCantar', 'bingoCantarLinea', 'bingoPuntosLinea', 'bingoPuntosBingo',
+      'bingoKamasLinea', 'bingoTextoLinea', 'bingoKamasBingo', 'bingoTextoBingo'];
 
     async function cargarBingo() {
       try {
@@ -22,12 +27,58 @@
         return;
       }
       if (bingo.ajustes) {
-        ponerSiNoLoTocas('bingoPalabra', bingo.ajustes.palabra);
+        ponerSiNoLoTocas('bingoMaxCartones', bingo.ajustes.maxCartones);
         ponerSiNoLoTocas('bingoCantar', bingo.ajustes.cantar);
+        ponerSiNoLoTocas('bingoCantarLinea', bingo.ajustes.cantarLinea);
         ponerSiNoLoTocas('bingoPuntosLinea', bingo.ajustes.puntosLinea);
         ponerSiNoLoTocas('bingoPuntosBingo', bingo.ajustes.puntosBingo);
+        const pl = bingo.ajustes.premioLinea || {};
+        const pb = bingo.ajustes.premioBingo || {};
+        ponerSiNoLoTocas('bingoKamasLinea', pl.kamas || '');
+        ponerSiNoLoTocas('bingoTextoLinea', pl.texto || '');
+        ponerSiNoLoTocas('bingoKamasBingo', pb.kamas || '');
+        ponerSiNoLoTocas('bingoTextoBingo', pb.texto || '');
       }
+      const apuntados = (bingo.cantos || []).filter((c) => c.apuntado).length;
+      if (bingoApuntados >= 0 && apuntados > bingoApuntados) {
+        loadWinners();
+        loadRanking();
+        loadHistory();
+      }
+      bingoApuntados = apuntados;
       pintarBingo();
+      // La recompensa vive en la conexión con Twitch: se pide una vez.
+      if (!bingoRecompensaLeida) { bingoRecompensaLeida = true; cargarRecompensa(); }
+      else pintarRecompensa();
+    }
+    let bingoRecompensaLeida = false;
+
+    // La recompensa de puntos que vende cartones. Se lee de la conexión con
+    // Twitch, que es donde se guarda (con su coste).
+    let bingoRecompensa = null;
+    let bingoTwitchConectado = false;
+    async function cargarRecompensa() {
+      try {
+        const t = await api('/api/twitch/status');
+        bingoRecompensa = t.bingoRecompensa || null;
+        bingoTwitchConectado = Boolean(t.conectado);
+      } catch (e) { /* se queda como estaba */ }
+      if (bingoRecompensa) {
+        ponerSiNoLoTocas('bingoRecompensaTitulo', bingoRecompensa.titulo);
+        ponerSiNoLoTocas('bingoRecompensaCoste', bingoRecompensa.coste);
+      }
+      pintarRecompensa();
+    }
+
+    function pintarRecompensa() {
+      const estado = document.getElementById('bingoRecompensaEstado');
+      const boton = document.getElementById('bingoRecompensaCrear');
+      boton.textContent = bingoRecompensa ? 'Actualizar en Twitch' : 'Crear en Twitch';
+      estado.textContent = !bingoTwitchConectado && !bingoRecompensa
+        ? 'Para vender cartones hace falta conectar tu cuenta en Configuración › Twitch (y que el canal sea afiliado o partner).'
+        : bingoRecompensa
+          ? `Se compran canjeando «${bingoRecompensa.titulo}» por ${Number(bingoRecompensa.coste).toLocaleString('es-ES')} puntos. Si no se le puede dar cartón, Twitch le devuelve los puntos.`
+          : 'Pon nombre y precio y pulsa «Crear en Twitch»: el Ruletón crea la recompensa en tu canal.';
     }
 
     function bingoVigilar(encender) {
@@ -43,8 +94,9 @@
     function pintarBingo() {
       const cuantos = bingo.jugadores.length;
       const jugando = bingo.jugadores.filter((j) => !j.descalificado).length;
-      const palabra = (bingo.ajustes && bingo.ajustes.palabra) || '!carton';
-      const cantar = (bingo.ajustes && bingo.ajustes.cantar) || '!bingo';
+      const cantar = bingo.fase === 'linea'
+        ? (bingo.ajustes && bingo.ajustes.cantarLinea) || '!linea'
+        : (bingo.ajustes && bingo.ajustes.cantar) || '!bingo';
       const estado = document.getElementById('bingoEstado');
       avisarChat('bingoEstado', bingo.chat);
       const seJuega = bingo.fase === 'linea' ? 'la línea' : 'el cartón lleno';
@@ -53,8 +105,8 @@
         : bingo.fase === 'fin'
           ? `Partida terminada tras ${bingo.salidas.length} bola(s). Abre otra para volver a jugar.`
           : bingo.abierta && !cerradaPorTiempo(bingo)
-            ? `Cartones abiertos en ${bingo.escuchando || 'el chat'}: escriben «${palabra}» para pedir el suyo. ${cuantos} cartón(es). La primera bola cierra la entrada.`
-            : `Se juega ${seJuega}. Cantan escribiendo «${cantar}». ${jugando} de ${cuantos} cartón(es) en juego · ${bingo.salidas.length} de 75 bolas.`;
+            ? `Venta de cartones abierta${bingo.recompensa ? `: canjean «${bingo.recompensa}» con puntos del canal` : ' (falta crear la recompensa de puntos)'}. ${bingo.cartones || 0} cartón(es) de ${cuantos} persona(s). La primera bola cierra la venta.`
+            : `Se juega ${seJuega}. Cantan escribiendo «${cantar}». ${jugando} de ${cuantos} persona(s) en juego · ${bingo.salidas.length} de 75 bolas.`;
 
       // La dirección de los cartones, para decirla en el directo.
       const enlace = document.getElementById('bingoEnlace');
@@ -80,7 +132,9 @@
       const cantos = document.getElementById('bingoCantos');
       cantos.innerHTML = (bingo.cantos || []).slice().reverse().map((c) =>
         `<li class="bingo-canto ${c.que}">${escapeHtml(BingoDibujo.textoCanto(c))}`
-        + ` <span class="meta">(bola ${c.bola})</span></li>`).join('');
+        + ` <span class="meta">(bola ${c.bola})</span>`
+        + (c.premio && !c.apuntado ? ' <strong>· no se pudo apuntar en Ganadores: apúntalo a mano</strong>' : '')
+        + '</li>').join('');
       cantos.hidden = !(bingo.cantos || []).length;
 
       pintarBingoCerca();
@@ -110,7 +164,7 @@
       const fuera = bingo.jugadores.filter((j) => j.descalificado);
       document.getElementById('bingoCercaTitulo').textContent = bingo.salidas.length
         ? `Más cerca de ${porLinea ? 'la línea' : 'cantar bingo'}`
-        : `Cartones (${bingo.jugadores.length})`;
+        : `Cartones (${bingo.cartones || 0} de ${bingo.jugadores.length} persona(s))`;
 
       const fila = (j) => {
         const falta = cuanto(j);
@@ -120,7 +174,7 @@
         const abierto = bingoAbiertos.has(j.nombre);
         return `<li class="bingo-jugador${j.descalificado ? ' fuera' : ''}${falta === 0 && !j.descalificado ? ' lo-tiene' : ''}">`
           + `<button type="button" class="bingo-ver" data-nombre="${escapeHtml(j.nombre)}" aria-expanded="${abierto}">`
-          + `<span class="quien">${escapeHtml(j.nombre)}</span><span class="falta">${dice}</span></button>`
+          + `<span class="quien">${escapeHtml(j.nombre)}${(j.cartones || []).length > 1 ? ` <span class="meta">×${j.cartones.length}</span>` : ''}</span><span class="falta">${dice}</span></button>`
           + (abierto ? `<div class="bingo-mini" data-carton="${escapeHtml(j.nombre)}"></div>` : '')
           + '</li>';
       };
@@ -132,12 +186,12 @@
         + fuera.map(fila).join('');
       lista.querySelectorAll('.bingo-mini').forEach((el) => {
         const j = bingo.jugadores.find((x) => x.nombre === el.dataset.carton);
-        if (j) BingoDibujo.carton(el, j.carton, bingo.salidas, { mini: true, fuera: j.descalificado });
+        if (j) BingoDibujo.cartones(el, j.cartones, bingo.salidas, { mini: true, fuera: j.descalificado });
       });
     }
 
     // En cuanto tocas uno, deja de refrescarse hasta que lo guardas.
-    ['bingoPalabra', 'bingoCantar', 'bingoPuntosLinea', 'bingoPuntosBingo'].forEach((id) => {
+    BINGO_CAMPOS.forEach((id) => {
       const campo = document.getElementById(id);
       campo.addEventListener('input', () => { campo.dataset.tocado = '1'; });
     });
@@ -168,19 +222,29 @@
     document.getElementById('bingoGuardar').addEventListener('click', async () => {
       const aviso = document.getElementById('bingoGuardado');
       const ok = await bingoPedir('/api/bingo/config', {
-        palabra: document.getElementById('bingoPalabra').value.trim(),
+        maxCartones: Number(document.getElementById('bingoMaxCartones').value) || 1,
         cantar: document.getElementById('bingoCantar').value.trim(),
+        cantarLinea: document.getElementById('bingoCantarLinea').value.trim(),
         puntosLinea: Number(document.getElementById('bingoPuntosLinea').value) || 0,
-        puntosBingo: Number(document.getElementById('bingoPuntosBingo').value) || 0
+        puntosBingo: Number(document.getElementById('bingoPuntosBingo').value) || 0,
+        premioLinea: {
+          kamas: Number(document.getElementById('bingoKamasLinea').value) || 0,
+          texto: document.getElementById('bingoTextoLinea').value.trim()
+        },
+        premioBingo: {
+          kamas: Number(document.getElementById('bingoKamasBingo').value) || 0,
+          texto: document.getElementById('bingoTextoBingo').value.trim()
+        }
       }, 'No se pudieron guardar los ajustes');
       if (!ok) return;
       // Lo que se guarda puede no ser lo escrito (si las dos palabras eran la
       // misma, por ejemplo): se pone lo que de verdad quedó.
-      ['bingoPalabra', 'bingoCantar', 'bingoPuntosLinea', 'bingoPuntosBingo'].forEach((id) => {
+      BINGO_CAMPOS.forEach((id) => {
         delete document.getElementById(id).dataset.tocado;
       });
-      document.getElementById('bingoPalabra').value = bingo.ajustes.palabra;
+      document.getElementById('bingoMaxCartones').value = bingo.ajustes.maxCartones;
       document.getElementById('bingoCantar').value = bingo.ajustes.cantar;
+      document.getElementById('bingoCantarLinea').value = bingo.ajustes.cantarLinea;
       aviso.textContent = bingo.hay && bingo.fase !== 'fin'
         ? 'Guardado. Vale para la próxima partida.'
         : 'Guardado.';
@@ -229,10 +293,13 @@
       const campo = document.getElementById('bingoNombre');
       const nombre = campo.value.trim();
       if (!nombre) return;
-      const ok = await showConfirm(`Cantar por ${nombre}`,
+      // Se canta lo que se juega ahora: la línea mientras nadie la tenga, y
+      // después el cartón lleno.
+      const que = bingo.fase === 'linea' ? 'linea' : 'bingo';
+      const ok = await showConfirm(`Cantar ${que === 'linea' ? 'línea' : 'bingo'} por ${nombre}`,
         'Se juzga igual que si lo hubiera escrito en el chat: si no lo tiene, queda descalificado.', 'Cantar', true);
       if (!ok) return;
-      if (await bingoPedir('/api/bingo/cantar', { nombre }, 'No se pudo cantar')) campo.value = '';
+      if (await bingoPedir('/api/bingo/cantar', { nombre, que }, 'No se pudo cantar')) campo.value = '';
     });
 
     document.getElementById('bingoCopiar').addEventListener('click', async () => {
@@ -240,4 +307,27 @@
       const b = document.getElementById('bingoCopiar');
       b.textContent = ok ? '¡Copiado!' : 'No se pudo copiar';
       setTimeout(() => { b.textContent = 'Copiar'; }, 1500);
+    });
+
+    // Crear (o actualizar) en Twitch la recompensa que vende cartones.
+    ['bingoRecompensaTitulo', 'bingoRecompensaCoste'].forEach((id) => {
+      const campo = document.getElementById(id);
+      campo.addEventListener('input', () => { campo.dataset.tocado = '1'; });
+    });
+    document.getElementById('bingoRecompensaCrear').addEventListener('click', async () => {
+      const boton = document.getElementById('bingoRecompensaCrear');
+      const titulo = document.getElementById('bingoRecompensaTitulo').value.trim() || 'Cartón de bingo';
+      const coste = Number(document.getElementById('bingoRecompensaCoste').value) || 0;
+      if (coste < 1) {
+        showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta cada cartón.');
+        return;
+      }
+      boton.disabled = true;
+      const ok = await bingoPedir('/api/bingo/recompensa', { titulo, coste }, 'No se pudo crear la recompensa en Twitch');
+      boton.disabled = false;
+      if (!ok) return;
+      ['bingoRecompensaTitulo', 'bingoRecompensaCoste'].forEach((id) => {
+        delete document.getElementById(id).dataset.tocado;
+      });
+      await cargarRecompensa();
     });
