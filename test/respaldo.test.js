@@ -147,3 +147,177 @@ test('la copia solo la puede bajar el administrador', () => {
   assert.ok(s.indexOf("app.use('/api/admin'") < s.indexOf("app.get('/api/admin/respaldo'"),
     'y el guardia va antes que la ruta');
 });
+
+// --- La vuelta: restaurar una copia ----------------------------------------
+//
+// Lo que se sube es un archivo que viene de fuera y que reemplaza la
+// instalacion entera. Lo que no puede pasar nunca:
+//
+//  - Que lo restaurado no sea igual que lo que se copio.
+//  - Que un archivo que no es una copia (o una copia sin cuentas) deje la
+//    instalacion vacia. Tiene que rechazarse SIN tocar nada.
+//  - Que un nombre con «..» escriba fuera de la carpeta de datos.
+//  - Que lo que habia se pierda: queda apartado.
+
+async function copiaDe(dir) {
+  const respaldo = cargar('respaldo');
+  const trozos = [];
+  const salida = new Writable({ write(c, _e, hecho) { trozos.push(c); hecho(); } });
+  await respaldo.enviar(dir, 'data', salida);
+  return Buffer.concat(trozos);
+}
+
+// Un tar hecho a mano, para poder meterle lo que `enviar` no meteria nunca.
+function tarAMano(entradas) {
+  const partes = [];
+  for (const [nombre, contenido, tipo] of entradas) {
+    const cuerpo = Buffer.from(contenido || '');
+    const b = Buffer.alloc(512);
+    b.write(nombre, 0, 100, 'utf8');
+    b.write('0000644\0', 100, 8, 'ascii');
+    b.write(cuerpo.length.toString(8).padStart(11, '0') + '\0', 124, 12, 'ascii');
+    b.write('00000000000\0', 136, 12, 'ascii');
+    b.write('        ', 148, 8, 'ascii');
+    b.write(tipo || '0', 156, 1, 'ascii');
+    b.write('ustar\0', 257, 6, 'ascii');
+    let suma = 0;
+    for (let i = 0; i < 512; i++) suma += b[i];
+    b.write(suma.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'ascii');
+    partes.push(b, cuerpo, Buffer.alloc((512 - (cuerpo.length % 512)) % 512));
+  }
+  partes.push(Buffer.alloc(1024));
+  return zlib.gzipSync(Buffer.concat(partes));
+}
+
+// Todo lo que hay en una carpeta, como { 'ruta/relativa': contenido }.
+function arbol(dir, saltar = []) {
+  const hay = {};
+  const mirar = (real, dentro) => {
+    for (const n of fs.readdirSync(real).sort()) {
+      if (!dentro && saltar.includes(n)) continue;
+      const ruta = path.join(real, n);
+      const rel = dentro ? dentro + '/' + n : n;
+      if (fs.statSync(ruta).isDirectory()) { hay[rel + '/'] = ''; mirar(ruta, rel); }
+      else hay[rel] = fs.readFileSync(ruta).toString('base64');
+    }
+  };
+  mirar(dir, '');
+  return hay;
+}
+
+const CUENTA = JSON.stringify({ users: [{ id: 'admin', username: 'admin', salt: 'aa', hash: 'bb', admin: true }] });
+
+function instalacion(raiz, marca) {
+  const pon = (rel, contenido) => {
+    const f = path.join(raiz, rel);
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, contenido);
+  };
+  pon('users.json', CUENTA);
+  pon('users/admin/settings.json', '{"marca":"' + marca + '"}');
+  pon('users/admin/juegos/dofus/servers/principal/winners.json', '[]');
+  pon('assets/fondo-1.png', Buffer.from(Array.from({ length: 3000 }, (_, k) => (k * 7) % 256)));
+  pon('cañón ñandú.json', 'acentos');
+  pon('x'.repeat(180) + '.json', 'largo');
+  fs.mkdirSync(path.join(raiz, 'users', 'sin-nada'), { recursive: true });
+}
+
+test('restaurar deja la carpeta igual que la que se copio', async (t) => {
+  const vieja = carpeta();
+  const nueva = carpeta();
+  t.after(vieja.quitar);
+  t.after(nueva.quitar);
+  instalacion(vieja.raiz, 'vieja');
+  // El servidor nuevo ya tiene lo suyo: una cuenta recien creada.
+  fs.writeFileSync(path.join(nueva.raiz, 'users.json'), '{"users":[{"id":"otro"}]}');
+  fs.writeFileSync(path.join(nueva.raiz, 'sobra.json'), 'esto no estaba en la copia');
+
+  const respaldo = cargar('respaldo');
+  const r = respaldo.restaurar(await copiaDe(vieja.raiz), nueva.raiz);
+
+  assert.deepStrictEqual(arbol(nueva.raiz, ['.anterior']), arbol(vieja.raiz), 'lo mismo, byte a byte');
+  assert.strictEqual(r.cuentas, 1);
+  assert.strictEqual(r.archivos, 6);
+
+  // Lo que habia no se pierde: queda apartado.
+  const anterior = path.join(nueva.raiz, '.anterior');
+  assert.strictEqual(fs.readFileSync(path.join(anterior, 'users.json'), 'utf8'), '{"users":[{"id":"otro"}]}');
+  assert.ok(fs.existsSync(path.join(anterior, 'sobra.json')));
+  assert.ok(!fs.readdirSync(nueva.raiz).some((n) => n.startsWith('.restaurando-')), 'sin restos a medio montar');
+});
+
+test('lo apartado no se cuela en la copia siguiente, y solo se guarda lo ultimo', async (t) => {
+  const a = carpeta();
+  const b = carpeta();
+  t.after(a.quitar);
+  t.after(b.quitar);
+  instalacion(a.raiz, 'a');
+  instalacion(b.raiz, 'b');
+  const respaldo = cargar('respaldo');
+
+  respaldo.restaurar(await copiaDe(a.raiz), b.raiz);
+  const otraVez = await copiaDe(b.raiz);
+  const nombres = leerTar(zlib.gunzipSync(otraVez)).map((e) => e.nombre);
+  assert.ok(!nombres.some((n) => n.includes('.anterior')), 'la copia no lleva lo apartado');
+
+  respaldo.restaurar(otraVez, b.raiz);
+  const guardado = fs.readFileSync(path.join(b.raiz, '.anterior', 'users', 'admin', 'settings.json'), 'utf8');
+  assert.strictEqual(guardado, '{"marca":"a"}', 'lo apartado es lo de justo antes');
+  assert.ok(!fs.existsSync(path.join(b.raiz, '.anterior', '.anterior')), 'y no se anida');
+});
+
+test('lo que no es una copia se rechaza sin tocar nada', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  instalacion(c.raiz, 'intacta');
+  const antes = arbol(c.raiz);
+  const respaldo = cargar('respaldo');
+  const rechaza = (gz, que) => {
+    assert.throws(() => respaldo.restaurar(gz, c.raiz), respaldo.CopiaMala, que);
+    assert.deepStrictEqual(arbol(c.raiz), antes, que + ': y no se ha tocado nada');
+  };
+
+  rechaza(Buffer.from('esto no es un gzip'), 'un archivo cualquiera');
+  rechaza(zlib.gzipSync(Buffer.from('ni esto un tar'.repeat(100))), 'un gzip que no es un tar');
+  rechaza(tarAMano([['otra-cosa/users.json', CUENTA]]), 'un tar que no cuelga de data/');
+  rechaza(tarAMano([['data/settings.json', '{}']]), 'una copia sin cuentas');
+  rechaza(tarAMano([['data/users.json', '{"users":[]}']]), 'una copia con cero cuentas');
+  rechaza(tarAMano([['data/users.json', '{"users":[{"id":"a"']]), 'una copia con las cuentas rotas');
+  // Cortada a la mitad: se queda sin el final.
+  const entera = zlib.gunzipSync(tarAMano([['data/users.json', CUENTA], ['data/grande.bin', 'x'.repeat(5000)]]));
+  rechaza(zlib.gzipSync(entera.subarray(0, 512 * 3 + 100)), 'una copia cortada');
+});
+
+test('una ruta que se sale de la carpeta de datos no se escribe', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const datos = path.join(c.raiz, 'data');
+  fs.mkdirSync(datos);
+  const respaldo = cargar('respaldo');
+  const malas = ['data/../fuera.txt', 'data/users/../../fuera.txt', '/etc/fuera.txt', 'C:/fuera.txt', 'data\\..\\fuera.txt', '../fuera.txt'];
+  for (const mala of malas) {
+    assert.throws(() => respaldo.restaurar(tarAMano([['data/users.json', CUENTA], [mala, 'malo']]), datos),
+      respaldo.CopiaMala, mala);
+  }
+  assert.deepStrictEqual(fs.readdirSync(c.raiz), ['data'], 'fuera de la carpeta de datos no hay nada nuevo');
+  assert.deepStrictEqual(fs.readdirSync(datos), [], 'y dentro tampoco se llego a poner nada');
+});
+
+test('los enlaces de una copia no se restauran', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const respaldo = cargar('respaldo');
+  // Tipo 2 es un enlace simbolico. `enviar` no los mete, asi que no es suyo.
+  respaldo.restaurar(tarAMano([['data/users.json', CUENTA], ['data/enlace', '', '2']]), c.raiz);
+  assert.ok(!fs.existsSync(path.join(c.raiz, 'enlace')));
+  assert.ok(fs.existsSync(path.join(c.raiz, 'users.json')));
+});
+
+test('restaurar pide la contraseña y solo lo hace el administrador', () => {
+  const s = fs.readFileSync(path.join(__dirname, '..', 'src', 'server.ts'), 'utf8');
+  const ruta = s.indexOf("app.post('/api/admin/respaldo'");
+  assert.ok(ruta > s.indexOf("app.use('/api/admin'"), 'cuelga de /api/admin, detras del guardia');
+  const cuerpo = s.slice(ruta, s.indexOf('\n});', ruta));
+  assert.ok(cuerpo.indexOf('passwordOk(') !== -1 && cuerpo.indexOf('passwordOk(') < cuerpo.indexOf('respaldo.restaurar('),
+    'y la contraseña se comprueba antes de restaurar');
+});

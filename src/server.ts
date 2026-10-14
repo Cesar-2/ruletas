@@ -1799,6 +1799,67 @@ app.get('/api/admin/respaldo', async (req: Request, res: Response) => {
   }
 });
 
+// Lo mas que se acepta subir, comprimido. Una copia de verdad son unos megas.
+const TOPE_COPIA_SUBIDA = 100 * 1024 * 1024;
+
+// POST /api/admin/respaldo -> sube una copia y deja los datos como dice
+// El cuerpo es el .tar.gz tal cual (no JSON: puede pesar mas de lo que admite
+// el lector de JSON, y no hay por que pasarlo a base64). La contraseña de quien
+// lo hace va en la cabecera X-Ruleton-Password.
+//
+// Esto cambia TODAS las cuentas y todos los datos por los de la copia, asi que
+// no basta con la sesion: se pide la contraseña otra vez. Una pestaña abierta y
+// olvidada no puede ser suficiente para reemplazar la instalacion entera.
+//
+// Lo que habia no se borra: queda apartado en data/.anterior. Ver respaldo.ts.
+app.post('/api/admin/respaldo', (req: Request, res: Response) => {
+  const quien = usuarioDe(req);
+  // Viene escapada como en una url: una cabecera no admite eñes ni acentos.
+  let dada = '';
+  try { dada = decodeURIComponent(String(req.headers['x-ruleton-password'] || '')); } catch (err) { /* mal escapada: no vale */ }
+  if (!quien || !passwordOk(quien, dada)) {
+    // Se contesta ya, sin leer el cuerpo: no tiene sentido tragarse cien megas
+    // para decir que no.
+    res.status(403).json({ error: 'la contrasena no es correcta' });
+    req.resume();
+    return;
+  }
+
+  const trozos: Buffer[] = [];
+  let total = 0;
+  let cortado = false;
+  req.on('data', (trozo: Buffer) => {
+    if (cortado) return;
+    total += trozo.length;
+    if (total > TOPE_COPIA_SUBIDA) {
+      cortado = true;
+      trozos.length = 0;
+      res.status(413).json({ error: 'la copia es demasiado grande' });
+      return;
+    }
+    trozos.push(trozo);
+  });
+  req.on('error', (err) => {
+    console.error('Failed to receive backup:', err);
+    if (!res.headersSent) res.status(400).json({ error: 'la subida se corto' });
+  });
+  req.on('end', () => {
+    if (cortado || res.headersSent) return;
+    if (!total) return res.status(400).json({ error: 'no ha llegado ningun archivo' });
+    try {
+      const r = respaldo.restaurar(Buffer.concat(trozos), DATA_DIR);
+      // Todo lo que se tenia leido era de los datos de antes.
+      json.olvidarTodo();
+      console.log('Backup restored by ' + quien.username + ': ' + r.archivos + ' files, ' + r.cuentas + ' accounts');
+      res.json({ ok: true, ...r });
+    } catch (err) {
+      if (err instanceof respaldo.CopiaMala) return res.status(400).json({ error: err.message });
+      console.error('Failed to restore backup:', err);
+      res.status(500).json({ error: 'no se pudo restaurar la copia; los datos de antes siguen como estaban' });
+    }
+  });
+});
+
 // Del canal solo interesa el nombre, aunque peguen la direccion entera.
 function limpiarCanal(valor: unknown): string {
   return String(valor || '').trim().toLowerCase()

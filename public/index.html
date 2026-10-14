@@ -1919,6 +1919,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
           </div>
 
+          <div class="config-section">
+            <h4>Restaurar una copia</h4>
+            <p class="meta">Sube un <code>ruleton-datos-….tar.gz</code> descargado aquí arriba (en esta instalación o en otra) y todo queda como estaba cuando se hizo. Es la forma de <strong>estrenar un alojamiento nuevo</strong> sin entrar por consola: creas una cuenta, vienes aquí y subes la copia.</p>
+            <p class="meta"><strong>Reemplaza todo lo que hay ahora</strong>: las cuentas, los ganadores, los puntos, los ajustes y las imágenes pasan a ser los de la copia. Tu sesión se cierra y hay que entrar con una cuenta <strong>de la copia</strong> y su contraseña de entonces. Lo que había no se borra: queda apartado en la carpeta <code>.anterior</code> dentro de los datos, hasta la siguiente restauración. Hazlo con el directo apagado.</p>
+            <div class="config-actions" style="flex-wrap:wrap">
+              <input type="file" id="respaldoArchivo" accept=".gz,.tgz,application/gzip" aria-label="Archivo de la copia" />
+              <input type="password" id="respaldoPassword" placeholder="Tu contraseña, para confirmar" autocomplete="current-password" style="width:230px" />
+              <button type="button" id="respaldoSubir" class="btn-cancel">⬆ Restaurar esta copia</button>
+              <span class="meta" id="respaldoSubida" style="margin-left:auto"></span>
+            </div>
+          </div>
+
           </div>
 
           <div class="cfg-tabpanel active" id="cfgtab-cuenta">
@@ -2656,6 +2668,42 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       enlace.click();
       enlace.remove();
       document.getElementById('respaldoEstado').textContent = 'Descargando… mira las descargas del navegador.';
+    });
+
+    // Y la vuelta: subir una copia. El archivo va tal cual en el cuerpo, sin
+    // pasar por JSON, y la contraseña en una cabecera (escapada, que una
+    // cabecera no admite eñes).
+    document.getElementById('respaldoSubir').addEventListener('click', async () => {
+      const archivo = document.getElementById('respaldoArchivo').files[0];
+      const password = document.getElementById('respaldoPassword').value;
+      const estado = document.getElementById('respaldoSubida');
+      const boton = document.getElementById('respaldoSubir');
+      if (!archivo) { estado.textContent = 'Elige primero el archivo de la copia.'; return; }
+      if (!password) { estado.textContent = 'Escribe tu contraseña para confirmar.'; return; }
+      if (!confirm(`Se van a reemplazar TODOS los datos de esta instalación por los de «${archivo.name}».\n\nTu sesión se cerrará y tendrás que entrar con una cuenta de la copia.\n\n¿Seguir?`)) return;
+
+      boton.disabled = true;
+      estado.textContent = 'Subiendo y restaurando…';
+      try {
+        const res = await fetch('/api/admin/respaldo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/gzip', 'X-Ruleton-Password': encodeURIComponent(password) },
+          body: archivo
+        });
+        const datos = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(datos.error || 'HTTP ' + res.status);
+        document.getElementById('respaldoPassword').value = '';
+        estado.textContent = '';
+        await showAlert('Copia restaurada',
+          `${datos.cuentas} cuenta(s) y ${datos.archivos} archivo(s). Ahora entra con una cuenta de la copia.`);
+        // Los datos de debajo ya son otros: se empieza de cero.
+        location.reload();
+      } catch (e) {
+        estado.textContent = '';
+        showAlert('No se pudo restaurar', e.message);
+      } finally {
+        boton.disabled = false;
+      }
     });
 
     async function cargarAcceso() {
