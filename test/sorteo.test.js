@@ -160,6 +160,31 @@ test('el sorteo sobrevive a un reinicio', (t) => {
   assert.deepStrictEqual(s.cosas.map((x) => x.nombre), ['Espada', 'Escudo']);
 });
 
+test('el widget se entera de que animacion tiene puesta el dueño', (t) => {
+  // Antes el widget ponia siempre la tragaperras, aunque en la pagina girara la
+  // ruleta.
+  const { sorteo } = montar(t);
+  sorteo.guardar('u1', { cosas: COSAS, duracion: 5000, animacion: 'wheel', rueda: '/assets/mi-ruleta.png' });
+  assert.strictEqual(sorteo.estado('u1').animacion, 'wheel');
+  assert.strictEqual(sorteo.estado('u1').rueda, '/assets/mi-ruleta.png', 'con su imagen');
+
+  sorteo.guardar('u1', { cosas: COSAS, duracion: 0, animacion: 'inventada' });
+  assert.strictEqual(sorteo.estado('u1').animacion, 'slot', 'una que no existe es la tragaperras');
+  sorteo.guardar('u1', { cosas: COSAS, duracion: 0 });
+  assert.strictEqual(sorteo.estado('u1').animacion, 'slot', 'y sin decir nada, tambien');
+});
+
+test('la animacion sobrevive a un reinicio', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const d = deps(c.raiz);
+  let sorteo = cargar('sorteo', d);
+  sorteo.guardar('u1', { cosas: COSAS, duracion: 0, animacion: 'wheel' });
+  sorteo = cargar('sorteo', d);
+  sorteo.rehacer('u1');
+  assert.strictEqual(sorteo.estado('u1').animacion, 'wheel');
+});
+
 test('lo de una cuenta no se cuela en otra', (t) => {
   const { sorteo } = montar(t);
   sorteo.guardar('u1', { quien: 'Ana', cosas: COSAS, duracion: 0 });

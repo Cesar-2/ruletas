@@ -46,6 +46,20 @@ export interface Sorteo {
   // Cuando termina la animacion (reloj del servidor). 0 si no habia animacion.
   terminaEn: number;
   cuando: string;
+  // La animacion que tiene puesta el dueño en Configuracion, para que el widget
+  // ensene la MISMA que la pagina. Antes el widget ponia siempre la
+  // tragaperras, aunque en la pagina girara la ruleta.
+  animacion: Animacion;
+  // La imagen de la ruleta que haya subido el dueño. '' = la de colores.
+  rueda: string;
+}
+
+export type Animacion = 'slot' | 'wheel' | 'none';
+const ANIMACIONES: Animacion[] = ['slot', 'wheel', 'none'];
+
+// Una animacion que no existe es la tragaperras, que es la de siempre.
+function limpiarAnimacion(x: unknown): Animacion {
+  return ANIMACIONES.includes(x as Animacion) ? (x as Animacion) : 'slot';
 }
 
 export interface SorteoVisible extends Sorteo {
@@ -104,7 +118,9 @@ export function guardar(uid: string, datos: unknown): Sorteo | null {
     cosas,
     relleno: limpiarCosas(d.relleno, RELLENO_MAX),
     terminaEn: Date.now() + gira,
-    cuando: new Date().toISOString()
+    cuando: new Date().toISOString(),
+    animacion: limpiarAnimacion(d.animacion),
+    rueda: String(d.rueda ?? '').trim().slice(0, 2000)
   };
   sorteos.set(uid, s);
   vivo.guardar(uid, { estado: s, canal: '', palabra: '', cierraEn: 0 });
@@ -151,7 +167,9 @@ export function estado(uid: string): SorteoVisible | null {
     girando,
     cuantos: s.cosas.length,
     terminaEn: s.terminaEn,
-    cuando: s.cuando
+    cuando: s.cuando,
+    animacion: s.animacion,
+    rueda: s.rueda
   };
 }
 
@@ -175,7 +193,9 @@ export function rehacer(uid: string): boolean {
     cosas,
     relleno: limpiarCosas(e.relleno, RELLENO_MAX),
     terminaEn: Number(e.terminaEn) || 0,
-    cuando: String(e.cuando || new Date().toISOString())
+    cuando: String(e.cuando || new Date().toISOString()),
+    animacion: limpiarAnimacion(e.animacion),
+    rueda: String(e.rueda || '')
   });
   return true;
 }

@@ -3011,9 +3011,14 @@ app.get('/api/random-items', async (req: Request, res: Response) => {
         rareza: tags[getItemId(it)] || 'common'
       });
       const salen = new Set(selected.map((it) => getItemId(it)));
+      // La animacion la dicen los ajustes del dueño, no la peticion: es lo que
+      // gira en su pagina, y el widget tiene que ensenar lo mismo.
+      const ajustes = readSettings(uid);
       sorteo.guardar(uid, {
         quien: req.query?.quien,
         duracion: req.query?.duracion,
+        animacion: ajustes.animation,
+        rueda: enlaceSeguro(ajustes.wheelUrl),
         cosas: selected.map(aCosa),
         // El relleno de la tragaperras: otros objetos del mismo catalogo, para
         // que dando vueltas no se vean solo los premios y se adivine el

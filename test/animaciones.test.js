@@ -23,8 +23,10 @@ const path = require('path');
 const JS = path.join(__dirname, '..', 'public', 'js');
 require(path.join(JS, 'ruleta-nombres.js'));
 require(path.join(JS, 'tragaperras.js'));
+require(path.join(JS, 'rueda.js'));
 const Cinta = globalThis.CintaNombres;
 const Traga = globalThis.Tragaperras;
+const Rueda = globalThis.Rueda;
 
 // --- La cinta de la ruleta de nombres ---------------------------------------
 
@@ -153,9 +155,10 @@ test('la pagina y los widgets cargan los MISMOS archivos', () => {
   const wSorteo = leer('widget/sorteo.html');
 
   for (const [nombre, texto, archivos] of [
-    ['index.html', index, ['css/ruleta-nombres.css', 'js/ruleta-nombres.js', 'css/tragaperras.css', 'js/tragaperras.js']],
+    ['index.html', index, ['css/ruleta-nombres.css', 'js/ruleta-nombres.js', 'css/tragaperras.css', 'js/tragaperras.js', 'css/rueda.css', 'js/rueda.js']],
     ['widget/nombres.html', wNombres, ['css/ruleta-nombres.css', 'js/ruleta-nombres.js']],
-    ['widget/sorteo.html', wSorteo, ['css/tragaperras.css', 'js/tragaperras.js']]
+    // El widget del sorteo lleva las dos: enseña la que tenga puesta el dueño.
+    ['widget/sorteo.html', wSorteo, ['css/tragaperras.css', 'js/tragaperras.js', 'css/rueda.css', 'js/rueda.js']]
   ]) {
     for (const a of archivos) {
       assert.ok(texto.includes('/' + a), nombre + ' carga ' + a);
@@ -168,6 +171,59 @@ test('la pagina y los widgets cargan los MISMOS archivos', () => {
     assert.ok(!/cubic-bezier/.test(texto), nombre + ' no define su propia curva');
     assert.ok(!/setInterval\([^)]*190|RITMO\s*=/.test(texto), nombre + ' no define su propio ritmo');
   }
+  // La ruleta tampoco: estaba dentro de index.html y el widget no la tenía.
+  assert.ok(!/\.roulette-wheel\s*\{/.test(index), 'index.html no define su propia ruleta');
+  assert.ok(!/\.roulette-wheel\s*\{/.test(wSorteo), 'widget/sorteo.html tampoco');
+});
+
+// --- La ruleta girando de la ruleta de recursos -----------------------------
+
+test('la ruleta pone sus recursos en círculo, empezando arriba', () => {
+  const arriba = Rueda.posicion(0, 12, 1);
+  assert.strictEqual(Math.round(arriba.left), 260, 'el primero, en el centro');
+  assert.strictEqual(Math.round(arriba.top), 32, 'y arriba del todo');
+  const derecha = Rueda.posicion(3, 12, 1);
+  assert.strictEqual(Math.round(derecha.left), 488, 'un cuarto de vuelta, a la derecha');
+  assert.strictEqual(Math.round(derecha.top), 260);
+  const doble = Rueda.posicion(3, 12, 2);
+  assert.strictEqual(Math.round(doble.left), 976, 'y crece con el tamaño');
+  // Girada un cuarto de vuelta, el de arriba pasa a la derecha: giran juntos.
+  const girado = Rueda.posicion(0, 12, 1, 90);
+  assert.strictEqual(Math.round(girado.left), 488);
+  assert.strictEqual(Math.round(girado.top), 260);
+});
+
+test('la ruleta se para con el premio justo debajo de la flecha', () => {
+  // Es lo que hace que parezca una ruleta: no se para donde caiga, se para donde
+  // está el premio. Para cada casilla, después de todo el giro, ese recurso
+  // tiene que estar arriba del todo, que es donde está la flecha.
+  const n = Rueda.ALREDEDOR;
+  for (let casilla = 0; casilla < n; casilla++) {
+    const total = Rueda.giroTotal(casilla, n);
+    const p = Rueda.posicion(casilla, n, 1, Rueda.angulo(1, total));
+    assert.strictEqual(Math.round(p.left), 260, 'casilla ' + casilla + ' acaba centrada');
+    assert.strictEqual(Math.round(p.top), 32, 'casilla ' + casilla + ' acaba arriba');
+    assert.ok(total >= (Rueda.VUELTAS - 1) * 360, 'y antes da sus vueltas');
+  }
+});
+
+test('la ruleta arranca rápido y frena hasta pararse sin golpe', () => {
+  const total = 1800;
+  assert.strictEqual(Rueda.angulo(0, total), 0);
+  assert.strictEqual(Rueda.angulo(1, total), total);
+  assert.ok(Rueda.angulo(0.25, total) > total / 2, 'en el primer cuarto ya ha hecho más de la mitad');
+  // Lo que avanza en el último 5 % es casi nada: llega frenando.
+  assert.ok(Rueda.angulo(1, total) - Rueda.angulo(0.95, total) < 1, 'el final casi no se mueve');
+  assert.strictEqual(Rueda.angulo(2, total), total, 'y pasado el final no sigue');
+});
+
+test('varios premios quedan juntos a los dos lados de la flecha', () => {
+  assert.deepStrictEqual(Rueda.casillas(5, 1, 12), [5]);
+  assert.deepStrictEqual(Rueda.casillas(5, 4, 12), [5, 6, 4, 7]);
+  assert.deepStrictEqual(Rueda.casillas(0, 3, 12), [0, 1, 11], 'dando la vuelta por el cero');
+  const todas = Rueda.casillas(3, 30, 12);
+  assert.strictEqual(todas.length, 12, 'no más que recursos hay alrededor');
+  assert.strictEqual(new Set(todas).size, 12, 'y sin repetir ninguna');
 });
 
 // --- Medir lo que está oculto -----------------------------------------------

@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/css/ruleta-nombres.css" />
   <!-- Y la tragaperras de la ruleta de recursos, por lo mismo. -->
   <link rel="stylesheet" href="/css/tragaperras.css" />
+  <link rel="stylesheet" href="/css/rueda.css" />
   <!-- La bola, el tablero y el cartón del bingo: los mismos aquí, en el widget
        y en la página del cartón del espectador. -->
   <link rel="stylesheet" href="/css/bingo.css" />
@@ -1149,19 +1150,7 @@
     .slot-wrapper.show{display:block}
     .roulette-wrapper{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;z-index:1000;pointer-events:none}
     .roulette-wrapper.show{display:flex}
-    .roulette-wheel{position:relative;width:calc(340px * var(--anim-scale));height:calc(340px * var(--anim-scale));border-radius:50%;background:radial-gradient(circle at center, rgba(255,255,255,0.16) 0 18%, rgba(255,255,255,0.03) 19% 24%, transparent 25%), conic-gradient(#ff6b8a 0 16%, #ffd166 16% 32%, #6ee7b7 32% 48%, #60a5fa 48% 64%, #c084fc 64% 80%, #f472b6 80% 100%);border:calc(16px * var(--anim-scale)) solid rgba(255,255,255,0.18);box-shadow:0 28px 70px rgba(0,0,0,0.6), inset 0 0 35px rgba(255,255,255,0.08);animation:spinRoulette 5s cubic-bezier(.12,.8,.2,1) forwards}
-    /* Con imagen personalizada se ocultan el degradado y los adornos del centro. */
-    .roulette-wheel.custom{background:var(--wheel-image) center center / cover no-repeat, #0b1220;border-color:rgba(255,255,255,0.35)}
-    .roulette-wheel.custom::before, .roulette-wheel.custom::after{display:none}
-    .roulette-wheel::before{content:'';position:absolute;inset:calc(46px * var(--anim-scale));border-radius:50%;background:radial-gradient(circle at center, rgba(7,16,34,0.35) 0%, rgba(7,16,34,0.8) 58%, rgba(7,16,34,1) 100%);border:4px solid rgba(255,255,255,0.2)}
-    .roulette-wheel::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(42px * var(--anim-scale));height:calc(42px * var(--anim-scale));border-radius:50%;background:linear-gradient(135deg,#fff,#d7fef0);box-shadow:0 0 0 14px rgba(110,231,183,0.18), 0 0 26px rgba(110,231,183,0.7)}
-    .roulette-wheel .pin{position:absolute;left:50%;top:-18px;transform:translateX(-50%);width:0;height:0;border-left:20px solid transparent;border-right:20px solid transparent;border-top:40px solid #fdf2f8;filter:drop-shadow(0 4px 8px rgba(255,255,255,0.25));}
-    .roulette-items{position:absolute;left:50%;top:50%;width:calc(520px * var(--anim-scale));height:calc(520px * var(--anim-scale));transform:translate(-50%,-50%);pointer-events:none}
-    .roulette-item{position:absolute;left:50%;top:50%;width:calc(52px * var(--anim-scale));height:calc(52px * var(--anim-scale));border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.7);background:rgba(255,255,255,0.06);box-shadow:0 8px 16px rgba(0,0,0,0.35);transform:translate(-50%, -50%);}
-    .roulette-item.winner{border-color:var(--accent);box-shadow:0 0 0 3px rgba(110,231,183,0.35), 0 0 22px rgba(110,231,183,0.7);z-index:2;animation:winnerPop .5s cubic-bezier(.2,1.6,.4,1) forwards}
-    @keyframes winnerPop{0%{transform:translate(-50%,-50%) scale(.6)}60%{transform:translate(-50%,-50%) scale(1.45)}100%{transform:translate(-50%,-50%) scale(1.25)}}
-    .roulette-item img{width:100%;height:100%;object-fit:cover;display:block;background:#101827;pointer-events:none;opacity:1;transition:opacity .09s linear}
-    @keyframes spinRoulette{0%{transform:rotate(0deg) scale(0.92);opacity:0.5}15%{transform:rotate(180deg) scale(1.02);opacity:1}55%{transform:rotate(1200deg) scale(1.06);opacity:1}100%{transform:rotate(1800deg) scale(1);opacity:1}}
+    /* La ruleta en sí está en css/rueda.css, que la comparte con el widget. */
     /* highlight for selection */
     .highlight{animation:glow 1.2s ease forwards}
     .pulse{animation:pulse 1s ease}
@@ -2415,12 +2404,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     <div class="slot-machine" id="slotMachine"></div>
   </div>
 
-  <div class="roulette-wrapper" id="rouletteWrapper">
-    <div class="roulette-wheel">
-      <span class="pin"></span>
-    </div>
-    <div class="roulette-items" id="rouletteItems"></div>
-  </div>
+  <!-- La rueda y los recursos de alrededor los monta Rueda (js/rueda.js). -->
+  <div class="roulette-wrapper" id="rouletteWrapper"></div>
   <div class="modal-backdrop" id="serverModalBackdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="serverModalTitle">
       <h4 id="serverModalTitle">Elegir servidor</h4>
@@ -2518,6 +2503,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
   <script src="/js/carrera-pista.js"></script>
   <script src="/js/ruleta-nombres.js"></script>
   <script src="/js/tragaperras.js"></script>
+  <script src="/js/rueda.js"></script>
   <script src="/js/eventos.js"></script>
   <script src="/js/chat-aviso.js"></script>
   <script src="/js/rutas.js"></script>
@@ -3231,7 +3217,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     });
 
     const rouletteWrapper = document.getElementById('rouletteWrapper');
-    const rouletteItems = document.getElementById('rouletteItems');
+    // El mando de la ruleta mientras está puesta. Ver js/rueda.js.
+    let rueda = null;
     const searchInput = document.getElementById('searchItems');
     const prevPageBtn = document.getElementById('prevPage');
     const nextPageBtn = document.getElementById('nextPage');
@@ -3240,7 +3227,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     const ROULETTE_SLOT_COUNT = 12;
     let allItems = [];
     let currentPage = 1;
-    let rouletteInterval = null;
     const excludedIds = new Set();
     const selectedIds = new Set();   // selección múltiple del catálogo, solo en memoria
     let itemTags = {};   // { [itemId]: 'rare' | 'epic' | 'mythic' }
@@ -3319,7 +3305,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       root.style.setProperty('--anim-scale', String(escalaAnimacion()));
       root.style.setProperty('--font-scale', String(settings.fontScale));
       // La orbita de la ruleta se coloca desde JS, asi que sigue a la escala.
-      updateRoulettePositions();
+      if (rueda) rueda.escala(settings.wheelScale || 1);
       // Con otra escala la barra cambia de alto: se recalcula su hueco aquí
       // mismo, no en el siguiente fotograma, para que quien mida posiciones
       // justo después (el deslizador del tamaño de letra) lo haga ya en firme.
@@ -3603,74 +3589,37 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       return rotation.slice(0, ROULETTE_SLOT_COUNT);
     }
 
-    function updateRoulettePositions() {
-      const slots = Array.from(rouletteItems.children);
-      if (!slots.length) return;
-      const escala = settings.wheelScale || 1;
-      const cx = 260 * escala;
-      const cy = 260 * escala;
-      const radius = 228 * escala;
-      slots.forEach((node, index) => {
-        const angle = (Math.PI * 2 * index) / slots.length - Math.PI / 2;
-        node.style.left = (cx + Math.cos(angle) * radius) + 'px';
-        node.style.top = (cy + Math.sin(angle) * radius) + 'px';
-        node.style.transform = 'translate(-50%, -50%)';
+    // Con qué da vueltas la ruleta: los que participan, todos menos los
+    // excluidos. Sin catálogo todavía, los de relleno de getRoulettePool.
+    function rellenoRueda() {
+      const pool = allItems.filter((it) => !excludedIds.has(itemId(it)));
+      const fuente = pool.length ? pool : (allItems.length ? allItems : getRoulettePool([]));
+      return fuente.map(aCosaSlot);
+    }
+
+    // La ruleta girando. Cómo se monta, cómo cambian los recursos de alrededor y
+    // cómo se quedan fijos los premios es de js/rueda.js, que es el mismo código
+    // que usa el widget de OBS. Antes estaba aquí y el widget no la tenía.
+    function startRueda() {
+      pararRueda();
+      rouletteWrapper.classList.add('show');
+      rueda = Rueda.montar({
+        caja: rouletteWrapper,
+        relleno: rellenoRueda(),
+        premios: drawWinners.map(aCosaSlot),
+        espera: 5000,
+        escala: settings.wheelScale || 1,
+        imagen: settings.wheelUrl
       });
     }
 
-    function populateRouletteImages(items) {
-      rouletteItems.innerHTML = '';
-      const pool = getRoulettePool(items);
-      pool.forEach((item) => {
-        const imgUrl = item.image_urls?.icon ?? item.image_urls?.sd ?? '';
-        if (!imgUrl) return;
-        const el = document.createElement('div');
-        el.className = 'roulette-item';
-        const img = document.createElement('img');
-        img.src = imgUrl;
-        img.alt = item.name?.es ?? 'recurso';
-        img.onerror = function() { this.style.display = 'none'; };
-        el.appendChild(img);
-        rouletteItems.appendChild(el);
-      });
-      updateRoulettePositions(0);
-    }
-
-    function swapSlotImage(node, source) {
-      const img = node.querySelector('img');
-      if (!img || !source.length) return;
-      const item = source[Math.floor(Math.random() * source.length)];
-      const imgUrl = item.image_urls?.icon ?? item.image_urls?.sd ?? '';
-      if (!imgUrl || img.src.endsWith(imgUrl)) return;
-      img.style.opacity = '0';
-      setTimeout(() => {
-        img.style.display = '';
-        img.src = imgUrl;
-        img.alt = item.name?.es ?? 'recurso';
-        img.style.opacity = '1';
-      }, 90);
-    }
-
-    function startRouletteSwap() {
-      if (rouletteInterval) { clearInterval(rouletteInterval); }
-      rouletteInterval = setInterval(() => {
-        const nodes = Array.from(rouletteItems.children);
-        if (!nodes.length) return;
-        const source = allItems.length ? allItems : getRoulettePool([]);
-        // Los que ya han parado sobre un ganador no vuelven a cambiar.
-        const shuffled = nodes.filter((node) => !node.dataset.winner).sort(() => Math.random() - 0.5);
-        if (!shuffled.length) return;
-        shuffled.slice(0, Math.max(1, Math.ceil(nodes.length / 3))).forEach((node) => {
-          swapSlotImage(node, source);
-        });
-      }, 220);
+    function pararRueda() {
+      if (rueda) { rueda.quitar(); rueda = null; }
+      rouletteWrapper.classList.remove('show');
     }
 
     const slotWrapper = document.getElementById('slotWrapper');
     const slotMachine = document.getElementById('slotMachine');
-    // Los relojes de la RULETA (la de la rueda), que sigue siendo de aquí. Los de
-    // la tragaperras los lleva Tragaperras.
-    let slotTimeouts = [];
     // Resultado real del sorteo: los rodillos y la ruleta paran sobre estos.
     let drawWinners = [];
     // El mando de la tragaperras mientras está puesta.
@@ -3712,8 +3661,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     function stopSlotMachine() {
       if (tragaperras) { tragaperras.quitar(); tragaperras = null; }
-      slotTimeouts.forEach(clearTimeout);
-      slotTimeouts = [];
       slotWrapper.classList.remove('show');
       slotMachine.innerHTML = '';
     }
@@ -3725,30 +3672,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (!drawWinners.length) return;
 
       // Lo que ya paró se repinta con su premio; lo que sigue girando lo cogerá
-      // al parar. De eso se encarga el mando de la tragaperras.
+      // al parar. De eso se encarga el mando de la tragaperras. En la ruleta se
+      // van quedando fijos de uno en uno.
       if (tragaperras) tragaperras.premios(drawWinners.map(aCosaSlot));
-
-      const nodes = Array.from(rouletteItems.children);
-      if (!nodes.length) return;
-      // En la ruleta los ganadores se van fijando de uno en uno hasta el final del giro.
-      const total = Math.min(drawWinners.length, nodes.length);
-      const paso = total > 1 ? 2600 / (total - 1) : 0;
-      for (let i = 0; i < total; i++) {
-        slotTimeouts.push(setTimeout(() => {
-          const node = nodes[i];
-          const item = drawWinners[i];
-          const img = node.querySelector('img');
-          const imgUrl = item.image_urls?.icon ?? item.image_urls?.sd ?? '';
-          if (img && imgUrl) {
-            img.style.display = '';
-            img.style.opacity = '1';
-            img.src = imgUrl;
-            img.alt = item.name?.es ?? 'recurso';
-          }
-          node.dataset.winner = '1';
-          node.classList.add('winner');
-        }, i * paso));
-      }
+      if (rueda) rueda.premios(drawWinners.map(aCosaSlot));
     }
 
     function showSpinner(n = 3, tipo) {
@@ -3768,30 +3695,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         return;
       }
 
-      populateRouletteImages(allItems);
-      rouletteWrapper.classList.add('show');
-      startRouletteSwap();
-      rouletteItems.style.animation = 'none';
-      const wheel = rouletteWrapper.querySelector('.roulette-wheel');
-      if (wheel) {
-        wheel.style.animation = 'spinRoulette 5s cubic-bezier(.12,.8,.2,1) forwards';
-      }
+      startRueda();
     }
     function hideSpinner() {
       stopSlotMachine();
       drawWinners = [];
       applySettings();   // devuelve --anim-scale a la animación configurada
-      rouletteWrapper.classList.remove('show');
-      if (rouletteInterval) {
-        clearInterval(rouletteInterval);
-        rouletteInterval = null;
-      }
-      const wheel = rouletteWrapper.querySelector('.roulette-wheel');
-      if (wheel) {
-        wheel.style.animation = 'none';
-      }
-      rouletteItems.innerHTML = '';
-      rouletteItems.style.animation = 'none';
+      pararRueda();
     }
 
     // "Editar" no abre otra lista: enciende los controles de rareza y de
@@ -8072,7 +7982,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     function previsualizar(tipo) {
       if (previewTimeout) clearTimeout(previewTimeout);
       stopSlotMachine();
-      rouletteWrapper.classList.remove('show');
+      pararRueda();
       // Tantos rodillos como recursos vaya a sortear.
       showSpinner(Number(document.getElementById('n').value) || 3, tipo);
       previewTimeout = setTimeout(hideSpinner, 5000);

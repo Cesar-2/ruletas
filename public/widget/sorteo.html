@@ -16,11 +16,15 @@
   sus exclusiones, y esto solo enseña lo que salió. Antes se sorteaba y se
   acababa sin dejar rastro, así que la superposición no tenía nada que contar.
 
-  Mientras gira se ve la tragaperras dando vueltas con recursos del catálogo, y al
-  parar salen los premios y a quién le tocan.
+  Mientras gira se ve la MISMA animación que haya elegido el dueño en
+  Configuración (la tragaperras o la ruleta girando) dando vueltas con recursos
+  del catálogo, y al parar salen los premios y a quién le tocan. Con «Sin
+  animación» salen los premios directamente. Antes aquí salía siempre la
+  tragaperras, aunque en la página girara la ruleta.
 
-  Los rodillos dan vueltas con RELLENO (otros recursos del mismo catálogo, que el
-  servidor manda aparte) y cada uno para sobre SU premio, como en la página.
+  Los rodillos (o los recursos alrededor de la ruleta) dan vueltas con RELLENO
+  (otros recursos del mismo catálogo, que el servidor manda aparte) y cada uno
+  para sobre SU premio, como en la página.
 
   Eso obliga a mandar los premios desde el principio: un rodillo que para sobre
   relleno estaría enseñando un objeto que nadie ha ganado, y eso engaña más de lo
@@ -28,8 +32,10 @@
   los segundos de la animación. Lo que sí se sigue callando es a quién le toca.
 -->
 <link rel="stylesheet" href="/css/widget.css" />
-<!-- La tragaperras es la MISMA que la de la página, no una copia parecida. -->
+<!-- La tragaperras y la ruleta son las MISMAS que las de la página, no copias
+     parecidas. -->
 <link rel="stylesheet" href="/css/tragaperras.css" />
+<link rel="stylesheet" href="/css/rueda.css" />
 <style>
   .premios {
     display: flex;
@@ -58,6 +64,20 @@
   .premio img { width: 4.4rem; height: 4.4rem; object-fit: contain }
   .premio .nombre { font-size: .85rem; text-align: center; line-height: 1.2 }
 
+  /* La caja de la ruleta. En la página va fija en el centro de la pantalla;
+     aquí, dentro del panel, con el sitio que ocupan los recursos de alrededor. */
+  .rueda {
+    position: relative;
+    width: 520px;
+    height: 520px;
+    /* La flecha va por encima del recurso de arriba, fuera de la caja. */
+    margin-top: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .rueda[hidden] { display: none }
+
   .girando-texto { margin-top: .6rem; text-align: center; font-size: 1.1rem; opacity: .85 }
 </style>
 </head>
@@ -65,6 +85,7 @@
   <div id="todo">
     <div class="panel" id="panelGira" hidden>
       <div class="tragaperras" id="rodillos"></div>
+      <div class="rueda" id="rueda" hidden></div>
       <div class="girando-texto">Sorteando…</div>
     </div>
     <div class="panel" id="panelPremio" hidden>
@@ -78,19 +99,21 @@
 
   <script src="/js/eventos.js"></script>
   <script src="/js/tragaperras.js"></script>
+  <script src="/js/rueda.js"></script>
   <script src="/js/widget-base.js"></script>
   <script>
   (function () {
     'use strict';
     const q = Widget.caja;
 
-    // De qué sorteo es la tragaperras que está puesta, para no volver a montarla
+    // De qué sorteo es la animación que está puesta, para no volver a montarla
     // en cada aviso. «cuando» es distinto en cada sorteo, así que sirve de nombre.
     let giraDe = '';
     let mando = null;
 
     function pararRodillos() {
       if (mando) { mando.quitar(); mando = null; }
+      q('rueda').hidden = true;
       giraDe = '';
     }
 
@@ -99,6 +122,21 @@
     // Ver js/tragaperras.js.
     function montarRodillos(s, restanteMs) {
       pararRodillos();
+      // La ruleta, si es la que tiene puesta el dueño. La monta Rueda, que es el
+      // mismo código que usa la página. Ver js/rueda.js.
+      if (s.animacion === 'wheel') {
+        q('rodillos').innerHTML = '';
+        q('rueda').hidden = false;
+        mando = Rueda.montar({
+          panel: q('panelGira'),
+          caja: q('rueda'),
+          relleno: s.relleno || [],
+          premios: s.cosas || [],
+          espera: restanteMs,
+          imagen: s.rueda || ''
+        });
+        return Boolean(mando);
+      }
       mando = Tragaperras.montar({
         // El panel va aquí por lo mismo que en la cinta de nombres: la
         // tragaperras se monta con los rodillos A LA VISTA.
