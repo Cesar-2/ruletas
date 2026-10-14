@@ -383,3 +383,49 @@ test('los kamas del giro sobreviven a un reinicio', (t) => {
   otra.rehacer(uid);
   assert.strictEqual(otra.estado(uid).sorteo.kamas, 7000);
 });
+
+// --- El doble o nada y el «¿qué habría pasado?» --------------------------------
+//
+// El doble de verdad cambia lo que se lleva el ganador, y eso tiene que seguir
+// en el cartel del widget cuando el video acaba. El de mentira solo se ensena:
+// no puede cambiar el premio de nadie.
+
+test('un doble de verdad deja el premio multiplicado en el sorteo', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+  nombres.guardarSorteo(uid, { cuantos: 2, quien: 'Ana', ganador: 'Ana', quedan: 1, duracion: 0, kamas: 1000 });
+  assert.strictEqual(nombres.estado(uid).sorteo.multiplicador, 1, 'sin doblar');
+
+  nombres.guardarDoble(uid, { quien: 'Ana', gana: true, premio: 2 });
+  assert.strictEqual(nombres.estado(uid).sorteo.multiplicador, 2);
+  nombres.guardarDoble(uid, { quien: 'Ana', gana: false, premio: 0 });
+  assert.strictEqual(nombres.estado(uid).sorteo.multiplicador, 0, 'perdido');
+});
+
+test('el «¿qué habría pasado?» no cambia el premio', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+  nombres.guardarSorteo(uid, { cuantos: 2, quien: 'Ana', ganador: 'Ana', quedan: 1, duracion: 0, kamas: 1000 });
+  nombres.guardarDoble(uid, { quien: 'Ana', gana: true, premio: 2 });
+
+  nombres.guardarDoble(uid, { quien: 'Ana', gana: false, premio: 0, hipotetico: true });
+  const e = nombres.estado(uid);
+  assert.strictEqual(e.sorteo.multiplicador, 2, 'sigue con lo que se llevo');
+  assert.strictEqual(e.doble.hipotetico, true, 'y el widget sabe que es de mentira');
+});
+
+test('el premio multiplicado sobrevive a un reinicio', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const uid = 'u1';
+  const una = minijuegos(c.raiz).nombres;
+  una.guardarSorteo(uid, { cuantos: 2, quien: 'Ana', ganador: 'Ana', quedan: 1, duracion: 0, kamas: 1000 });
+  una.guardarDoble(uid, { quien: 'Ana', gana: true, premio: 4 });
+  const otra = minijuegos(c.raiz).nombres;
+  otra.rehacer(uid);
+  assert.strictEqual(otra.estado(uid).sorteo.multiplicador, 4);
+});

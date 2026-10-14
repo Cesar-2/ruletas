@@ -61,6 +61,10 @@
   .resultado.fuera .quien { color: #fca5a5; text-decoration: line-through }
   /* El premio que queda tras doblar. */
   .resultado .premio { margin-top: .35rem; font-size: 1.5rem; font-weight: 800; color: #6ee7b7 }
+  /* El «¿qué habría pasado?»: más pequeño y aparte, que no se confunda con lo
+     que se lleva de verdad. */
+  .resultado .hipotesis { margin-top: .4rem; font-size: 1.1rem; font-weight: 700; color: #c4b5fd }
+  .resultado .hipotesis[hidden] { display: none }
   .resultado.fuera .premio { color: #fca5a5 }
 
   /* El vídeo del doble o nada tapa el widget ENTERO, igual que en la página tapa
@@ -102,6 +106,7 @@
         <div class="quien" id="resQuien"></div>
         <div class="que" id="resQue"></div>
         <div class="premio" id="resPremio" hidden></div>
+        <div class="hipotesis" id="resHipotesis" hidden></div>
       </div>
     </div>
   </div>
@@ -238,20 +243,36 @@
           // Con kamas en juego se dice la cantidad, que es lo que se lleva: los
           // del giro, o esos por lo que se haya doblado. Solo cuando hay ganador:
           // eliminando, al que se va no le toca nada.
+          //
+          // Lo que se lleva sale de su sorteo (multiplicador), que es lo que
+          // queda cuando el doble ya ha caducado. El «¿qué habría pasado?» no lo
+          // cambia: va en su propia línea.
           const premio = q('resPremio');
           const kamas = s.kamas || 0;
           const enKamas = (n) => n.toLocaleString('es-ES') + ' kamas';
-          if (d && d.quien === (s.ganador || s.quien)) {
+          const suyo = d && d.quien === (s.ganador || s.quien);
+          const real = suyo && !d.hipotetico;
+          const m = real ? d.premio : (s.multiplicador ?? 1);
+          const hayGanador = Boolean(s.ganador || !s.seVa);
+          if (hayGanador && m === 0) {
             premio.hidden = false;
-            premio.textContent = !d.gana ? 'Se queda sin nada'
-              : kamas ? enKamas(kamas * d.premio) + ' (x' + d.premio + ')'
-                : 'Premio x' + d.premio;
-            if (!d.gana) caja.className = 'resultado fuera';
-          } else if (kamas && (s.ganador || !s.seVa)) {
+            premio.textContent = 'Se queda sin nada';
+            caja.className = 'resultado fuera';
+          } else if (hayGanador && kamas) {
             premio.hidden = false;
-            premio.textContent = enKamas(kamas);
+            premio.textContent = enKamas(kamas * m) + (m > 1 ? ' (x' + m + ')' : '');
+          } else if (hayGanador && m > 1) {
+            premio.hidden = false;
+            premio.textContent = 'Premio x' + m;
           } else {
             premio.hidden = true;
+          }
+          const hipotesis = q('resHipotesis');
+          hipotesis.hidden = !(suyo && d.hipotetico);
+          if (!hipotesis.hidden) {
+            hipotesis.textContent = !d.gana
+              ? '🔮 Si hubiera doblado, lo habría perdido todo'
+              : '🔮 Si hubiera doblado, se habría llevado ' + (kamas ? enKamas(kamas * d.premio) : 'x' + d.premio);
           }
           return true;
         }

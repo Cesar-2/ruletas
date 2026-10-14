@@ -103,6 +103,11 @@ export interface Sorteo {
   // dobla si sale bien el doble o nada. Aqui no se guarda ningun premio: quien
   // lo apunta en Ganadores es la pagina, al cobrar.
   kamas: number;
+  // Por cuanto quedo multiplicado el premio despues del doble o nada: 1 sin
+  // doblar, 2, 4... y 0 si lo perdio. Va en el sorteo y no solo en el doble
+  // porque el doble caduca en cuanto acaba el video, y el cartel del widget
+  // tiene que seguir diciendo lo que se lleva despues.
+  multiplicador: number;
 }
 
 // Lo que se manda afuera: igual, pero sin decir quien es mientras gira.
@@ -119,6 +124,7 @@ export interface SorteoVisible {
   nombres: string[];
   elegido: number;
   kamas: number;
+  multiplicador: number;
 }
 
 // Los kamas de un giro, limpios: un entero, sin negativos y con un tope para
@@ -126,6 +132,14 @@ export interface SorteoVisible {
 function limpiarKamas(n: unknown): number {
   const v = Math.floor(Number(n));
   return Number.isFinite(v) && v > 0 ? Math.min(v, 1e12) : 0;
+}
+
+// Por cuanto va multiplicado un premio. Un sorteo guardado antes de que
+// existiera esto no lo trae: sin doblar.
+function limpiarMultiplicador(n: unknown): number {
+  if (n === undefined || n === null) return 1;
+  const v = Math.floor(Number(n));
+  return Number.isFinite(v) && v >= 0 ? Math.min(v, 1000000) : 1;
 }
 
 // El doble o nada: el que ha ganado se juega el premio.
@@ -145,6 +159,10 @@ export interface Doble {
   // si sale mal. Es lo que tiene que poner el cartel.
   premio: number;
   cuando: string;
+  // Si es de mentira: el «¿qué habría pasado?» que se juega DESPUES de
+  // retirarse, solo para ensenarlo. Se ve el mismo video, pero no cambia el
+  // premio de nadie.
+  hipotetico: boolean;
   // Hasta cuando se da por hecho que el video sigue. Es un SEGURO, no la
   // duracion: el video es del dueno y esto no sabe lo que dura. Al widget le da
   // igual, porque ensena el mismo archivo y se entera de que acaba por el propio
@@ -205,7 +223,8 @@ function sorteoVisible(uid: string): SorteoVisible | null {
     cuando: s.cuando,
     nombres: s.nombres,
     elegido: s.elegido,
-    kamas: s.kamas || 0
+    kamas: s.kamas || 0,
+    multiplicador: s.multiplicador ?? 1
   };
 }
 
@@ -251,6 +270,7 @@ export function guardarSorteo(uid: string, datos: unknown): Sorteo | null {
     cuando: new Date().toISOString(),
     nombres: lista,
     kamas: limpiarKamas(d.kamas),
+    multiplicador: 1,
     // Si el sitio no cuadra con la lista, se busca por nombre; y si tampoco, 0.
     // Una parada fuera de la lista dejaria la cinta parada en un hueco vacio.
     elegido: (() => {
@@ -296,10 +316,19 @@ export function guardarDoble(uid: string, datos: unknown): Doble | null {
     gana: d.gana === true,
     premio: Math.max(0, Math.min(1000000, Math.floor(Number(d.premio) || 0))),
     cuando: new Date().toISOString(),
+    hipotetico: d.hipotetico === true,
     terminaEn: Date.now() + SEGURO_VIDEO_MS
   };
   dobles.set(uid, doble);
-  deps.alCambiar?.(uid);
+  // Uno de verdad cambia lo que se lleva el ganador, y eso se queda en su
+  // sorteo para cuando el doble caduque. Uno de mentira no toca nada.
+  const s = sorteos.get(uid);
+  if (!doble.hipotetico && s && (s.ganador || s.quien) === quien) {
+    s.multiplicador = doble.premio;
+    apuntarEnDisco(uid);
+  } else {
+    deps.alCambiar?.(uid);
+  }
   // Y otro aviso al caerse el seguro, para que el widget quite el video si nunca
   // llego a arrancar.
   setTimeout(() => {
@@ -425,7 +454,8 @@ export function rehacer(uid: string): boolean {
       cuando: String(s.cuando || new Date().toISOString()),
       nombres: Array.isArray(s.nombres) ? s.nombres.filter((n: unknown) => typeof n === 'string') : [],
       elegido: Number(s.elegido) || 0,
-      kamas: limpiarKamas((s as any).kamas)
+      kamas: limpiarKamas((s as any).kamas),
+      multiplicador: limpiarMultiplicador((s as any).multiplicador)
     });
   }
 

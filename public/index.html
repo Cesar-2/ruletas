@@ -175,6 +175,9 @@
     .ganador-grande .quien-gana{display:block;font-size:52px;font-weight:800;line-height:1.1;
       word-break:break-word;margin-top:.2rem}
     .ganador-grande .premio{display:block;margin-top:.35rem;font-size:19px;font-weight:700;opacity:.8}
+    /* El «¿qué habría pasado?»: aparte y más pequeño, que no se lea como lo que
+       se lleva de verdad. */
+    .ganador-grande .premio.hipotesis{font-size:16px;font-style:italic;opacity:.75}
     /* Los que no reparten puntos (las dos ruletas) dejan el hueco del renglon
        igualmente: asi los cuatro tableros miden lo mismo. */
     .ganador-grande:not(:has(.premio))::after{content:"";display:block;margin-top:.35rem;font-size:19px;line-height:1.4;height:1.4em}
@@ -1560,6 +1563,7 @@
             <div class="controls" id="nameWinnerActions" hidden>
               <button type="button" id="nameDouble">🎲 Doble o nada (50%)</button>
               <button type="button" id="nameCashOut" class="btn-cancel">Retirarse con el premio</button>
+              <button type="button" id="nameQueHabria" class="btn-cancel" hidden>🔮 ¿Qué habría pasado?</button>
               <button type="button" id="useNameWinner">Usar este nombre en el sorteo</button>
               <span class="meta" id="nameKamasEstado"></span>
             </div>
@@ -8619,6 +8623,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     let kamasNombres = 0;
     // Si el premio en kamas de ese giro ya está apuntado en Ganadores.
     let kamasCobrados = false;
+    // El «¿qué habría pasado?»: se ofrece una vez el ganador se ha retirado
+    // con su premio, y se juega una sola vez por giro. Es de mentira: enseña el
+    // vídeo y dice cómo habría acabado, pero no cambia el premio ni apunta nada.
+    let retiradoNombres = false;
+    let hipotesisNombres = '';     // lo que se dice en el cartel, ya en HTML
+    let hipotesisJugada = false;
 
     // Lo que se lleva ahora mismo el ganador, en kamas: lo del giro por lo que
     // haya doblado. 0 si no se jugaban kamas o si lo ha perdido.
@@ -8912,7 +8922,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           : (premioNombres > 1 ? 'Premio x' + premioNombres : '');
       banner.innerHTML = '<span class="corona">' + cara + '</span>'
         + '<span class="quien-gana">' + escapeHtml(nombreGanador) + '</span>'
-        + (pie ? '<span class="premio">' + pie + '</span>' : '');
+        + (pie ? '<span class="premio">' + pie + '</span>' : '')
+        + (hipotesisNombres ? '<span class="premio hipotesis">' + hipotesisNombres + '</span>' : '');
       banner.hidden = false;
     }
 
@@ -8948,6 +8959,36 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       retirar.textContent = kamas
         ? '💰 Cobrar ' + kamas.toLocaleString('es-ES') + ' kamas'
         : 'Retirarse con el premio';
+      // Solo después de retirarse con algo, y una vez.
+      const queHabria = document.getElementById('nameQueHabria');
+      queHabria.hidden = !(retiradoNombres && nombreGanador && premioNombres > 0 && !hipotesisJugada);
+      queHabria.disabled = jugandoDoble;
+    }
+
+    // Se tira el doble o nada como si se hubiera jugado, con las mismas
+    // posibilidades, y se enseña el vídeo. El premio no se toca: es solo para
+    // que el chat vea lo que se ha ahorrado (o lo que se ha perdido).
+    async function queHabriaPasado() {
+      if (jugandoDoble || hipotesisJugada || !retiradoNombres || !nombreGanador || premioNombres <= 0) return;
+      jugandoDoble = true;
+      hipotesisJugada = true;
+      mandosNombres(false);
+      const gana = Math.random() * 100 < doblePct;
+      // Al widget también, marcado como de mentira: enseña el mismo vídeo, pero
+      // su cartel sigue diciendo lo que se lleva de verdad.
+      api('/api/ruleta-chat/doble', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quien: nombreGanador, gana, premio: gana ? premioNombres * 2 : 0, hipotetico: true })
+      }).catch(() => {});
+      await animacionNombres(gana ? 'ganar' : 'perder');
+      jugandoDoble = false;
+      const kamas = kamasEnJuego();
+      hipotesisNombres = gana
+        ? '🔮 Si hubiera doblado, se habría llevado ' + (kamas ? kamasHtml(kamas * 2) : 'x' + (premioNombres * 2))
+        : '🔮 Si hubiera doblado, lo habría perdido todo';
+      pintarGanadorNombres('gana');
+      mandosNombres(false);
     }
 
     async function dobleONada() {
@@ -9070,6 +9111,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       premioNombres = 1;
       kamasNombres = kamasDeEsteGiro;
       kamasCobrados = false;
+      retiradoNombres = false;
+      hipotesisNombres = '';
+      hipotesisJugada = false;
       const resto = nombres.filter((_, i) => i !== elegido);
       const elimina = modoEliminaNombres();
       // El que ha parado en la banda: se enciende si gana, se tacha si se va.
@@ -9113,11 +9157,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     document.getElementById('spinNames').addEventListener('click', girarNombres);
     document.getElementById('nameDouble').addEventListener('click', dobleONada);
+    document.getElementById('nameQueHabria').addEventListener('click', queHabriaPasado);
 
     // Retirarse: el premio se queda como esté y se apagan los dos botones del
     // envite. El nombre sigue ahí, que aún puede pasar al sorteo de objetos.
     document.getElementById('nameCashOut').addEventListener('click', () => {
       if (jugandoDoble || !nombreGanador) return;
+      retiradoNombres = true;
       pintarGanadorNombres('gana');
       mandosNombres(false);
       // Con kamas en juego, retirarse es cobrar: va a Ganadores. Si no se puede
