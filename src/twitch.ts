@@ -91,13 +91,33 @@ export interface Dependencias {
 let deps: Dependencias;
 let redireccion = 'http://localhost:3000/api/twitch/callback';
 
+// La app de Twitch del propio Ruleton, puesta en el servidor (TWITCH_CLIENT_ID y
+// TWITCH_CLIENT_SECRET). Con ella, cada streamer solo tiene que pulsar
+// «Conectar con Twitch»: no hace falta que cada uno se cree su app en
+// dev.twitch.tv. Quien ya tenga la suya la sigue usando: manda la propia.
+let appComun: { clientId: string; clientSecret: string } | null = null;
+
+// Con que app habla esta cuenta con Twitch: la suya si la ha puesto, si no la
+// comun. null si no hay ninguna.
+function credencialesDe(c: TwitchCuenta | null): { clientId: string; clientSecret: string } | null {
+  if (c?.clientId && c.clientSecret) return { clientId: c.clientId, clientSecret: c.clientSecret };
+  return appComun;
+}
+
+function cuentaVacia(uid: string): TwitchCuenta {
+  return {
+    clientId: '', clientSecret: '', accessToken: '', refreshToken: '',
+    login: '', userId: '', servidor: deps.servidoresDe(uid)[0]?.id || '', recompensa: '', objetos: 1
+  };
+}
+
 // Las conexiones abiertas, una por usuario conectado.
 const sockets = new Map<string, WebSocket>();
 
 // Si ese usuario ha puesto las credenciales de su app.
 export function hayCredenciales(uid: string): boolean {
   const c = leerCuenta(uid);
-  return Boolean(c && c.clientId && c.clientSecret);
+  return Boolean(credencialesDe(c));
 }
 
 // Guarda las credenciales de la app del usuario. Un secreto vacio se entiende
@@ -162,14 +182,16 @@ export function borrarCuenta(uid: string): void {
 // TWITCH_REDIRECT. Antes era siempre la fija, y sin TWITCH_REDIRECT eso es
 // localhost: en un hosting Twitch contestaba «redirect_uri does not match».
 export function urlDeAutorizacion(uid: string, vuelta: string = redireccion): string {
-  const cuenta = leerCuenta(uid);
-  if (!cuenta?.clientId) throw new Error('falta el Client ID de tu app de Twitch');
+  // Con la app comun puede que todavia no tenga ni archivo: se le crea.
+  const cuenta = leerCuenta(uid) || cuentaVacia(uid);
+  const cred = credencialesDe(cuenta);
+  if (!cred) throw new Error('falta el Client ID de la app de Twitch');
   const secreto = crypto.randomBytes(16).toString('hex');
   const state = uid + '.' + secreto;
   guardarCuenta(uid, { ...cuenta, oauthState: { secreto, caduca: Date.now() + 10 * 60 * 1000, redireccion: vuelta } });
 
   const p = new URLSearchParams({
-    client_id: cuenta.clientId,
+    client_id: cred.clientId,
     redirect_uri: vuelta,
     response_type: 'code',
     scope: PERMISOS.join(' '),
@@ -201,13 +223,14 @@ export function uidDelState(state: string): string | null {
 // Cambia el codigo de la vuelta por los tokens y deja la cuenta guardada.
 export async function completarAlta(uid: string, code: string): Promise<TwitchCuenta> {
   const previa = leerCuenta(uid);
-  if (!previa?.clientId || !previa.clientSecret) throw new Error('faltan las credenciales de tu app de Twitch');
+  const cred = credencialesDe(previa);
+  if (!previa || !cred) throw new Error('faltan las credenciales de la app de Twitch');
   const r = await fetch(TOKEN, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: previa.clientId,
-      client_secret: previa.clientSecret,
+      client_id: cred.clientId,
+      client_secret: cred.clientSecret,
       code,
       grant_type: 'authorization_code',
       redirect_uri: previa.oauthRedireccion || redireccion
@@ -217,7 +240,7 @@ export async function completarAlta(uid: string, code: string): Promise<TwitchCu
   const t = await r.json() as any;
 
   const quien = await fetch(`${HELIX}/users`, {
-    headers: { Authorization: `Bearer ${t.access_token}`, 'Client-Id': previa.clientId }
+    headers: { Authorization: `Bearer ${t.access_token}`, 'Client-Id': cred.clientId }
   });
   if (!quien.ok) throw new Error('no se pudo leer la cuenta de Twitch');
   const datos = (await quien.json() as any).data?.[0];
@@ -249,8 +272,8 @@ async function refrescar(uid: string, cuenta: TwitchCuenta): Promise<TwitchCuent
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: cuenta.clientId,
-      client_secret: cuenta.clientSecret,
+      client_id: credencialesDe(cuenta)?.clientId || '',
+      client_secret: credencialesDe(cuenta)?.clientSecret || '',
       grant_type: 'refresh_token',
       refresh_token: cuenta.refreshToken
     })
@@ -289,6 +312,10 @@ export function estado(uid: string, vuelta: string = redireccion) {
     // que toca; el Client Secret solo se dice si esta puesto o no.
     clientId: cuenta?.clientId || '',
     secretoPuesto: Boolean(cuenta?.clientSecret),
+    // Si el servidor trae su propia app: entonces no hace falta poner nada,
+    // solo pulsar «Conectar con Twitch».
+    appComun: Boolean(appComun),
+    propia: Boolean(cuenta?.clientId && cuenta?.clientSecret),
     credenciales: hayCredenciales(uid),
     conectado: Boolean(cuenta?.refreshToken),
     escuchando: sockets.has(uid),
@@ -371,7 +398,7 @@ async function suscribir(uid: string, sesion: string): Promise<void> {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${c.accessToken}`,
-      'Client-Id': c.clientId,
+      'Client-Id': credencialesDe(c)?.clientId || '',
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
@@ -543,7 +570,7 @@ async function helix(uid: string, metodo: string, ruta: string, cuerpo?: unknown
     method: metodo,
     headers: {
       Authorization: `Bearer ${c.accessToken}`,
-      'Client-Id': c.clientId,
+      'Client-Id': credencialesDe(c)?.clientId || '',
       ...(cuerpo ? { 'Content-Type': 'application/json' } : {})
     },
     ...(cuerpo ? { body: JSON.stringify(cuerpo) } : {})
@@ -624,9 +651,12 @@ export async function fijarAviso(uid: string, canal: string, texto: string, segu
 
 // --- Arranque -----------------------------------------------------------
 
-export function iniciar(d: Dependencias, opciones: { redirect?: string; usuarios: string[] }): void {
+export function iniciar(d: Dependencias, opciones: { redirect?: string; usuarios: string[]; clientId?: string; clientSecret?: string }): void {
   deps = d;
   if (opciones.redirect) redireccion = opciones.redirect;
+  const id = String(opciones.clientId || '').trim();
+  const secreto = String(opciones.clientSecret || '').trim();
+  appComun = id && secreto ? { clientId: id, clientSecret: secreto } : null;
   // Se reconecta a cada usuario que tenga sus credenciales y haya autorizado.
   for (const uid of opciones.usuarios) escuchar(uid);
 }

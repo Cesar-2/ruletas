@@ -2961,6 +2961,10 @@ twitch.iniciar(
   },
   {
     redirect: process.env.TWITCH_REDIRECT || `http://localhost:${PORT}/api/twitch/callback`,
+    // La app de Twitch del Ruleton, para que cada streamer solo tenga que
+    // pulsar «Conectar». Sin ellas, cada uno pone la suya en Configuracion.
+    clientId: process.env.TWITCH_CLIENT_ID,
+    clientSecret: process.env.TWITCH_CLIENT_SECRET,
     usuarios: readUsers().map((u) => u.id)
   }
 );

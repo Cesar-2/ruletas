@@ -327,6 +327,65 @@ test('la Redirect URL es la del dominio por el que se entra, y se canjea con la 
     'el codigo se canjea con la misma Redirect URL, o Twitch lo rechaza');
 });
 
+// --- La app de Twitch del Ruleton, comun a todos ---
+
+function montarConApp(raiz, cuenta) {
+  const d = deps(raiz);
+  d.sortearPara = async () => [];
+  d.servidoresDe = () => [{ id: 's1', name: 'Principal' }];
+  const twitch = cargar('twitch');
+  twitch.iniciar(d, { usuarios: [], clientId: 'app-comun', clientSecret: 'secreto-comun' });
+  if (cuenta) {
+    fs.mkdirSync(path.join(raiz, 'u1'), { recursive: true });
+    fs.writeFileSync(path.join(raiz, 'u1', 'twitch.json'), JSON.stringify(cuenta));
+  }
+  return twitch;
+}
+
+test('con la app comun, conectar no pide credenciales a nadie', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montarConApp(c.raiz, null);   // sin archivo siquiera
+  assert.strictEqual(twitch.hayCredenciales('u1'), true);
+  const e = twitch.estado('u1');
+  assert.strictEqual(e.appComun, true);
+  assert.strictEqual(e.propia, false);
+
+  const url = new URL(twitch.urlDeAutorizacion('u1', 'https://dofusspin.com/api/twitch/callback'));
+  assert.strictEqual(url.searchParams.get('client_id'), 'app-comun');
+  assert.strictEqual(twitch.uidDelState(url.searchParams.get('state')), 'u1');
+
+  const llamadas = fetchFalso(t, [
+    () => ({ json: { access_token: 'a', refresh_token: 'r' } }),
+    () => ({ json: { data: [{ login: 'micanal', id: '123' }] } })
+  ]);
+  await twitch.completarAlta('u1', 'codigo');
+  const canje = new URLSearchParams(llamadas[0].cuerpo);
+  assert.strictEqual(canje.get('client_id'), 'app-comun');
+  assert.strictEqual(canje.get('client_secret'), 'secreto-comun');
+  assert.strictEqual(llamadas[1].cabeceras['Client-Id'], 'app-comun');
+  const guardada = twitch.leerCuenta('u1');
+  assert.strictEqual(guardada.clientSecret, '', 'el secreto comun no se copia a la cuenta de nadie');
+  assert.strictEqual(guardada.login, 'micanal');
+});
+
+test('quien tiene su propia app la sigue usando aunque haya comun', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montarConApp(c.raiz, CUENTA);
+  const url = new URL(twitch.urlDeAutorizacion('u1'));
+  assert.strictEqual(url.searchParams.get('client_id'), 'cid', 'la suya, no la comun');
+  assert.strictEqual(twitch.estado('u1').propia, true);
+});
+
+test('sin app comun ni propia no se puede conectar', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, null);
+  assert.strictEqual(twitch.hayCredenciales('u1'), false);
+  assert.strictEqual(twitch.estado('u1').appComun, false);
+});
+
 test('la vuelta caduca a los diez minutos', (t) => {
   const c = carpeta();
   t.after(c.quitar);

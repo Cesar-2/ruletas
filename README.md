@@ -270,6 +270,7 @@ El código vive en `data/config.json`, que como todo `data/` no se versiona.
 | `TRUST_PROXY=1` | Detrás de un proxy (Render, Fly, nginx…), para reconocer HTTPS |
 | `COOKIE_SECURE=1` | Fuerza que la cookie de sesión solo viaje por HTTPS |
 | `PORT` | Puerto de escucha (por defecto 3000) |
+| `TWITCH_CLIENT_ID` y `TWITCH_CLIENT_SECRET` | La app de Twitch del Ruletón, común a todos. Con ellas, cada streamer solo pulsa «Conectar con Twitch» en Configuración; sin ellas, cada uno tiene que crear su app en dev.twitch.tv y poner sus credenciales. En la app hay que registrar como OAuth Redirect URL `https://tu-dominio/api/twitch/callback` |
 | `TWITCH_REDIRECT` | Opcional. La Redirect URL de Twitch: `https://tu-dominio/api/twitch/callback`. Sin ella se usa la del dominio por el que entras, que es la que sale en Configuración › Twitch; esa es la que hay que poner en la app de Twitch |
 
 ```bash

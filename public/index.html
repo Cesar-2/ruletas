@@ -2100,6 +2100,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
           <div class="config-section">
             <h4>Conectar tu cuenta</h4>
+            <!-- Con la app de Twitch del Ruletón puesta en el servidor, basta con
+                 pulsar Conectar. Los pasos de la app propia quedan plegados,
+                 para quien quiera usar la suya. -->
+            <p class="meta" id="twitchSoloConectar" hidden>Pulsa <strong>Conectar con Twitch</strong>, acepta en Twitch y listo: no tienes que crear nada.</p>
+            <details id="twitchPropiaPlegada" hidden><summary class="meta">Usar mi propia app de Twitch (opcional)</summary></details>
+            <div id="twitchPropia">
             <ol class="meta twitch-pasos">
               <li>Entra en <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener">dev.twitch.tv › Your Console › Applications</a> y pulsa <strong>Register Your Application</strong>.</li>
               <li>Ponle un nombre cualquiera, categoría <em>Chat Bot</em>, tipo de cliente <em>Confidential</em>, y como <strong>OAuth Redirect URL</strong> exactamente esta:
@@ -2112,6 +2118,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               <input type="password" id="twitchSecret" placeholder="Client Secret de tu app" autocomplete="off" style="width:260px" />
               <button type="button" id="twitchGuardar">Guardar</button>
               <span class="meta" id="twitchGuardado"></span>
+            </div>
             </div>
             <div class="config-actions">
               <button type="button" id="twitchConectar" disabled>Conectar con Twitch</button>

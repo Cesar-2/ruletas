@@ -22,9 +22,20 @@
       if (!e) return;
       const estado = document.getElementById('twitchEstado');
       estado.className = 'twitch-estado ' + (e.conectado ? 'va' : 'no');
+      // Con la app del Ruletón en el servidor, a quien no tiene la suya no se le
+      // piden credenciales: solo pulsar Conectar. Los pasos de la app propia se
+      // quedan plegados, por si alguien quiere usar la suya.
+      const comun = Boolean(e.appComun) && !e.propia;
+      const propia = document.getElementById('twitchPropia');
+      const plegada = document.getElementById('twitchPropiaPlegada');
+      document.getElementById('twitchSoloConectar').hidden = !comun || e.conectado;
+      plegada.hidden = !comun;
+      if (comun && propia.parentElement !== plegada) plegada.appendChild(propia);
+      if (!comun && propia.parentElement === plegada) plegada.after(propia);
+
       estado.textContent = e.conectado
         ? '✅ Conectado como ' + (e.login || 'tu cuenta')
-        : e.credenciales
+        : e.credenciales && !comun
           ? '⏳ Credenciales puestas. Falta pulsar «Conectar con Twitch».'
           : '⛔ Sin conectar.';
 
