@@ -17,7 +17,11 @@
     // Los apunta el servidor al cantar; cuando sube, se refresca Ganadores.
     let bingoApuntados = -1;
     const BINGO_CAMPOS = ['bingoMaxCartones', 'bingoCantar', 'bingoCantarLinea', 'bingoPuntosLinea', 'bingoPuntosBingo',
-      'bingoKamasLinea', 'bingoTextoLinea', 'bingoKamasBingo', 'bingoTextoBingo'];
+      'bingoKamasLinea', 'bingoKamasBingo'];
+    // El objeto del catálogo de cada premio, tal como está en el editor. Se
+    // relee de los ajustes solo mientras no lo hayas cambiado sin guardar.
+    const bingoObjetos = { Linea: null, Bingo: null };
+    let bingoObjetosTocados = false;
 
     async function cargarBingo() {
       try {
@@ -35,9 +39,13 @@
         const pl = bingo.ajustes.premioLinea || {};
         const pb = bingo.ajustes.premioBingo || {};
         ponerSiNoLoTocas('bingoKamasLinea', pl.kamas || '');
-        ponerSiNoLoTocas('bingoTextoLinea', pl.texto || '');
+
         ponerSiNoLoTocas('bingoKamasBingo', pb.kamas || '');
-        ponerSiNoLoTocas('bingoTextoBingo', pb.texto || '');
+        if (!bingoObjetosTocados) {
+          bingoObjetos.Linea = pl.texto ? { texto: pl.texto, imagen: pl.imagen || '' } : null;
+          bingoObjetos.Bingo = pb.texto ? { texto: pb.texto, imagen: pb.imagen || '' } : null;
+          pintarObjetosBingo();
+        }
       }
       const apuntados = (bingo.cantos || []).filter((c) => c.apuntado).length;
       if (bingoApuntados >= 0 && apuntados > bingoApuntados) {
@@ -229,11 +237,13 @@
         puntosBingo: Number(document.getElementById('bingoPuntosBingo').value) || 0,
         premioLinea: {
           kamas: Number(document.getElementById('bingoKamasLinea').value) || 0,
-          texto: document.getElementById('bingoTextoLinea').value.trim()
+          texto: bingoObjetos.Linea ? bingoObjetos.Linea.texto : '',
+          imagen: bingoObjetos.Linea ? bingoObjetos.Linea.imagen : ''
         },
         premioBingo: {
           kamas: Number(document.getElementById('bingoKamasBingo').value) || 0,
-          texto: document.getElementById('bingoTextoBingo').value.trim()
+          texto: bingoObjetos.Bingo ? bingoObjetos.Bingo.texto : '',
+          imagen: bingoObjetos.Bingo ? bingoObjetos.Bingo.imagen : ''
         }
       }, 'No se pudieron guardar los ajustes');
       if (!ok) return;
@@ -242,6 +252,7 @@
       BINGO_CAMPOS.forEach((id) => {
         delete document.getElementById(id).dataset.tocado;
       });
+      bingoObjetosTocados = false;
       document.getElementById('bingoMaxCartones').value = bingo.ajustes.maxCartones;
       document.getElementById('bingoCantar').value = bingo.ajustes.cantar;
       document.getElementById('bingoCantarLinea').value = bingo.ajustes.cantarLinea;
@@ -293,12 +304,29 @@
       const campo = document.getElementById('bingoNombre');
       const nombre = campo.value.trim();
       if (!nombre) return;
-      // Se canta lo que se juega ahora: la línea mientras nadie la tenga, y
-      // después el cartón lleno.
-      const que = bingo.fase === 'linea' ? 'linea' : 'bingo';
-      const ok = await showConfirm(`Cantar ${que === 'linea' ? 'línea' : 'bingo'} por ${nombre}`,
-        'Se juzga igual que si lo hubiera escrito en el chat: si no lo tiene, queda descalificado.', 'Cantar', true);
-      if (!ok) return;
+      // Se elige qué se canta, línea o bingo, y se juzga cada uno como en el
+      // chat. La línea se puede cantar aunque ya la haya ganado alguien: quien
+      // la completó con esa misma bola también gana. Si en esta partida la
+      // línea no da nada (ni puntos ni premio), solo queda el bingo.
+      const premioLinea = bingo.premioLinea || {};
+      const seJuegaLinea = (bingo.puntosLinea || 0) > 0 || (premioLinea.kamas || 0) > 0 || Boolean(premioLinea.texto);
+      const aviso = 'Se juzga igual que si lo hubiera escrito en el chat: si no lo tiene, queda descalificado.';
+      let que = 'bingo';
+      if (seJuegaLinea) {
+        const eleccion = await showModal({
+          title: `Cantar por ${nombre}`,
+          message: aviso,
+          okText: 'Cantar línea',
+          extraText: 'Cantar bingo',
+          cancelText: 'Cancelar',
+          danger: true
+        });
+        if (!eleccion) return;
+        que = eleccion === 'extra' ? 'bingo' : 'linea';
+      } else {
+        const ok = await showConfirm(`Cantar bingo por ${nombre}`, aviso, 'Cantar bingo', true);
+        if (!ok) return;
+      }
       if (await bingoPedir('/api/bingo/cantar', { nombre, que }, 'No se pudo cantar')) campo.value = '';
     });
 
@@ -330,4 +358,47 @@
         delete document.getElementById(id).dataset.tocado;
       });
       await cargarRecompensa();
+    });
+
+    // El objeto del catálogo de cada premio: su icono, su nombre y una ✕ para
+    // quitarlo. Se elige con el mismo buscador que el tablero de clavijas, pero
+    // aquí con recursos, objetos y cosméticos.
+    function pintarObjetosBingo() {
+      ['Linea', 'Bingo'].forEach((que) => {
+        const caja = document.getElementById('bingoObjeto' + que);
+        const o = bingoObjetos[que];
+        caja.innerHTML = o
+          ? (o.imagen ? '<img src="' + escapeHtml(o.imagen) + '" alt="" />' : '')
+            + '<span>' + escapeHtml(o.texto) + '</span>'
+            + '<button type="button" data-quitar="' + que + '" title="Quitar el objeto">✕</button>'
+          : '';
+        const boton = document.querySelector('.bingo-elegir[data-que="' + que + '"]');
+        if (boton) boton.textContent = o ? 'Cambiar' : 'Elegir objeto';
+      });
+    }
+
+    document.querySelectorAll('.bingo-elegir').forEach((boton) => {
+      boton.addEventListener('click', () => {
+        const que = boton.dataset.que;
+        abrirBuscadorCatalogo({
+          titulo: 'Premio de ' + (que === 'Linea' ? 'la línea' : 'el bingo'),
+          familias: true,
+          alElegir: (cosa) => {
+            bingoObjetos[que] = { texto: cosa.nombre, imagen: cosa.imagen };
+            bingoObjetosTocados = true;
+            pintarObjetosBingo();
+            document.getElementById('bingoGuardado').textContent = 'Objeto puesto. Acuérdate de guardar.';
+          }
+        });
+      });
+    });
+
+    ['Linea', 'Bingo'].forEach((que) => {
+      document.getElementById('bingoObjeto' + que).addEventListener('click', (ev) => {
+        if (!ev.target.closest('[data-quitar]')) return;
+        bingoObjetos[que] = null;
+        bingoObjetosTocados = true;
+        pintarObjetosBingo();
+        document.getElementById('bingoGuardado').textContent = 'Objeto quitado. Acuérdate de guardar.';
+      });
     });

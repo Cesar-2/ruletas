@@ -763,6 +763,11 @@
     .bingo-jugador.fuera{opacity:.55}
     .bingo-jugador.fuera .quien{text-decoration:line-through}
     .bingo-mini{padding:.5rem 0 .3rem .7rem}
+    /* El objeto del catálogo que se lleva quien gane, con su icono. */
+    .bingo-objeto{display:inline-flex;align-items:center;gap:.35rem;font-size:13px}
+    .bingo-objeto:empty{display:none}
+    .bingo-objeto img{width:28px;height:28px;object-fit:contain}
+    .bingo-objeto button{padding:.1rem .45rem;font-size:12px;box-shadow:none;background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
     /* Configuración › Twitch */
     .twitch-estado{font-weight:700;margin:.4rem 0 .6rem}
     .twitch-estado.va{color:var(--accent)}
@@ -1270,16 +1275,19 @@
               <input id="bingoPuntosBingo" type="number" min="0" max="1000000" value="50" style="width:90px" />
             </div>
             <!-- El premio de verdad: va solo a Ganadores, en el servidor en el
-                 que abras la partida. Kamas, un texto, o las dos cosas. -->
+                 que abras la partida. Kamas, un objeto del catálogo, o las dos
+                 cosas. -->
             <div class="draw-controls">
               <label class="meta" for="bingoKamasLinea">Premio línea</label>
               <input id="bingoKamasLinea" type="number" min="0" max="10000000000" placeholder="kamas" style="width:110px" />
-              <input id="bingoTextoLinea" type="text" maxlength="80" placeholder="o un objeto (opcional)" style="width:170px" />
+              <span class="bingo-objeto" id="bingoObjetoLinea"></span>
+              <button type="button" class="bingo-elegir" data-que="Linea">Elegir objeto</button>
             </div>
             <div class="draw-controls">
               <label class="meta" for="bingoKamasBingo">Premio bingo</label>
               <input id="bingoKamasBingo" type="number" min="0" max="10000000000" placeholder="kamas" style="width:110px" />
-              <input id="bingoTextoBingo" type="text" maxlength="80" placeholder="o un objeto (opcional)" style="width:170px" />
+              <span class="bingo-objeto" id="bingoObjetoBingo"></span>
+              <button type="button" class="bingo-elegir" data-que="Bingo">Elegir objeto</button>
               <button type="button" id="bingoGuardar">Guardar</button>
               <span class="meta" id="bingoGuardado"></span>
             </div>
@@ -6448,30 +6456,74 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
   <script src="/js/twitch-panel.js"></script>
   <script>
     // --- Buscador de objetos del catálogo ---
-    // Busca sobre el catálogo del juego activo. Se pide una sola vez y se
-    // queda en memoria: son miles de objetos y no cambian mientras miras.
-    let catalogoPremios = null;
+    // Busca sobre el catálogo del juego activo. Lo usan el tablero de clavijas
+    // (solo recursos) y los premios del bingo (recursos, objetos o cosméticos).
+    // Cada familia se pide una sola vez y se queda en memoria: son miles de
+    // objetos y no cambian mientras miras.
+    let catalogoPremios = null;           // la lista que se está enseñando
+    const catalogosPremio = {};           // por familia, ya pedidos
+    let familiaPremio = 'items';
+    let alElegirPremio = null;            // qué hacer con lo que se elija
+    const RUTA_FAMILIA_PREMIO = { items: '/api/items', equipment: '/api/equipment', cosmetics: '/api/cosmeticos' };
 
-    async function abrirBuscadorPremio(casilla) {
-      premioEditando = casilla;
-      // El del tablero va solo de recursos: no ensena el conmutador.
-      document.getElementById('premioPickerTitulo').textContent = 'Elegir objeto';
-      document.getElementById('premioFamilias').hidden = true;
+    // Abre el buscador. «alElegir» recibe { nombre, imagen, id }.
+    async function abrirBuscadorCatalogo({ titulo, familias, alElegir }) {
+      alElegirPremio = alElegir;
+      document.getElementById('premioPickerTitulo').textContent = titulo || 'Elegir objeto';
+      document.getElementById('premioFamilias').hidden = !familias;
       document.getElementById('premioPickerBackdrop').hidden = false;
+      await cargarFamiliaPremio(familias ? familiaPremio : 'items');
+    }
+
+    async function cargarFamiliaPremio(familia) {
+      familiaPremio = familia;
+      document.querySelectorAll('#premioFamilias button').forEach((b) => {
+        b.classList.toggle('activa', b.dataset.familia === familia);
+      });
       const buscar = document.getElementById('premioBuscar');
       buscar.value = '';
       const salida = document.getElementById('premioResultados');
       salida.innerHTML = '<span class="meta">Cargando el catálogo…</span>';
       try {
-        if (!catalogoPremios) {
-          const data = await api('/api/items');
-          catalogoPremios = Array.isArray(data.items) ? data.items : [];
+        if (!catalogosPremio[familia]) {
+          const data = await api(RUTA_FAMILIA_PREMIO[familia] || '/api/items');
+          catalogosPremio[familia] = Array.isArray(data.items) ? data.items : [];
         }
+        catalogoPremios = catalogosPremio[familia];
         pintarResultadosPremio('');
         buscar.focus();
       } catch (e) {
         salida.innerHTML = '<span class="meta">' + escapeHtml(e.message) + '</span>';
       }
+    }
+
+    document.getElementById('premioFamilias').addEventListener('click', (ev) => {
+      const b = ev.target.closest('button[data-familia]');
+      if (b) cargarFamiliaPremio(b.dataset.familia);
+    });
+
+    // El tablero de clavijas: un premio por casilla, solo recursos.
+    function abrirBuscadorPremio(casilla) {
+      premioEditando = casilla;
+      return abrirBuscadorCatalogo({
+        titulo: 'Elegir objeto',
+        familias: false,
+        alElegir: (cosa) => {
+          if (casilla < 0 || !premiosEditor) return;
+          premiosEditor[casilla] = { nombre: cosa.nombre, imagen: cosa.imagen };
+          pintarPremiosCosas();
+          document.getElementById('plinkoPremiosEstado').textContent = 'Premio puesto. Acuérdate de guardar.';
+        }
+      });
+    }
+
+    function cerrarBuscadorPremio() {
+      document.getElementById('premioPickerBackdrop').hidden = true;
+      premioEditando = -1;
+      alElegirPremio = null;
+      // Se olvida lo pedido: si luego cambias de juego, el catálogo es otro.
+      Object.keys(catalogosPremio).forEach((k) => delete catalogosPremio[k]);
+      catalogoPremios = null;
     }
 
     function pintarResultadosPremio(texto) {
@@ -6504,25 +6556,19 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     document.getElementById('premioResultados').addEventListener('click', (ev) => {
       const opcion = ev.target.closest('.opcion');
-      if (!opcion) return;
-      if (premioEditando < 0 || !premiosEditor) return;
-      premiosEditor[premioEditando] = {
-        nombre: opcion.dataset.nombre || '',
-        imagen: opcion.dataset.img || ''
-      };
+      if (!opcion || !alElegirPremio) return;
+      const elegir = alElegirPremio;
       document.getElementById('premioPickerBackdrop').hidden = true;
+      alElegirPremio = null;
       premioEditando = -1;
-      pintarPremiosCosas();
-      document.getElementById('plinkoPremiosEstado').textContent = 'Premio puesto. Acuérdate de guardar.';
+      elegir({
+        nombre: opcion.dataset.nombre || '',
+        imagen: opcion.dataset.img || '',
+        id: opcion.dataset.id || ''
+      });
     });
 
-    document.getElementById('premioPickerCerrar').addEventListener('click', () => {
-      document.getElementById('premioPickerBackdrop').hidden = true;
-      premioEditando = -1;
-      document.getElementById('premioPickerTitulo').textContent = 'Elegir objeto';
-      // El buscador del plinko trabaja con recursos: se le devuelve lo suyo.
-      catalogoPremios = null;
-    });
+    document.getElementById('premioPickerCerrar').addEventListener('click', cerrarBuscadorPremio);
 
     document.getElementById('plinkoModo').addEventListener('change', (ev) => {
       guardarAjustesPlinko({ modo: ev.target.value }, 'plinkoPremiosEstado');

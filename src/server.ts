@@ -2863,7 +2863,8 @@ bingo.iniciar({
       id: 'bingo-' + que,
       name: (premio.texto || 'Kamas') + ' · ' + cual,
       value: premio.kamas,
-      icon: premio.texto ? '' : '/assets/kama.png'
+      // El icono del objeto del catalogo; sin objeto, el de las kamas.
+      icon: premio.texto ? iconoValido(premio.imagen) : '/assets/kama.png'
     }]);
     return true;
   }

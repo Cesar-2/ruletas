@@ -298,6 +298,33 @@ test('la linea y el bingo apuntan su premio en Ganadores del servidor de la part
   bingo.cancelar(uid);
 });
 
+test('el premio es un objeto del catalogo, con su icono', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const apuntados = [];
+  const bingo = montarConPremios(c.raiz, apuntados);
+  const uid = 'u1';
+  const a = bingo.guardarAjustes(uid, {
+    premioBingo: { kamas: 0, texto: 'Dofus Ocre', imagen: 'https://api.dofusdu.de/img/ocre.png' }
+  });
+  assert.deepStrictEqual(a.premioBingo, { kamas: 0, texto: 'Dofus Ocre', imagen: 'https://api.dofusdu.de/img/ocre.png' });
+
+  // Una direccion que no es una imagen de verdad no se guarda.
+  const b = bingo.guardarAjustes(uid, { premioBingo: { kamas: 0, texto: 'X', imagen: 'javascript:alert(1)' } });
+  assert.strictEqual(b.premioBingo.imagen, undefined);
+  // Y quitar el objeto se lleva la imagen.
+  const d = bingo.guardarAjustes(uid, { premioBingo: { kamas: 5, texto: '', imagen: 'https://x/y.png' } });
+  assert.deepStrictEqual(d.premioBingo, { kamas: 5, texto: '' });
+
+  bingo.guardarAjustes(uid, { puntosLinea: 0, premioBingo: { kamas: 0, texto: 'Dofus Ocre', imagen: '/assets/ocre.png' } });
+  bingo.abrir(uid, '', undefined, 'u1/dofus/s1');
+  bingo.darCarton(uid, 'Ana');
+  cartonDe(bingo, uid, 'Ana').flat().filter((n) => n !== bingo.LIBRE).forEach((n) => sacarBola(bingo, uid, n));
+  bingo.cantar(uid, 'Ana', 'bingo');
+  assert.deepStrictEqual(apuntados[0].premio, { kamas: 0, texto: 'Dofus Ocre', imagen: '/assets/ocre.png' }, 'a Ganadores, con su icono');
+  bingo.cancelar(uid);
+});
+
 test('cantar en falso o tarde no apunta nada, y sin premio tampoco', (t) => {
   const c = carpeta();
   t.after(c.quitar);

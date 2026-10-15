@@ -152,7 +152,14 @@ export interface Ajustes {
 
 export interface Premio {
   kamas: number;
-  texto: string;
+  texto: string;        // el objeto del catalogo, por su nombre
+  imagen?: string;      // y su icono, para Ganadores y la pantalla
+}
+
+// Solo iconos que se pueden pintar sin miedo: de internet o de /assets.
+function limpiarImagen(x: unknown): string {
+  const t = String(x ?? '').trim().slice(0, 500);
+  return /^https?:\/\//i.test(t) || t.startsWith('/assets/') ? t : '';
 }
 
 const SIN_PREMIO: Premio = { kamas: 0, texto: '' };
@@ -311,12 +318,16 @@ function limpiarPuntos(n: unknown, siNo: number): number {
 function limpiarPremio(x: unknown, siNo: Premio = SIN_PREMIO): Premio {
   if (!x || typeof x !== 'object') return { ...siNo };
   const p = x as Record<string, unknown>;
-  return {
+  const limpio: Premio = {
     // Las kamas no caben en el tope de los puntos: 5m es un premio normal.
     kamas: p.kamas === undefined ? siNo.kamas
       : Math.max(0, Math.min(1e10, Math.floor(Number(p.kamas) || 0))),
     texto: p.texto === undefined ? siNo.texto : String(p.texto ?? '').trim().slice(0, 80)
   };
+  // La imagen va con el objeto: sin objeto no hay imagen que valga.
+  const imagen = p.imagen === undefined && p.texto === undefined ? (siNo.imagen || '') : limpiarImagen(p.imagen);
+  if (imagen && limpio.texto) limpio.imagen = imagen;
+  return limpio;
 }
 
 export function hayPremio(p: Premio | undefined): boolean {
