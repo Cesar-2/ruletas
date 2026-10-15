@@ -313,9 +313,9 @@
       const nombre = campo.value.trim();
       if (!nombre) return;
       // Se elige qué se canta, línea o bingo, y se juzga cada uno como en el
-      // chat. Las dos opciones salen siempre: la línea se puede cantar aunque
-      // ya la haya ganado alguien (quien la completó con esa misma bola
-      // también gana). Si no se puede cantar, el servidor dice por qué.
+      // chat. Las dos opciones salen siempre. La línea es del primero que la
+      // cante teniéndola; si ya es de otro, este sale como «tarde». Si no se
+      // puede cantar, el servidor dice por qué.
       const eleccion = await showModal({
         title: `Cantar por ${nombre}`,
         message: 'Se juzga igual que si lo hubiera escrito en el chat: si no lo tiene, queda descalificado.',

@@ -10,12 +10,13 @@
 // para una linea (cualquier fila o columna; las diagonales no cuentan) y !bingo
 // para el carton lleno. Aqui se mira su carton:
 //
-//  - Si tiene lo que se esta jugando (la linea, o el carton lleno cuando la
-//    linea ya se la llevo alguien) y lo canta a tiempo, gana.
+//  - Gana el PRIMERO que lo cante teniendolo, lo completara con la bola que lo
+//    completara: no hay «se te paso». Si dos lo tienen, gana el que cante
+//    antes.
 //  - Si no lo tiene, queda descalificado: su carton deja de jugar. Es lo que
 //    evita que medio chat cante a ver si cuela.
-//  - Si lo tenia pero se le paso (ya ha salido otra bola), no gana, pero
-//    tampoco se le descalifica: no ha mentido, ha llegado tarde.
+//  - Si lo tiene pero otro lo canto antes, no gana, pero tampoco se le
+//    descalifica: no ha mentido, ha llegado tarde.
 //
 // Cantar se hace por el chat y no con un boton en una pagina a proposito: el
 // chat de Twitch es lo unico que garantiza QUIEN canta. Un boton en una pagina
@@ -175,12 +176,6 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   premioLinea: SIN_PREMIO,
   premioBingo: SIN_PREMIO
 };
-
-// Lo que se le deja a quien canta despues de que salga la bola siguiente. El
-// directo de Twitch llega al espectador con varios segundos de retraso: sin
-// esto, quien canta en cuanto VE la bola llegaria siempre tarde si el streamer
-// saca la siguiente rapido.
-export const GRACIA_MS = 8000;
 
 // --- Estado -------------------------------------------------------------
 
@@ -628,14 +623,11 @@ export function sacar(uid: string, azar: () => number = Math.random): { bola: nu
 // eso: cantar linea con el carton lleno vale, porque tiene linea; cantar bingo
 // con solo una linea es cantar en falso, y descalifica.
 //
-// Se juzga por la bola con la que completo, no por lo que tiene ahora:
+// Gana el primero que lo cante teniendolo, sin mirar con que bola lo completo.
+// Antes habia que cantarlo con la bola que lo completaba (y los empates con la
+// misma bola ganaban los dos); con el carton marcado a mano eso dejaba sin
+// premio a quien lo tenia y tardaba un poco en verlo.
 //
-//  - A tiempo es haberlo completado con la ultima bola, o con la penultima si
-//    la ultima acaba de salir (GRACIA_MS). Quien completo con la penultima y
-//    canta en cuanto lo VE no tiene la culpa del retraso del directo.
-//  - Si dos completan con la misma bola, ganan los dos. Por eso, cuando alguien
-//    gana, la fase no se cierra para los que completaron con esa misma bola:
-//    se les sigue dejando cantar mientras sigan a tiempo.
 // Por que no se puede cantar, cuando cantar() no apunta nada. En el chat da
 // igual (no se contesta), pero desde el panel el streamer tiene que saberlo:
 // antes salia siempre «no tiene carton en juego, o no hay nada que cantar».
@@ -670,9 +662,6 @@ export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahor
   if (!jugador || jugador.descalificado) return null;
 
   const total = partida.salidas.length;
-  const ultimaEn = partida.salidasEn[total - 1] || 0;
-  const enGracia = ahora - ultimaEn < GRACIA_MS;
-  const aTiempo = (k: number) => k > 0 && (k === total || (enGracia && k === total - 1));
   const yaGano = (que: 'linea' | 'bingo') => partida.cantos.some((c) => c.nombre === jugador.nombre && c.que === que);
 
   // Volverlo a escribir despues de ganarlo (el chat repite mucho) no es
@@ -681,28 +670,24 @@ export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahor
   // Cantar lo que no se juega no es mentir: no hay nada que ganar.
   if (que === 'linea' && !juegaLinea(partida)) return null;
   if (que === 'bingo' && !juegaBingo(partida)) return null;
+  // Con la partida acabada ya no se gana nada: ni se apunta.
+  if (partida.fase === 'fin') return null;
 
-  const bolaGanadora = que === 'linea' ? partida.lineaBola : partida.bingoBola;
-  // Con varios cartones se mira cada uno: si alguno lo tiene a tiempo, gana con
-  // ese; si no, el que lo completo mas tarde, para decir si llega tarde.
-  const vale = (k: number) => aTiempo(k) && (!bolaGanadora || k === bolaGanadora);
-  // En la linea, TODAS las lineas de cada carton: vale cualquiera que se haya
-  // completado a tiempo, no solo la primera.
+  // Con que bola lo tiene, en cualquiera de sus cartones (0 = no lo tiene). En
+  // la linea se mira cualquier fila o columna de cualquier carton.
   const todos = que === 'linea'
     ? jugador.cartones.flatMap((c) => lineasCon(c, partida.salidas))
     : jugador.cartones.map((c) => completadoCon(c, partida.salidas, que));
-  const con = todos.find(vale) ?? Math.max(0, ...todos);
+  const con = Math.max(0, ...todos);
+  // Si otro lo canto antes, ya es suyo.
+  const yaEsDeOtro = partida.cantos.some((c) => c.que === que);
 
   let resultado: Canto['que'];
-  if (vale(con)) {
-    // A tiempo, y nadie lo habia ganado antes (o lo gano con la misma bola).
+  if (con > 0 && !yaEsDeOtro) {
+    // El primero que lo canta teniendolo.
     resultado = que;
-  } else if (partida.fase === 'fin') {
-    // Ya se canto bingo: lo que llegue ahora no es mentir, es llegar tarde a
-    // una partida acabada. Ni se apunta.
-    return null;
   } else if (con > 0) {
-    // Lo tiene, pero se le paso, o ya se lo llevo otro antes.
+    // Lo tiene, pero otro lo canto antes.
     resultado = 'tarde';
   } else {
     resultado = 'falso';
@@ -733,23 +718,15 @@ export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahor
     partida.bingoBola = conBingo;
     partida.fase = 'fin';
     crono.quitar(uid);
-    // Se sigue escuchando un rato por si otro completo con la misma bola y
-    // todavia no le ha llegado el directo.
-    const t = setTimeout(() => {
-      if (partidas.get(uid) === partida) cerrarEscucha(uid);
-    }, GRACIA_MS);
-    t.unref?.();
+    // El carton lleno es del primero: ya no hay nada mas que cantar.
+    cerrarEscucha(uid);
   } else if (resultado === 'linea') {
     partida.lineaBola = conLinea;
     if (partida.fase === 'linea') partida.fase = juegaBingo(partida) ? 'bingo' : 'fin';
     if (partida.fase === 'fin') {
-      // Solo se jugaba la linea: se acaba aqui, como con el bingo, pero se
-      // sigue escuchando un rato por si otro la hizo con la misma bola.
+      // Solo se jugaba la linea, y la linea es del primero: se acaba aqui.
       crono.quitar(uid);
-      const t = setTimeout(() => {
-        if (partidas.get(uid) === partida) cerrarEscucha(uid);
-      }, GRACIA_MS);
-      t.unref?.();
+      cerrarEscucha(uid);
     }
   } else if (partida.jugadores.every((j) => j.descalificado)) {
     // Todos fuera: no queda nadie que pueda ganar.
