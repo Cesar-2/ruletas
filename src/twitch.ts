@@ -60,6 +60,8 @@ interface TwitchCuenta {
   fijarAviso?: boolean;
   // La recompensa que vende cartones del bingo, tal como se creo en Twitch.
   bingoRecompensa?: RecompensaBingo;
+  // El state de la autorizacion en curso. Ver urlDeAutorizacion.
+  oauthState?: { secreto: string; caduca: number };
 }
 
 export interface RecompensaBingo {
@@ -88,8 +90,6 @@ let redireccion = 'http://localhost:3000/api/twitch/callback';
 
 // Las conexiones abiertas, una por usuario conectado.
 const sockets = new Map<string, WebSocket>();
-// Los "state" de OAuth que estan en vuelo, para saber de quien es la vuelta.
-const enVuelo = new Map<string, { uid: string; caduca: number }>();
 
 // Si ese usuario ha puesto las credenciales de su app.
 export function hayCredenciales(uid: string): boolean {
@@ -147,13 +147,18 @@ export function borrarCuenta(uid: string): void {
 
 // La direccion a la que se manda al usuario para que autorice. El "state" es
 // un valor de un solo uso: sin el, cualquiera podria completar la vuelta.
+//
+// Se guarda en el archivo de la cuenta, no en memoria. Antes vivia en un Map,
+// y con «npm run dev» el servidor se reinicia solo al cambiar el codigo: si
+// eso pasaba mientras el usuario estaba en Twitch autorizando, a la vuelta el
+// state ya no existia y salia «Vuelta de Twitch no valida». El state lleva
+// delante de quien es («uid.secreto»), para saber que archivo mirar.
 export function urlDeAutorizacion(uid: string): string {
   const cuenta = leerCuenta(uid);
   if (!cuenta?.clientId) throw new Error('falta el Client ID de tu app de Twitch');
-  const state = crypto.randomBytes(16).toString('hex');
-  const ahora = Date.now();
-  for (const [k, v] of enVuelo) if (v.caduca < ahora) enVuelo.delete(k);
-  enVuelo.set(state, { uid, caduca: ahora + 10 * 60 * 1000 });
+  const secreto = crypto.randomBytes(16).toString('hex');
+  const state = uid + '.' + secreto;
+  guardarCuenta(uid, { ...cuenta, oauthState: { secreto, caduca: Date.now() + 10 * 60 * 1000 } });
 
   const p = new URLSearchParams({
     client_id: cuenta.clientId,
@@ -166,10 +171,22 @@ export function urlDeAutorizacion(uid: string): string {
 }
 
 export function uidDelState(state: string): string | null {
-  const reg = enVuelo.get(state);
-  if (!reg || reg.caduca < Date.now()) return null;
-  enVuelo.delete(state);   // de un solo uso
-  return reg.uid;
+  const corte = String(state || '').lastIndexOf('.');
+  if (corte <= 0) return null;
+  const uid = state.slice(0, corte);
+  const secreto = state.slice(corte + 1);
+  // El uid viene de fuera: que no sirva para salirse de la carpeta de datos.
+  if (!secreto || /[\\/]|\.\./.test(uid)) return null;
+  const cuenta = leerCuenta(uid);
+  const esperado = cuenta?.oauthState;
+  if (!cuenta || !esperado || esperado.caduca < Date.now()) return null;
+  const a = Buffer.from(esperado.secreto);
+  const b = Buffer.from(secreto);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  // De un solo uso.
+  const { oauthState, ...sin } = cuenta;
+  guardarCuenta(uid, sin);
+  return uid;
 }
 
 // Cambia el codigo de la vuelta por los tokens y deja la cuenta guardada.

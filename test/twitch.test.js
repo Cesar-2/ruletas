@@ -279,6 +279,44 @@ test('sin ser afiliado, crear la recompensa lo dice claro', async (t) => {
   assert.match(r.error, /afiliados o partner/);
 });
 
+// --- La vuelta de la autorizacion ---
+
+test('la vuelta de Twitch sigue valiendo aunque el servidor se reinicie', (t) => {
+  // El fallo: el state vivia en memoria, y «npm run dev» reinicia el servidor
+  // al cambiar el codigo. Si pasaba mientras se autorizaba en Twitch, a la
+  // vuelta salia «Vuelta de Twitch no valida».
+  const c = carpeta();
+  t.after(c.quitar);
+  let twitch = montar(c.raiz, CUENTA);
+  const state = new URL(twitch.urlDeAutorizacion('u1')).searchParams.get('state');
+  twitch = montar(c.raiz, null);   // reinicio: el modulo se carga de nuevo
+  assert.strictEqual(twitch.uidDelState(state), 'u1');
+  assert.strictEqual(twitch.uidDelState(state), null, 'y solo vale una vez');
+});
+
+test('una vuelta con un state falso o raro no vale', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const state = new URL(twitch.urlDeAutorizacion('u1')).searchParams.get('state');
+  assert.strictEqual(twitch.uidDelState('u1.' + 'f'.repeat(32)), null, 'otro secreto');
+  assert.strictEqual(twitch.uidDelState('../u1.' + state.split('.').pop()), null, 'salirse de la carpeta');
+  assert.strictEqual(twitch.uidDelState(''), null);
+  assert.strictEqual(twitch.uidDelState('sinpunto'), null);
+  assert.strictEqual(twitch.uidDelState(state), 'u1', 'el bueno sigue valiendo');
+});
+
+test('la vuelta caduca a los diez minutos', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const state = new URL(twitch.urlDeAutorizacion('u1')).searchParams.get('state');
+  const cuenta = twitch.leerCuenta('u1');
+  cuenta.oauthState.caduca = Date.now() - 1;
+  fs.writeFileSync(path.join(c.raiz, 'u1', 'twitch.json'), JSON.stringify(cuenta));
+  assert.strictEqual(twitch.uidDelState(state), null);
+});
+
 test('se piden los permisos de escribir y fijar', (t) => {
   const c = carpeta();
   t.after(c.quitar);

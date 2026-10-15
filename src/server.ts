@@ -1202,10 +1202,25 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
 app.get('/api/twitch/callback', async (req: Request, res: Response) => {
   const code = String(req.query.code || '');
   const state = String(req.query.state || '');
+  // Lo que salga mal se cuenta en Configuracion › Twitch, con el motivo: antes
+  // era una pagina en blanco con «Vuelta de Twitch no valida» para todo.
+  const fallo = (motivo: string) =>
+    res.redirect('/?twitch=error&motivo=' + encodeURIComponent(motivo.slice(0, 300)));
+
+  // Twitch vuelve sin code y con «error» si no se autorizo (cancelar, un
+  // permiso que no da, una Redirect URL que no cuadra...).
+  const errorTwitch = String(req.query.error || '');
+  if (errorTwitch) {
+    console.error('Twitch: la autorizacion volvio con error:', errorTwitch, req.query.error_description || '');
+    return fallo('Twitch no dio permiso: ' + String(req.query.error_description || errorTwitch));
+  }
+
   const uid = state ? twitch.uidDelState(state) : null;
   // Sin un "state" valido no se sigue: es lo unico que ata esta vuelta a
   // quien empezo el alta.
-  if (!uid || !code) return res.status(400).send('Vuelta de Twitch no valida. Vuelve a intentarlo desde Configuracion.');
+  if (!uid || !code) {
+    return fallo('la vuelta de Twitch no se pudo comprobar: pasaron más de 10 minutos, o ese enlace ya se usó. Pulsa otra vez «Conectar con Twitch».');
+  }
 
   try {
     await twitch.completarAlta(uid, code);
@@ -1213,7 +1228,7 @@ app.get('/api/twitch/callback', async (req: Request, res: Response) => {
     res.redirect('/?twitch=ok');
   } catch (err) {
     console.error('Failed to connect Twitch:', err);
-    res.redirect('/?twitch=error');
+    fallo((err as Error).message || 'Twitch no aceptó la autorización');
   }
 });
 

@@ -128,7 +128,11 @@
       if (como === 'ok') {
         showAlert('Twitch conectado', 'Listo. Al abrir la inscripción de un minijuego se fijará el aviso en tu chat.');
       } else {
+        // El motivo lo pone el servidor: lo que dijo Twitch, o por qué no se
+        // pudo comprobar la vuelta.
+        const motivo = p.get('motivo');
         showAlert('No se pudo conectar Twitch',
-          'Twitch no aceptó la autorización. Revisa que la Redirect URL de tu app sea exactamente la que sale en Configuración › Twitch, y que el Client Secret sea el bueno.');
+          (motivo ? 'Motivo: ' + motivo + '. ' : '')
+          + 'Revisa que la Redirect URL de tu app sea exactamente la que sale en Configuración › Twitch, y que el Client Secret sea el bueno.');
       }
     })();
