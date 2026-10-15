@@ -15,7 +15,52 @@
         return;
       }
       pintarTwitch();
+      cargarCanje();
     }
+
+    // La Ruleta de objetos: lo de los puntos del canal va en la cuenta de
+    // Twitch; lo de los puntos de la página, aparte (/api/canje-objetos).
+    async function cargarCanje() {
+      try {
+        const c = await api('/api/canje-objetos');
+        document.getElementById('canjeCoste').value = c.coste || 0;
+        document.getElementById('canjePalabra').value = c.palabra || '';
+      } catch (e) {
+        console.warn('No se pudo leer el canje con puntos:', e.message);
+      }
+      const e = twitchEstado;
+      if (!e) return;
+      document.getElementById('canjeRecompensa').value = e.recompensa || '';
+      document.getElementById('canjeObjetos').value = e.objetos || 1;
+    }
+
+    document.getElementById('canjeGuardar').addEventListener('click', async () => {
+      const aviso = document.getElementById('canjeGuardado');
+      const json = (cuerpo) => ({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cuerpo)
+      });
+      try {
+        twitchEstado = await api('/api/twitch/config', json({
+          recompensa: document.getElementById('canjeRecompensa').value.trim(),
+          objetos: Number(document.getElementById('canjeObjetos').value) || 1
+        }));
+        const c = await api('/api/canje-objetos', json({
+          coste: Number(document.getElementById('canjeCoste').value) || 0,
+          palabra: document.getElementById('canjePalabra').value.trim()
+        }));
+        document.getElementById('canjeCoste').value = c.coste || 0;
+        document.getElementById('canjePalabra').value = c.palabra || '';
+        pintarTwitch();
+        aviso.textContent = c.coste > 0 && !c.escuchando
+          ? 'Guardado, pero no hay canal en tu perfil: ponlo en Configuración › Mi cuenta.'
+          : 'Guardado.';
+        setTimeout(() => { aviso.textContent = ''; }, 5000);
+      } catch (e) {
+        showAlert('No se pudo guardar', e.message);
+      }
+    });
 
     function pintarTwitch() {
       const e = twitchEstado;

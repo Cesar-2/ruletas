@@ -2085,6 +2085,37 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
             <p class="meta">Si conectaste antes de que existieran los avisos, pulsa <strong>Volver a conectar</strong>: hace falta un permiso nuevo para escribir en el chat. Los canjes de puntos de canal no hacen nada mientras no haya una recompensa configurada.</p>
           </div>
+
+          <!-- La Ruleta de objetos se paga de dos formas: canjeando una
+               recompensa de puntos de canal, o escribiendo la palabra en el chat
+               con puntos del marcador. Ver src/canjeobjetos.ts. -->
+          <div class="config-section">
+            <h4>🎡 Jugar a la Ruleta de objetos</h4>
+            <p class="meta">Los espectadores pueden pagar una tirada de la Ruleta de objetos <strong>con puntos del canal</strong> o <strong>con puntos de la página</strong> (los del marcador, que se ganan en la carrera, la batalla y el plinko). Las dos monedas van por separado: Twitch no deja convertir unos puntos en otros.</p>
+            <div class="config-grid">
+              <div class="config-field">
+                <label for="canjeRecompensa">Con puntos del canal: título de la recompensa (vacío = apagado)</label>
+                <input id="canjeRecompensa" type="text" maxlength="80" placeholder="Ruleta de objetos" />
+              </div>
+              <div class="config-field">
+                <label for="canjeCoste">Con puntos de la página: puntos por tirada (0 = apagado)</label>
+                <input id="canjeCoste" type="number" min="0" max="1000000" step="1" value="0" />
+              </div>
+              <div class="config-field">
+                <label for="canjePalabra">Palabra en el chat para pagar con puntos de la página</label>
+                <input id="canjePalabra" type="text" maxlength="30" placeholder="!objeto" />
+              </div>
+              <div class="config-field">
+                <label for="canjeObjetos">Objetos por tirada</label>
+                <input id="canjeObjetos" type="number" min="1" max="10" step="1" value="1" />
+              </div>
+            </div>
+            <div class="config-actions">
+              <button type="button" id="canjeGuardar">Guardar</button>
+              <span class="meta" id="canjeGuardado"></span>
+            </div>
+            <p class="meta">La recompensa de puntos del canal la creas tú en Twitch con ese mismo título, y hace falta tener Twitch conectado. Para los puntos de la página basta con el canal de tu perfil: si no le llegan, no se le cobra nada, y si no quedan objetos se le devuelven.</p>
+          </div>
           </div>
 
           <div class="cfg-tabpanel" id="cfgtab-minijuegos">

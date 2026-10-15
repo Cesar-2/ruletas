@@ -11,6 +11,7 @@ import * as estadisticas from './estadisticas';
 import * as batalla from './batalla';
 import * as colina from './colina';
 import * as ruletachat from './ruletachat';
+import * as canjeobjetos from './canjeobjetos';
 import * as catalogo from './catalogo';
 import * as widget from './widget';
 import * as avisos from './avisos';
@@ -1534,6 +1535,8 @@ app.patch('/api/auth/profile', (req: Request, res: Response) => {
     }
 
     writeUsers(users);
+    // El canje con puntos escucha el chat del perfil: si cambia, se cambia.
+    if (typeof body.twitchCanal === 'string') canjeobjetos.rehacer(yo.id);
     res.json({ user: datosPublicos(yo) });
   } catch (err) {
     console.error('Failed to update profile:', err);
@@ -2821,6 +2824,19 @@ app.post('/api/twitch/config', (req: Request, res: Response) => {
   res.json(twitch.estado(uid, redireccionTwitch(req)));
 });
 
+// La Ruleta de objetos pagando con puntos de la pagina. Ver canjeobjetos.ts.
+// GET /api/canje-objetos -> { palabra, coste, escuchando, chat }
+app.get('/api/canje-objetos', (req: Request, res: Response) => {
+  res.json(canjeobjetos.estado(requireUid(req)));
+});
+
+// POST /api/canje-objetos  Body: { palabra?, coste? }
+app.post('/api/canje-objetos', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  canjeobjetos.guardarAjustes(uid, req.body || {});
+  res.json(canjeobjetos.estado(uid));
+});
+
 // POST /api/twitch/disconnect -> corta y olvida las credenciales guardadas
 app.post('/api/twitch/disconnect', (req: Request, res: Response) => {
   const uid = requireUid(req);
@@ -2967,6 +2983,27 @@ twitch.iniciar(
     clientSecret: process.env.TWITCH_CLIENT_SECRET,
     usuarios: readUsers().map((u) => u.id)
   }
+);
+
+// La Ruleta de objetos tambien se juega con los puntos del marcador: sortea
+// igual que un canje de puntos de canal, del mismo servidor y con los mismos
+// objetos por tirada.
+canjeobjetos.iniciar(
+  {
+    userDir,
+    ensureUserDir,
+    writeJson,
+    canalDe,
+    gastarPuntos: carrera.gastarPuntos,
+    sumarPuntos: carrera.sumarPuntos,
+    sortear: (uid: string, nombre: string) => {
+      const cuenta = twitch.leerCuenta(uid);
+      const sid = cuenta?.servidor || readServers(uid, juegos.JUEGO_POR_DEFECTO)[0]?.id || '';
+      return sortearParaTwitch(uid, sid, nombre, cuenta?.objetos || 1);
+    },
+    decir: (uid: string, texto: string) => { void twitch.decir(uid, canalDe(uid), texto); }
+  },
+  readUsers().map((u) => u.id)
 );
 
 rehacerRondasVivas();

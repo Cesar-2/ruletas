@@ -649,6 +649,24 @@ export async function fijarAviso(uid: string, canal: string, texto: string, segu
   }
 }
 
+// Escribe en el chat sin fijar, para contestar a un espectador. Como el aviso,
+// solo si la cuenta conectada es la del canal del perfil. No lanza nunca.
+export async function decir(uid: string, canal: string, texto: string): Promise<boolean> {
+  try {
+    const cuenta = leerCuenta(uid);
+    if (!cuenta?.refreshToken) return false;
+    if (canal && cuenta.login && canal.trim().toLowerCase() !== cuenta.login.toLowerCase()) return false;
+    const r = await helix(uid, 'POST', '/chat/messages', {
+      broadcaster_id: cuenta.userId,
+      sender_id: cuenta.userId,
+      message: texto.slice(0, 500)
+    });
+    return r.ok;
+  } catch (err) {
+    return false;
+  }
+}
+
 // --- Arranque -----------------------------------------------------------
 
 export function iniciar(d: Dependencias, opciones: { redirect?: string; usuarios: string[]; clientId?: string; clientSecret?: string }): void {
