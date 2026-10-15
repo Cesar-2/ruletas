@@ -12,6 +12,7 @@ import * as batalla from './batalla';
 import * as colina from './colina';
 import * as ruletachat from './ruletachat';
 import * as canjeobjetos from './canjeobjetos';
+import * as adivina from './adivina';
 import * as catalogo from './catalogo';
 import * as widget from './widget';
 import * as avisos from './avisos';
@@ -1932,6 +1933,19 @@ app.get('/api/widget/colina', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/widget/adivina?clave= -> las pistas y, al acabar, la palabra
+// La palabra no sale de aqui mientras se juega: ver adivina.estadoPublico().
+app.get('/api/widget/adivina', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  try {
+    res.json(adivina.estadoPublico(uid));
+  } catch (err) {
+    console.error('Failed to serve adivina widget:', err);
+    res.status(500).json({ error: 'failed to get widget state' });
+  }
+});
+
 // POST /api/sorteo/olvidar -> tira el ultimo sorteo
 // La pagina lo llama al descartar el resultado: si no, el widget seguiria
 // ensenando un premio que ya no esta en pantalla.
@@ -2919,6 +2933,24 @@ minijuegos.iniciar({
   // en el estado de Twitch para ensenarlo en Configuracion.
   fijarAviso: (uid, canal, texto, segundos) => { void twitch.fijarAviso(uid, canal, texto, segundos); }
 });
+// Adivina la palabra: puntos al marcador de la carrera y el premio a Ganadores,
+// como el bingo. Las pistas, y luego quien acierta, se fijan en el chat.
+adivina.iniciar({
+  userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos,
+  alCambiar: (uid) => avisos.cambio(uid, 'adivina'),
+  apuntarGanador: (ambito, nombre, premio) => {
+    apuntarGanador(ambito, nombre.trim().slice(0, 120), premio.kamas, [{
+      id: 'adivina',
+      name: (premio.texto || 'Kamas') + ' · Adivina la palabra',
+      value: premio.kamas,
+      icon: premio.texto ? iconoValido(premio.imagen) : '/assets/kama.png'
+    }]);
+    return true;
+  },
+  // Las pistas se quedan fijadas media hora, que es lo que deja Twitch.
+  fijar: (uid, texto, segundos) => { void twitch.fijarAviso(uid, canalDe(uid), texto, segundos || 1800); },
+  alAcabar: (uid, jugadores) => estadisticas.apuntar('adivina', uid, jugadores)
+});
 // El rey de la colina no reparte nada: solo guarda su palabra y su record.
 colina.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'colina') });
 // La batalla reparte en el mismo marcador que la carrera.
@@ -2944,6 +2976,7 @@ function rehacerRondasVivas(): void {
     ['carrera', carrera.rehacer],
     ['plinko', plinko.rehacer],
     ['bingo', bingo.rehacer],
+    ['adivina', adivina.rehacer],
     ['batalla', batalla.rehacer],
     ['colina', colina.rehacer],
     ['nombres', ruletachat.rehacer],

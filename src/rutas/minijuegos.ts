@@ -26,6 +26,7 @@ import * as bingo from '../bingo';
 import * as colina from '../colina';
 import * as batalla from '../batalla';
 import * as ruletachat from '../ruletachat';
+import * as adivina from '../adivina';
 import * as estadisticas from '../estadisticas';
 import * as excel from '../excel';
 import * as arte from '../arte';
@@ -438,6 +439,83 @@ router.post('/api/batalla/entrar', (req: Request, res: Response) => {
   const r = batalla.entrar(uid, String(req.body?.nombre || ''));
   if (!r.ok) return res.status(409).json({ error: r.error });
   res.json(batalla.estado(uid));
+});
+
+// --- Adivina la palabra ------------------------------------------------
+// La palabra va en el estado: estas rutas son del streamer, con su sesion. El
+// widget lee otra cosa sin la palabra (ver /api/widget/adivina en server.ts).
+
+// GET /api/adivina -> la partida, con la palabra, y los ajustes
+router.get('/api/adivina', (req: Request, res: Response) => {
+  res.json(adivina.estado(ctx.requireUid(req)));
+});
+
+// POST /api/adivina/abrir  Body: { palabra, pista?, letras? }
+router.post('/api/adivina/abrir', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  const canal = ctx.canalDe(uid);
+  if (!canal) {
+    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  }
+  // El premio va a Ganadores del servidor en el que se empieza.
+  const r = adivina.abrir(uid, canal, {
+    palabra: req.body?.palabra, pista: req.body?.pista, letras: req.body?.letras,
+    ambito: ctx.resolveServer(req)
+  });
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  // El aviso del chat lo fija el propio juego, con las pistas que vaya dando.
+  res.json(adivina.estado(uid));
+});
+
+// POST /api/adivina/pista  Body: { texto?, dataUrl? }
+// La imagen llega como dataUrl y se guarda con las demas imagenes subidas.
+router.post('/api/adivina/pista', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  let imagen = '';
+  if (req.body?.dataUrl) {
+    const guardada = ctx.guardarImagen(req.body.dataUrl, 'adivina');
+    if (guardada.error) return res.status(guardada.code || 400).json({ error: guardada.error });
+    imagen = guardada.url || '';
+  }
+  const r = adivina.darPista(uid, req.body?.texto, imagen);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json(adivina.estado(uid));
+});
+
+// POST /api/adivina/quitar-pista  Body: { cual }
+router.post('/api/adivina/quitar-pista', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  adivina.quitarPista(uid, req.body?.cual);
+  res.json(adivina.estado(uid));
+});
+
+// POST /api/adivina/acertada  Body: { nombre } -> darsela a alguien a mano
+router.post('/api/adivina/acertada', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  const r = adivina.darPorAcertada(uid, req.body?.nombre);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json(adivina.estado(uid));
+});
+
+// POST /api/adivina/revelar -> nadie la saca: se acaba y se ensena
+router.post('/api/adivina/revelar', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  adivina.revelar(uid);
+  res.json(adivina.estado(uid));
+});
+
+// POST /api/adivina/cancelar -> se olvida la partida
+router.post('/api/adivina/cancelar', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  adivina.cancelar(uid);
+  res.json(adivina.estado(uid));
+});
+
+// POST /api/adivina/config  Body: { puntos?, premio? }
+router.post('/api/adivina/config', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  adivina.guardarAjustes(uid, req.body || {});
+  res.json(adivina.estado(uid));
 });
 
 // --- Rey de la colina ---------------------------------------------------

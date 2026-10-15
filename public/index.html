@@ -765,6 +765,22 @@
     .bingo-mini{padding:.5rem 0 .3rem .7rem}
     /* El objeto del catálogo que se lleva quien gane, con su icono. */
     .bingo-objeto{display:inline-flex;align-items:center;gap:.35rem;font-size:13px}
+    /* --- Adivina la palabra -------------------------------------------- */
+    .adivina-secreta{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin:.4rem 0 .6rem}
+    .adivina-secreta #adivinaSecreta{font-size:1.4rem;font-weight:800;letter-spacing:.04em}
+    .adivina-secreta #adivinaSecreta.tapada{letter-spacing:.2em;color:var(--muted)}
+    .adivina-forma{font-family:ui-monospace,Consolas,monospace;font-size:1.3rem;letter-spacing:.08em;margin:.2rem 0 .6rem;white-space:pre-wrap}
+    .adivina-pistas{margin:.4rem 0 .8rem;padding-left:1.6rem;display:flex;flex-direction:column;gap:.35rem}
+    .adivina-pistas li{font-size:1.05rem;line-height:1.35}
+    .adivina-pistas li button{margin-left:.5rem;padding:.05rem .45rem;font-size:12px;box-shadow:none;
+      background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
+    .adivina-pistas li img{display:block;max-width:220px;max-height:140px;border-radius:8px;margin-top:.3rem;object-fit:contain}
+    .adivina-pendiente{display:flex;align-items:center;gap:.6rem;margin:.2rem 0 .6rem}
+    .adivina-pendiente[hidden]{display:none}
+    .adivina-pendiente img{max-width:120px;max-height:80px;border-radius:8px;object-fit:contain}
+    .adivina-pendiente button{padding:.1rem .45rem;font-size:12px;box-shadow:none;background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
+    .adivina-ultimos{font-size:13px;color:var(--muted);margin-top:.4rem;line-height:1.6}
+    .adivina-ultimos b{color:#e6eef8;font-weight:600}
     .bingo-objeto:empty{display:none}
     .bingo-objeto img{width:28px;height:28px;object-fit:contain}
     .bingo-objeto button{padding:.1rem .45rem;font-size:12px;box-shadow:none;background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
@@ -1243,6 +1259,59 @@
             <button type="button" class="subtab" data-game="plinko">🎯 Tablero de clavijas</button>
             <button type="button" class="subtab" data-game="colina">👑 Rey de la colina</button>
             <button type="button" class="subtab" data-game="bingo">🎱 Bingo</button>
+            <button type="button" class="subtab" data-game="adivina">🔤 Adivina la palabra</button>
+          </div>
+
+          <div class="game-subpanel" id="game-adivina-panel">
+          <section>
+            <h3>🔤 Adivina la palabra</h3>
+            <p class="meta">Tú eliges una palabra en secreto y vas dando pistas; <strong>el primero que la escriba en tu chat se lleva el premio</strong>. Da igual que la escriban con o sin tildes, en mayúsculas o con algo más («¿es perro?»), pero no vale soltar una lista de palabras a ver si cae alguna. Lo que escribas tú en tu chat no cuenta. Cada pista puede llevar una <strong>imagen</strong> que tenga que ver: sale en grande en el widget de OBS. Las pistas salen en el widget y, con Twitch conectado, <strong>se fijan arriba en tu chat</strong>, todas juntas en un mismo mensaje. Los puntos y el premio se ajustan en <strong>Configuración › Minijuegos › Adivina la palabra</strong>.</p>
+
+            <!-- La palabra se escribe tapada: esta pantalla se suele compartir
+                 en el directo, y se la estarías chivando al chat. -->
+            <div id="adivinaNueva">
+              <div class="draw-controls">
+                <label class="meta" for="adivinaPalabra">Palabra secreta</label>
+                <input id="adivinaPalabra" type="password" maxlength="60" autocomplete="off" spellcheck="false" style="width:200px" />
+                <button type="button" id="adivinaVerNueva" class="btn-cancel" title="Enseñar u ocultar lo escrito">👁</button>
+                <label class="names-check"><input type="checkbox" id="adivinaLetras" /> <span>Enseñar cuántas letras tiene</span></label>
+              </div>
+              <div class="draw-controls">
+                <input id="adivinaPrimera" type="text" maxlength="200" placeholder="Primera pista (opcional)" aria-label="Primera pista" style="flex:1;min-width:220px" />
+                <button type="button" id="adivinaEmpezar">Empezar</button>
+              </div>
+            </div>
+            <p class="meta" id="adivinaEstado">Sin partida.</p>
+
+            <div id="adivinaJuego" hidden>
+              <div class="adivina-secreta">
+                <span class="meta">Palabra:</span>
+                <span id="adivinaSecreta" class="tapada">••••••</span>
+                <button type="button" id="adivinaVer" class="btn-cancel">👁 Ver</button>
+              </div>
+              <div class="adivina-forma" id="adivinaForma" hidden></div>
+              <ol class="adivina-pistas" id="adivinaPistas"></ol>
+              <div class="draw-controls" id="adivinaPistaFila">
+                <input id="adivinaPista" type="text" maxlength="200" placeholder="Siguiente pista (puedes pegar una imagen)" aria-label="Siguiente pista" style="flex:1;min-width:220px" />
+                <button type="button" id="adivinaImagen" class="btn-cancel" title="Poner una imagen que tenga que ver">🖼 Imagen</button>
+                <input id="adivinaImagenArchivo" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+                <button type="button" id="adivinaDarPista">Dar pista</button>
+              </div>
+              <div class="adivina-pendiente" id="adivinaPendiente" hidden>
+                <img id="adivinaPendienteImg" alt="Imagen de la próxima pista" />
+                <span class="meta">Irá con la próxima pista.</span>
+                <button type="button" id="adivinaPendienteQuitar" title="Quitar la imagen">✕</button>
+              </div>
+              <div class="adivina-ultimos" id="adivinaUltimos" hidden></div>
+              <div id="adivinaGanador" class="ganador-grande" hidden></div>
+              <div class="controls" style="margin-top:.8rem" id="adivinaMandos">
+                <input id="adivinaNombre" type="text" placeholder="Quién la ha acertado" aria-label="Nombre" />
+                <button type="button" id="adivinaAcertada">Dar por acertada</button>
+                <button type="button" id="adivinaRevelar" class="btn-cancel">Revelar: nadie la saca</button>
+                <button type="button" id="adivinaCancelar" class="btn-cancel">Cancelar</button>
+              </div>
+            </div>
+          </section>
           </div>
 
           <div class="game-subpanel" id="game-bingo-panel">
@@ -2129,6 +2198,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               <button type="button" class="subtab" data-mini="batalla">⚔️ Batalla Dofus</button>
               <button type="button" class="subtab" data-mini="plinko">🎯 Tablero de clavijas</button>
               <button type="button" class="subtab" data-mini="bingo">🎱 Bingo</button>
+              <button type="button" class="subtab" data-mini="adivina">🔤 Adivina la palabra</button>
             </div>
 
             <div class="cfg-subpanel active" id="mini-ruleta-panel">
@@ -2262,6 +2332,23 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               <span class="meta" id="bingoGuardado"></span>
             </div>
             <p class="meta">El premio se apunta solo en Ganadores cuando alguien canta bien, en el servidor en el que estés al abrir la partida. Lo que cambies aquí vale para la próxima partida.</p>
+            </div>
+
+            <!-- Lo que se lleva quien acierta. Como el bingo, con su propio
+                 Guardar: la barra de abajo es la de la Carrera. -->
+            <div class="cfg-subpanel" id="mini-adivina-panel">
+            <h4>Premio de Adivina la palabra</h4>
+            <div class="draw-controls">
+              <label class="meta" for="adivinaPuntos">Puntos al que acierta</label>
+              <input id="adivinaPuntos" type="number" min="0" max="1000000" value="20" style="width:100px" />
+              <label class="meta" for="adivinaKamas">Premio</label>
+              <input id="adivinaKamas" type="number" min="0" max="10000000000" placeholder="kamas" style="width:110px" />
+              <span class="bingo-objeto" id="adivinaObjeto"></span>
+              <button type="button" id="adivinaElegir">Elegir objeto</button>
+              <button type="button" id="adivinaGuardar">Guardar</button>
+              <span class="meta" id="adivinaGuardado"></span>
+            </div>
+            <p class="meta">Los puntos van al marcador, como en la carrera. Las kamas y el objeto se apuntan solos en Ganadores, en el servidor en el que estés al empezar la partida. Lo que cambies aquí vale para la próxima partida.</p>
             </div>
 
             <!-- El tablero se ajusta aquí entero: cómo es (las filas), qué vale
@@ -4699,7 +4786,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       { id: 'batalla', nombre: '⚔️ Batalla Dofus' },
       { id: 'colina', nombre: '👑 Rey de la colina' },
       { id: 'nombres', nombre: '🎡 Ruleta de nombres' },
-      { id: 'bingo', nombre: '🎱 Bingo' }
+      { id: 'bingo', nombre: '🎱 Bingo' },
+      { id: 'adivina', nombre: '🔤 Adivina la palabra' }
     ];
 
     function urlWidget(cual) {
@@ -6239,6 +6327,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (cual === 'plinko') cargarPlinko();
         if (cual === 'colina') cargarColina();
         if (cual === 'bingo') { cargarBingo(); bingoVigilar(true); }
+        if (cual === 'adivina') { cargarAdivina(); adivinaVigilar(true); }
         ajustarAcciones();
       });
     });
@@ -6500,6 +6589,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
   <script src="/js/plinko-panel.js"></script>
   <script src="/js/bingo-dibujo.js"></script>
   <script src="/js/bingo-panel.js"></script>
+  <script src="/js/adivina-panel.js"></script>
   <script src="/js/twitch-panel.js"></script>
   <script>
     // --- Buscador de objetos del catálogo ---
@@ -7509,7 +7599,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // nada de eso (guarda la Carrera), así que marcar la pestaña como
       // pendiente por el tablero sería mentir, y encendería el botón
       // equivocado.
-      if (campo.closest('#mini-plinko-panel') || campo.closest('#mini-bingo-panel')) return;
+      if (campo.closest('#mini-plinko-panel') || campo.closest('#mini-bingo-panel') || campo.closest('#mini-adivina-panel')) return;
       const panel = campo.closest('.cfg-tabpanel');
       const cual = panel && panel.id.replace('cfgtab-', '');
       if (!cual || !CFG_GUARDAR[cual]) return;
@@ -7638,6 +7728,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     async function cargarMinijuegos() {
       // Los del bingo también viven aquí.
       if (typeof cargarBingo === 'function') cargarBingo();
+      if (typeof cargarAdivina === 'function') cargarAdivina();
       try {
         const c = await api('/api/carrera');
         document.getElementById('cfgCarreraAnimacion').value = c.ajustes?.animacion || 'caballos';

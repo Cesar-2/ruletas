@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Adivina la palabra · widget</title>
+<link rel="icon" href="data:," />
+<!--
+  El widget de Adivina la palabra, para OBS.  /widget/adivina.html?clave=XXXX
+
+  Mientras se juega enseña las pistas que van saliendo (y los huecos de las
+  letras, si el streamer lo eligió). Si alguna pista trae imagen, la última que
+  la trae sale en grande arriba: es la que el streamer acaba de enseñar. La palabra NO llega aquí hasta que la
+  partida acaba: el servidor no la manda (ver adivina.estadoPublico()), así que
+  no hay forma de sacarla mirando el código de la página.
+
+  Al acabar enseña quién la acertó y cuál era, un rato, y se va.
+-->
+<link rel="stylesheet" href="/css/widget.css" />
+<style>
+  .adivina { width: min(92vw, 760px); }
+  .titulo { font-size: 1.05rem; color: #9fb3c8; font-weight: 700; letter-spacing: .04em; }
+  .forma {
+    margin-top: .6rem;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: .1em;
+    white-space: pre-wrap;
+  }
+  .forma[hidden] { display: none; }
+  .pistas { list-style: none; margin: .8rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .45rem; }
+  .pistas li {
+    font-size: 1.25rem;
+    line-height: 1.35;
+    animation: entra .45s cubic-bezier(.2, 1.4, .4, 1) both;
+  }
+  .pistas li .n { color: #fbbf24; font-weight: 800; margin-right: .4rem; }
+  .foto { margin-top: .8rem; }
+  .foto[hidden] { display: none; }
+  .foto img {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    max-height: 42vh;
+    border-radius: 12px;
+    object-fit: contain;
+    animation: entra .45s cubic-bezier(.2, 1.4, .4, 1) both;
+  }
+  .pistas .mini { color: #9fb3c8; }
+  .pistas .vacia { color: #9fb3c8; font-size: 1.05rem; }
+  .ayuda { margin-top: .8rem; font-size: .95rem; color: #6ee7b7; }
+  .final .quien { display: block; font-size: 2.2rem; font-weight: 800; color: #fbbf24; margin-top: .2rem; }
+  .final .era { margin-top: .5rem; font-size: 1.3rem; }
+  .final .era b { color: #6ee7b7; }
+  .final .premio { margin-top: .4rem; font-size: 1rem; color: #9fb3c8; }
+  @keyframes entra { from { transform: translateY(8px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .pistas li { animation: none; } }
+</style>
+</head>
+<body>
+  <div id="todo">
+    <div class="panel adivina" id="panelJuego" hidden>
+      <div class="titulo">🔤 ADIVINA LA PALABRA</div>
+      <div class="forma" id="forma" hidden></div>
+      <div class="foto" id="foto" hidden><img id="fotoImg" alt="" /></div>
+      <ol class="pistas" id="pistas"></ol>
+      <div class="ayuda">Escribe en el chat lo que creas que es</div>
+    </div>
+    <div class="panel final" id="panelFinal" hidden>
+      <div id="finalTitulo">🎉 Lo ha adivinado</div>
+      <span class="quien" id="finalQuien"></span>
+      <div class="era">Era <b id="finalPalabra"></b></div>
+      <div class="premio" id="finalPremio" hidden></div>
+    </div>
+  </div>
+  <div id="espera" hidden>Widget conectado · esperando a que empieces una partida</div>
+  <div id="fallo" hidden></div>
+
+  <script src="/js/eventos.js"></script>
+  <script src="/js/widget-base.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const q = Widget.caja;
+    // Cuánto se queda el final en pantalla, en el reloj del servidor.
+    const FINAL_MS = 20000;
+    let reloj = null;
+
+    function escapar(t) {
+      return String(t == null ? '' : t).replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    const widget = Widget.arranca({
+      ruta: 'adivina',
+      pinta(e) {
+        clearTimeout(reloj);
+        q('panelJuego').hidden = true;
+        q('panelFinal').hidden = true;
+        if (!e || !e.hay) return false;
+
+        if (e.fase === 'jugando') {
+          q('panelJuego').hidden = false;
+          const forma = q('forma');
+          forma.hidden = !e.forma;
+          forma.textContent = e.forma || '';
+          const pistas = e.pistas || [];
+          // La última imagen que se ha dado. Solo se cambia el src si es otra:
+          // si no, cada aviso del chat la haría parpadear.
+          const conFoto = pistas.filter((p) => p.imagen);
+          const ultima = conFoto.length ? conFoto[conFoto.length - 1].imagen : '';
+          q('foto').hidden = !ultima;
+          if (ultima && q('fotoImg').getAttribute('src') !== ultima) q('fotoImg').setAttribute('src', ultima);
+          q('pistas').innerHTML = pistas.length
+            ? pistas.map((p, i) => '<li><span class="n">' + (i + 1) + '.</span>'
+              + (p.texto ? escapar(p.texto) : '<span class="mini">🖼 la imagen</span>') + '</li>').join('')
+            : '<li class="vacia">La primera pista está al llegar…</li>';
+          return true;
+        }
+
+        // Acabada: se enseña un rato y se va sola.
+        const queda = (Number(e.acabo) || 0) + FINAL_MS - (Number(e.ahora) || Date.now());
+        if (queda <= 0) return false;
+        q('panelFinal').hidden = false;
+        q('finalTitulo').textContent = e.ganador ? '🎉 Lo ha adivinado' : 'Nadie lo ha adivinado';
+        q('finalQuien').hidden = !e.ganador;
+        q('finalQuien').textContent = e.ganador || '';
+        q('finalPalabra').textContent = e.palabra || '';
+        const premio = e.ganador ? [
+          e.puntos > 0 ? e.puntos + ' puntos' : '',
+          e.premio && e.premio.texto ? e.premio.texto : '',
+          e.premio && e.premio.kamas > 0 ? Number(e.premio.kamas).toLocaleString('es-ES') + ' kamas' : ''
+        ].filter(Boolean).join(' + ') : '';
+        q('finalPremio').hidden = !premio;
+        q('finalPremio').textContent = premio ? 'Se lleva ' + premio : '';
+        reloj = setTimeout(() => widget.mirar(), queda + 100);
+        return true;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

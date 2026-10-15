@@ -211,7 +211,7 @@ test('todos los widgets escalan con el tamaño', () => {
   }
   assert.ok(leer('js/widget-base.js').includes('--tamano-widget'), 'y widget-base.js la pone');
   // Los que no son el del tablero tienen que cargar la hoja común.
-  for (const w of ['batalla', 'carrera', 'colina', 'nombres', 'sorteo', 'bingo']) {
+  for (const w of ['batalla', 'carrera', 'colina', 'nombres', 'sorteo', 'bingo', 'adivina']) {
     assert.ok(leer('widget/' + w + '.html').includes('/css/widget.css'), w + ' carga widget.css');
   }
 });
