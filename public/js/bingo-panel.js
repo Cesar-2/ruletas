@@ -305,29 +305,20 @@
       const nombre = campo.value.trim();
       if (!nombre) return;
       // Se elige qué se canta, línea o bingo, y se juzga cada uno como en el
-      // chat. La línea se puede cantar aunque ya la haya ganado alguien: quien
-      // la completó con esa misma bola también gana. Si en esta partida la
-      // línea no da nada (ni puntos ni premio), solo queda el bingo.
-      const premioLinea = bingo.premioLinea || {};
-      const seJuegaLinea = (bingo.puntosLinea || 0) > 0 || (premioLinea.kamas || 0) > 0 || Boolean(premioLinea.texto);
-      const aviso = 'Se juzga igual que si lo hubiera escrito en el chat: si no lo tiene, queda descalificado.';
-      let que = 'bingo';
-      if (seJuegaLinea) {
-        const eleccion = await showModal({
-          title: `Cantar por ${nombre}`,
-          message: aviso,
-          okText: 'Cantar línea',
-          extraText: 'Cantar bingo',
-          cancelText: 'Cancelar',
-          danger: true
-        });
-        if (!eleccion) return;
-        que = eleccion === 'extra' ? 'bingo' : 'linea';
-      } else {
-        const ok = await showConfirm(`Cantar bingo por ${nombre}`, aviso, 'Cantar bingo', true);
-        if (!ok) return;
-      }
-      if (await bingoPedir('/api/bingo/cantar', { nombre, que }, 'No se pudo cantar')) campo.value = '';
+      // chat. Las dos opciones salen siempre: la línea se puede cantar aunque
+      // ya la haya ganado alguien (quien la completó con esa misma bola
+      // también gana). Si no se puede cantar, el servidor dice por qué.
+      const eleccion = await showModal({
+        title: `Cantar por ${nombre}`,
+        message: 'Se juzga igual que si lo hubiera escrito en el chat: si no lo tiene, queda descalificado.',
+        okText: 'Cantar línea',
+        extraText: 'Cantar bingo',
+        cancelText: 'Cancelar',
+        danger: true
+      });
+      if (!eleccion) return;
+      const que = eleccion === 'extra' ? 'bingo' : 'linea';
+      if (await bingoPedir('/api/bingo/cantar', { nombre, que }, `No se pudo cantar ${que === 'linea' ? 'línea' : 'bingo'}`)) campo.value = '';
     });
 
     document.getElementById('bingoCopiar').addEventListener('click', async () => {

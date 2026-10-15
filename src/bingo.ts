@@ -627,6 +627,26 @@ export function sacar(uid: string, azar: () => number = Math.random): { bola: nu
 //  - Si dos completan con la misma bola, ganan los dos. Por eso, cuando alguien
 //    gana, la fase no se cierra para los que completaron con esa misma bola:
 //    se les sigue dejando cantar mientras sigan a tiempo.
+// Por que no se puede cantar, cuando cantar() no apunta nada. En el chat da
+// igual (no se contesta), pero desde el panel el streamer tiene que saberlo:
+// antes salia siempre «no tiene carton en juego, o no hay nada que cantar».
+export function porQueNoCanta(uid: string, nombre: string, que: 'linea' | 'bingo'): string {
+  const partida = partidas.get(uid);
+  if (!partida) return 'no hay ninguna partida de bingo';
+  if (!partida.salidas.length) return 'todavia no ha salido ninguna bola';
+  const jugador = partida.jugadores.find((j) => esEl(j, nombre));
+  if (!jugador) return 'nadie con ese nombre tiene carton en esta partida';
+  if (jugador.descalificado) return jugador.nombre + ' esta descalificado';
+  if (partida.cantos.some((c) => c.nombre === jugador.nombre && c.que === que)) {
+    return jugador.nombre + ' ya canto ' + (que === 'linea' ? 'linea' : 'bingo') + ' y lo gano';
+  }
+  if (que === 'linea' && !juegaLinea(partida)) {
+    return 'en esta partida no se juega linea: se abrio sin puntos ni premio para la linea';
+  }
+  if (partida.fase === 'fin') return 'la partida ya termino';
+  return 'no hay nada que cantar';
+}
+
 export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahora: number = Date.now()): Canto | null {
   const partida = partidas.get(uid);
   if (!partida) return null;

@@ -367,8 +367,9 @@ router.post('/api/bingo/sacar', (req: Request, res: Response) => {
 router.post('/api/bingo/cantar', (req: Request, res: Response) => {
   const uid = ctx.requireUid(req);
   const que = req.body?.que === 'linea' ? 'linea' : 'bingo';
-  const canto = bingo.cantar(uid, String(req.body?.nombre || ''), que);
-  if (!canto) return res.status(409).json({ error: 'ese nombre no tiene carton en juego, o no hay nada que cantar' });
+  const nombre = String(req.body?.nombre || '');
+  const canto = bingo.cantar(uid, nombre, que);
+  if (!canto) return res.status(409).json({ error: bingo.porQueNoCanta(uid, nombre, que) });
   res.json(bingo.estado(uid));
 });
 

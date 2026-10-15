@@ -484,6 +484,24 @@ test('cantar linea cuando la linea no se juega no hace nada', (t) => {
   bingo.cancelar(uid);
 });
 
+test('cuando no se puede cantar, se dice por que', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const bingo = montar(c.raiz);
+  const uid = 'u1';
+  assert.match(bingo.porQueNoCanta(uid, 'Ana', 'linea'), /ninguna partida/);
+  bingo.guardarAjustes(uid, { puntosLinea: 0 });
+  bingo.abrir(uid, '');
+  bingo.darCarton(uid, 'Ana');
+  assert.match(bingo.porQueNoCanta(uid, 'Ana', 'linea'), /ninguna bola/);
+  sacarBola(bingo, uid, cartonDe(bingo, uid, 'Ana')[0][0]);
+  assert.match(bingo.porQueNoCanta(uid, 'Nadie', 'bingo'), /nadie con ese nombre/);
+  assert.strictEqual(bingo.cantar(uid, 'Ana', 'linea'), null);
+  assert.match(bingo.porQueNoCanta(uid, 'Ana', 'linea'), /no se juega linea/,
+    'la linea sin puntos ni premio: lo dice, en vez de un error que no explica nada');
+  bingo.cancelar(uid);
+});
+
 test('las palabras de linea y de bingo son distintas', (t) => {
   const c = carpeta();
   t.after(c.quitar);
