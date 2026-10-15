@@ -270,7 +270,7 @@ El código vive en `data/config.json`, que como todo `data/` no se versiona.
 | `TRUST_PROXY=1` | Detrás de un proxy (Render, Fly, nginx…), para reconocer HTTPS |
 | `COOKIE_SECURE=1` | Fuerza que la cookie de sesión solo viaje por HTTPS |
 | `PORT` | Puerto de escucha (por defecto 3000) |
-| `TWITCH_REDIRECT` | Solo para los puntos de canal de Twitch: `https://tu-dominio/api/twitch/callback`. Tiene que coincidir con la URL de redireccion de la app de Twitch. Sin ella se usa `localhost`, que en un hosting no vale |
+| `TWITCH_REDIRECT` | Opcional. La Redirect URL de Twitch: `https://tu-dominio/api/twitch/callback`. Sin ella se usa la del dominio por el que entras, que es la que sale en Configuración › Twitch; esa es la que hay que poner en la app de Twitch |
 
 ```bash
 RULETON_INVITE=lo-que-quieras TRUST_PROXY=1 COOKIE_SECURE=1 npm run dev

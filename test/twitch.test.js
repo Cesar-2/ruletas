@@ -306,6 +306,27 @@ test('una vuelta con un state falso o raro no vale', (t) => {
   assert.strictEqual(twitch.uidDelState(state), 'u1', 'el bueno sigue valiendo');
 });
 
+test('la Redirect URL es la del dominio por el que se entra, y se canjea con la misma', async (t) => {
+  // El fallo: sin TWITCH_REDIRECT se mandaba siempre localhost, y en un hosting
+  // Twitch contestaba «The provided redirect_uri does not match».
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const vuelta = 'https://dofusspin.com/api/twitch/callback';
+  const url = new URL(twitch.urlDeAutorizacion('u1', vuelta));
+  assert.strictEqual(url.searchParams.get('redirect_uri'), vuelta);
+  assert.strictEqual(twitch.estado('u1', vuelta).redireccion, vuelta, 'y es la que se ensena en Configuracion');
+
+  assert.strictEqual(twitch.uidDelState(url.searchParams.get('state')), 'u1');
+  const llamadas = fetchFalso(t, [
+    () => ({ json: { access_token: 'a', refresh_token: 'r' } }),
+    () => ({ json: { data: [{ login: 'micanal', id: '123' }] } })
+  ]);
+  await twitch.completarAlta('u1', 'el-codigo');
+  assert.strictEqual(new URLSearchParams(llamadas[0].cuerpo).get('redirect_uri'), vuelta,
+    'el codigo se canjea con la misma Redirect URL, o Twitch lo rechaza');
+});
+
 test('la vuelta caduca a los diez minutos', (t) => {
   const c = carpeta();
   t.after(c.quitar);

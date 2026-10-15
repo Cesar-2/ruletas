@@ -61,7 +61,10 @@ interface TwitchCuenta {
   // La recompensa que vende cartones del bingo, tal como se creo en Twitch.
   bingoRecompensa?: RecompensaBingo;
   // El state de la autorizacion en curso. Ver urlDeAutorizacion.
-  oauthState?: { secreto: string; caduca: number };
+  oauthState?: { secreto: string; caduca: number; redireccion?: string };
+  // La Redirect URL con la que se pidio la ultima autorizacion. Al canjear el
+  // codigo hay que mandar la MISMA, o Twitch lo rechaza.
+  oauthRedireccion?: string;
 }
 
 export interface RecompensaBingo {
@@ -153,16 +156,21 @@ export function borrarCuenta(uid: string): void {
 // eso pasaba mientras el usuario estaba en Twitch autorizando, a la vuelta el
 // state ya no existia y salia «Vuelta de Twitch no valida». El state lleva
 // delante de quien es («uid.secreto»), para saber que archivo mirar.
-export function urlDeAutorizacion(uid: string): string {
+//
+// «vuelta» es la Redirect URL: la de la direccion por la que ha entrado el
+// streamer (https://su-dominio/api/twitch/callback), salvo que se haya fijado
+// TWITCH_REDIRECT. Antes era siempre la fija, y sin TWITCH_REDIRECT eso es
+// localhost: en un hosting Twitch contestaba «redirect_uri does not match».
+export function urlDeAutorizacion(uid: string, vuelta: string = redireccion): string {
   const cuenta = leerCuenta(uid);
   if (!cuenta?.clientId) throw new Error('falta el Client ID de tu app de Twitch');
   const secreto = crypto.randomBytes(16).toString('hex');
   const state = uid + '.' + secreto;
-  guardarCuenta(uid, { ...cuenta, oauthState: { secreto, caduca: Date.now() + 10 * 60 * 1000 } });
+  guardarCuenta(uid, { ...cuenta, oauthState: { secreto, caduca: Date.now() + 10 * 60 * 1000, redireccion: vuelta } });
 
   const p = new URLSearchParams({
     client_id: cuenta.clientId,
-    redirect_uri: redireccion,
+    redirect_uri: vuelta,
     response_type: 'code',
     scope: PERMISOS.join(' '),
     state
@@ -183,9 +191,10 @@ export function uidDelState(state: string): string | null {
   const a = Buffer.from(esperado.secreto);
   const b = Buffer.from(secreto);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  // De un solo uso.
+  // De un solo uso. Se queda con que Redirect URL se pidio, para canjear el
+  // codigo con la misma.
   const { oauthState, ...sin } = cuenta;
-  guardarCuenta(uid, sin);
+  guardarCuenta(uid, { ...sin, oauthRedireccion: esperado.redireccion || redireccion });
   return uid;
 }
 
@@ -201,7 +210,7 @@ export async function completarAlta(uid: string, code: string): Promise<TwitchCu
       client_secret: previa.clientSecret,
       code,
       grant_type: 'authorization_code',
-      redirect_uri: redireccion
+      redirect_uri: previa.oauthRedireccion || redireccion
     })
   });
   if (!r.ok) throw new Error('Twitch rechazo el codigo: ' + r.status);
@@ -271,7 +280,9 @@ export function guardarAjustes(uid: string, ajustes: { servidor?: string; recomp
   return cuenta;
 }
 
-export function estado(uid: string) {
+// «vuelta» es la Redirect URL que toca para quien pregunta (ver
+// urlDeAutorizacion): es la que se le ensena para que la ponga en su app.
+export function estado(uid: string, vuelta: string = redireccion) {
   const cuenta = leerCuenta(uid);
   return {
     // El Client ID no es secreto y conviene verlo para comprobar que es el
@@ -292,7 +303,7 @@ export function estado(uid: string) {
     // La «OAuth Redirect URL» que hay que poner en la app de Twitch. Se dice
     // la que usa el servidor de verdad: si no coincide letra a letra, Twitch
     // rechaza la autorizacion con un error que no explica nada.
-    redireccion,
+    redireccion: vuelta,
     // Como fue el ultimo aviso, para poder decir en pantalla por que no sale.
     ultimoAviso: ultimosAvisos.get(uid) || null
   };

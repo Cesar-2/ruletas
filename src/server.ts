@@ -2774,9 +2774,20 @@ async function sortearParaTwitch(uid: string, sid: string, nombre: string, n: nu
   return items.map((it) => it.name);
 }
 
+// La Redirect URL de Twitch para quien hace la peticion: la de la direccion por
+// la que ha entrado (https://su-dominio/api/twitch/callback). Con TWITCH_REDIRECT
+// puesta, esa manda. El protocolo se mira tambien en X-Forwarded-Proto: detras
+// del proxy de un hosting la peticion llega como http aunque sea https, y
+// Twitch solo acepta https fuera de localhost.
+function redireccionTwitch(req: Request): string {
+  if (process.env.TWITCH_REDIRECT) return process.env.TWITCH_REDIRECT;
+  const proto = String(req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0].trim();
+  return proto + '://' + req.get('host') + '/api/twitch/callback';
+}
+
 // GET /api/twitch/status -> si hay credenciales, si esta conectado y sus ajustes
 app.get('/api/twitch/status', (req: Request, res: Response) => {
-  res.json(twitch.estado(requireUid(req)));
+  res.json(twitch.estado(requireUid(req), redireccionTwitch(req)));
 });
 
 // GET /api/twitch/connect -> manda al usuario a autorizar en Twitch
@@ -2785,7 +2796,7 @@ app.get('/api/twitch/connect', (req: Request, res: Response) => {
   if (!twitch.hayCredenciales(uid)) {
     return res.status(409).json({ error: 'pon antes el Client ID y el Client Secret de tu app de Twitch' });
   }
-  res.redirect(twitch.urlDeAutorizacion(uid));
+  res.redirect(twitch.urlDeAutorizacion(uid, redireccionTwitch(req)));
 });
 
 // POST /api/twitch/credentials  Body: { clientId, clientSecret }
@@ -2794,7 +2805,7 @@ app.post('/api/twitch/credentials', (req: Request, res: Response) => {
   const uid = requireUid(req);
   try {
     twitch.guardarCredenciales(uid, req.body?.clientId, req.body?.clientSecret);
-    res.json(twitch.estado(uid));
+    res.json(twitch.estado(uid, redireccionTwitch(req)));
   } catch (err) {
     console.error('Failed to save twitch credentials:', err);
     res.status(500).json({ error: 'failed to save credentials' });
@@ -2807,14 +2818,14 @@ app.post('/api/twitch/credentials', (req: Request, res: Response) => {
 app.post('/api/twitch/config', (req: Request, res: Response) => {
   const uid = requireUid(req);
   twitch.guardarAjustes(uid, req.body || {});
-  res.json(twitch.estado(uid));
+  res.json(twitch.estado(uid, redireccionTwitch(req)));
 });
 
 // POST /api/twitch/disconnect -> corta y olvida las credenciales guardadas
 app.post('/api/twitch/disconnect', (req: Request, res: Response) => {
   const uid = requireUid(req);
   twitch.borrarCuenta(uid);
-  res.json(twitch.estado(uid));
+  res.json(twitch.estado(uid, redireccionTwitch(req)));
 });
 
 // --- Carrera de balineras y puntos --------------------------------------
