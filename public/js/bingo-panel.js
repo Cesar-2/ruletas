@@ -16,7 +16,7 @@
     // Cuántos premios iban apuntados en Ganadores la última vez que se miró.
     // Los apunta el servidor al cantar; cuando sube, se refresca Ganadores.
     let bingoApuntados = -1;
-    const BINGO_CAMPOS = ['bingoMaxCartones', 'bingoCantar', 'bingoCantarLinea', 'bingoPuntosLinea', 'bingoPuntosBingo',
+    const BINGO_CAMPOS = ['bingoMaxCartones', 'bingoCantar', 'bingoCantarLinea', 'bingoJugarLinea', 'bingoJugarBingo',
       'bingoKamasLinea', 'bingoKamasBingo'];
     // El objeto del catálogo de cada premio, tal como está en el editor. Se
     // relee de los ajustes solo mientras no lo hayas cambiado sin guardar.
@@ -34,8 +34,12 @@
         ponerSiNoLoTocas('bingoMaxCartones', bingo.ajustes.maxCartones);
         ponerSiNoLoTocas('bingoCantar', bingo.ajustes.cantar);
         ponerSiNoLoTocas('bingoCantarLinea', bingo.ajustes.cantarLinea);
-        ponerSiNoLoTocas('bingoPuntosLinea', bingo.ajustes.puntosLinea);
-        ponerSiNoLoTocas('bingoPuntosBingo', bingo.ajustes.puntosBingo);
+        // Las casillas de qué se juega: como los campos, no se tocan mientras
+        // las estás cambiando.
+        [['bingoJugarLinea', bingo.ajustes.jugarLinea], ['bingoJugarBingo', bingo.ajustes.jugarBingo]].forEach(([id, valor]) => {
+          const caja = document.getElementById(id);
+          if (caja && caja.dataset.tocado !== '1') caja.checked = valor !== false;
+        });
         const pl = bingo.ajustes.premioLinea || {};
         const pb = bingo.ajustes.premioBingo || {};
         ponerSiNoLoTocas('bingoKamasLinea', pl.kamas || '');
@@ -229,12 +233,16 @@
 
     document.getElementById('bingoGuardar').addEventListener('click', async () => {
       const aviso = document.getElementById('bingoGuardado');
+      if (!document.getElementById('bingoJugarLinea').checked && !document.getElementById('bingoJugarBingo').checked) {
+        showAlert('Elige qué se juega', 'Marca la línea, el bingo, o las dos: sin ninguna no hay partida.');
+        return;
+      }
       const ok = await bingoPedir('/api/bingo/config', {
         maxCartones: Number(document.getElementById('bingoMaxCartones').value) || 1,
         cantar: document.getElementById('bingoCantar').value.trim(),
         cantarLinea: document.getElementById('bingoCantarLinea').value.trim(),
-        puntosLinea: Number(document.getElementById('bingoPuntosLinea').value) || 0,
-        puntosBingo: Number(document.getElementById('bingoPuntosBingo').value) || 0,
+        jugarLinea: document.getElementById('bingoJugarLinea').checked,
+        jugarBingo: document.getElementById('bingoJugarBingo').checked,
         premioLinea: {
           kamas: Number(document.getElementById('bingoKamasLinea').value) || 0,
           texto: bingoObjetos.Linea ? bingoObjetos.Linea.texto : '',

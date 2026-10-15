@@ -1248,50 +1248,9 @@
           <div class="game-subpanel" id="game-bingo-panel">
           <section>
             <h3>🎱 Bingo</h3>
-            <p class="meta">Los espectadores <strong>compran cartones con puntos del canal</strong>, canjeando la recompensa de abajo, y tú vas sacando bolas. Cada canje es un cartón más, hasta el máximo por persona; si no se le puede dar (no hay partida, ya cerró la venta o tiene el máximo), Twitch le devuelve los puntos. Cada uno ve sus cartones en la página que sale abajo, con el código de la partida, y <strong>los marca a mano</strong> según van saliendo las bolas (aquí tú ves cómo van de verdad). <strong>Para ganar hay que cantar en el chat</strong>: si lo tiene, se lleva los puntos; si canta sin tenerlo, queda descalificado; si se le pasó (ya salió otra bola), no gana pero sigue jugando. Primero se juega la línea, que se canta con su propio comando: vale cualquier fila o columna, pero no las diagonales. Después se juega el cartón lleno. Cantar línea sin tener línea, o bingo sin tener el cartón lleno, descalifica. Si la línea no da ni puntos ni premio, se juega solo el cartón lleno.</p>
+            <p class="meta">Los espectadores <strong>compran cartones con puntos del canal</strong>, canjeando la recompensa que crees en Configuración, y tú vas sacando bolas. Cada canje es un cartón más, hasta el máximo por persona; si no se le puede dar (no hay partida, ya cerró la venta o tiene el máximo), Twitch le devuelve los puntos. Cada uno ve sus cartones en la página que sale abajo, con el código de la partida, y <strong>los marca a mano</strong> según van saliendo las bolas (aquí tú ves cómo van de verdad). <strong>Para ganar hay que cantar en el chat</strong>: si lo tiene, se lleva el premio; si canta sin tenerlo, queda descalificado; si se le pasó (ya salió otra bola), no gana pero sigue jugando. La línea se canta con su propio comando: vale cualquier fila o columna, pero no las diagonales. Cantar línea sin tener línea, o bingo sin tener el cartón lleno, descalifica.</p>
 
-            <!-- La recompensa la crea el Ruleton en Twitch: solo así se pueden
-                 devolver los puntos cuando no se puede dar cartón. -->
-            <div class="draw-controls">
-              <label class="meta" for="bingoRecompensaTitulo">Recompensa</label>
-              <input id="bingoRecompensaTitulo" type="text" maxlength="45" placeholder="Cartón de bingo" style="width:170px" />
-              <label class="meta" for="bingoRecompensaCoste">Cuesta</label>
-              <input id="bingoRecompensaCoste" type="number" min="1" max="10000000" placeholder="puntos" style="width:100px" />
-              <button type="button" id="bingoRecompensaCrear">Crear en Twitch</button>
-            </div>
-            <p class="meta" id="bingoRecompensaEstado"></p>
-            <div class="draw-controls">
-              <label class="meta" for="bingoMaxCartones">Cartones por persona</label>
-              <input id="bingoMaxCartones" type="number" min="1" max="50" value="5" style="width:70px" />
-              <label class="meta" for="bingoCantarLinea">Cantan línea con</label>
-              <input id="bingoCantarLinea" type="text" value="!linea" style="width:110px" />
-              <label class="meta" for="bingoCantar">Cantan bingo con</label>
-              <input id="bingoCantar" type="text" value="!bingo" style="width:110px" />
-            </div>
-            <div class="draw-controls">
-              <label class="meta" for="bingoPuntosLinea">Puntos línea</label>
-              <input id="bingoPuntosLinea" type="number" min="0" max="1000000" value="10" style="width:90px" />
-              <label class="meta" for="bingoPuntosBingo">Puntos bingo</label>
-              <input id="bingoPuntosBingo" type="number" min="0" max="1000000" value="50" style="width:90px" />
-            </div>
-            <!-- El premio de verdad: va solo a Ganadores, en el servidor en el
-                 que abras la partida. Kamas, un objeto del catálogo, o las dos
-                 cosas. -->
-            <div class="draw-controls">
-              <label class="meta" for="bingoKamasLinea">Premio línea</label>
-              <input id="bingoKamasLinea" type="number" min="0" max="10000000000" placeholder="kamas" style="width:110px" />
-              <span class="bingo-objeto" id="bingoObjetoLinea"></span>
-              <button type="button" class="bingo-elegir" data-que="Linea">Elegir objeto</button>
-            </div>
-            <div class="draw-controls">
-              <label class="meta" for="bingoKamasBingo">Premio bingo</label>
-              <input id="bingoKamasBingo" type="number" min="0" max="10000000000" placeholder="kamas" style="width:110px" />
-              <span class="bingo-objeto" id="bingoObjetoBingo"></span>
-              <button type="button" class="bingo-elegir" data-que="Bingo">Elegir objeto</button>
-              <button type="button" id="bingoGuardar">Guardar</button>
-              <span class="meta" id="bingoGuardado"></span>
-            </div>
-            <p class="meta">El premio se apunta solo en Ganadores cuando alguien canta bien, en el servidor en el que estés al abrir la partida. Sin premio ni puntos de línea, se juega directo al bingo.</p>
+            <p class="meta">Qué se juega, la recompensa de los cartones, los comandos y los premios se ajustan en <strong>Configuración › Minijuegos › Bingo</strong>.</p>
 
             <div class="draw-controls">
               <button type="button" id="bingoAbrir">Nueva partida</button>
@@ -2138,6 +2097,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               <button type="button" class="subtab" data-mini="carrera">🏁 Carrera de balineras</button>
               <button type="button" class="subtab" data-mini="batalla">⚔️ Batalla Dofus</button>
               <button type="button" class="subtab" data-mini="plinko">🎯 Tablero de clavijas</button>
+              <button type="button" class="subtab" data-mini="bingo">🎱 Bingo</button>
             </div>
 
             <div class="cfg-subpanel active" id="mini-ruleta-panel">
@@ -2222,6 +2182,55 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
             <div class="cfg-subpanel" id="mini-batalla-panel">
               <p class="meta">A cada espectador le toca una clase de Dofus al azar entre las que tienen imagen, y lanza sus hechizos. Todavía no hay nada que elegir aquí.</p>
+            </div>
+
+            <!-- El bingo se ajusta aquí entero, con su propio Guardar (como el
+                 tablero). En Minijuegos solo queda abrir partida y sacar bolas. -->
+            <div class="cfg-subpanel" id="mini-bingo-panel">
+            <h4>Qué se juega</h4>
+            <div class="draw-controls">
+              <label class="names-check"><input type="checkbox" id="bingoJugarLinea" checked /> <span>Línea (cualquier fila o columna)</span></label>
+              <label class="names-check"><input type="checkbox" id="bingoJugarBingo" checked /> <span>Bingo (cartón lleno)</span></label>
+            </div>
+            <p class="meta">Con las dos, primero la línea y después el cartón lleno. Con una sola, la partida acaba en cuanto alguien la gana.</p>
+            <h4>Cartones y comandos</h4>
+            <!-- La recompensa la crea el Ruleton en Twitch: solo así se pueden
+                 devolver los puntos cuando no se puede dar cartón. -->
+            <div class="draw-controls">
+              <label class="meta" for="bingoRecompensaTitulo">Recompensa</label>
+              <input id="bingoRecompensaTitulo" type="text" maxlength="45" placeholder="Cartón de bingo" style="width:170px" />
+              <label class="meta" for="bingoRecompensaCoste">Cuesta</label>
+              <input id="bingoRecompensaCoste" type="number" min="1" max="10000000" placeholder="puntos" style="width:100px" />
+              <button type="button" id="bingoRecompensaCrear">Crear en Twitch</button>
+            </div>
+            <p class="meta" id="bingoRecompensaEstado"></p>
+            <div class="draw-controls">
+              <label class="meta" for="bingoMaxCartones">Cartones por persona</label>
+              <input id="bingoMaxCartones" type="number" min="1" max="50" value="5" style="width:70px" />
+              <label class="meta" for="bingoCantarLinea">Cantan línea con</label>
+              <input id="bingoCantarLinea" type="text" value="!linea" style="width:110px" />
+              <label class="meta" for="bingoCantar">Cantan bingo con</label>
+              <input id="bingoCantar" type="text" value="!bingo" style="width:110px" />
+            </div>
+            <h4>Premios</h4>
+            <!-- El premio de verdad: va solo a Ganadores, en el servidor en el
+                 que abras la partida. Kamas, un objeto del catálogo, o las dos
+                 cosas. -->
+            <div class="draw-controls">
+              <label class="meta" for="bingoKamasLinea">Premio línea</label>
+              <input id="bingoKamasLinea" type="number" min="0" max="10000000000" placeholder="kamas" style="width:110px" />
+              <span class="bingo-objeto" id="bingoObjetoLinea"></span>
+              <button type="button" class="bingo-elegir" data-que="Linea">Elegir objeto</button>
+            </div>
+            <div class="draw-controls">
+              <label class="meta" for="bingoKamasBingo">Premio bingo</label>
+              <input id="bingoKamasBingo" type="number" min="0" max="10000000000" placeholder="kamas" style="width:110px" />
+              <span class="bingo-objeto" id="bingoObjetoBingo"></span>
+              <button type="button" class="bingo-elegir" data-que="Bingo">Elegir objeto</button>
+              <button type="button" id="bingoGuardar">Guardar</button>
+              <span class="meta" id="bingoGuardado"></span>
+            </div>
+            <p class="meta">El premio se apunta solo en Ganadores cuando alguien canta bien, en el servidor en el que estés al abrir la partida. Lo que cambies aquí vale para la próxima partida.</p>
             </div>
 
             <!-- El tablero se ajusta aquí entero: cómo es (las filas), qué vale
@@ -7469,7 +7478,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // nada de eso (guarda la Carrera), así que marcar la pestaña como
       // pendiente por el tablero sería mentir, y encendería el botón
       // equivocado.
-      if (campo.closest('#mini-plinko-panel')) return;
+      if (campo.closest('#mini-plinko-panel') || campo.closest('#mini-bingo-panel')) return;
       const panel = campo.closest('.cfg-tabpanel');
       const cual = panel && panel.id.replace('cfgtab-', '');
       if (!cual || !CFG_GUARDAR[cual]) return;
@@ -7596,6 +7605,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // Los ajustes se piden al abrir, que la carrera puede haber cambiado
     // desde otra pestaña del navegador.
     async function cargarMinijuegos() {
+      // Los del bingo también viven aquí.
+      if (typeof cargarBingo === 'function') cargarBingo();
       try {
         const c = await api('/api/carrera');
         document.getElementById('cfgCarreraAnimacion').value = c.ajustes?.animacion || 'caballos';

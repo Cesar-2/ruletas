@@ -2,8 +2,9 @@
 // de puntos de canal (ver twitch.ts) y el streamer va sacando bolas con un
 // boton. Cada canje es un carton mas, hasta un maximo por persona; si no se le
 // puede dar (no hay partida, la inscripcion esta cerrada, o ya tiene el
-// maximo), twitch.ts le devuelve los puntos. Nadie marca nada a mano: el servidor sabe que
-// numeros han salido y que tiene cada carton.
+// maximo), twitch.ts le devuelve los puntos. Cada espectador marca su carton a
+// mano en la pagina de cartones, pero quien gana lo decide el servidor, que sabe
+// que numeros han salido y que tiene cada carton.
 //
 // Lo que si tiene que hacer el jugador es CANTAR, y decir QUE canta: !linea
 // para una linea (cualquier fila o columna; las diagonales no cuentan) y !bingo
@@ -25,10 +26,10 @@
 // codigo que se inventa en cada partida. Solo sirve para MIRAR cartones de esa
 // partida: no deja cantar ni tocar nada.
 //
-// Los puntos van al mismo marcador que la carrera y la batalla. Ademas, la
-// linea y el bingo pueden llevar un PREMIO de verdad (kamas, o lo que diga el
-// streamer): ese se apunta solo en Ganadores, en el servidor en el que se abrio
-// la partida. Lo apunta el servidor y no el panel porque quien gana lo decide
+// Que se juega (la linea, el carton lleno, o las dos cosas) lo eligen dos
+// casillas en Configuracion. No hay puntos de marcador: lo que se gana es el
+// PREMIO de la linea y del bingo (kamas y/o un objeto del catalogo), que se
+// apunta solo en Ganadores, en el servidor en el que se abrio la partida. Lo apunta el servidor y no el panel porque quien gana lo decide
 // el chat, y el panel puede no estar mirando en ese momento.
 
 import fs from 'fs';
@@ -141,11 +142,12 @@ export interface Ajustes {
   maxCartones: number;  // cuantos cartones puede comprar cada persona
   cantar: string;       // lo que se escribe para cantar el carton lleno
   cantarLinea: string;  // lo que se escribe para cantar linea
-  puntosLinea: number;  // a quien cante la primera linea
-  puntosBingo: number;  // a quien cante carton lleno
+  // Que se juega. Al menos una de las dos: con las dos, primero la linea y
+  // despues el carton lleno; con una sola, la partida acaba al ganarla.
+  jugarLinea: boolean;
+  jugarBingo: boolean;
   // El premio que va a Ganadores. Kamas, un texto ("Dofus Ocre"), o las dos
-  // cosas. Sin nada no se apunta nada. La linea solo se juega si da puntos o
-  // premio.
+  // cosas. Sin nada no se apunta nada.
   premioLinea: Premio;
   premioBingo: Premio;
 }
@@ -168,8 +170,8 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   maxCartones: 5,
   cantar: '!bingo',
   cantarLinea: '!linea',
-  puntosLinea: 10,
-  puntosBingo: 50,
+  jugarLinea: true,
+  jugarBingo: true,
   premioLinea: SIN_PREMIO,
   premioBingo: SIN_PREMIO
 };
@@ -221,7 +223,6 @@ export interface Canto {
   nombre: string;
   que: 'linea' | 'bingo' | 'falso' | 'tarde';
   bola: number;           // cuantas bolas habian salido cuando canto
-  puntos: number;
   // Lo que se lleva y si quedo apuntado en Ganadores. Solo en linea y bingo.
   premio?: Premio;
   apuntado?: boolean;
@@ -243,10 +244,10 @@ export interface Bingo {
   // que completaron con esa misma bola tambien ganan si cantan a tiempo.
   lineaBola: number;
   bingoBola: number;
-  // Lo que se jugaba al empezar, congelado: cambiar los puntos a mitad de
+  // Lo que se jugaba al empezar, congelado: cambiar los ajustes a mitad de
   // partida no cambia lo que ya se prometio.
-  puntosLinea: number;
-  puntosBingo: number;
+  jugarLinea: boolean;
+  jugarBingo: boolean;
   premioLinea: Premio;
   premioBingo: Premio;
   // En que servidor del Ruleton se apuntan los premios: en el que estaba el
@@ -261,8 +262,6 @@ export interface Dependencias {
   writeJson(file: string, data: unknown): void;
   // Se llama cuando cambia algo que se ve en pantalla. Ver avisos.ts.
   alCambiar?(uid: string): void;
-  // El marcador es el mismo que el de la carrera.
-  sumarPuntos(uid: string, nombre: string, cuantos: number): number;
   // Apunta el premio en Ganadores del servidor "ambito". Devuelve si se pudo.
   apuntarGanador?(ambito: string, nombre: string, premio: Premio, que: 'linea' | 'bingo'): boolean;
   // El titulo de la recompensa de puntos con la que se compran cartones, para
@@ -309,11 +308,6 @@ function archivoAjustes(uid: string): string {
   return path.join(deps.userDir(uid), 'minijuegos.json');
 }
 
-function limpiarPuntos(n: unknown, siNo: number): number {
-  const v = Number(n);
-  if (n === null || n === undefined || n === '' || !Number.isFinite(v)) return siNo;
-  return Math.max(0, Math.min(1000000, Math.floor(v)));
-}
 
 function limpiarPremio(x: unknown, siNo: Premio = SIN_PREMIO): Premio {
   if (!x || typeof x !== 'object') return { ...siNo };
@@ -334,9 +328,21 @@ export function hayPremio(p: Premio | undefined): boolean {
   return Boolean(p && (p.kamas > 0 || p.texto));
 }
 
-// La linea se juega si da algo: puntos o premio. Si no, directo al bingo.
-function juegaLinea(x: { puntosLinea: number; premioLinea: Premio }): boolean {
-  return x.puntosLinea > 0 || hayPremio(x.premioLinea);
+// Que se juega lo dicen las casillas. Con las dos apagadas no habria partida:
+// se juega el carton lleno.
+function juegaLinea(x: { jugarLinea: boolean }): boolean {
+  return Boolean(x.jugarLinea);
+}
+function juegaBingo(x: { jugarLinea: boolean; jugarBingo: boolean }): boolean {
+  return Boolean(x.jugarBingo) || !x.jugarLinea;
+}
+
+// Los ajustes de antes de las casillas decian que se jugaba con los puntos:
+// la linea se jugaba si daba puntos o premio.
+function jugarLineaDeAntes(g: Record<string, unknown>): boolean {
+  if (typeof g.jugarLinea === 'boolean') return g.jugarLinea;
+  if (g.puntosLinea === undefined) return true;
+  return Number(g.puntosLinea) > 0 || hayPremio(limpiarPremio(g.premioLinea));
 }
 
 function limpiarMax(n: unknown, siNo: number): number {
@@ -356,8 +362,8 @@ export function leerAjustes(uid: string): Ajustes {
       maxCartones: limpiarMax(g.maxCartones, AJUSTES_POR_DEFECTO.maxCartones),
       cantar: limpiarPalabra(g.cantar, AJUSTES_POR_DEFECTO.cantar),
       cantarLinea: limpiarPalabra(g.cantarLinea, AJUSTES_POR_DEFECTO.cantarLinea),
-      puntosLinea: limpiarPuntos(g.puntosLinea, AJUSTES_POR_DEFECTO.puntosLinea),
-      puntosBingo: limpiarPuntos(g.puntosBingo, AJUSTES_POR_DEFECTO.puntosBingo),
+      jugarLinea: jugarLineaDeAntes(g),
+      jugarBingo: typeof g.jugarBingo === 'boolean' ? g.jugarBingo : true,
       premioLinea: limpiarPremio(g.premioLinea),
       premioBingo: limpiarPremio(g.premioBingo)
     };
@@ -373,8 +379,10 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
   if (ajustes.maxCartones != null) actual.maxCartones = limpiarMax(ajustes.maxCartones, actual.maxCartones);
   if (typeof ajustes.cantar === 'string') actual.cantar = limpiarPalabra(ajustes.cantar, actual.cantar);
   if (typeof ajustes.cantarLinea === 'string') actual.cantarLinea = limpiarPalabra(ajustes.cantarLinea, actual.cantarLinea);
-  if (ajustes.puntosLinea != null) actual.puntosLinea = limpiarPuntos(ajustes.puntosLinea, actual.puntosLinea);
-  if (ajustes.puntosBingo != null) actual.puntosBingo = limpiarPuntos(ajustes.puntosBingo, actual.puntosBingo);
+  if (typeof ajustes.jugarLinea === 'boolean') actual.jugarLinea = ajustes.jugarLinea;
+  if (typeof ajustes.jugarBingo === 'boolean') actual.jugarBingo = ajustes.jugarBingo;
+  // Sin ninguna de las dos no hay partida: se queda el carton lleno.
+  if (!actual.jugarLinea && !actual.jugarBingo) actual.jugarBingo = true;
   if (ajustes.premioLinea != null) actual.premioLinea = limpiarPremio(ajustes.premioLinea, actual.premioLinea);
   if (ajustes.premioBingo != null) actual.premioBingo = limpiarPremio(ajustes.premioBingo, actual.premioBingo);
   // Las dos palabras tienen que ser distintas: cantar linea con la de bingo no
@@ -426,8 +434,8 @@ export function estado(uid: string) {
     fase: (p ? p.fase : 'linea') as Fase,
     salidas: p ? p.salidas : [],
     cantos: p ? p.cantos : [],
-    puntosLinea: p ? p.puntosLinea : ajustes.puntosLinea,
-    puntosBingo: p ? p.puntosBingo : ajustes.puntosBingo,
+    jugarLinea: p ? p.jugarLinea : ajustes.jugarLinea,
+    jugarBingo: p ? juegaBingo(p) : juegaBingo(ajustes),
     premioLinea: p ? p.premioLinea : ajustes.premioLinea,
     premioBingo: p ? p.premioBingo : ajustes.premioBingo,
     jugadores: p ? p.jugadores.map((j) => ({
@@ -465,13 +473,13 @@ export function abrir(uid: string, canal: string, segundos?: unknown, ambito = '
     jugadores: [],
     salidas: [],
     salidasEn: [],
-    // Si la linea no da nada (ni puntos ni premio) no se juega: directo al bingo.
+    // Sin la casilla de la linea, directo al carton lleno.
     fase: juegaLinea(ajustes) ? 'linea' : 'bingo',
     cantos: [],
     lineaBola: 0,
     bingoBola: 0,
-    puntosLinea: ajustes.puntosLinea,
-    puntosBingo: ajustes.puntosBingo,
+    jugarLinea: juegaLinea(ajustes),
+    jugarBingo: juegaBingo(ajustes),
     premioLinea: { ...ajustes.premioLinea },
     premioBingo: { ...ajustes.premioBingo },
     ambito,
@@ -528,8 +536,9 @@ export function rehacer(uid: string): boolean {
     cantos: Array.isArray(e.cantos) ? e.cantos : [],
     lineaBola: Math.max(0, Math.floor(Number(e.lineaBola) || 0)),
     bingoBola: Math.max(0, Math.floor(Number(e.bingoBola) || 0)),
-    puntosLinea: limpiarPuntos(e.puntosLinea, 0),
-    puntosBingo: limpiarPuntos(e.puntosBingo, 0),
+    // Las partidas guardadas antes de las casillas traen puntos.
+    jugarLinea: jugarLineaDeAntes(e as unknown as Record<string, unknown>),
+    jugarBingo: typeof e.jugarBingo === 'boolean' ? e.jugarBingo : true,
     premioLinea: limpiarPremio(e.premioLinea),
     premioBingo: limpiarPremio(e.premioBingo),
     ambito: String(e.ambito || ''),
@@ -641,7 +650,10 @@ export function porQueNoCanta(uid: string, nombre: string, que: 'linea' | 'bingo
     return jugador.nombre + ' ya canto ' + (que === 'linea' ? 'linea' : 'bingo') + ' y lo gano';
   }
   if (que === 'linea' && !juegaLinea(partida)) {
-    return 'en esta partida no se juega linea: se abrio sin puntos ni premio para la linea';
+    return 'en esta partida no se juega linea (en Configuracion › Minijuegos › Bingo esta sin marcar)';
+  }
+  if (que === 'bingo' && !juegaBingo(partida)) {
+    return 'en esta partida no se juega el carton lleno, solo la linea';
   }
   if (partida.fase === 'fin') return 'la partida ya termino';
   return 'no hay nada que cantar';
@@ -666,8 +678,9 @@ export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahor
   // Volverlo a escribir despues de ganarlo (el chat repite mucho) no es
   // cantar en falso: es celebrar.
   if (yaGano(que)) return null;
-  // Cantar linea cuando no se juega linea no es mentir: no hay nada que ganar.
+  // Cantar lo que no se juega no es mentir: no hay nada que ganar.
   if (que === 'linea' && !juegaLinea(partida)) return null;
+  if (que === 'bingo' && !juegaBingo(partida)) return null;
 
   const bolaGanadora = que === 'linea' ? partida.lineaBola : partida.bingoBola;
   // Con varios cartones se mira cada uno: si alguno lo tiene a tiempo, gana con
@@ -698,9 +711,7 @@ export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahor
   const conLinea = que === 'linea' ? con : 0;
   const conBingo = que === 'bingo' ? con : 0;
 
-  const puntos = resultado === 'linea' ? partida.puntosLinea : resultado === 'bingo' ? partida.puntosBingo : 0;
-  if (puntos > 0) deps.sumarPuntos(uid, jugador.nombre, puntos);
-  const canto: Canto = { nombre: jugador.nombre, que: resultado, bola: total, puntos, en: new Date(ahora).toISOString() };
+  const canto: Canto = { nombre: jugador.nombre, que: resultado, bola: total, en: new Date(ahora).toISOString() };
   // El premio de verdad, a Ganadores. Si no se pudo (sin servidor, o falla al
   // escribir), el canto lo dice para que el streamer lo apunte a mano.
   if (resultado === 'linea' || resultado === 'bingo') {
@@ -730,7 +741,16 @@ export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahor
     t.unref?.();
   } else if (resultado === 'linea') {
     partida.lineaBola = conLinea;
-    if (partida.fase === 'linea') partida.fase = 'bingo';
+    if (partida.fase === 'linea') partida.fase = juegaBingo(partida) ? 'bingo' : 'fin';
+    if (partida.fase === 'fin') {
+      // Solo se jugaba la linea: se acaba aqui, como con el bingo, pero se
+      // sigue escuchando un rato por si otro la hizo con la misma bola.
+      crono.quitar(uid);
+      const t = setTimeout(() => {
+        if (partidas.get(uid) === partida) cerrarEscucha(uid);
+      }, GRACIA_MS);
+      t.unref?.();
+    }
   } else if (partida.jugadores.every((j) => j.descalificado)) {
     // Todos fuera: no queda nadie que pueda ganar.
     partida.fase = 'fin';

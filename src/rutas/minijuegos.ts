@@ -380,7 +380,7 @@ router.post('/api/bingo/cancelar', (req: Request, res: Response) => {
   res.json(bingo.estado(uid));
 });
 
-// POST /api/bingo/config  Body: { maxCartones?, cantar?, cantarLinea?, puntosLinea?, puntosBingo?,
+// POST /api/bingo/config  Body: { maxCartones?, cantar?, cantarLinea?, jugarLinea?, jugarBingo?,
 //                                 premioLinea?: { kamas, texto }, premioBingo? }
 router.post('/api/bingo/config', (req: Request, res: Response) => {
   const uid = ctx.requireUid(req);

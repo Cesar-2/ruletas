@@ -2877,7 +2877,7 @@ sorteo.iniciar({
 });
 // El bingo reparte en el mismo marcador que la carrera.
 bingo.iniciar({
-  userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos,
+  userDir, ensureUserDir, writeJson,
   alCambiar: (uid) => avisos.cambio(uid, 'bingo'),
   // Los cartones se compran con la recompensa de puntos que crea twitch.ts.
   recompensa: (uid) => twitch.leerCuenta(uid)?.bingoRecompensa?.titulo || '',

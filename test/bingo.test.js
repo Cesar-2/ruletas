@@ -1,12 +1,13 @@
 // El bingo.
 //
-// Aqui se reparten puntos y se descalifica a gente, asi que un fallo no es un
+// Aqui se reparten premios y se descalifica a gente, asi que un fallo no es un
 // dibujo raro: es alguien que se queda sin premio habiendo ganado, o alguien
 // fuera de la partida sin haber hecho trampa. Lo que se comprueba:
 //
 //  - El carton es un carton de bingo de verdad: cada columna con lo suyo, sin
 //    repetidos y con el hueco libre en el centro.
-//  - Se canta una cosa concreta: !linea o !bingo. Cantar a tiempo gana y suma;
+//  - Que se juega (linea, bingo o las dos) lo dicen dos casillas, no puntos.
+//  - Se canta una cosa concreta: !linea o !bingo. Cantar a tiempo gana;
 //    cantar lo que no se tiene descalifica; cantar tarde no gana pero tampoco
 //    descalifica.
 //  - Linea es cualquier fila o columna. Las diagonales no cuentan.
@@ -22,13 +23,8 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { carpeta, cargar, deps } = require('./ayuda');
 
-function montar(raiz, sumados) {
-  const d = deps(raiz);
-  d.sumarPuntos = (uid, nombre, cuantos) => {
-    if (sumados) sumados.push({ nombre, cuantos });
-    return cuantos;
-  };
-  return cargar('bingo', d);
+function montar(raiz) {
+  return cargar('bingo', deps(raiz));
 }
 
 // Saca justo la bola que se le pide, sin trucos en el modulo: se le da el azar
@@ -99,21 +95,17 @@ test('sin nadie con carton no se saca bola', (t) => {
   bingo.cancelar('u1');
 });
 
-test('cantar linea a tiempo gana, suma y pasa a jugarse el bingo', (t) => {
+test('cantar linea a tiempo gana y pasa a jugarse el bingo', (t) => {
   const c = carpeta();
   t.after(c.quitar);
-  const sumados = [];
-  const bingo = montar(c.raiz, sumados);
+  const bingo = montar(c.raiz);
   const uid = 'u1';
-  bingo.guardarAjustes(uid, { puntosLinea: 7, puntosBingo: 30 });
   bingo.abrir(uid, '');
   bingo.apuntar(uid, 'Ana');
   filaDeArriba(cartonDe(bingo, uid, 'Ana')).forEach((n) => sacarBola(bingo, uid, n));
 
   const canto = bingo.cantar(uid, 'ana', 'linea');
   assert.strictEqual(canto.que, 'linea');
-  assert.strictEqual(canto.puntos, 7);
-  assert.deepStrictEqual(sumados, [{ nombre: 'Ana', cuantos: 7 }]);
   assert.strictEqual(bingo.estado(uid).fase, 'bingo');
 
   // Volver a escribirlo es celebrar, no cantar bingo en falso.
@@ -125,8 +117,7 @@ test('cantar linea a tiempo gana, suma y pasa a jugarse el bingo', (t) => {
 test('cantar sin tenerlo descalifica, y descalificado ya no gana', (t) => {
   const c = carpeta();
   t.after(c.quitar);
-  const sumados = [];
-  const bingo = montar(c.raiz, sumados);
+  const bingo = montar(c.raiz);
   const uid = 'u1';
   bingo.abrir(uid, '');
   bingo.apuntar(uid, 'Ana');
@@ -140,7 +131,6 @@ test('cantar sin tenerlo descalifica, y descalificado ya no gana', (t) => {
   // Aunque luego complete, ya esta fuera.
   fila.slice(1).forEach((n) => sacarBola(bingo, uid, n));
   assert.strictEqual(bingo.cantar(uid, 'Ana', 'linea'), null);
-  assert.deepStrictEqual(sumados, []);
   bingo.cancelar(uid);
 });
 
@@ -173,7 +163,6 @@ test('quien canta tarde no gana, pero no se le descalifica', (t) => {
 
   const canto = bingo.cantar(uid, 'Ana', 'linea', DESPUES());
   assert.strictEqual(canto.que, 'tarde');
-  assert.strictEqual(canto.puntos, 0);
   assert.strictEqual(bingo.estado(uid).jugadores[0].descalificado, false);
   assert.strictEqual(bingo.estado(uid).fase, 'linea', 'la linea sigue en juego');
   bingo.cancelar(uid);
@@ -201,10 +190,8 @@ test('el retraso del directo no castiga: con la penultima y enseguida, gana', (t
 test('dos que completan con la misma bola ganan los dos', (t) => {
   const c = carpeta();
   t.after(c.quitar);
-  const sumados = [];
-  const bingo = montar(c.raiz, sumados);
+  const bingo = montar(c.raiz);
   const uid = 'u1';
-  bingo.guardarAjustes(uid, { puntosLinea: 5 });
   bingo.abrir(uid, '');
   bingo.apuntar(uid, 'Ana');
   bingo.apuntar(uid, 'Beto');
@@ -222,26 +209,23 @@ test('dos que completan con la misma bola ganan los dos', (t) => {
 
   assert.strictEqual(bingo.cantar(uid, 'Ana', 'linea').que, 'linea');
   assert.strictEqual(bingo.cantar(uid, 'Beto', 'linea').que, 'linea', 'el segundo tambien, aunque ya se juegue el bingo');
-  assert.deepStrictEqual(sumados.map((s) => s.nombre), ['Ana', 'Beto']);
   bingo.cancelar(uid);
 });
 
 test('el bingo acaba la partida', (t) => {
   const c = carpeta();
   t.after(c.quitar);
-  const sumados = [];
-  const bingo = montar(c.raiz, sumados);
+  const bingo = montar(c.raiz);
   const uid = 'u1';
-  bingo.guardarAjustes(uid, { puntosLinea: 0, puntosBingo: 40 });
+  bingo.guardarAjustes(uid, { jugarLinea: false, jugarBingo: true });
   bingo.abrir(uid, '');
-  assert.strictEqual(bingo.estado(uid).fase, 'bingo', 'con la linea a 0 no se juega linea');
+  assert.strictEqual(bingo.estado(uid).fase, 'bingo', 'sin la casilla de la linea, directo al carton lleno');
   bingo.apuntar(uid, 'Ana');
   const carton = cartonDe(bingo, uid, 'Ana');
   carton.flat().filter((n) => n !== bingo.LIBRE).forEach((n) => sacarBola(bingo, uid, n));
 
   const canto = bingo.cantar(uid, 'Ana', 'bingo');
   assert.strictEqual(canto.que, 'bingo');
-  assert.deepStrictEqual(sumados, [{ nombre: 'Ana', cuantos: 40 }]);
   assert.strictEqual(bingo.estado(uid).fase, 'fin');
   assert.ok('error' in bingo.sacar(uid), 'acabada, no salen mas bolas');
   bingo.cancelar(uid);
@@ -252,7 +236,6 @@ test('el bingo acaba la partida', (t) => {
 // gana lo decide el chat y el panel puede no estar mirando.
 function montarConPremios(raiz, apuntados, falla) {
   const d = deps(raiz);
-  d.sumarPuntos = (uid, nombre, cuantos) => cuantos;
   d.apuntarGanador = (ambito, nombre, premio, que) => {
     if (falla) throw new Error('disco lleno');
     apuntados.push({ ambito, nombre, premio, que });
@@ -268,13 +251,10 @@ test('la linea y el bingo apuntan su premio en Ganadores del servidor de la part
   const bingo = montarConPremios(c.raiz, apuntados);
   const uid = 'u1';
   bingo.guardarAjustes(uid, {
-    puntosLinea: 0, puntosBingo: 0,
     premioLinea: { kamas: 500000, texto: '' },
     premioBingo: { kamas: 5000000, texto: 'Dofus Ocre' }
   });
   bingo.abrir(uid, '', undefined, 'u1/dofus/s1');
-  // Sin puntos de linea pero con premio, la linea se juega.
-  assert.strictEqual(bingo.estado(uid).fase, 'linea', 'una linea con premio se juega aunque no de puntos');
 
   // Cambiar el premio a mitad no cambia lo que ya se prometio.
   bingo.guardarAjustes(uid, { premioBingo: { kamas: 1, texto: '' } });
@@ -316,7 +296,7 @@ test('el premio es un objeto del catalogo, con su icono', (t) => {
   const d = bingo.guardarAjustes(uid, { premioBingo: { kamas: 5, texto: '', imagen: 'https://x/y.png' } });
   assert.deepStrictEqual(d.premioBingo, { kamas: 5, texto: '' });
 
-  bingo.guardarAjustes(uid, { puntosLinea: 0, premioBingo: { kamas: 0, texto: 'Dofus Ocre', imagen: '/assets/ocre.png' } });
+  bingo.guardarAjustes(uid, { jugarLinea: false, premioBingo: { kamas: 0, texto: 'Dofus Ocre', imagen: '/assets/ocre.png' } });
   bingo.abrir(uid, '', undefined, 'u1/dofus/s1');
   bingo.darCarton(uid, 'Ana');
   cartonDe(bingo, uid, 'Ana').flat().filter((n) => n !== bingo.LIBRE).forEach((n) => sacarBola(bingo, uid, n));
@@ -331,7 +311,7 @@ test('cantar en falso o tarde no apunta nada, y sin premio tampoco', (t) => {
   const apuntados = [];
   const bingo = montarConPremios(c.raiz, apuntados);
   const uid = 'u1';
-  bingo.guardarAjustes(uid, { puntosLinea: 5, puntosBingo: 5, premioLinea: { kamas: 0, texto: '' } });
+  bingo.guardarAjustes(uid, { premioLinea: { kamas: 0, texto: '' } });
   bingo.abrir(uid, '', undefined, 'u1/dofus/s1');
   bingo.apuntar(uid, 'Ana');
   bingo.apuntar(uid, 'Beto');
@@ -350,7 +330,7 @@ test('si no se puede apuntar, el canto lo dice y la partida sigue', (t) => {
   t.after(c.quitar);
   const bingo = montarConPremios(c.raiz, [], true);
   const uid = 'u1';
-  bingo.guardarAjustes(uid, { puntosLinea: 0, premioLinea: { kamas: 100, texto: '' } });
+  bingo.guardarAjustes(uid, { premioLinea: { kamas: 100, texto: '' } });
   bingo.abrir(uid, '', undefined, 'u1/dofus/s1');
   bingo.apuntar(uid, 'Ana');
   filaDeArriba(cartonDe(bingo, uid, 'Ana')).forEach((n) => sacarBola(bingo, uid, n));
@@ -441,15 +421,14 @@ test('cantar bingo con solo una linea es cantar en falso', (t) => {
   // canta: dijo bingo y no tiene el carton lleno.
   const c = carpeta();
   t.after(c.quitar);
-  const sumados = [];
-  const bingo = montar(c.raiz, sumados);
+  const bingo = montar(c.raiz);
   const uid = 'u1';
   bingo.abrir(uid, '');
   bingo.apuntar(uid, 'Ana');
   filaDeArriba(cartonDe(bingo, uid, 'Ana')).forEach((n) => sacarBola(bingo, uid, n));
   assert.strictEqual(bingo.cantar(uid, 'Ana', 'bingo').que, 'falso');
   assert.strictEqual(bingo.estado(uid).jugadores[0].descalificado, true);
-  assert.deepStrictEqual(sumados, [], 'y no se lleva la linea por equivocarse de palabra');
+  assert.ok(!bingo.estado(uid).cantos.some((x) => x.que === 'linea'), 'y no se lleva la linea por equivocarse de palabra');
   bingo.cancelar(uid);
 });
 
@@ -475,7 +454,7 @@ test('cantar linea cuando la linea no se juega no hace nada', (t) => {
   t.after(c.quitar);
   const bingo = montar(c.raiz);
   const uid = 'u1';
-  bingo.guardarAjustes(uid, { puntosLinea: 0 });
+  bingo.guardarAjustes(uid, { jugarLinea: false });
   bingo.abrir(uid, '');
   bingo.apuntar(uid, 'Ana');
   sacarBola(bingo, uid, cartonDe(bingo, uid, 'Ana')[0][0]);
@@ -490,7 +469,7 @@ test('cuando no se puede cantar, se dice por que', (t) => {
   const bingo = montar(c.raiz);
   const uid = 'u1';
   assert.match(bingo.porQueNoCanta(uid, 'Ana', 'linea'), /ninguna partida/);
-  bingo.guardarAjustes(uid, { puntosLinea: 0 });
+  bingo.guardarAjustes(uid, { jugarLinea: false });
   bingo.abrir(uid, '');
   bingo.darCarton(uid, 'Ana');
   assert.match(bingo.porQueNoCanta(uid, 'Ana', 'linea'), /ninguna bola/);
@@ -498,8 +477,64 @@ test('cuando no se puede cantar, se dice por que', (t) => {
   assert.match(bingo.porQueNoCanta(uid, 'Nadie', 'bingo'), /nadie con ese nombre/);
   assert.strictEqual(bingo.cantar(uid, 'Ana', 'linea'), null);
   assert.match(bingo.porQueNoCanta(uid, 'Ana', 'linea'), /no se juega linea/,
-    'la linea sin puntos ni premio: lo dice, en vez de un error que no explica nada');
+    'la linea sin marcar: lo dice, en vez de un error que no explica nada');
   bingo.cancelar(uid);
+});
+
+test('solo la linea: la partida acaba en cuanto alguien la gana', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const bingo = montar(c.raiz);
+  const uid = 'u1';
+  bingo.guardarAjustes(uid, { jugarLinea: true, jugarBingo: false });
+  bingo.abrir(uid, '');
+  assert.strictEqual(bingo.estado(uid).fase, 'linea');
+  bingo.darCarton(uid, 'Ana');
+  filaDeArriba(cartonDe(bingo, uid, 'Ana')).forEach((n) => sacarBola(bingo, uid, n));
+  assert.strictEqual(bingo.cantar(uid, 'Ana', 'linea').que, 'linea');
+  assert.strictEqual(bingo.estado(uid).fase, 'fin', 'no se sigue con el carton lleno');
+  assert.ok('error' in bingo.sacar(uid), 'acabada, no salen mas bolas');
+  bingo.cancelar(uid);
+});
+
+test('solo el bingo: cantar linea no hace nada ni descalifica', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const bingo = montar(c.raiz);
+  const uid = 'u1';
+  bingo.guardarAjustes(uid, { jugarLinea: false, jugarBingo: true });
+  bingo.abrir(uid, '');
+  bingo.darCarton(uid, 'Ana');
+  filaDeArriba(cartonDe(bingo, uid, 'Ana')).forEach((n) => sacarBola(bingo, uid, n));
+  assert.strictEqual(bingo.cantar(uid, 'Ana', 'linea'), null);
+  assert.strictEqual(bingo.estado(uid).jugadores[0].descalificado, false);
+  bingo.cancelar(uid);
+});
+
+test('sin ninguna casilla no hay partida: se queda el carton lleno', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const bingo = montar(c.raiz);
+  const a = bingo.guardarAjustes('u1', { jugarLinea: false, jugarBingo: false });
+  assert.strictEqual(a.jugarBingo, true);
+  assert.strictEqual(a.jugarLinea, false);
+});
+
+test('los ajustes de antes, con puntos, se leen como casillas', (t) => {
+  // Antes la linea se jugaba si daba puntos o premio. Quien la tenia a 0 sin
+  // premio no la jugaba, y tiene que seguir sin jugarla.
+  const c = carpeta();
+  t.after(c.quitar);
+  const bingo = montar(c.raiz);
+  const fs = require('fs');
+  const path = require('path');
+  fs.mkdirSync(path.join(c.raiz, 'u1'), { recursive: true });
+  fs.writeFileSync(path.join(c.raiz, 'u1', 'minijuegos.json'), JSON.stringify({ bingo: { puntosLinea: 0, puntosBingo: 50 } }));
+  assert.strictEqual(bingo.leerAjustes('u1').jugarLinea, false);
+  fs.writeFileSync(path.join(c.raiz, 'u1', 'minijuegos.json'), JSON.stringify({ bingo: { puntosLinea: 10 } }));
+  assert.strictEqual(bingo.leerAjustes('u1').jugarLinea, true);
+  fs.writeFileSync(path.join(c.raiz, 'u1', 'minijuegos.json'), JSON.stringify({ bingo: { puntosLinea: 0, premioLinea: { kamas: 100, texto: '' } } }));
+  assert.strictEqual(bingo.leerAjustes('u1').jugarLinea, true, 'sin puntos pero con premio, se jugaba');
 });
 
 test('las palabras de linea y de bingo son distintas', (t) => {
