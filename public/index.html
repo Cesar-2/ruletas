@@ -647,6 +647,26 @@
       background:var(--card);border:1px solid rgba(255,255,255,0.12);color:var(--accent);font-weight:700;text-align:right}
     .marcador .quitar{flex:none;padding:.25rem .5rem;font-size:12px;box-shadow:none;
       background:rgba(248,113,113,0.10);color:#fca5a5;border:1px solid rgba(248,113,113,0.35)}
+    /* Objetivos: una fila por objetivo, con su casilla y el texto editable. */
+    .objetivos-lista{display:flex;flex-direction:column;gap:.35rem;margin-top:.6rem}
+    .objetivo{display:flex;align-items:center;gap:.5rem;padding:.35rem .6rem;border-radius:10px;
+      background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
+    .objetivo .marca{width:18px;height:18px;flex:none;accent-color:#6ee7b7;cursor:pointer}
+    .objetivo .texto{flex:1;min-width:0;background:transparent;border:1px solid transparent;color:#e6eef8;padding:.3rem .4rem;border-radius:6px}
+    .objetivo .texto:focus{border-color:rgba(255,255,255,0.2);background:var(--card)}
+    .objetivo.hecho .texto{text-decoration:line-through;color:var(--muted)}
+    .objetivo .mini{flex:none;padding:.15rem .45rem;font-size:12px;box-shadow:none;
+      background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
+    .objetivo .mini:disabled{opacity:.35;cursor:default}
+    .objetivo .quitar{background:rgba(248,113,113,0.10);color:#fca5a5;border-color:rgba(248,113,113,0.35)}
+    /* Los Dofus: un botón por huevo, en gris hasta que se consigue. */
+    .dofus-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:.5rem;margin-top:.6rem}
+    .dofus-huevo{display:flex;flex-direction:column;align-items:center;gap:.25rem;padding:.45rem .3rem;border-radius:10px;box-shadow:none;
+      background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);color:var(--muted);font-size:12px;cursor:pointer}
+    .dofus-huevo img{width:52px;height:52px;object-fit:contain;filter:grayscale(1) brightness(.55);opacity:.7;transition:filter .3s,opacity .3s}
+    .dofus-huevo:hover img{opacity:1}
+    .dofus-huevo.hecho{background:rgba(110,231,183,0.10);border-color:rgba(110,231,183,0.45);color:#e6eef8;font-weight:700}
+    .dofus-huevo.hecho img{filter:drop-shadow(0 0 6px rgba(251,191,36,.55));opacity:1}
     /* El cuadro del torneo: una columna por ronda. */
     /* Los duelos de la ronda, en rejilla: con mucha gente no se hace una
        columna infinita. */
@@ -1176,6 +1196,7 @@
     <nav class="nav-links" aria-label="Secciones">
       <button type="button" class="tab active" data-tab="games">🎮 Minijuegos</button>
       <button type="button" class="tab" data-tab="puntos">🏅 Puntos</button>
+      <button type="button" class="tab" data-tab="objetivos">🎯 Objetivos</button>
       <button type="button" class="tab" data-tab="winners">Ganadores (0)</button>
       <button type="button" class="tab" data-tab="history">📜 Historial</button>
       <button type="button" class="tab" data-tab="uso" id="tabUso" hidden>📊 Estadísticas</button>
@@ -1765,6 +1786,38 @@
             </div>
 
             <div id="puntosTabla" class="marcador"></div>
+          </section>
+        </div>
+
+        <div class="tab-panel" id="objetivos-panel">
+          <section>
+            <h3>🎯 Objetivos del directo</h3>
+            <p class="meta">Lo que te propones hacer hoy, para ir tachándolo delante del chat. Lo que marques sale al momento en el widget de OBS (<strong>Configuración › Widgets › 🎯 Objetivos</strong>). Marcar no borra nada: la lista se queda guardada, y con <strong>↺ Desmarcar todos</strong> vuelves a empezarla cuando quieras repetirla.</p>
+
+            <div class="controls">
+              <label class="meta" for="objetivosTitulo">Título en el widget</label>
+              <input id="objetivosTitulo" type="text" maxlength="60" placeholder="Objetivos" style="min-width:200px" />
+            </div>
+            <div class="controls" style="margin-top:.5rem">
+              <input id="objetivosNuevo" type="text" maxlength="140" placeholder="Nuevo objetivo (Enter para añadir)" aria-label="Nuevo objetivo" style="flex:1;min-width:220px" />
+              <button type="button" id="objetivosAnadir">Añadir</button>
+            </div>
+
+            <div class="toolbar">
+              <span class="meta" id="objetivosEstado"></span>
+              <span>
+                <button type="button" id="objetivosDesmarcar" class="btn-cancel" title="Todos otra vez sin hacer, para repetirlos; no se borra ninguno">↺ Desmarcar todos</button>
+                <button type="button" id="objetivosVaciar" class="btn-cancel">Vaciar</button>
+              </span>
+            </div>
+
+            <div id="objetivosLista" class="objetivos-lista"></div>
+          </section>
+
+          <section>
+            <h3>🥚 Dofus</h3>
+            <p class="meta">Pulsa un Dofus cuando lo consigas (otra vez para desmarcarlo). Salen los trece en una tira larga en su propio widget (<strong>Configuración › Widgets › 🥚 Dofus</strong>): los que faltan en gris y los conseguidos a color. <span id="dofusEstado"></span></p>
+            <div id="dofusLista" class="dofus-lista"></div>
           </section>
         </div>
 
@@ -4787,7 +4840,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       { id: 'colina', nombre: '👑 Rey de la colina' },
       { id: 'nombres', nombre: '🎡 Ruleta de nombres' },
       { id: 'bingo', nombre: '🎱 Bingo' },
-      { id: 'adivina', nombre: '🔤 Adivina la palabra' }
+      { id: 'adivina', nombre: '🔤 Adivina la palabra' },
+      { id: 'objetivos', nombre: '🎯 Objetivos' },
+      { id: 'dofus', nombre: '🥚 Dofus (tira larga)' }
     ];
 
     function urlWidget(cual) {
@@ -6492,6 +6547,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
   </script>
   <script src="/js/marcador-puntos.js"></script>
+  <script src="/js/objetivos-panel.js"></script>
   <script>
     function vigilar(encender) {
       // Mientras la inscripción está abierta, el servidor avisa de quién se ha
@@ -8124,6 +8180,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarBatalla(); cargarPlinko(); }
       ajustarAcciones();
         if (tab.dataset.tab === 'puntos') cargarPuntos();
+        if (tab.dataset.tab === 'objetivos') cargarObjetivos();
         if (tab.dataset.tab === 'uso') cargarUso();
         document.getElementById('fontDock').hidden = tab.dataset.tab !== 'config';
         if (tab.dataset.tab === 'config') { fillConfigForm(); pintarCfgGuardar(); }

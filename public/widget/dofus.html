@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dofus · widget</title>
+<link rel="icon" href="data:," />
+<!--
+  El widget de los Dofus, para OBS.  /widget/dofus.html?clave=XXXX
+
+  Una tira larga con los trece huevos en su orden, siempre puesta: los que
+  faltan apagados en gris y los conseguidos a todo color con su ✓. Al marcar
+  uno en la pestaña de Objetivos se enciende aquí con un brillo.
+
+  Va a lo ancho del todo, en una sola fila: el contador a la izquierda y los
+  trece huevos llenando el resto. En OBS la fuente se pone del ancho del
+  directo y bajita (por ejemplo 1920 × 160); los huevos crecen con el ancho.
+-->
+<link rel="stylesheet" href="/css/widget.css" />
+<style>
+  /* Del ancho entero de la fuente, sin el margen de los demás widgets. */
+  #todo { justify-content: center; }
+  .dofus {
+    width: calc(100vw / var(--tamano-widget, 1)); max-width: none;
+    display: flex; align-items: center; gap: 1rem;
+    padding: .5rem 1rem; border-radius: 0; border-left: 0; border-right: 0;
+  }
+  .cabeza { flex: none; display: flex; flex-direction: column; align-items: center; gap: .1rem; }
+  .titulo { font-size: .85rem; color: #9fb3c8; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  .cuenta { font-size: 1.6rem; font-weight: 800; color: #fbbf24; white-space: nowrap; }
+  .tira { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(13, 1fr); gap: .3rem; }
+  .huevo { position: relative; display: flex; flex-direction: column; align-items: center; gap: .15rem; min-width: 0; }
+  .huevo img {
+    width: 100%; max-width: 110px; max-height: 70vh; aspect-ratio: 1; object-fit: contain;
+    filter: grayscale(1) brightness(.4); opacity: .65;
+    transition: filter .6s ease, opacity .6s ease;
+  }
+  .huevo .nombre { font-size: .72rem; color: #9fb3c8; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .huevo.hecho img { filter: drop-shadow(0 0 8px rgba(251, 191, 36, .6)); opacity: 1; }
+  .huevo.hecho .nombre { color: #e6eef8; font-weight: 700; }
+  .huevo .ok {
+    position: absolute; top: 0; right: 8%; width: 18px; height: 18px; border-radius: 50%;
+    background: #6ee7b7; color: #0b1220; font-size: .7rem; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .huevo.recien img { animation: brilla .8s cubic-bezier(.2, 1.4, .4, 1) both; }
+  @keyframes brilla { from { transform: scale(.5); } 60% { transform: scale(1.15); } to { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .huevo.recien img { animation: none; } .huevo img { transition: none; } }
+</style>
+</head>
+<body>
+  <div id="todo">
+    <div class="panel dofus" id="panel">
+      <div class="cabeza">
+        <div class="titulo">🥚 Dofus</div>
+        <div class="cuenta" id="cuenta"></div>
+      </div>
+      <div class="tira" id="tira"></div>
+    </div>
+  </div>
+  <div id="espera" hidden></div>
+  <div id="fallo" hidden></div>
+
+  <script src="/js/eventos.js"></script>
+  <script src="/js/widget-base.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const q = Widget.caja;
+    // Los que ya se tenían en la vuelta anterior: solo brilla el recién
+    // conseguido, no todos cada vez que llega un aviso.
+    let antes = null;
+
+    Widget.arranca({
+      ruta: 'dofus',
+      pinta(e) {
+        const dofus = (e && e.dofus) || [];
+        const tiene = dofus.filter((d) => d.conseguido);
+        q('cuenta').textContent = tiene.length + ' / ' + dofus.length;
+
+        const tira = q('tira');
+        tira.style.gridTemplateColumns = 'repeat(' + Math.max(1, dofus.length) + ', 1fr)';
+        tira.innerHTML = '';
+        dofus.forEach((d) => {
+          const caja = document.createElement('div');
+          caja.className = 'huevo' + (d.conseguido ? ' hecho' : '')
+            + (d.conseguido && antes && !antes.has(d.id) ? ' recien' : '');
+          const img = document.createElement('img');
+          img.src = d.imagen;
+          img.alt = '';
+          // Si falta el dibujo, al menos que no salga el icono roto.
+          img.onerror = () => { img.style.visibility = 'hidden'; };
+          const nombre = document.createElement('span');
+          nombre.className = 'nombre';
+          nombre.textContent = d.texto;
+          caja.append(img, nombre);
+          if (d.conseguido) {
+            const ok = document.createElement('span');
+            ok.className = 'ok';
+            ok.textContent = '✓';
+            caja.appendChild(ok);
+          }
+          tira.appendChild(caja);
+        });
+        antes = new Set(tiene.map((d) => d.id));
+        // Siempre puesta: es una colección, también se enseña lo que falta.
+        return dofus.length > 0;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

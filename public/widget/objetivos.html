@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Objetivos · widget</title>
+<link rel="icon" href="data:," />
+<!--
+  El widget de Objetivos, para OBS.  /widget/objetivos.html?clave=XXXX
+
+  La checklist del directo: lo que le queda por hacer al streamer, con un
+  contador arriba. Los completados no salen (en la pestaña siguen, para
+  desmarcarlos y repetirlos otro día); al completarse todos se dice y ya.
+  Con la lista vacía se quita solo.
+
+  Los Dofus no van aquí: tienen su propio widget, la tira de dofus.html.
+-->
+<link rel="stylesheet" href="/css/widget.css" />
+<style>
+  .objetivos { width: min(92vw, 520px); text-align: left; }
+  .cabeza { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  .titulo { font-size: 1.05rem; color: #9fb3c8; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .cuenta { font-size: 1rem; font-weight: 800; color: #fbbf24; white-space: nowrap; }
+  .barra { margin-top: .5rem; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+  .barra span { display: block; height: 100%; width: 0; background: #6ee7b7; transition: width .5s ease; }
+  .lista { list-style: none; margin: .8rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .45rem; }
+  .lista li { display: flex; align-items: flex-start; gap: .6rem; font-size: 1.2rem; line-height: 1.3; }
+  .lista .caja {
+    flex: none; width: 1.1em; height: 1.1em; margin-top: .1em; border-radius: 5px;
+    border: 2px solid #9fb3c8; display: flex; align-items: center; justify-content: center;
+    font-size: .8em; font-weight: 900; color: #0b1220; box-sizing: border-box;
+  }
+  .lista li { animation: entra .4s ease both; }
+  .lista li.todos { color: #6ee7b7; font-weight: 800; }
+  @keyframes entra { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .lista li { animation: none; } .barra span { transition: none; } }
+</style>
+</head>
+<body>
+  <div id="todo">
+    <div class="panel objetivos" id="panel" hidden>
+      <div class="cabeza">
+        <div class="titulo" id="titulo">🎯 Objetivos</div>
+        <div class="cuenta" id="cuenta"></div>
+      </div>
+      <div class="barra"><span id="barra"></span></div>
+      <ul class="lista" id="lista"></ul>
+    </div>
+  </div>
+  <div id="espera" hidden>Widget conectado · esperando a que pongas algún objetivo</div>
+  <div id="fallo" hidden></div>
+
+  <script src="/js/eventos.js"></script>
+  <script src="/js/widget-base.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const q = Widget.caja;
+    // Los que ya estaban en pantalla: solo entra con animación el nuevo, no
+    // todos cada vez que llega un aviso.
+    let antes = null;
+
+    Widget.arranca({
+      ruta: 'objetivos',
+      pinta(e) {
+        const objetivos = (e && e.objetivos) || [];
+        q('panel').hidden = !objetivos.length;
+        if (!objetivos.length) { antes = new Set(); return false; }
+
+        const hechos = objetivos.filter((o) => o.hecho).length;
+        q('titulo').textContent = '🎯 ' + (e.titulo || 'Objetivos');
+        q('cuenta').textContent = hechos + ' / ' + objetivos.length;
+        q('barra').style.width = Math.round(hechos * 100 / objetivos.length) + '%';
+
+        const pendientes = objetivos.filter((o) => !o.hecho);
+        const lista = q('lista');
+        lista.innerHTML = '';
+        if (!pendientes.length) {
+          const li = document.createElement('li');
+          li.className = 'todos';
+          li.textContent = '🎉 ¡Todos completados!';
+          lista.appendChild(li);
+        }
+        pendientes.forEach((o) => {
+          const li = document.createElement('li');
+          if (antes && antes.has(o.id)) li.style.animation = 'none';
+          const caja = document.createElement('span');
+          caja.className = 'caja';
+          const texto = document.createElement('span');
+          texto.className = 'texto';
+          texto.textContent = o.texto;
+          li.append(caja, texto);
+          lista.appendChild(li);
+        });
+        antes = new Set(pendientes.map((o) => o.id));
+        return true;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

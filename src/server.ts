@@ -13,6 +13,7 @@ import * as colina from './colina';
 import * as ruletachat from './ruletachat';
 import * as canjeobjetos from './canjeobjetos';
 import * as adivina from './adivina';
+import * as objetivos from './objetivos';
 import * as catalogo from './catalogo';
 import * as widget from './widget';
 import * as avisos from './avisos';
@@ -1946,6 +1947,31 @@ app.get('/api/widget/adivina', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/widget/objetivos?clave= -> la checklist
+// GET /api/widget/dofus?clave=     -> los trece Dofus y cuales se tienen
+// Leen el mismo archivo; cada widget se queda con lo suyo.
+app.get('/api/widget/objetivos', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  try {
+    const l = objetivos.leer(uid);
+    res.json({ titulo: l.titulo, objetivos: l.objetivos });
+  } catch (err) {
+    console.error('Failed to serve goals widget:', err);
+    res.status(500).json({ error: 'failed to get widget state' });
+  }
+});
+app.get('/api/widget/dofus', (req: Request, res: Response) => {
+  const uid = widget.uidDe(req.query?.clave);
+  if (!uid) return res.status(404).json({ error: 'no hay widget aqui' });
+  try {
+    res.json({ dofus: objetivos.leer(uid).dofus });
+  } catch (err) {
+    console.error('Failed to serve dofus widget:', err);
+    res.status(500).json({ error: 'failed to get widget state' });
+  }
+});
+
 // POST /api/sorteo/olvidar -> tira el ultimo sorteo
 // La pagina lo llama al descartar el resultado: si no, el widget seguiria
 // ensenando un premio que ya no esta en pantalla.
@@ -2862,6 +2888,61 @@ app.post('/api/twitch/disconnect', (req: Request, res: Response) => {
 // Los espectadores se apuntan por el chat (que se lee sin credenciales) y los
 // primeros se llevan puntos. Quien decide el orden es el servidor.
 
+// --- Objetivos ----------------------------------------------------------
+// La checklist del directo. Cada ruta devuelve la lista entera, que es corta:
+// asi la pagina pinta siempre lo que de verdad quedo guardado.
+
+// GET /api/objetivos
+app.get('/api/objetivos', (req: Request, res: Response) => {
+  res.json(objetivos.leer(requireUid(req)));
+});
+
+// POST /api/objetivos  Body: { texto }
+app.post('/api/objetivos', (req: Request, res: Response) => {
+  const r = objetivos.anadir(requireUid(req), req.body?.texto);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json(r.lista);
+});
+
+// POST /api/objetivos/dofus  Body: { id, conseguido }
+app.post('/api/objetivos/dofus', (req: Request, res: Response) => {
+  const r = objetivos.marcarDofus(requireUid(req), req.body?.id, req.body?.conseguido);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json(r.lista);
+});
+
+// POST /api/objetivos/cambiar  Body: { id, texto?, hecho? }
+app.post('/api/objetivos/cambiar', (req: Request, res: Response) => {
+  const r = objetivos.cambiar(requireUid(req), req.body?.id, { texto: req.body?.texto, hecho: req.body?.hecho });
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json(r.lista);
+});
+
+// POST /api/objetivos/quitar  Body: { id }
+app.post('/api/objetivos/quitar', (req: Request, res: Response) => {
+  res.json(objetivos.quitar(requireUid(req), req.body?.id));
+});
+
+// POST /api/objetivos/mover  Body: { id, hacia: -1 | 1 }
+app.post('/api/objetivos/mover', (req: Request, res: Response) => {
+  res.json(objetivos.mover(requireUid(req), req.body?.id, req.body?.hacia));
+});
+
+// POST /api/objetivos/titulo  Body: { titulo }
+app.post('/api/objetivos/titulo', (req: Request, res: Response) => {
+  res.json(objetivos.ponerTitulo(requireUid(req), req.body?.titulo));
+});
+
+// POST /api/objetivos/desmarcar -> todos sin hacer, para repetirlos
+app.post('/api/objetivos/desmarcar', (req: Request, res: Response) => {
+  res.json(objetivos.desmarcarTodos(requireUid(req)));
+});
+
+// POST /api/objetivos/vaciar
+app.post('/api/objetivos/vaciar', (req: Request, res: Response) => {
+  res.json(objetivos.vaciar(requireUid(req)));
+});
+
 // --- Los minijuegos -----------------------------------------------------
 // Sus 45 rutas viven en src/rutas/minijuegos.ts. Se monta AQUI, donde
 // estaban: despues del middleware que pide sesion y antes de los estaticos,
@@ -2950,6 +3031,12 @@ adivina.iniciar({
   // Las pistas se quedan fijadas media hora, que es lo que deja Twitch.
   fijar: (uid, texto, segundos) => { void twitch.fijarAviso(uid, canalDe(uid), texto, segundos || 1800); },
   alAcabar: (uid, jugadores) => estadisticas.apuntar('adivina', uid, jugadores)
+});
+// Los objetivos no son un minijuego, pero sus dos widgets se enteran igual.
+// Se avisa a los dos: van en el mismo archivo y pedir de mas no cuesta nada.
+objetivos.iniciar({
+  userDir, ensureUserDir, writeJson,
+  alCambiar: (uid) => { avisos.cambio(uid, 'objetivos'); avisos.cambio(uid, 'dofus'); }
 });
 // El rey de la colina no reparte nada: solo guarda su palabra y su record.
 colina.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'colina') });

@@ -13,11 +13,13 @@
 // armar la misma respuesta, que es como se acaba enseñando una cosa en la
 // pagina y otra en el widget.
 
+// 'objetivos' y 'dofus' tampoco: son la checklist del directo y la tira de
+// los Dofus conseguidos, cada una con su widget.
 // 'widgets' no es un minijuego: es el aviso de que el dueño ha cambiado como se
 // ven sus widgets, para que los que esten puestos en OBS lo cojan al momento.
-export type Juego = 'carrera' | 'plinko' | 'batalla' | 'colina' | 'nombres' | 'sorteo' | 'bingo' | 'adivina' | 'widgets';
+export type Juego = 'carrera' | 'plinko' | 'batalla' | 'colina' | 'nombres' | 'sorteo' | 'bingo' | 'adivina' | 'objetivos' | 'dofus' | 'widgets';
 
-export const JUEGOS: Juego[] = ['carrera', 'plinko', 'batalla', 'colina', 'nombres', 'sorteo', 'bingo', 'adivina', 'widgets'];
+export const JUEGOS: Juego[] = ['carrera', 'plinko', 'batalla', 'colina', 'nombres', 'sorteo', 'bingo', 'adivina', 'objetivos', 'dofus', 'widgets'];
 
 type Oyente = (juego: Juego) => void;
 

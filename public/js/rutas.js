@@ -6,6 +6,7 @@
 //
 //   #minijuegos/plinko     el tablero de clavijas
 //   #puntos                el marcador
+//   #objetivos             la checklist del directo
 //   #ganadores
 //   #historial
 //   #estadisticas
@@ -37,6 +38,7 @@
   const SECCIONES = {
     minijuegos: 'games',
     puntos: 'puntos',
+    objetivos: 'objetivos',
     ganadores: 'winners',
     historial: 'history',
     estadisticas: 'uso',
