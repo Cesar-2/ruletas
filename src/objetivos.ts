@@ -23,6 +23,15 @@ export interface Objetivo {
   // Con el que se esta ahora mismo. Solo estos salen en el widget. Hecho y en
   // proceso no van juntos: al marcar uno se quita el otro.
   proceso: boolean;
+  // Los pasos de este objetivo. Al hacer el ultimo, el objetivo se da por
+  // hecho solo (y pasa el siguiente a en proceso).
+  subs: Sub[];
+}
+
+export interface Sub {
+  id: string;
+  texto: string;
+  hecho: boolean;
 }
 
 export interface Dofus {
@@ -43,6 +52,7 @@ export interface Lista {
 // Cuantos caben. Mas no se lee en un widget encima del directo, y asi un
 // bucle tonto en la pagina no llena el disco.
 export const MAXIMO = 50;
+export const MAXIMO_SUBS = 20;
 export const LARGO_TEXTO = 140;
 export const LARGO_TITULO = 60;
 
@@ -93,7 +103,17 @@ export function leer(uid: string): Lista {
       if (!texto || !id || vistos.has(id)) continue;
       vistos.add(id);
       const hecho = Boolean(o.hecho);
-      objetivos.push({ id, texto, hecho, proceso: !hecho && Boolean(o.proceso) });
+      const subs: Sub[] = [];
+      const subsVistos = new Set<string>();
+      for (const s of Array.isArray(o.subs) ? o.subs : []) {
+        const st = limpiar(s?.texto, LARGO_TEXTO);
+        const sid = String(s?.id || '');
+        if (!st || !sid || subsVistos.has(sid)) continue;
+        subsVistos.add(sid);
+        subs.push({ id: sid, texto: st, hecho: Boolean(s.hecho) });
+        if (subs.length >= MAXIMO_SUBS) break;
+      }
+      objetivos.push({ id, texto, hecho, proceso: !hecho && Boolean(o.proceso), subs });
       if (objetivos.length >= MAXIMO) break;
     }
     const conseguidos = Array.isArray(crudo.conseguidos) ? crudo.conseguidos.map(String) : [];
@@ -115,11 +135,27 @@ function guardar(uid: string, lista: Lista): Lista {
   return lista;
 }
 
-function nuevoId(lista: Lista): string {
+function nuevoId(usados: { id: string }[]): string {
   let id = '';
   do { id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-  while (lista.objetivos.some((o) => o.id === id));
+  while (usados.some((o) => o.id === id));
   return id;
+}
+
+// Marca o desmarca un objetivo. Si era con el que se estaba (en proceso) y se
+// termina, se pasa al siguiente: el primero sin hacer ni empezar que venga
+// detras, o si no queda ninguno, desde arriba.
+function marcarHecho(lista: Lista, o: Objetivo, hecho: boolean): void {
+  const estabaEnProceso = o.proceso;
+  o.hecho = hecho;
+  // Terminado ya no esta en proceso: se va del widget solo.
+  if (o.hecho) o.proceso = false;
+  if (o.hecho && estabaEnProceso) {
+    const i = lista.objetivos.indexOf(o);
+    const enOrden = lista.objetivos.slice(i + 1).concat(lista.objetivos.slice(0, i));
+    const siguiente = enOrden.find((x) => !x.hecho && !x.proceso);
+    if (siguiente) siguiente.proceso = true;
+  }
 }
 
 export type Resultado = { ok: true; lista: Lista } | { ok: false; error: string };
@@ -129,8 +165,53 @@ export function anadir(uid: string, texto: unknown): Resultado {
   if (!t) return { ok: false, error: 'escribe el objetivo' };
   const lista = leer(uid);
   if (lista.objetivos.length >= MAXIMO) return { ok: false, error: 'como mucho ' + MAXIMO + ' objetivos' };
-  lista.objetivos.push({ id: nuevoId(lista), texto: t, hecho: false, proceso: false });
+  lista.objetivos.push({ id: nuevoId(lista.objetivos), texto: t, hecho: false, proceso: false, subs: [] });
   return { ok: true, lista: guardar(uid, lista) };
+}
+
+// --- Sub-objetivos ---------------------------------------------------------
+
+export function anadirSub(uid: string, id: unknown, texto: unknown): Resultado {
+  const t = limpiar(texto, LARGO_TEXTO);
+  if (!t) return { ok: false, error: 'escribe el sub-objetivo' };
+  const lista = leer(uid);
+  const o = lista.objetivos.find((x) => x.id === String(id));
+  if (!o) return { ok: false, error: 'ese objetivo ya no esta' };
+  if (o.subs.length >= MAXIMO_SUBS) return { ok: false, error: 'como mucho ' + MAXIMO_SUBS + ' sub-objetivos' };
+  o.subs.push({ id: nuevoId(o.subs), texto: t, hecho: false });
+  // Un paso nuevo es algo por hacer: el objetivo ya no puede estar terminado.
+  if (o.hecho) o.hecho = false;
+  return { ok: true, lista: guardar(uid, lista) };
+}
+
+// Cambia el texto de un sub-objetivo o si esta hecho. Al hacer el ultimo que
+// quedaba, el objetivo se da por hecho; al desmarcar uno, deja de estarlo.
+export function cambiarSub(uid: string, id: unknown, subId: unknown,
+    cambios: { texto?: unknown; hecho?: unknown }): Resultado {
+  const lista = leer(uid);
+  const o = lista.objetivos.find((x) => x.id === String(id));
+  const s = o?.subs.find((x) => x.id === String(subId));
+  if (!o || !s) return { ok: false, error: 'ese sub-objetivo ya no esta' };
+  if (cambios.texto !== undefined) {
+    const t = limpiar(cambios.texto, LARGO_TEXTO);
+    if (!t) return { ok: false, error: 'el sub-objetivo no puede quedar vacio' };
+    s.texto = t;
+  }
+  if (cambios.hecho !== undefined) {
+    s.hecho = Boolean(cambios.hecho);
+    const todos = o.subs.every((x) => x.hecho);
+    if (todos && !o.hecho) marcarHecho(lista, o, true);
+    else if (!s.hecho && o.hecho) o.hecho = false;
+  }
+  return { ok: true, lista: guardar(uid, lista) };
+}
+
+export function quitarSub(uid: string, id: unknown, subId: unknown): Lista {
+  const lista = leer(uid);
+  const o = lista.objetivos.find((x) => x.id === String(id));
+  if (!o) return lista;
+  o.subs = o.subs.filter((x) => x.id !== String(subId));
+  return guardar(uid, lista);
 }
 
 // Marca un Dofus como conseguido, o lo desmarca si se pulso sin querer.
@@ -157,11 +238,7 @@ export function cambiar(uid: string, id: unknown,
     o.proceso = Boolean(cambios.proceso);
     if (o.proceso) o.hecho = false;
   }
-  if (cambios.hecho !== undefined) {
-    o.hecho = Boolean(cambios.hecho);
-    // Terminado ya no esta en proceso: se va del widget solo.
-    if (o.hecho) o.proceso = false;
-  }
+  if (cambios.hecho !== undefined) marcarHecho(lista, o, Boolean(cambios.hecho));
   return { ok: true, lista: guardar(uid, lista) };
 }
 
@@ -191,7 +268,11 @@ export function ponerTitulo(uid: string, titulo: unknown): Lista {
 // se desmarcan, no se borran.
 export function desmarcarTodos(uid: string): Lista {
   const lista = leer(uid);
-  lista.objetivos.forEach((o) => { o.hecho = false; o.proceso = false; });
+  lista.objetivos.forEach((o) => {
+    o.hecho = false;
+    o.proceso = false;
+    o.subs.forEach((s) => { s.hecho = false; });
+  });
   return guardar(uid, lista);
 }
 

@@ -52,6 +52,7 @@
         fila.innerHTML = '<input type="checkbox" class="marca" />'
           + '<input type="text" class="texto" maxlength="140" />'
           + '<button type="button" class="mini en-proceso"></button>'
+          + '<button type="button" class="mini mas-sub" title="Añadir un sub-objetivo">+ Sub</button>'
           + '<button type="button" class="mini subir" title="Subir">▲</button>'
           + '<button type="button" class="mini bajar" title="Bajar">▼</button>'
           + '<button type="button" class="mini quitar" title="Quitar">✕</button>';
@@ -67,19 +68,15 @@
         proceso.setAttribute('aria-pressed', o.proceso ? 'true' : 'false');
         proceso.addEventListener('click', () => objetivosPedir('/api/objetivos/cambiar', { id: o.id, proceso: !o.proceso }));
 
-        // El texto se corrige ahí mismo y se guarda al salir del campo.
         const texto = fila.querySelector('.texto');
-        texto.value = o.texto;
         texto.setAttribute('aria-label', 'Objetivo ' + (i + 1));
-        texto.addEventListener('keydown', (ev) => {
-          if (ev.key === 'Enter') texto.blur();
-          if (ev.key === 'Escape') { texto.value = o.texto; texto.blur(); }
-        });
-        texto.addEventListener('blur', async () => {
-          const nuevo = texto.value.trim();
-          if (nuevo === o.texto) return;
-          if (!nuevo) { texto.value = o.texto; return; }
-          await objetivosPedir('/api/objetivos/cambiar', { id: o.id, texto: nuevo });
+        editableEnSitio(texto, o.texto, (nuevo) => objetivosPedir('/api/objetivos/cambiar', { id: o.id, texto: nuevo }));
+
+        fila.querySelector('.mas-sub').addEventListener('click', () => {
+          subsAbiertos.add(o.id);
+          pintarObjetivos();
+          const campo = document.querySelector('.subs[data-id="' + o.id + '"] .sub-nuevo');
+          if (campo) campo.focus();
         });
 
         const subir = fila.querySelector('.subir');
@@ -90,9 +87,73 @@
         bajar.addEventListener('click', () => objetivosPedir('/api/objetivos/mover', { id: o.id, hacia: 1 }));
         fila.querySelector('.quitar').addEventListener('click', () => objetivosPedir('/api/objetivos/quitar', { id: o.id }));
         caja.appendChild(fila);
+        if (o.subs.length || subsAbiertos.has(o.id)) caja.appendChild(pintarSubs(o));
       });
 
       pintarDofus();
+    }
+
+    // Un campo de texto que se corrige ahí mismo: se guarda al salir o con
+    // Enter, y Escape lo deja como estaba.
+    function editableEnSitio(campo, valor, guardar) {
+      campo.value = valor;
+      campo.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') campo.blur();
+        if (ev.key === 'Escape') { campo.value = valor; campo.blur(); }
+      });
+      campo.addEventListener('blur', () => {
+        const nuevo = campo.value.trim();
+        if (nuevo === valor) return;
+        if (!nuevo) { campo.value = valor; return; }
+        guardar(nuevo);
+      });
+    }
+
+    // Los objetivos en los que se pulsó «+ Sub», para que el campo de añadir
+    // siga abierto al repintar aunque todavía no tengan ninguno.
+    const subsAbiertos = new Set();
+
+    // Los pasos de un objetivo, debajo de su fila. Al hacer el último, el
+    // servidor da el objetivo por hecho y pasa el siguiente a en proceso.
+    function pintarSubs(o) {
+      const caja = document.createElement('div');
+      caja.className = 'subs';
+      caja.dataset.id = o.id;
+      o.subs.forEach((s) => {
+        const fila = document.createElement('div');
+        fila.className = 'sub' + (s.hecho ? ' hecho' : '');
+        fila.innerHTML = '<input type="checkbox" class="marca" />'
+          + '<input type="text" class="texto" maxlength="140" />'
+          + '<button type="button" class="mini quitar" title="Quitar">✕</button>';
+        const marca = fila.querySelector('.marca');
+        marca.checked = s.hecho;
+        marca.setAttribute('aria-label', 'Hecho: ' + s.texto);
+        marca.addEventListener('change', () => objetivosPedir('/api/objetivos/sub/cambiar', { id: o.id, sub: s.id, hecho: marca.checked }));
+        const texto = fila.querySelector('.texto');
+        texto.setAttribute('aria-label', 'Sub-objetivo de ' + o.texto);
+        editableEnSitio(texto, s.texto, (nuevo) => objetivosPedir('/api/objetivos/sub/cambiar', { id: o.id, sub: s.id, texto: nuevo }));
+        fila.querySelector('.quitar').addEventListener('click', () => objetivosPedir('/api/objetivos/sub/quitar', { id: o.id, sub: s.id }));
+        caja.appendChild(fila);
+      });
+
+      const nueva = document.createElement('div');
+      nueva.className = 'sub sub-anadir';
+      nueva.innerHTML = '<input type="text" class="texto sub-nuevo" maxlength="140" placeholder="Nuevo sub-objetivo (Enter para añadir)" />';
+      const campo = nueva.querySelector('.sub-nuevo');
+      campo.setAttribute('aria-label', 'Nuevo sub-objetivo de ' + o.texto);
+      campo.addEventListener('keydown', async (ev) => {
+        if (ev.key === 'Escape') { subsAbiertos.delete(o.id); pintarObjetivos(); return; }
+        if (ev.key !== 'Enter') return;
+        const t = campo.value.trim();
+        if (!t) return;
+        subsAbiertos.add(o.id);
+        if (await objetivosPedir('/api/objetivos/sub', { id: o.id, texto: t })) {
+          const otra = document.querySelector('.subs[data-id="' + o.id + '"] .sub-nuevo');
+          if (otra) otra.focus();
+        }
+      });
+      caja.appendChild(nueva);
+      return caja;
     }
 
     // Los trece Dofus, siempre todos: un clic lo marca como conseguido y otro

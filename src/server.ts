@@ -2931,6 +2931,27 @@ app.post('/api/objetivos/cambiar', (req: Request, res: Response) => {
   res.json(r.lista);
 });
 
+// POST /api/objetivos/sub  Body: { id, texto } -> un sub-objetivo nuevo
+app.post('/api/objetivos/sub', (req: Request, res: Response) => {
+  const r = objetivos.anadirSub(requireUid(req), req.body?.id, req.body?.texto);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json(r.lista);
+});
+
+// POST /api/objetivos/sub/cambiar  Body: { id, sub, texto?, hecho? }
+app.post('/api/objetivos/sub/cambiar', (req: Request, res: Response) => {
+  const r = objetivos.cambiarSub(requireUid(req), req.body?.id, req.body?.sub, {
+    texto: req.body?.texto, hecho: req.body?.hecho
+  });
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json(r.lista);
+});
+
+// POST /api/objetivos/sub/quitar  Body: { id, sub }
+app.post('/api/objetivos/sub/quitar', (req: Request, res: Response) => {
+  res.json(objetivos.quitarSub(requireUid(req), req.body?.id, req.body?.sub));
+});
+
 // POST /api/objetivos/quitar  Body: { id }
 app.post('/api/objetivos/quitar', (req: Request, res: Response) => {
   res.json(objetivos.quitar(requireUid(req), req.body?.id));

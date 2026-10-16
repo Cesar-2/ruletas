@@ -10,13 +10,17 @@
 
   La checklist del directo: solo los objetivos que el streamer tiene EN
   PROCESO, con un contador de hechos arriba. Los pendientes y los completados
-  no salen (en la pestaña siguen todos). Al completarse todos se dice y ya; sin
+  no salen (en la pestaña siguen todos). Si el objetivo tiene sub-objetivos,
+  van debajo de él, con los hechos tachados. Al completarse todos se dice y ya; sin
   ninguno en proceso se quita solo.
 
   Los Dofus no van aquí: tienen su propio widget, la tira de dofus.html.
 -->
 <link rel="stylesheet" href="/css/widget.css" />
 <style>
+  /* Pegado arriba, no centrado: al completar objetivos la caja encoge por
+     abajo y no se mueve de su sitio. El tamaño también crece desde arriba. */
+  #todo { justify-content: flex-start; transform-origin: top center; }
   .objetivos { width: min(92vw, 520px); text-align: left; }
   .cabeza { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
   .titulo { font-size: 1.05rem; color: #9fb3c8; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
@@ -40,10 +44,21 @@
     border: 2px solid #9fb3c8; display: flex; align-items: center; justify-content: center;
     font-size: .8em; font-weight: 900; color: #0b1220; box-sizing: border-box;
   }
-  .lista li { animation: entra .4s ease both; }
+  /* Los sub-objetivos, debajo del texto del objetivo y dentro de su tarjeta. */
+  .lista .cuerpo { flex: 1; min-width: 0; }
+  .lista .pasos { margin-left: .4rem; font-size: .8em; font-weight: 800; color: #fbbf24; white-space: nowrap; }
+  .subs { list-style: none; margin: .35rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; }
+  .subs li {
+    display: flex; align-items: flex-start; gap: .5rem; font-size: .95rem; line-height: 1.3;
+    padding: 0; background: none; border: 0; animation: none;
+  }
+  .subs .caja { width: .95em; height: .95em; border-width: 2px; border-radius: 4px; font-size: .75em; }
+  .subs li.hecho .caja { background: #6ee7b7; border-color: #6ee7b7; }
+  .subs li.hecho .texto { color: #9fb3c8; text-decoration: line-through; }
+  .lista > li { animation: entra .4s ease both; }
   .lista li.todos { color: #6ee7b7; font-weight: 800; }
   @keyframes entra { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .lista li { animation: none; } .barra span { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .lista > li { animation: none; } .barra span { transition: none; } }
 </style>
 </head>
 <body>
@@ -100,10 +115,37 @@
           if (antes && antes.has(o.id)) li.style.animation = 'none';
           const caja = document.createElement('span');
           caja.className = 'caja';
+          const cuerpo = document.createElement('div');
+          cuerpo.className = 'cuerpo';
           const texto = document.createElement('span');
           texto.className = 'texto';
           texto.textContent = o.texto;
-          li.append(caja, texto);
+          cuerpo.appendChild(texto);
+
+          // Sus pasos, con los hechos tachados: el chat ve cuánto le queda.
+          const subs = o.subs || [];
+          if (subs.length) {
+            const pasos = document.createElement('span');
+            pasos.className = 'pasos';
+            pasos.textContent = subs.filter((s) => s.hecho).length + '/' + subs.length;
+            cuerpo.appendChild(pasos);
+            const ul = document.createElement('ul');
+            ul.className = 'subs';
+            subs.forEach((s) => {
+              const sli = document.createElement('li');
+              if (s.hecho) sli.className = 'hecho';
+              const scaja = document.createElement('span');
+              scaja.className = 'caja';
+              scaja.textContent = s.hecho ? '✓' : '';
+              const stexto = document.createElement('span');
+              stexto.className = 'texto';
+              stexto.textContent = s.texto;
+              sli.append(scaja, stexto);
+              ul.appendChild(sli);
+            });
+            cuerpo.appendChild(ul);
+          }
+          li.append(caja, cuerpo);
           lista.appendChild(li);
         });
         antes = new Set(pendientes.map((o) => o.id));

@@ -117,3 +117,51 @@ test('en proceso: solo uno de los dos estados, y desmarcar lo quita', (t) => {
   objetivos.desmarcarTodos('u1');
   assert.deepStrictEqual([uno().hecho, uno().proceso], [false, false]);
 });
+
+test('al completar el que esta en proceso, pasa el siguiente', (t) => {
+  const { objetivos } = montar(t);
+  ['a', 'b', 'c', 'd'].forEach((x) => objetivos.anadir('u1', x));
+  const [a, b, c, d] = objetivos.leer('u1').objetivos;
+  const estados = () => objetivos.leer('u1').objetivos
+    .map((o) => o.texto + (o.hecho ? '✓' : o.proceso ? '▶' : '')).join(' ');
+
+  objetivos.cambiar('u1', b.id, { proceso: true });
+  objetivos.cambiar('u1', b.id, { hecho: true });
+  assert.strictEqual(estados(), 'a b✓ c▶ d', 'el de debajo');
+
+  objetivos.cambiar('u1', d.id, { hecho: true });
+  assert.strictEqual(estados(), 'a b✓ c▶ d✓', 'completar uno que no estaba en proceso no mueve nada');
+
+  objetivos.cambiar('u1', c.id, { hecho: true });
+  assert.strictEqual(estados(), 'a▶ b✓ c✓ d✓', 'sin nada debajo, vuelve arriba');
+
+  objetivos.cambiar('u1', a.id, { hecho: true });
+  assert.strictEqual(estados(), 'a✓ b✓ c✓ d✓', 'y si no queda ninguno, ya esta');
+});
+
+test('sub-objetivos: al hacer el ultimo se completa el objetivo y pasa el siguiente', (t) => {
+  const { objetivos, d } = montar(t);
+  ['a', 'b'].forEach((x) => objetivos.anadir('u1', x));
+  const [a, b] = objetivos.leer('u1').objetivos;
+  objetivos.cambiar('u1', a.id, { proceso: true });
+  assert.ok(objetivos.anadirSub('u1', a.id, 'paso 1').ok);
+  assert.ok(objetivos.anadirSub('u1', a.id, 'paso 2').ok);
+  assert.strictEqual(objetivos.anadirSub('u1', a.id, '  ').ok, false);
+  const [s1, s2] = objetivos.leer('u1').objetivos[0].subs;
+  const de = (id) => objetivos.leer('u1').objetivos.find((o) => o.id === id);
+
+  objetivos.cambiarSub('u1', a.id, s1.id, { hecho: true });
+  assert.deepStrictEqual([de(a.id).hecho, de(a.id).proceso], [false, true], 'con uno no basta');
+  objetivos.cambiarSub('u1', a.id, s2.id, { hecho: true });
+  assert.strictEqual(de(a.id).hecho, true, 'con todos, hecho');
+  assert.strictEqual(de(b.id).proceso, true, 'y pasa el siguiente');
+
+  objetivos.cambiarSub('u1', a.id, s2.id, { hecho: false });
+  assert.strictEqual(de(a.id).hecho, false, 'desmarcar un paso lo deja sin hacer');
+  assert.strictEqual(cargar('objetivos', d).leer('u1').objetivos[0].subs.length, 2, 'se guardan');
+
+  objetivos.desmarcarTodos('u1');
+  assert.ok(de(a.id).subs.every((s) => !s.hecho), 'desmarcar todos tambien los pasos');
+  objetivos.quitarSub('u1', a.id, s1.id);
+  assert.deepStrictEqual(de(a.id).subs.map((s) => s.texto), ['paso 2']);
+});
