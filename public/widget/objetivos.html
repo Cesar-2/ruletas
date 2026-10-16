@@ -8,10 +8,10 @@
 <!--
   El widget de Objetivos, para OBS.  /widget/objetivos.html?clave=XXXX
 
-  La checklist del directo: lo que le queda por hacer al streamer, con un
-  contador arriba. Los completados no salen (en la pestaña siguen, para
-  desmarcarlos y repetirlos otro día); al completarse todos se dice y ya.
-  Con la lista vacía se quita solo.
+  La checklist del directo: solo los objetivos que el streamer tiene EN
+  PROCESO, con un contador de hechos arriba. Los pendientes y los completados
+  no salen (en la pestaña siguen todos). Al completarse todos se dice y ya; sin
+  ninguno en proceso se quita solo.
 
   Los Dofus no van aquí: tienen su propio widget, la tira de dofus.html.
 -->
@@ -74,18 +74,22 @@
       ruta: 'objetivos',
       pinta(e) {
         const objetivos = (e && e.objetivos) || [];
-        q('panel').hidden = !objetivos.length;
-        if (!objetivos.length) { antes = new Set(); return false; }
-
         const hechos = objetivos.filter((o) => o.hecho).length;
+        const todos = objetivos.length > 0 && hechos === objetivos.length;
+        const pendientes = objetivos.filter((o) => o.proceso && !o.hecho);
+        // Sin nada en proceso no hay nada que enseñar, salvo que se acabe de
+        // completar la lista entera.
+        const hay = pendientes.length > 0 || todos;
+        q('panel').hidden = !hay;
+        if (!hay) { antes = new Set(); return false; }
+
         q('titulo').textContent = '🎯 ' + (e.titulo || 'Objetivos');
         q('cuenta').textContent = hechos + ' / ' + objetivos.length;
         q('barra').style.width = Math.round(hechos * 100 / objetivos.length) + '%';
 
-        const pendientes = objetivos.filter((o) => !o.hecho);
         const lista = q('lista');
         lista.innerHTML = '';
-        if (!pendientes.length) {
+        if (todos) {
           const li = document.createElement('li');
           li.className = 'todos';
           li.textContent = '🎉 ¡Todos completados!';

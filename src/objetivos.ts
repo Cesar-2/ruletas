@@ -20,6 +20,9 @@ export interface Objetivo {
   id: string;
   texto: string;
   hecho: boolean;
+  // Con el que se esta ahora mismo. Solo estos salen en el widget. Hecho y en
+  // proceso no van juntos: al marcar uno se quita el otro.
+  proceso: boolean;
 }
 
 export interface Dofus {
@@ -89,7 +92,8 @@ export function leer(uid: string): Lista {
       const id = String(o?.id || '');
       if (!texto || !id || vistos.has(id)) continue;
       vistos.add(id);
-      objetivos.push({ id, texto, hecho: Boolean(o.hecho) });
+      const hecho = Boolean(o.hecho);
+      objetivos.push({ id, texto, hecho, proceso: !hecho && Boolean(o.proceso) });
       if (objetivos.length >= MAXIMO) break;
     }
     const conseguidos = Array.isArray(crudo.conseguidos) ? crudo.conseguidos.map(String) : [];
@@ -125,7 +129,7 @@ export function anadir(uid: string, texto: unknown): Resultado {
   if (!t) return { ok: false, error: 'escribe el objetivo' };
   const lista = leer(uid);
   if (lista.objetivos.length >= MAXIMO) return { ok: false, error: 'como mucho ' + MAXIMO + ' objetivos' };
-  lista.objetivos.push({ id: nuevoId(lista), texto: t, hecho: false });
+  lista.objetivos.push({ id: nuevoId(lista), texto: t, hecho: false, proceso: false });
   return { ok: true, lista: guardar(uid, lista) };
 }
 
@@ -138,8 +142,9 @@ export function marcarDofus(uid: string, id: unknown, conseguido: unknown): Resu
   return { ok: true, lista: guardar(uid, lista) };
 }
 
-// Cambia lo que se le pase: el texto, si esta hecho, o las dos cosas.
-export function cambiar(uid: string, id: unknown, cambios: { texto?: unknown; hecho?: unknown }): Resultado {
+// Cambia lo que se le pase: el texto, si esta hecho, si esta en proceso.
+export function cambiar(uid: string, id: unknown,
+    cambios: { texto?: unknown; hecho?: unknown; proceso?: unknown }): Resultado {
   const lista = leer(uid);
   const o = lista.objetivos.find((x) => x.id === String(id));
   if (!o) return { ok: false, error: 'ese objetivo ya no esta' };
@@ -148,7 +153,15 @@ export function cambiar(uid: string, id: unknown, cambios: { texto?: unknown; he
     if (!t) return { ok: false, error: 'el objetivo no puede quedar vacio' };
     o.texto = t;
   }
-  if (cambios.hecho !== undefined) o.hecho = Boolean(cambios.hecho);
+  if (cambios.proceso !== undefined) {
+    o.proceso = Boolean(cambios.proceso);
+    if (o.proceso) o.hecho = false;
+  }
+  if (cambios.hecho !== undefined) {
+    o.hecho = Boolean(cambios.hecho);
+    // Terminado ya no esta en proceso: se va del widget solo.
+    if (o.hecho) o.proceso = false;
+  }
   return { ok: true, lista: guardar(uid, lista) };
 }
 
@@ -178,7 +191,7 @@ export function ponerTitulo(uid: string, titulo: unknown): Lista {
 // se desmarcan, no se borran.
 export function desmarcarTodos(uid: string): Lista {
   const lista = leer(uid);
-  lista.objetivos.forEach((o) => { o.hecho = false; });
+  lista.objetivos.forEach((o) => { o.hecho = false; o.proceso = false; });
   return guardar(uid, lista);
 }
 

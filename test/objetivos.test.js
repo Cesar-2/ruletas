@@ -100,3 +100,20 @@ test('los dibujos de los Dofus estan en public/assets', () => {
     .map((x) => x.texto);
   assert.deepStrictEqual(faltan, [], 'faltan: ' + faltan.join(', '));
 });
+
+test('en proceso: solo uno de los dos estados, y desmarcar lo quita', (t) => {
+  const { objetivos, d } = montar(t);
+  objetivos.anadir('u1', 'a');
+  const id = objetivos.leer('u1').objetivos[0].id;
+  const uno = () => objetivos.leer('u1').objetivos[0];
+  assert.strictEqual(uno().proceso, false, 'al añadirlo no esta en proceso');
+
+  objetivos.cambiar('u1', id, { proceso: true });
+  assert.strictEqual(cargar('objetivos', d).leer('u1').objetivos[0].proceso, true, 'se guarda');
+  objetivos.cambiar('u1', id, { hecho: true });
+  assert.deepStrictEqual([uno().hecho, uno().proceso], [true, false], 'al hacerlo se va del widget');
+  objetivos.cambiar('u1', id, { proceso: true });
+  assert.deepStrictEqual([uno().hecho, uno().proceso], [false, true], 'y volver a ponerlo en proceso lo desmarca');
+  objetivos.desmarcarTodos('u1');
+  assert.deepStrictEqual([uno().hecho, uno().proceso], [false, false]);
+});

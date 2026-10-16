@@ -34,21 +34,24 @@
     function pintarObjetivos() {
       const lista = objetivos.objetivos || [];
       const hechos = lista.filter((o) => o.hecho).length;
+      const enProceso = lista.filter((o) => o.proceso).length;
       const titulo = document.getElementById('objetivosTitulo');
       if (document.activeElement !== titulo) titulo.value = objetivos.titulo || '';
       document.getElementById('objetivosEstado').textContent = lista.length
-        ? hechos + ' de ' + lista.length + ' hechos'
-        : 'Sin objetivos todavía. Con la lista vacía el widget no sale.';
-      document.getElementById('objetivosDesmarcar').disabled = !hechos;
+        ? hechos + ' de ' + lista.length + ' hechos · ' + enProceso + ' en proceso'
+          + (enProceso ? '' : ' (el widget no sale hasta que pongas alguno ▶ en proceso)')
+        : 'Sin objetivos todavía.';
+      document.getElementById('objetivosDesmarcar').disabled = !hechos && !enProceso;
       document.getElementById('objetivosVaciar').disabled = !lista.length;
 
       const caja = document.getElementById('objetivosLista');
       caja.innerHTML = '';
       lista.forEach((o, i) => {
         const fila = document.createElement('div');
-        fila.className = 'objetivo' + (o.hecho ? ' hecho' : '');
+        fila.className = 'objetivo' + (o.hecho ? ' hecho' : '') + (o.proceso ? ' proceso' : '');
         fila.innerHTML = '<input type="checkbox" class="marca" />'
           + '<input type="text" class="texto" maxlength="140" />'
+          + '<button type="button" class="mini en-proceso"></button>'
           + '<button type="button" class="mini subir" title="Subir">▲</button>'
           + '<button type="button" class="mini bajar" title="Bajar">▼</button>'
           + '<button type="button" class="mini quitar" title="Quitar">✕</button>';
@@ -56,6 +59,13 @@
         marca.checked = o.hecho;
         marca.setAttribute('aria-label', 'Hecho: ' + o.texto);
         marca.addEventListener('change', () => objetivosPedir('/api/objetivos/cambiar', { id: o.id, hecho: marca.checked }));
+
+        // Lo que sale en el widget: solo los que están en proceso.
+        const proceso = fila.querySelector('.en-proceso');
+        proceso.textContent = o.proceso ? '▶ En proceso' : '▶';
+        proceso.title = o.proceso ? 'Quitar del widget' : 'Poner en proceso: sale en el widget';
+        proceso.setAttribute('aria-pressed', o.proceso ? 'true' : 'false');
+        proceso.addEventListener('click', () => objetivosPedir('/api/objetivos/cambiar', { id: o.id, proceso: !o.proceso }));
 
         // El texto se corrige ahí mismo y se guarda al salir del campo.
         const texto = fila.querySelector('.texto');

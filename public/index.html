@@ -659,6 +659,11 @@
       background:rgba(255,255,255,0.08);color:#e6eef8;border:1px solid rgba(255,255,255,0.14)}
     .objetivo .mini:disabled{opacity:.35;cursor:default}
     .objetivo .quitar{background:rgba(248,113,113,0.10);color:#fca5a5;border-color:rgba(248,113,113,0.35)}
+    /* En proceso: lo que sale en el widget, que se vea de un vistazo. */
+    .objetivo.proceso{border-color:rgba(251,191,36,0.55);background:rgba(251,191,36,0.08)}
+    .objetivo .en-proceso{color:var(--muted)}
+    .objetivo.proceso .en-proceso{background:rgba(251,191,36,0.18);color:#fcd34d;border-color:rgba(251,191,36,0.5);font-weight:700}
+    .objetivo.hecho .en-proceso{visibility:hidden}
     /* Los Dofus: un botón por huevo, en gris hasta que se consigue. */
     .dofus-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:.5rem;margin-top:.6rem}
     .dofus-huevo{display:flex;flex-direction:column;align-items:center;gap:.25rem;padding:.45rem .3rem;border-radius:10px;box-shadow:none;
@@ -1792,7 +1797,7 @@
         <div class="tab-panel" id="objetivos-panel">
           <section>
             <h3>🎯 Objetivos del directo</h3>
-            <p class="meta">Lo que te propones hacer hoy, para ir tachándolo delante del chat. Lo que marques sale al momento en el widget de OBS (<strong>Configuración › Widgets › 🎯 Objetivos</strong>). Marcar no borra nada: la lista se queda guardada, y con <strong>↺ Desmarcar todos</strong> vuelves a empezarla cuando quieras repetirla.</p>
+            <p class="meta">Lo que te propones hacer, para ir tachándolo delante del chat. En el widget de OBS (<strong>Configuración › Widgets › 🎯 Objetivos</strong>) solo salen los que pongas <strong>▶ en proceso</strong>; al marcarlos como hechos se van del widget solos. Marcar no borra nada: la lista se queda guardada, y con <strong>↺ Desmarcar todos</strong> vuelves a empezarla cuando quieras repetirla.</p>
 
             <div class="controls">
               <label class="meta" for="objetivosTitulo">Título en el widget</label>

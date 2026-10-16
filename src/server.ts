@@ -2922,9 +2922,11 @@ app.post('/api/objetivos/dofus', (req: Request, res: Response) => {
   res.json(r.lista);
 });
 
-// POST /api/objetivos/cambiar  Body: { id, texto?, hecho? }
+// POST /api/objetivos/cambiar  Body: { id, texto?, hecho?, proceso? }
 app.post('/api/objetivos/cambiar', (req: Request, res: Response) => {
-  const r = objetivos.cambiar(requireUid(req), req.body?.id, { texto: req.body?.texto, hecho: req.body?.hecho });
+  const r = objetivos.cambiar(requireUid(req), req.body?.id, {
+    texto: req.body?.texto, hecho: req.body?.hecho, proceso: req.body?.proceso
+  });
   if (!r.ok) return res.status(400).json({ error: r.error });
   res.json(r.lista);
 });
