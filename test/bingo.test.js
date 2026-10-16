@@ -719,3 +719,76 @@ test('una partida guardada con un solo carton por persona se recupera', (t) => {
   assert.deepStrictEqual(cartonDe(bingo, uid, 'Ana'), suyo);
   bingo.cancelar(uid);
 });
+
+test('el boton de la pagina gana como el chat, pero cantar sin tenerlo no descalifica', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const bingo = montar(c.raiz);
+  const uid = 'u1';
+  const p = bingo.abrir(uid, '');
+  bingo.apuntar(uid, 'Ana');
+  const fila = filaDeArriba(cartonDe(bingo, uid, 'Ana'));
+  sacarBola(bingo, uid, fila[0]);
+
+  let ahora = Date.now();
+  const antes = bingo.cantarDesdeWeb(p.codigo, 'ana', 'linea', ahora);
+  assert.strictEqual(antes.ok, false);
+  assert.match(antes.motivo, /todavia no tienes linea/);
+  assert.strictEqual(bingo.estado(uid).jugadores[0].descalificado, false, 'desde la pagina no se castiga');
+  assert.strictEqual(bingo.estado(uid).cantos.length, 0, 'ni se apunta como canto');
+
+  // Pulsar sin parar no vale: hay que esperar entre intento e intento.
+  fila.slice(1).forEach((n) => sacarBola(bingo, uid, n));
+  const seguido = bingo.cantarDesdeWeb(p.codigo, 'Ana', 'linea', ahora + 500);
+  assert.strictEqual(seguido.ok, false);
+  assert.match(seguido.motivo, /espera/);
+
+  ahora += bingo.ESPERA_WEB_MS;
+  const r = bingo.cantarDesdeWeb(p.codigo, 'Ana', 'linea', ahora);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.canto.que, 'linea');
+  assert.strictEqual(bingo.estado(uid).fase, 'bingo');
+
+  assert.strictEqual(bingo.cantarDesdeWeb('NOEXISTE', 'Ana', 'linea').ok, false);
+  assert.strictEqual(bingo.cantarDesdeWeb(p.codigo, 'Nadie', 'linea').ok, false);
+  bingo.cancelar(uid);
+});
+
+test('quien gana se dice en el chat, y quien canta en falso no', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const dichos = [];
+  const bingo = cargar('bingo', { ...deps(c.raiz), decir: (uid, texto) => dichos.push([uid, texto]) });
+  const uid = 'u1';
+  bingo.abrir(uid, '');
+  bingo.guardarAjustes(uid, { premioLinea: { kamas: 5000000, texto: 'Dofus Ocre' } });
+  bingo.cancelar(uid);
+  bingo.abrir(uid, '');
+  bingo.apuntar(uid, 'Ana');
+  bingo.apuntar(uid, 'Beto');
+  const fila = filaDeArriba(cartonDe(bingo, uid, 'Ana'));
+  sacarBola(bingo, uid, fila[0]);
+  bingo.cantar(uid, 'Beto', 'linea');
+  assert.strictEqual(dichos.length, 0, 'un canto en falso no se anuncia');
+
+  fila.slice(1).forEach((n) => sacarBola(bingo, uid, n));
+  bingo.cantar(uid, 'Ana', 'linea');
+  assert.strictEqual(dichos.length, 1);
+  assert.strictEqual(dichos[0][0], uid);
+  assert.match(dichos[0][1], /LÍNEA/);
+  assert.match(dichos[0][1], /@Ana/);
+  assert.match(dichos[0][1], /Dofus Ocre/);
+  assert.match(dichos[0][1], /5\.000\.000 kamas/);
+  bingo.cancelar(uid);
+});
+
+test('la pagina publica lleva el fondo y los colores del streamer', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const apariencia = { fondo: '/assets/fondo-x.png', oscurecer: 0.4, acento: '#ff0000', acento2: '#00ff00' };
+  const bingo = cargar('bingo', { ...deps(c.raiz), apariencia: () => apariencia });
+  const uid = 'u1';
+  const p = bingo.abrir(uid, '');
+  assert.deepStrictEqual(bingo.cartonPublico(p.codigo, 'Ana').apariencia, apariencia);
+  bingo.cancelar(uid);
+});

@@ -41,7 +41,13 @@ body.con-fondo { background: #0b1220; }
    bajan con él: a cero no tiene que quedar el marco de una caja que no está.
    Sin la variable vale lo de siempre. */
 .panel {
-  max-width: 92vw;
+  /* #todo va escalado con --tamano-widget: el ancho se divide por la escala
+     para que, al agrandarlo, la caja siga cabiendo en la fuente de OBS. */
+  max-width: calc(92vw / var(--tamano-widget, 1));
+  box-sizing: border-box;
+  /* Los nombres de Twitch no tienen espacios: sin esto uno largo no se parte
+     y se sale por el lado. */
+  overflow-wrap: anywhere;
   text-align: center;
   background: rgba(9, 15, 28, var(--fondo-widget, .82));
   border: 1px solid rgba(255, 255, 255, calc(var(--fondo-widget, .82) * .2));

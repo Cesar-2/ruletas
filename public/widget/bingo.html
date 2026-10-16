@@ -9,7 +9,9 @@
   El widget del bingo, para OBS.  /widget/bingo.html?clave=XXXX
 
   Durante la partida enseña SOLO la última bola que ha salido, y quién canta
-  cuando alguien canta. Ni el tablero de las 75 ni los cartones: el tablero
+  cuando alguien canta. Quien gana la línea ocupa el sitio de la bola diez
+  segundos; al acabar, se quedan ahí los ganadores de la línea y del bingo.
+  Ni el tablero de las 75 ni los cartones: el tablero
   lo tiene el streamer en su panel y cada uno mira su cartón en /bingo.
 
   Antes de la primera bola enseña quién va pidiendo cartón y dónde se mira,
@@ -26,6 +28,7 @@
   .juego { display: flex; flex-direction: column; align-items: center; }
   .juego[hidden] { display: none; }
   .juego .bingo-bola { width: 11rem; height: 11rem; }
+  .juego .bingo-bola[hidden] { display: none; }
   .juego .bingo-bola .letra { font-size: 2rem; }
   .juego .bingo-bola .numero { font-size: 4.8rem; }
   .entrada .donde { margin-top: .8rem; font-size: 1.05rem; }
@@ -35,6 +38,11 @@
      grande; los que cantan en falso, más discretos: es un aviso, no la noticia. */
   .canto {
     margin-top: .9rem;
+    /* Como .panel: que quepa en la fuente de OBS a cualquier tamaño, y que un
+       nombre largo se parta en vez de salirse. */
+    max-width: calc(92vw / var(--tamano-widget, 1));
+    text-align: center;
+    overflow-wrap: anywhere;
     font-size: 1.5rem;
     font-weight: 900;
     /* Sin caja detrás, el borde oscuro es lo que lo deja leerse. */
@@ -42,11 +50,20 @@
     animation: canto-entra .5s cubic-bezier(.2, 1.4, .4, 1);
   }
   .canto[hidden] { display: none; }
-  .canto.linea, .canto.bingo { color: #6ee7b7; font-size: 2.2rem; }
   .canto.falso { color: #fca5a5; font-size: 1.2rem; }
   .canto.tarde { color: #fcd34d; font-size: 1.2rem; }
+
+  /* Quien gana ocupa el sitio de la bola: la línea un rato, y al acabar el
+     bingo se queda con los dos ganadores. */
+  .ganadores { display: flex; flex-direction: column; gap: 1rem; min-width: 16rem; animation: canto-entra .5s cubic-bezier(.2, 1.4, .4, 1); }
+  .ganadores[hidden] { display: none; }
+  .ganador .que { font-size: 1.3rem; font-weight: 900; letter-spacing: .08em; color: #fcd34d; }
+  .ganador .nombre { font-size: 2.6rem; font-weight: 900; color: #6ee7b7; line-height: 1.1; }
+  .ganador .premio { font-size: 1.05rem; color: #e6eef8; margin-top: .2rem; }
+  .ganador.bingo .que { font-size: 1.6rem; }
+  .ganador + .ganador { padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, .15); }
   @keyframes canto-entra { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .canto { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .canto, .ganadores { animation: none; } }
 </style>
 </head>
 <body>
@@ -60,6 +77,7 @@
     </div>
     <div class="juego" id="panelJuego" hidden>
       <div class="bingo-bola vacia" id="bola"><span class="numero">?</span></div>
+      <div class="panel ganadores" id="ganadores" hidden></div>
       <div class="canto" id="canto" hidden></div>
     </div>
   </div>
@@ -73,11 +91,14 @@
   (function () {
     'use strict';
 
-    // Cuánto se queda en pantalla un canto que no termina la partida.
+    // Cuánto se quedan en pantalla un canto en falso o tarde, y el ganador de
+    // la línea en lugar de la bola.
     const CANTO_MS = 9000;
+    const LINEA_MS = 10000;
     let ultimaPintada = 0;
     let cantosVistos = -1;
     let quitarCanto = null;
+    let quitarLinea = null;
 
     function dondeCartones(e) {
       return 'Mira tu cartón en <b>' + location.host + '/bingo</b> · código <b>' + e.codigo + '</b>';
@@ -91,6 +112,9 @@
         juego.hidden = true;
         ultimaPintada = 0;
         cantosVistos = -1;
+        clearTimeout(quitarLinea);
+        quitarLinea = null;
+        ponerGanadores([]);
         return false;
       }
 
@@ -122,28 +146,91 @@
       BingoDibujo.bola(Widget.caja('bola'), ultima, ultima !== ultimaPintada);
       ultimaPintada = ultima;
 
-      // El canto: el último, si es nuevo. Al abrir el widget a media partida no
-      // se repite uno viejo, salvo el que la terminó, que es el resultado.
+      // Los cantos nuevos. Al abrir el widget a media partida no se repite uno
+      // viejo, salvo los ganadores del final, que son el resultado.
       const canto = Widget.caja('canto');
-      const nuevo = cantosVistos >= 0 && e.cantos.length > cantosVistos;
+      const nuevos = cantosVistos >= 0 ? e.cantos.slice(cantosVistos) : [];
       cantosVistos = e.cantos.length;
-      const ganadores = e.cantos.filter((c) => c.que === 'bingo');
-      if (e.fase === 'fin' && ganadores.length) {
+
+      // Acabada con ganadores: se quedan los dos (línea y bingo) en el sitio
+      // de la bola, hasta que se cierre la partida.
+      const ganaron = e.cantos.filter((c) => c.que === 'linea' || c.que === 'bingo');
+      if (e.fase === 'fin' && ganaron.length) {
+        clearTimeout(quitarLinea);
+        quitarLinea = null;
+        ponerGanadores(ganaron);
+      } else {
+        // La línea sustituye a la bola un rato y luego vuelve la bola.
+        const linea = nuevos.filter((c) => c.que === 'linea').pop();
+        if (linea) {
+          clearTimeout(quitarLinea);
+          ponerGanadores([linea]);
+          quitarLinea = setTimeout(() => { quitarLinea = null; ponerGanadores([]); }, LINEA_MS);
+        } else if (!quitarLinea) {
+          ponerGanadores([]);
+        }
+      }
+
+      // Los que cantan en falso o tarde, en pequeño debajo, un rato.
+      const aviso = nuevos.filter((c) => c.que === 'falso' || c.que === 'tarde').pop();
+      if (aviso) {
         clearTimeout(quitarCanto);
-        canto.className = 'canto bingo';
-        canto.textContent = '¡BINGO! ' + ganadores.map((c) => c.nombre).join(' y ');
+        canto.className = 'canto ' + aviso.que;
+        canto.textContent = BingoDibujo.textoCanto(aviso);
         canto.hidden = false;
-      } else if (nuevo) {
-        const c = e.cantos[e.cantos.length - 1];
-        clearTimeout(quitarCanto);
-        canto.className = 'canto ' + c.que;
-        canto.textContent = BingoDibujo.textoCanto(c);
-        canto.hidden = false;
-        quitarCanto = setTimeout(() => { canto.hidden = true; }, CANTO_MS);
-      } else if (e.fase !== 'fin' && !quitarCanto) {
+        quitarCanto = setTimeout(() => { quitarCanto = null; canto.hidden = true; }, CANTO_MS);
+      } else if (!quitarCanto) {
         canto.hidden = true;
       }
       return true;
+    }
+
+    // Lo que se lleva: «Dofus Ocre + 5.000.000 kamas».
+    function textoPremio(p) {
+      if (!p) return '';
+      const partes = [];
+      if (p.texto) partes.push(p.texto);
+      if (p.kamas > 0) partes.push(Number(p.kamas).toLocaleString('es-ES') + ' kamas');
+      return partes.join(' + ');
+    }
+
+    // Pone a los ganadores en lugar de la bola; sin ninguno, vuelve la bola.
+    let pintados = '';
+    function ponerGanadores(lista) {
+      const caja = Widget.caja('ganadores');
+      const bola = Widget.caja('bola');
+      const clave = JSON.stringify(lista.map((c) => [c.que, c.nombre]));
+      bola.hidden = lista.length > 0;
+      caja.hidden = !lista.length;
+      // Repintar igual reiniciaría la animación de entrada en cada aviso.
+      if (clave === pintados) return;
+      pintados = clave;
+      caja.innerHTML = '';
+      lista.forEach((c) => {
+        const uno = document.createElement('div');
+        uno.className = 'ganador ' + c.que;
+        const que = document.createElement('div');
+        que.className = 'que';
+        que.textContent = c.que === 'linea' ? '¡LÍNEA!' : '¡BINGO!';
+        const nombre = document.createElement('div');
+        nombre.className = 'nombre';
+        nombre.textContent = c.nombre;
+        uno.append(que, nombre);
+        const premio = textoPremio(c.premio);
+        if (premio) {
+          const p = document.createElement('div');
+          p.className = 'premio';
+          p.textContent = 'se lleva ' + premio;
+          uno.appendChild(p);
+        }
+        caja.appendChild(uno);
+      });
+      if (lista.length) {
+        // Que la animación de entrada se vea también al cambiar de ganadores.
+        caja.style.animation = 'none';
+        void caja.offsetWidth;
+        caja.style.animation = '';
+      }
     }
 
     Widget.arranca({ ruta: 'bingo', pinta });

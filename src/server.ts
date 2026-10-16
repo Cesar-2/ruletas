@@ -1247,7 +1247,8 @@ app.use('/api', (req: Request, res: Response, next: any) => {
   if (req.path.startsWith('/widget/') && !req.path.startsWith('/widget/clave')) return next();
   // El carton del bingo lo mira el espectador, que no tiene cuenta: entra con
   // el codigo de la partida, que la ruta comprueba. Ver bingo.ts.
-  if (req.path === '/bingo/carton') return next();
+  // Y canta desde ahi con el boton, que nunca descalifica.
+  if (req.path === '/bingo/carton' || req.path === '/bingo/cantar-web') return next();
   if (!usuarioDe(req)) return res.status(401).json({ error: 'no autenticado' });
   next();
 });
@@ -1804,6 +1805,16 @@ app.get('/api/bingo/carton', (req: Request, res: Response) => {
   const r = bingo.cartonPublico(req.query?.p, req.query?.nombre);
   if (!r) return res.status(404).json({ error: 'no hay ninguna partida con ese codigo' });
   res.json(r);
+});
+
+// POST /api/bingo/cantar-web  Body: { p, nombre, que: 'linea' | 'bingo' }
+// El boton de cantar de la pagina del carton. Sin sesion, como la pagina: por
+// eso no descalifica nunca. Ver bingo.cantarDesdeWeb.
+app.post('/api/bingo/cantar-web', (req: Request, res: Response) => {
+  const que = req.body?.que === 'linea' ? 'linea' : 'bingo';
+  const r = bingo.cantarDesdeWeb(req.body?.p, req.body?.nombre, que);
+  if (!r.ok) return res.status(409).json({ error: r.motivo });
+  res.json({ canto: r.canto });
 });
 
 // GET /api/widget/plinko?clave= -> el tablero de esa cuenta, sin sesion
@@ -2992,6 +3003,18 @@ bingo.iniciar({
   alCambiar: (uid) => avisos.cambio(uid, 'bingo'),
   // Los cartones se compran con la recompensa de puntos que crea twitch.ts.
   recompensa: (uid) => twitch.leerCuenta(uid)?.bingoRecompensa?.titulo || '',
+  // Quien gana, al chat.
+  decir: (uid, texto) => { void twitch.decir(uid, canalDe(uid), texto); },
+  // La pagina de los cartones lleva el fondo y los colores del streamer.
+  apariencia: (uid) => {
+    const s = readSettings(uid);
+    return {
+      fondo: enlaceSeguro(s.backgroundUrl),
+      oscurecer: Math.max(0, Math.min(1, Number(s.overlayOpacity) || 0)),
+      acento: HEX_COLOR.test(s.accentColor) ? s.accentColor : DEFAULT_SETTINGS.accentColor,
+      acento2: HEX_COLOR.test(s.accentColor2) ? s.accentColor2 : DEFAULT_SETTINGS.accentColor2
+    };
+  },
   // El premio de la linea o el bingo, a Ganadores, como un objeto mas: con su
   // texto si lo tiene, y las kamas como valor.
   apuntarGanador: (ambito, nombre, premio, que) => {

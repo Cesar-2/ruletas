@@ -18,14 +18,17 @@
 //  - Si lo tiene pero otro lo canto antes, no gana, pero tampoco se le
 //    descalifica: no ha mentido, ha llegado tarde.
 //
-// Cantar se hace por el chat y no con un boton en una pagina a proposito: el
-// chat de Twitch es lo unico que garantiza QUIEN canta. Un boton en una pagina
-// sin login lo podria pulsar cualquiera con el nombre de otro, y como cantar
-// mal descalifica, eso seria descalificar a quien te de la gana.
+// Se canta por el chat o con el boton de la pagina de cartones. El chat de
+// Twitch es lo unico que garantiza QUIEN canta; la pagina no tiene login, y el
+// boton lo podria pulsar cualquiera con el nombre de otro. Por eso cantar desde
+// la pagina NUNCA descalifica: si no lo tiene, se le dice que aun no y ya esta
+// (ver cantarDesdeWeb). Hacerse pasar por otro solo sirve para que ese otro
+// gane, que es lo que le tocaba.
 //
 // Los cartones se ven en una pagina publica (/bingo.html?p=CODIGO) con un
-// codigo que se inventa en cada partida. Solo sirve para MIRAR cartones de esa
-// partida: no deja cantar ni tocar nada.
+// codigo que se inventa en cada partida.
+//
+// Quien gana la linea o el bingo se dice tambien en el chat (deps.decir).
 //
 // Que se juega (la linea, el carton lleno, o las dos cosas) lo eligen dos
 // casillas en Configuracion. No hay puntos de marcador: lo que se gana es el
@@ -262,6 +265,18 @@ export interface Dependencias {
   // El titulo de la recompensa de puntos con la que se compran cartones, para
   // decirlo en pantalla. '' si no hay ninguna creada. Ver twitch.ts.
   recompensa?(uid: string): string;
+  // Escribe en el chat del canal: ahi se anuncia quien gana. Ver twitch.ts.
+  decir?(uid: string, texto: string): void;
+  // El fondo y los colores de la pagina del streamer, para que la de los
+  // cartones se vea como la suya.
+  apariencia?(uid: string): Apariencia;
+}
+
+export interface Apariencia {
+  fondo: string;        // la imagen, '' sin imagen
+  oscurecer: number;    // de 0 a 1, lo que se oscurece encima
+  acento: string;
+  acento2: string;
 }
 
 let deps: Dependencias;
@@ -651,7 +666,8 @@ export function porQueNoCanta(uid: string, nombre: string, que: 'linea' | 'bingo
   return 'no hay nada que cantar';
 }
 
-export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahora: number = Date.now()): Canto | null {
+export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahora: number = Date.now(),
+    opciones: { sinCastigo?: boolean } = {}): Canto | null {
   const partida = partidas.get(uid);
   if (!partida) return null;
   // Sin bolas no hay nada que cantar: es alguien que escribio la palabra antes
@@ -681,6 +697,9 @@ export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahor
   const con = Math.max(0, ...todos);
   // Si otro lo canto antes, ya es suyo.
   const yaEsDeOtro = partida.cantos.some((c) => c.que === que);
+
+  // Desde la pagina no se castiga: no se sabe si quien pulsa es el.
+  if (con === 0 && opciones.sinCastigo) return null;
 
   let resultado: Canto['que'];
   if (con > 0 && !yaEsDeOtro) {
@@ -713,6 +732,13 @@ export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahor
     }
   }
   partida.cantos.push(canto);
+  if (resultado === 'linea' || resultado === 'bingo') {
+    try {
+      deps.decir?.(uid, textoGanador(canto));
+    } catch (err) {
+      console.error('Failed to announce bingo winner in chat:', err);
+    }
+  }
 
   if (resultado === 'bingo') {
     partida.bingoBola = conBingo;
@@ -737,6 +763,51 @@ export function cantar(uid: string, nombre: string, que: 'linea' | 'bingo', ahor
   return canto;
 }
 
+// Lo que se escribe en el chat cuando alguien gana.
+export function textoGanador(c: Canto): string {
+  const que = c.que === 'linea' ? '¡LÍNEA!' : '¡BINGO!';
+  const cosa = c.que === 'linea' ? 'la línea' : 'el bingo';
+  const partes: string[] = [];
+  if (c.premio?.texto) partes.push(c.premio.texto);
+  if (c.premio && c.premio.kamas > 0) partes.push(c.premio.kamas.toLocaleString('es-ES') + ' kamas');
+  return '🎱 ' + que + ' @' + c.nombre + ' gana ' + cosa + ' (tras ' + c.bola + ' bolas)'
+    + (partes.length ? ' y se lleva ' + partes.join(' + ') : '') + ' 🎉';
+}
+
+// Cantar con el boton de la pagina de cartones. Lo mismo que por el chat, salvo
+// que no descalifica nunca: la pagina no sabe quien pulsa, y si cantar mal
+// descalificara, cualquiera podria echar a otro poniendo su nombre.
+//
+// Como no castiga, se limita cuantas veces se puede pulsar: si no, bastaria
+// con pulsar sin parar para cantar en cuanto saliera la bola.
+export const ESPERA_WEB_MS = 3000;
+const ultimoIntentoWeb = new Map<string, number>();
+
+export function cantarDesdeWeb(codigo: unknown, nombre: unknown, que: 'linea' | 'bingo', ahora: number = Date.now()):
+    { ok: true; canto: Canto } | { ok: false; motivo: string } {
+  const hallada = porCodigo(codigo);
+  if (!hallada) return { ok: false, motivo: 'no hay ninguna partida con ese codigo' };
+  const { uid, partida } = hallada;
+  const jugador = partida.jugadores.find((j) => esEl(j, String(nombre ?? '')));
+  if (!jugador) return { ok: false, motivo: 'ese nombre no tiene carton en esta partida' };
+
+  const clave = uid + ':' + jugador.clave;
+  if (ahora - (ultimoIntentoWeb.get(clave) || 0) < ESPERA_WEB_MS) {
+    return { ok: false, motivo: 'espera un momento antes de volver a cantar' };
+  }
+  ultimoIntentoWeb.set(clave, ahora);
+
+  const canto = cantar(uid, jugador.nombre, que, ahora, { sinCastigo: true });
+  if (canto) return { ok: true, canto };
+  const motivo = porQueNoCanta(uid, jugador.nombre, que);
+  if (motivo !== 'no hay nada que cantar') return { ok: false, motivo };
+  return {
+    ok: false,
+    motivo: (que === 'linea' ? 'todavia no tienes linea' : 'todavia no tienes el carton lleno')
+      + ' con las bolas que han salido: revisa lo que has marcado'
+  };
+}
+
 // La partida de un codigo, para la pagina publica de cartones. El que entra no
 // tiene sesion ni clave de widget: solo el codigo que se dijo en el directo.
 export function porCodigo(codigo: unknown): { uid: string; partida: Bingo } | null {
@@ -758,6 +829,7 @@ export function cartonPublico(codigo: unknown, nombre: unknown) {
   const p = palabras.get(uid);
   return {
     abierta: partida.abierta,
+    apariencia: deps.apariencia?.(uid) || null,
     recompensa: deps.recompensa?.(uid) || '',
     maxCartones: leerAjustes(uid).maxCartones,
     cantar: p?.cantar || AJUSTES_POR_DEFECTO.cantar,
@@ -774,6 +846,7 @@ export function cancelar(uid: string): void {
   crono.quitar(uid);
   partidas.delete(uid);
   palabras.delete(uid);
+  for (const k of ultimoIntentoWeb.keys()) if (k.startsWith(uid + ':')) ultimoIntentoWeb.delete(k);
   vivo.borrar(uid);
   deps.alCambiar?.(uid);
 }

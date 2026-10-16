@@ -9,9 +9,15 @@
   El cartón del bingo, para el espectador.  /bingo?p=CODIGO
 
   No hay cuenta ni sesión: el código de la partida sale en el directo y el
-  nombre es el de Twitch. Esto solo sirve para MIRAR el cartón; para cantar hay
-  que escribir en el chat, que es lo único que demuestra quién eres. Ver
-  src/bingo.ts.
+  nombre es el de Twitch. Se canta escribiendo en el chat o con el botón de
+  aquí. Como la página no sabe quién pulsa, el botón NUNCA descalifica: si no
+  lo tienes, te dice que aún no. Ver src/bingo.ts.
+
+  Lleva el fondo y los colores de la página del streamer.
+
+  Con varios cartones, cada uno los coloca como quiera: arrastrándolos por la
+  barra de arriba (o con las flechas) y eligiendo el tamaño. El orden y el
+  tamaño se guardan en su navegador.
 
   Se pueden comprar varios cartones (canjeando la recompensa de puntos del
   canal) y aquí se ven todos.
@@ -26,11 +32,13 @@
 -->
 <link rel="stylesheet" href="/css/bingo.css" />
 <style>
-  :root { color-scheme: dark; }
+  /* Los colores del streamer llegan con la partida (apariencia); hasta
+     entonces, los de siempre. */
+  :root { color-scheme: dark; --acento: #6ee7b7; --acento2: #3ee9c0; --ancho-carton: 18rem; }
   html, body { margin: 0; }
   body {
     min-height: 100vh;
-    background: radial-gradient(circle at 50% 0, #13284a, #071022 70%);
+    background: radial-gradient(circle at 50% 0, #13284a, #071022 70%) fixed;
     color: #e6eef8;
     font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
     display: flex;
@@ -38,9 +46,10 @@
     padding: 1.2rem 1rem 3rem;
     box-sizing: border-box;
   }
-  main { width: 100%; max-width: 26rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
-  h1 { margin: 0; font-size: 1.6rem; }
-  .juego { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+  main { width: 100%; max-width: 80rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+  main > *, .juego > :not(#carton) { max-width: 30rem; }
+  h1 { margin: 0; font-size: 1.6rem; text-shadow: 0 2px 8px rgba(0, 0, 0, .6); }
+  .juego { width: 100%; max-width: none !important; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
   form { display: flex; flex-direction: column; gap: .6rem; width: 100%; }
   form[hidden] { display: none; }
   label { font-size: .9rem; color: #9fb3c8; }
@@ -58,13 +67,14 @@
     padding: .75rem 1rem;
     border-radius: 10px;
     border: none;
-    background: linear-gradient(90deg, #6ee7b7, #3ee9c0);
+    background: linear-gradient(90deg, var(--acento), var(--acento2));
     color: #021018;
     cursor: pointer;
   }
-  button.suave { background: none; color: #6ee7b7; text-decoration: underline; padding: .2rem; font-size: .9rem; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.suave { background: none; color: var(--acento); text-decoration: underline; padding: .2rem; font-size: .9rem; }
   .aviso { text-align: center; color: #9fb3c8; }
-  .aviso b { color: #6ee7b7; }
+  .aviso b { color: var(--acento); }
   .aviso.malo { color: #fca5a5; }
   .quien { font-size: 1.2rem; font-weight: 800; }
   .arriba { display: flex; align-items: center; gap: 1rem; }
@@ -77,19 +87,77 @@
     text-align: center;
     padding: .9rem;
     border-radius: 12px;
-    background: rgba(110, 231, 183, .14);
-    border: 2px solid #6ee7b7;
+    background: rgba(9, 15, 28, .75);
+    border: 2px solid var(--acento);
     font-size: 1.15rem;
     font-weight: 800;
   }
   .cantar[hidden] { display: none; }
+
+  /* El botón de cantar. Siempre está mientras se juega; se enciende cuando
+     tus marcas lo tienen. */
+  .botones-cantar { display: flex; gap: .6rem; width: 100%; }
+  .botones-cantar button { flex: 1; font-size: 1.2rem; padding: .9rem; }
+  .botones-cantar button.lo-tiene { animation: cantar-late 1s ease-in-out infinite; }
+  @keyframes cantar-late { 50% { transform: scale(1.05); box-shadow: 0 0 22px var(--acento); } }
+  .resultado { width: 100%; box-sizing: border-box; text-align: center; padding: .6rem .8rem; border-radius: 10px; background: rgba(9, 15, 28, .75); }
+  .resultado.bien { color: var(--acento); font-weight: 800; }
+  .resultado.mal { color: #fcd34d; }
+
+  /* Para que todo se lea encima de cualquier fondo. */
+  .quien, .previas, .aviso, .ganadores { text-shadow: 0 1px 4px rgba(0, 0, 0, .8); }
+
   /* Las casillas se marcan a mano: se tocan. */
   #carton .casilla { cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
-  #carton .casilla:not(.libre):hover { outline: 2px solid rgba(110, 231, 183, .55); outline-offset: -2px; }
+  #carton .casilla:not(.libre):hover { outline: 2px solid var(--acento); outline-offset: -2px; }
   #carton .bingo-carton.fuera .casilla { cursor: default; }
+
+  /* Los cartones, del tamaño que elija cada uno, uno al lado de otro mientras
+     quepan. El tamaño de los números va con el del cartón. */
+  #carton.bingo-cartones { align-items: flex-start; }
+  #carton .bingo-carton {
+    flex: 0 1 var(--ancho-carton);
+    max-width: var(--ancho-carton);
+    padding: .5rem;
+    border-radius: 14px;
+    background: rgba(9, 15, 28, .78);
+    box-sizing: border-box;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  #carton .bingo-carton::before { display: none; }
+  #carton .bingo-carton .cab { font-size: calc(var(--ancho-carton) * .075); }
+  #carton .bingo-carton .casilla { font-size: calc(var(--ancho-carton) * .07); }
+  #carton .bingo-carton .casilla.libre { font-size: calc(var(--ancho-carton) * .045); }
+  #carton .bingo-carton.arrastrando { opacity: .85; transform: scale(1.03); box-shadow: 0 0 0 2px var(--acento), 0 16px 40px rgba(0, 0, 0, .6); z-index: 1; }
+
+  /* La barra de cada cartón: por ahí se agarra para moverlo. */
+  .asa {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .85rem;
+    color: #9fb3c8;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+  .asa .agarre { font-size: 1.1rem; letter-spacing: -2px; }
+  .asa .nombre-carton { flex: 1; }
+  .asa button { font-size: .85rem; padding: .15rem .45rem; border-radius: 6px; background: rgba(255, 255, 255, .1); color: #e6eef8; }
+  .arrastrando .asa { cursor: grabbing; }
+
+  .organizar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .5rem; font-size: .9rem; color: #9fb3c8; }
+  .organizar button { font-size: .9rem; padding: .35rem .7rem; background: rgba(9, 15, 28, .75); color: #e6eef8; border: 1px solid rgba(255, 255, 255, .15); }
+  .organizar button.activo { background: var(--acento); color: #021018; border-color: transparent; }
+
   .previas { color: #9fb3c8; font-size: .9rem; text-align: center; }
-  .ganadores { list-style: none; padding: 0; margin: 0; text-align: center; color: #6ee7b7; font-weight: 700; }
+  .ganadores { list-style: none; padding: 0; margin: 0; text-align: center; color: var(--acento); font-weight: 700; }
   [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) {
+    .botones-cantar button.lo-tiene { animation: none; box-shadow: 0 0 0 3px #fff; }
+    #carton .bingo-carton { transition: none; }
+  }
 </style>
 </head>
 <body>
@@ -114,7 +182,20 @@
       </div>
       <div class="previas" id="previas"></div>
       <div class="cantar" id="cantar" hidden></div>
+      <div class="botones-cantar" id="botonesCantar" hidden>
+        <button type="button" id="cantarLinea" data-que="linea">¡Línea!</button>
+        <button type="button" id="cantarBingo" data-que="bingo">¡Bingo!</button>
+      </div>
+      <div class="resultado" id="resultado" role="status" aria-live="polite" hidden></div>
       <p class="aviso" id="pista">Toca los números que vayan saliendo para marcarlos.</p>
+      <div class="organizar" id="organizar" hidden>
+        <span>Tamaño:</span>
+        <button type="button" data-ancho="12">S</button>
+        <button type="button" data-ancho="15">M</button>
+        <button type="button" data-ancho="18">L</button>
+        <button type="button" data-ancho="24">XL</button>
+        <span id="pistaMover">· arrastra la barra de un cartón para moverlo</span>
+      </div>
       <div id="carton"></div>
       <ul class="ganadores" id="ganadores"></ul>
       <button type="button" class="suave" id="cambiar">Ver otro cartón</button>
@@ -155,6 +236,45 @@
     try { localStorage.setItem(claveMarcas(), JSON.stringify(marcas)); } catch (e) { /* sin almacenamiento: duran lo que la página */ }
   }
 
+  // Cómo tiene colocados sus cartones: el orden (los índices del servidor, en
+  // el orden en que los quiere ver) y el tamaño. Igual que las marcas, en su
+  // navegador. El tamaño vale para todas las partidas.
+  const ANCHOS = [12, 15, 18, 24];
+  function claveOrden() {
+    return 'bingo.orden:' + codigo + ':' + nombre.toLowerCase();
+  }
+  function leerOrden() {
+    try { return JSON.parse(localStorage.getItem(claveOrden()) || '[]') || []; } catch (e) { return []; }
+  }
+  let orden = [];
+  function guardarOrden() {
+    try { localStorage.setItem(claveOrden(), JSON.stringify(orden)); } catch (e) { /* da igual */ }
+  }
+  function ponerAncho(rem) {
+    const n = ANCHOS.includes(Number(rem)) ? Number(rem) : 18;
+    document.documentElement.style.setProperty('--ancho-carton', n + 'rem');
+    document.querySelectorAll('#organizar [data-ancho]').forEach((b) => b.classList.toggle('activo', Number(b.dataset.ancho) === n));
+    try { localStorage.setItem('bingo.ancho', String(n)); } catch (e) { /* da igual */ }
+  }
+  let anchoGuardado = 18;
+  try { anchoGuardado = Number(localStorage.getItem('bingo.ancho')) || 18; } catch (e) { /* el de siempre */ }
+  ponerAncho(anchoGuardado);
+
+  // El fondo y los colores del streamer, como en su página.
+  let aparienciaPuesta = '';
+  function ponerApariencia(a) {
+    const hecha = JSON.stringify(a || null);
+    if (!a || hecha === aparienciaPuesta) return;
+    aparienciaPuesta = hecha;
+    const raiz = document.documentElement.style;
+    if (/^#[0-9a-f]{6}$/i.test(a.acento)) raiz.setProperty('--acento', a.acento);
+    if (/^#[0-9a-f]{6}$/i.test(a.acento2)) raiz.setProperty('--acento2', a.acento2);
+    const ov = Math.max(0, Math.min(1, Number(a.oscurecer) || 0));
+    document.body.style.background = a.fondo
+      ? 'linear-gradient(rgba(7,16,34,' + ov + '), rgba(11,18,32,' + Math.min(1, ov + .13) + ')), url(' + JSON.stringify(a.fondo) + ') center center / cover no-repeat fixed #071022'
+      : '';
+  }
+
   $('codigo').value = codigo;
   $('nombre').value = nombre;
 
@@ -190,6 +310,8 @@
       avisar('Sin conexión. Reintentando…', true);
       return;
     }
+    // Mientras arrastra un cartón no se repinta: se le iría de la mano.
+    if (arrastre) { ultimo = r; return; }
     pintar(r);
   }
 
@@ -197,6 +319,7 @@
     $('entrar').hidden = true;
     $('juego').hidden = false;
     $('quien').textContent = nombre;
+    ponerApariencia(r.apariencia);
 
     ultimo = r;
     const ultima = r.salidas[r.salidas.length - 1] || 0;
@@ -216,6 +339,8 @@
     if (!r.jugador) {
       $('carton').innerHTML = '';
       $('cantar').hidden = true;
+      $('botonesCantar').hidden = true;
+      $('organizar').hidden = true;
       $('pista').hidden = true;
       $('fase').textContent = '';
       avisar(r.abierta
@@ -230,6 +355,9 @@
     const suyas = r.jugador.cartones.map((_, i) => marcas[i] || []);
     const conLoQueSeJuega = BingoDibujo.cartones($('carton'), r.jugador.cartones, suyas,
       { fuera: r.jugador.descalificado, que, porCarton: true });
+    colocar(r.jugador.cartones.length);
+    $('organizar').hidden = false;
+    $('pistaMover').hidden = r.jugador.cartones.length < 2;
     $('pista').hidden = r.jugador.descalificado || r.fase === 'fin';
 
     $('fase').innerHTML = r.fase === 'fin'
@@ -245,8 +373,17 @@
     $('cantar').hidden = !loTiene || yaGano || r.jugador.descalificado;
     const palabraCantar = r.fase === 'linea' ? (r.cantarLinea || '!linea') : r.cantar;
     $('cantar').innerHTML = (que === 'linea' ? '¡Tus marcas hacen línea!' : '¡Tus marcas llenan el cartón!')
-      + ' Escribe <b>' + escapar(palabraCantar) + '</b> en el chat, ya'
-      + '<br><small>Si marcaste alguno que no ha salido, te descalifican.</small>';
+      + ' Pulsa el botón o escribe <b>' + escapar(palabraCantar) + '</b> en el chat, ya'
+      + '<br><small>En el chat, si marcaste alguno que no ha salido, te descalifican.</small>';
+
+    // El botón de lo que se juega ahora. Se puede pulsar siempre que se juegue:
+    // aquí cantar sin tenerlo no descalifica, solo dice que aún no.
+    const jugando = r.fase !== 'fin' && !r.jugador.descalificado && r.salidas.length > 0;
+    $('botonesCantar').hidden = !jugando || yaGano;
+    $('cantarLinea').hidden = r.fase !== 'linea';
+    $('cantarBingo').hidden = r.fase !== 'bingo';
+    const boton = r.fase === 'linea' ? $('cantarLinea') : $('cantarBingo');
+    boton.classList.toggle('lo-tiene', loTiene);
 
     avisar(r.jugador.descalificado
       ? 'Cantaste sin tenerlo: estás <b>descalificado</b> en esta partida.'
@@ -255,8 +392,123 @@
     $('ganadores').innerHTML = r.cantos.map((c) => '<li>' + escapar(BingoDibujo.textoCanto(c)) + '</li>').join('');
   }
 
+  // Pone los cartones en el orden que eligió y les añade la barra por la que
+  // se agarran. Los que compre después van al final.
+  function colocar(cuantos) {
+    const vistos = new Set();
+    orden = orden.filter((i) => Number.isInteger(i) && i >= 0 && i < cuantos && !vistos.has(i) && vistos.add(i));
+    for (let i = 0; i < cuantos; i++) if (!vistos.has(i)) orden.push(i);
+    const caja = $('carton');
+    const varios = cuantos > 1;
+    orden.forEach((i, pos) => {
+      const uno = caja.querySelector('[data-indice="' + i + '"]');
+      if (!uno) return;
+      const asa = document.createElement('div');
+      asa.className = 'asa';
+      asa.innerHTML = (varios ? '<span class="agarre" aria-hidden="true">⠿⠿</span>' : '')
+        + '<span class="nombre-carton">Cartón ' + (i + 1) + '</span>'
+        + (varios
+          ? '<button type="button" data-mover="-1" aria-label="Mover a la izquierda"' + (pos === 0 ? ' disabled' : '') + '>◀</button>'
+            + '<button type="button" data-mover="1" aria-label="Mover a la derecha"' + (pos === cuantos - 1 ? ' disabled' : '') + '>▶</button>'
+          : '');
+      uno.insertBefore(asa, uno.firstChild);
+      caja.appendChild(uno);
+    });
+  }
+
+  function ordenDelDom() {
+    return Array.from($('carton').children).map((el) => Number(el.dataset.indice));
+  }
+
+  // Arrastrar un cartón por su barra. Con eventos de puntero, para que vaya
+  // igual con el ratón que con el dedo.
+  let arrastre = null;
+  $('carton').addEventListener('pointerdown', (ev) => {
+    const asa = ev.target.closest('.asa');
+    if (!asa || ev.target.closest('button') || $('carton').children.length < 2) return;
+    const uno = asa.parentElement;
+    arrastre = { uno, id: ev.pointerId };
+    uno.classList.add('arrastrando');
+    // La captura va en la caja de todos y no en la barra: el cartón cambia de
+    // sitio en el DOM al moverlo, y eso soltaría la captura.
+    $('carton').setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+  });
+  $('carton').addEventListener('pointermove', (ev) => {
+    if (!arrastre || ev.pointerId !== arrastre.id) return;
+    const debajo = document.elementFromPoint(ev.clientX, ev.clientY);
+    const otro = debajo && debajo.closest('#carton > [data-indice]');
+    if (!otro || otro === arrastre.uno) return;
+    const hermanos = Array.from($('carton').children);
+    const antes = hermanos.indexOf(arrastre.uno) > hermanos.indexOf(otro);
+    $('carton').insertBefore(arrastre.uno, antes ? otro : otro.nextSibling);
+  });
+  function soltar(ev) {
+    if (!arrastre || ev.pointerId !== arrastre.id) return;
+    arrastre.uno.classList.remove('arrastrando');
+    arrastre = null;
+    orden = ordenDelDom();
+    guardarOrden();
+    if (ultimo) pintar(ultimo);
+  }
+  $('carton').addEventListener('pointerup', soltar);
+  $('carton').addEventListener('pointercancel', soltar);
+
+  $('organizar').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-ancho]');
+    if (b) ponerAncho(b.dataset.ancho);
+  });
+
+  // El botón de cantar.
+  $('botonesCantar').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-que]');
+    if (!b || b.disabled) return;
+    const que = b.dataset.que;
+    b.disabled = true;
+    const decir = (texto, bien) => {
+      $('resultado').textContent = texto;
+      $('resultado').className = 'resultado ' + (bien ? 'bien' : 'mal');
+      $('resultado').hidden = false;
+    };
+    try {
+      const res = await fetch('/api/bingo/cantar-web', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p: codigo, nombre, que })
+      });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const motivo = r.error || 'no se pudo cantar';
+        decir(motivo.charAt(0).toUpperCase() + motivo.slice(1) + '.', false);
+      } else if (r.canto && r.canto.que === 'tarde') {
+        decir('Lo tenías, pero otro lo cantó antes.', false);
+      } else if (r.canto) {
+        decir(BingoDibujo.textoCanto(r.canto), true);
+      }
+    } catch (e) {
+      decir('Sin conexión: prueba otra vez o escríbelo en el chat.', false);
+    }
+    // El servidor no deja volver a cantar hasta pasados unos segundos.
+    setTimeout(() => { b.disabled = false; }, 3000);
+    mirar();
+  });
+
   // Tocar una casilla la marca, y tocarla otra vez la desmarca.
   $('carton').addEventListener('click', (ev) => {
+    if (ev.target.closest('.asa')) {
+      const m = ev.target.closest('[data-mover]');
+      if (!m || m.disabled) return;
+      const uno = m.closest('[data-indice]');
+      const i = Number(uno.dataset.indice);
+      const pos = orden.indexOf(i);
+      const otra = pos + Number(m.dataset.mover);
+      if (pos < 0 || otra < 0 || otra >= orden.length) return;
+      orden[pos] = orden[otra];
+      orden[otra] = i;
+      guardarOrden();
+      if (ultimo) pintar(ultimo);
+      return;
+    }
     const casilla = ev.target.closest('.casilla');
     const uno = ev.target.closest('[data-indice]');
     if (!casilla || !uno || !ultimo || !ultimo.jugador) return;
@@ -293,6 +545,8 @@
     clearInterval(reloj);
     ultimaPintada = 0;
     marcas = leerMarcas();
+    orden = leerOrden();
+    $('resultado').hidden = true;
     mirar();
     reloj = setInterval(mirar, CADA_MS);
   }
