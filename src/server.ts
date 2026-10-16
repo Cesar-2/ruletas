@@ -2952,6 +2952,14 @@ app.post('/api/objetivos/sub/quitar', (req: Request, res: Response) => {
   res.json(objetivos.quitarSub(requireUid(req), req.body?.id, req.body?.sub));
 });
 
+// POST /api/objetivos/agrupar  Body: { nombre } -> los completados, dentro
+// de un objetivo nuevo con ese nombre
+app.post('/api/objetivos/agrupar', (req: Request, res: Response) => {
+  const r = objetivos.agruparHechos(requireUid(req), req.body?.nombre);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json(r.lista);
+});
+
 // POST /api/objetivos/quitar  Body: { id }
 app.post('/api/objetivos/quitar', (req: Request, res: Response) => {
   res.json(objetivos.quitar(requireUid(req), req.body?.id));

@@ -165,3 +165,24 @@ test('sub-objetivos: al hacer el ultimo se completa el objetivo y pasa el siguie
   objetivos.quitarSub('u1', a.id, s1.id);
   assert.deepStrictEqual(de(a.id).subs.map((s) => s.texto), ['paso 2']);
 });
+
+test('guardar los completados dentro de un objetivo nuevo con nombre', (t) => {
+  const { objetivos } = montar(t);
+  ['a', 'b', 'c'].forEach((x) => objetivos.anadir('u1', x));
+  const [a, b] = objetivos.leer('u1').objetivos;
+  assert.strictEqual(objetivos.agruparHechos('u1', 'Grupo').ok, false, 'sin completados no hay nada que guardar');
+  objetivos.cambiar('u1', a.id, { hecho: true });
+  objetivos.cambiar('u1', b.id, { hecho: true });
+  assert.strictEqual(objetivos.agruparHechos('u1', '  ').ok, false, 'hace falta nombre');
+
+  assert.ok(objetivos.agruparHechos('u1', 'Misiones Dofawa').ok);
+  const l = objetivos.leer('u1').objetivos;
+  assert.deepStrictEqual(l.map((o) => o.texto), ['c', 'Misiones Dofawa']);
+  const grupo = l[1];
+  assert.strictEqual(grupo.hecho, true);
+  assert.deepStrictEqual(grupo.subs.map((s) => [s.texto, s.hecho]), [['a', true], ['b', true]]);
+
+  objetivos.desmarcarTodos('u1');
+  const otra = objetivos.leer('u1').objetivos[1];
+  assert.ok(!otra.hecho && otra.subs.every((s) => !s.hecho), 'y se puede repetir');
+});

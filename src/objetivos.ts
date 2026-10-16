@@ -52,7 +52,8 @@ export interface Lista {
 // Cuantos caben. Mas no se lee en un widget encima del directo, y asi un
 // bucle tonto en la pagina no llena el disco.
 export const MAXIMO = 50;
-export const MAXIMO_SUBS = 20;
+// Tantos como objetivos: guardar los completados los mete todos en uno.
+export const MAXIMO_SUBS = MAXIMO;
 export const LARGO_TEXTO = 140;
 export const LARGO_TITULO = 60;
 
@@ -203,6 +204,25 @@ export function cambiarSub(uid: string, id: unknown, subId: unknown,
     if (todos && !o.hecho) marcarHecho(lista, o, true);
     else if (!s.hecho && o.hecho) o.hecho = false;
   }
+  return { ok: true, lista: guardar(uid, lista) };
+}
+
+// Junta todos los completados en un objetivo nuevo con ese nombre, ya hecho,
+// con cada uno como sub-objetivo. La lista queda limpia y lo terminado sigue
+// guardado: con «Desmarcar todos» se puede repetir el grupo entero.
+//
+// Los sub-objetivos de los que se juntan no se llevan: solo hay un nivel, y
+// lo que se guarda es que esa mision se hizo.
+export function agruparHechos(uid: string, nombre: unknown): Resultado {
+  const t = limpiar(nombre, LARGO_TEXTO);
+  if (!t) return { ok: false, error: 'ponle un nombre' };
+  const lista = leer(uid);
+  const hechos = lista.objetivos.filter((o) => o.hecho);
+  if (!hechos.length) return { ok: false, error: 'no hay ningun objetivo completado' };
+  const subs: Sub[] = [];
+  for (const o of hechos) subs.push({ id: nuevoId(subs), texto: o.texto, hecho: true });
+  lista.objetivos = lista.objetivos.filter((o) => !o.hecho);
+  lista.objetivos.push({ id: nuevoId(lista.objetivos), texto: t, hecho: true, proceso: false, subs });
   return { ok: true, lista: guardar(uid, lista) };
 }
 

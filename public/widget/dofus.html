@@ -33,7 +33,7 @@
   .huevo img {
     width: 100%; max-width: 110px; max-height: 70vh; aspect-ratio: 1; object-fit: contain;
     filter: grayscale(1) brightness(.4); opacity: .65;
-    transition: filter .6s ease, opacity .6s ease;
+    transition: filter .3s ease, opacity .3s ease;
   }
   .huevo .nombre { font-size: .72rem; color: #9fb3c8; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .huevo.hecho img { filter: drop-shadow(0 0 8px rgba(251, 191, 36, .6)); opacity: 1; }
@@ -43,6 +43,7 @@
     background: #6ee7b7; color: #0b1220; font-size: .7rem; font-weight: 900;
     display: flex; align-items: center; justify-content: center;
   }
+  .huevo:not(.hecho) .ok { display: none; }
   .huevo.recien img { animation: brilla .8s cubic-bezier(.2, 1.4, .4, 1) both; }
   @keyframes brilla { from { transform: scale(.5); } 60% { transform: scale(1.15); } to { transform: none; } }
   @media (prefers-reduced-motion: reduce) { .huevo.recien img { animation: none; } .huevo img { transition: none; } }
@@ -70,6 +71,10 @@
     // Los que ya se tenían en la vuelta anterior: solo brilla el recién
     // conseguido, no todos cada vez que llega un aviso.
     let antes = null;
+    // Los huevos se hacen una vez y luego solo se les cambia la clase. Antes se
+    // rehacía la tira entera (con sus trece imágenes) a cada cambio, y el que
+    // se marcaba tardaba en encenderse.
+    const huevos = new Map();
 
     Widget.arranca({
       ruta: 'dofus',
@@ -79,28 +84,41 @@
         q('cuenta').textContent = tiene.length + ' / ' + dofus.length;
 
         const tira = q('tira');
-        tira.style.gridTemplateColumns = 'repeat(' + Math.max(1, dofus.length) + ', 1fr)';
-        tira.innerHTML = '';
-        dofus.forEach((d) => {
-          const caja = document.createElement('div');
-          caja.className = 'huevo' + (d.conseguido ? ' hecho' : '')
-            + (d.conseguido && antes && !antes.has(d.id) ? ' recien' : '');
-          const img = document.createElement('img');
-          img.src = d.imagen;
-          img.alt = '';
-          // Si falta el dibujo, al menos que no salga el icono roto.
-          img.onerror = () => { img.style.visibility = 'hidden'; };
-          const nombre = document.createElement('span');
-          nombre.className = 'nombre';
-          nombre.textContent = d.texto;
-          caja.append(img, nombre);
-          if (d.conseguido) {
+        if (huevos.size !== dofus.length) {
+          tira.style.gridTemplateColumns = 'repeat(' + Math.max(1, dofus.length) + ', 1fr)';
+          tira.innerHTML = '';
+          huevos.clear();
+          dofus.forEach((d) => {
+            const caja = document.createElement('div');
+            caja.className = 'huevo';
+            const img = document.createElement('img');
+            img.src = d.imagen;
+            img.alt = '';
+            // Si falta el dibujo, al menos que no salga el icono roto.
+            img.onerror = () => { img.style.visibility = 'hidden'; };
+            const nombre = document.createElement('span');
+            nombre.className = 'nombre';
+            nombre.textContent = d.texto;
             const ok = document.createElement('span');
             ok.className = 'ok';
             ok.textContent = '✓';
-            caja.appendChild(ok);
+            caja.append(img, nombre, ok);
+            huevos.set(d.id, caja);
+            tira.appendChild(caja);
+          });
+        }
+        dofus.forEach((d) => {
+          const caja = huevos.get(d.id);
+          if (!caja) return;
+          caja.classList.toggle('hecho', d.conseguido);
+          if (d.conseguido && antes && !antes.has(d.id)) {
+            // Para que el brillo se repita si se desmarca y se vuelve a marcar.
+            caja.classList.remove('recien');
+            void caja.offsetWidth;
+            caja.classList.add('recien');
+          } else if (!d.conseguido) {
+            caja.classList.remove('recien');
           }
-          tira.appendChild(caja);
         });
         antes = new Set(tiene.map((d) => d.id));
         // Siempre puesta: es una colección, también se enseña lo que falta.

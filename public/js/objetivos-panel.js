@@ -42,6 +42,7 @@
           + (enProceso ? '' : ' (el widget no sale hasta que pongas alguno ▶ en proceso)')
         : 'Sin objetivos todavía.';
       document.getElementById('objetivosDesmarcar').disabled = !hechos && !enProceso;
+      document.getElementById('objetivosAgrupar').disabled = !hechos;
       document.getElementById('objetivosVaciar').disabled = !lista.length;
 
       const caja = document.getElementById('objetivosLista');
@@ -158,27 +159,74 @@
 
     // Los trece Dofus, siempre todos: un clic lo marca como conseguido y otro
     // lo desmarca. Es lo que enseña la tira del widget de Dofus.
+    //
+    // Los botones se hacen una vez y luego solo se les cambia la clase: antes se
+    // rehacían todos (con sus imágenes) a cada clic, y el huevo no cambiaba
+    // hasta que contestaba el servidor. Ahora cambia al pulsar y el servidor
+    // se entera detrás.
+    const botonesDofus = new Map();
+
     function pintarDofus() {
       const dofus = objetivos.dofus || [];
       const tiene = dofus.filter((d) => d.conseguido).length;
       document.getElementById('dofusEstado').textContent = tiene + ' de ' + dofus.length + ' conseguidos';
       const caja = document.getElementById('dofusLista');
-      caja.innerHTML = '';
+      if (botonesDofus.size !== dofus.length) {
+        caja.innerHTML = '';
+        botonesDofus.clear();
+        dofus.forEach((d) => {
+          const boton = document.createElement('button');
+          boton.type = 'button';
+          boton.className = 'dofus-huevo';
+          const img = document.createElement('img');
+          img.src = d.imagen;
+          img.alt = '';
+          img.onerror = () => { img.style.visibility = 'hidden'; };
+          const nombre = document.createElement('span');
+          nombre.textContent = d.texto;
+          boton.append(img, nombre);
+          boton.addEventListener('click', () => alternarDofus(d.id));
+          botonesDofus.set(d.id, boton);
+          caja.appendChild(boton);
+        });
+      }
       dofus.forEach((d) => {
-        const boton = document.createElement('button');
-        boton.type = 'button';
-        boton.className = 'dofus-huevo' + (d.conseguido ? ' hecho' : '');
+        const boton = botonesDofus.get(d.id);
+        if (!boton) return;
+        boton.classList.toggle('hecho', d.conseguido);
         boton.setAttribute('aria-pressed', d.conseguido ? 'true' : 'false');
         boton.title = d.conseguido ? d.texto + ': conseguido (clic para desmarcar)' : d.texto + ': clic cuando lo consigas';
-        const img = document.createElement('img');
-        img.src = d.imagen;
-        img.alt = '';
-        img.onerror = () => { img.style.visibility = 'hidden'; };
-        const nombre = document.createElement('span');
-        nombre.textContent = d.texto;
-        boton.append(img, nombre);
-        boton.addEventListener('click', () => objetivosPedir('/api/objetivos/dofus', { id: d.id, conseguido: !d.conseguido }));
-        caja.appendChild(boton);
+      });
+    }
+
+    // Los clics van en fila al servidor, para que lleguen en orden; y lo que
+    // conteste solo se pinta cuando ya no queda ninguno por mandar: si no, la
+    // respuesta del primero desharía en pantalla el segundo clic.
+    let dofusEnCola = 0;
+    let dofusFila = Promise.resolve();
+
+    function alternarDofus(id) {
+      const d = (objetivos.dofus || []).find((x) => x.id === id);
+      if (!d) return;
+      d.conseguido = !d.conseguido;
+      pintarDofus();
+      const cuerpo = { id, conseguido: d.conseguido };
+      dofusEnCola++;
+      dofusFila = dofusFila.then(async () => {
+        try {
+          const lista = await api('/api/objetivos/dofus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cuerpo)
+          });
+          if (dofusEnCola === 1) { objetivos.dofus = lista.dofus; pintarDofus(); }
+        } catch (e) {
+          showAlert('Dofus', e.message);
+          // Lo que diga el servidor, que es lo que de verdad quedó.
+          cargarObjetivos();
+        } finally {
+          dofusEnCola--;
+        }
       });
     }
 
@@ -199,6 +247,22 @@
 
     document.getElementById('objetivosTitulo').addEventListener('change', (ev) => {
       objetivosPedir('/api/objetivos/titulo', { titulo: ev.target.value });
+    });
+
+    // Los completados, dentro de un objetivo nuevo con el nombre que se elija.
+    document.getElementById('objetivosAgrupar').addEventListener('click', async () => {
+      const hechos = (objetivos.objetivos || []).filter((o) => o.hecho);
+      if (!hechos.length) return;
+      const nombre = await showModal({
+        title: 'Guardar completados',
+        message: 'Los ' + hechos.length + ' objetivo(s) completados pasan a ser sub-objetivos de uno nuevo con este nombre. '
+          + 'Quedan guardados; con «Desmarcar todos» los puedes repetir.',
+        okText: 'Guardar',
+        input: true,
+        placeholder: 'Nombre, p. ej. Misiones Dofawa'
+      });
+      if (!nombre) return;
+      objetivosPedir('/api/objetivos/agrupar', { nombre });
     });
 
     document.getElementById('objetivosDesmarcar').addEventListener('click', () => {
