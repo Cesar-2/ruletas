@@ -96,8 +96,7 @@ test('los dibujos de los Dofus estan en public/assets', () => {
   const fs = require('fs');
   const path = require('path');
   const objetivos = cargar('objetivos');
-  // Marfil falta todavia: el widget lo enseña sin dibujo hasta que se suba.
   const faltan = objetivos.DOFUS.filter((x) => !fs.existsSync(path.join(__dirname, '..', 'public', x.imagen)))
     .map((x) => x.texto);
-  assert.ok(faltan.every((f) => f === 'Marfil'), 'faltan: ' + faltan.join(', '));
+  assert.deepStrictEqual(faltan, [], 'faltan: ' + faltan.join(', '));
 });
