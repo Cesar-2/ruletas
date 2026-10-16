@@ -2,8 +2,15 @@
 // ir tachandolas delante del chat.
 //
 // No es un minijuego: no hay chat que escuchar, ni puntos, ni premio. Es una
-// lista que se edita desde la pagina y que el widget enseña en OBS, con las ya
-// hechas tachadas.
+// lista que se edita desde la pagina y que el widget enseña en OBS.
+//
+// Funciona como carpetas: cada objetivo puede tener sub-objetivos dentro, y
+// cada uno de esos los suyos, sin limite. Cualquiera se puede mover a otro
+// sitio: dentro de otro, delante o detras, o a la lista principal. Lo mismo a
+// todos los niveles: una carpeta esta hecha cuando lo esta todo lo de dentro.
+//
+// Los de la lista principal son los «objetivos»: solo esos se ponen en proceso
+// y salen en el widget, con todo lo que llevan dentro.
 //
 // Aparte van los Dofus: una coleccion fija de trece que se van consiguiendo.
 // No son objetivos de la lista (no se escriben, no se quitan, no se reordenan):
@@ -16,22 +23,20 @@
 import fs from 'fs';
 import path from 'path';
 
-export interface Objetivo {
+// Un objetivo o sub-objetivo, a cualquier nivel.
+export interface Sub {
+  // Unico en toda la lista, no solo entre hermanos: es por donde se dice cual
+  // se toca o se mueve, este donde este.
   id: string;
   texto: string;
   hecho: boolean;
-  // Con el que se esta ahora mismo. Solo estos salen en el widget. Hecho y en
-  // proceso no van juntos: al marcar uno se quita el otro.
-  proceso: boolean;
-  // Los pasos de este objetivo. Al hacer el ultimo, el objetivo se da por
-  // hecho solo (y pasa el siguiente a en proceso).
   subs: Sub[];
 }
 
-export interface Sub {
-  id: string;
-  texto: string;
-  hecho: boolean;
+export interface Objetivo extends Sub {
+  // Con el que se esta ahora mismo. Solo estos salen en el widget. Hecho y en
+  // proceso no van juntos: al marcar uno se quita el otro.
+  proceso: boolean;
 }
 
 export interface Dofus {
@@ -49,11 +54,12 @@ export interface Lista {
   dofus: Dofus[];
 }
 
-// Cuantos caben. Mas no se lee en un widget encima del directo, y asi un
-// bucle tonto en la pagina no llena el disco.
-export const MAXIMO = 50;
-// Tantos como objetivos: guardar los completados los mete todos en uno.
-export const MAXIMO_SUBS = MAXIMO;
+// Cuantos caben en total, contando todos los niveles. Es solo para que un
+// bucle tonto en la pagina no llene el disco.
+export const MAXIMO = 1000;
+// Niveles no hay limite que se note; este tope solo protege la lectura de un
+// archivo roto o hecho a mano que se anidara sin fin.
+const PROFUNDIDAD_SEGURIDAD = 200;
 export const LARGO_TEXTO = 140;
 export const LARGO_TITULO = 60;
 
@@ -86,9 +92,33 @@ function limpiar(texto: unknown, largo: number): string {
   return String(texto ?? '').replace(/\s+/g, ' ').trim().slice(0, largo);
 }
 
+function idLibre(usados: Set<string>): string {
+  let id = '';
+  do { id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); } while (usados.has(id));
+  usados.add(id);
+  return id;
+}
+
 function conDofus(titulo: string, objetivos: Objetivo[], conseguidos: Iterable<string>): Lista {
   const tiene = new Set(conseguidos);
   return { titulo, objetivos, dofus: DOFUS.map((d) => ({ ...d, conseguido: tiene.has(d.id) })) };
+}
+
+// Lo que viene del disco, nivel a nivel. Un id repetido no se tira: se le da
+// otro (antes los de cada objetivo solo eran unicos dentro de el).
+function leerSubs(crudo: unknown, nivel: number, vistos: Set<string>, cuenta: { n: number }): Sub[] {
+  const subs: Sub[] = [];
+  if (nivel > PROFUNDIDAD_SEGURIDAD || !Array.isArray(crudo)) return subs;
+  for (const s of crudo) {
+    if (cuenta.n >= MAXIMO) break;
+    const texto = limpiar(s?.texto, LARGO_TEXTO);
+    if (!texto) continue;
+    let id = String(s?.id || '');
+    if (!id || vistos.has(id)) id = idLibre(vistos); else vistos.add(id);
+    cuenta.n++;
+    subs.push({ id, texto, hecho: Boolean(s.hecho), subs: leerSubs(s.subs, nivel + 1, vistos, cuenta) });
+  }
+  return subs;
 }
 
 export function leer(uid: string): Lista {
@@ -96,27 +126,11 @@ export function leer(uid: string): Lista {
     const f = archivo(uid);
     if (!fs.existsSync(f)) return conDofus('', [], []);
     const crudo = JSON.parse(fs.readFileSync(f, 'utf8')) || {};
-    const vistos = new Set<string>();
-    const objetivos: Objetivo[] = [];
-    for (const o of Array.isArray(crudo.objetivos) ? crudo.objetivos : []) {
-      const texto = limpiar(o?.texto, LARGO_TEXTO);
-      const id = String(o?.id || '');
-      if (!texto || !id || vistos.has(id)) continue;
-      vistos.add(id);
-      const hecho = Boolean(o.hecho);
-      const subs: Sub[] = [];
-      const subsVistos = new Set<string>();
-      for (const s of Array.isArray(o.subs) ? o.subs : []) {
-        const st = limpiar(s?.texto, LARGO_TEXTO);
-        const sid = String(s?.id || '');
-        if (!st || !sid || subsVistos.has(sid)) continue;
-        subsVistos.add(sid);
-        subs.push({ id: sid, texto: st, hecho: Boolean(s.hecho) });
-        if (subs.length >= MAXIMO_SUBS) break;
-      }
-      objetivos.push({ id, texto, hecho, proceso: !hecho && Boolean(o.proceso), subs });
-      if (objetivos.length >= MAXIMO) break;
-    }
+    const lista = Array.isArray(crudo.objetivos) ? crudo.objetivos : [];
+    const objetivos: Objetivo[] = leerSubs(lista, 0, new Set(), { n: 0 }).map((s) => {
+      const original = lista.find((o: any) => String(o?.id || '') === s.id);
+      return { ...s, proceso: !s.hecho && Boolean(original?.proceso) };
+    });
     const conseguidos = Array.isArray(crudo.conseguidos) ? crudo.conseguidos.map(String) : [];
     return conDofus(limpiar(crudo.titulo, LARGO_TITULO), objetivos, conseguidos);
   } catch (err) {
@@ -136,16 +150,42 @@ function guardar(uid: string, lista: Lista): Lista {
   return lista;
 }
 
-function nuevoId(usados: { id: string }[]): string {
-  let id = '';
-  do { id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-  while (usados.some((o) => o.id === id));
-  return id;
+// --- El arbol ----------------------------------------------------------------
+
+// El camino hasta uno: los que lo contienen, de fuera a dentro (el primero es
+// siempre un objetivo de la lista principal), y el propio al final. Vacio si
+// no esta.
+function caminoA(subs: Sub[], id: string): Sub[] {
+  for (const s of subs) {
+    if (s.id === id) return [s];
+    const dentro = caminoA(s.subs, id);
+    if (dentro.length) return [s, ...dentro];
+  }
+  return [];
 }
 
-// Marca o desmarca un objetivo. Si era con el que se estaba (en proceso) y se
-// termina, se pasa al siguiente: el primero sin hacer ni empezar que venga
-// detras, o si no queda ninguno, desde arriba.
+function todosLosIds(subs: Sub[], ids: Set<string> = new Set()): Set<string> {
+  for (const s of subs) { ids.add(s.id); todosLosIds(s.subs, ids); }
+  return ids;
+}
+
+function cuantos(subs: Sub[]): number {
+  return subs.reduce((n, s) => n + 1 + cuantos(s.subs), 0);
+}
+
+function marcarTodo(subs: Sub[], hecho: boolean): void {
+  for (const s of subs) { s.hecho = hecho; marcarTodo(s.subs, hecho); }
+}
+
+// Donde vive uno: la lista de sus hermanos (la principal, o los subs de su
+// carpeta).
+function hermanosDe(lista: Lista, camino: Sub[]): Sub[] {
+  return camino.length > 1 ? camino[camino.length - 2].subs : lista.objetivos;
+}
+
+// Marca o desmarca un objetivo de la lista principal. Si era con el que se
+// estaba (en proceso) y se termina, se pasa al siguiente: el primero sin hacer
+// ni empezar que venga detras, o si no queda ninguno, desde arriba.
 function marcarHecho(lista: Lista, o: Objetivo, hecho: boolean): void {
   const estabaEnProceso = o.proceso;
   o.hecho = hecho;
@@ -159,79 +199,174 @@ function marcarHecho(lista: Lista, o: Objetivo, hecho: boolean): void {
   }
 }
 
+// Despues de tocar algo dentro de `arriba` (las carpetas que lo contienen, de
+// fuera a dentro), se repasa de dentro a fuera: una carpeta con cosas esta
+// hecha si lo estan todas. El objetivo de la lista principal, al completarse,
+// pasa el siguiente a en proceso.
+function repasar(lista: Lista, arriba: Sub[]): void {
+  for (let i = arriba.length - 1; i >= 0; i--) {
+    const s = arriba[i];
+    if (!s.subs.length) continue;
+    const todos = s.subs.every((x) => x.hecho);
+    if (i === 0) {
+      const o = s as Objetivo;
+      if (todos && !o.hecho) marcarHecho(lista, o, true);
+      else if (!todos && o.hecho) o.hecho = false;
+    } else {
+      s.hecho = todos;
+    }
+  }
+}
+
 export type Resultado = { ok: true; lista: Lista } | { ok: false; error: string };
 
-export function anadir(uid: string, texto: unknown): Resultado {
+// Uno nuevo: en la lista principal, o con `padre` dentro de ese.
+export function anadir(uid: string, texto: unknown, padre?: unknown): Resultado {
   const t = limpiar(texto, LARGO_TEXTO);
-  if (!t) return { ok: false, error: 'escribe el objetivo' };
+  if (!t) return { ok: false, error: padre ? 'escribe el sub-objetivo' : 'escribe el objetivo' };
   const lista = leer(uid);
-  if (lista.objetivos.length >= MAXIMO) return { ok: false, error: 'como mucho ' + MAXIMO + ' objetivos' };
-  lista.objetivos.push({ id: nuevoId(lista.objetivos), texto: t, hecho: false, proceso: false, subs: [] });
+  if (cuantos(lista.objetivos) >= MAXIMO) return { ok: false, error: 'como mucho ' + MAXIMO + ' objetivos en total' };
+  const id = idLibre(todosLosIds(lista.objetivos));
+  if (!padre) {
+    lista.objetivos.push({ id, texto: t, hecho: false, proceso: false, subs: [] });
+    return { ok: true, lista: guardar(uid, lista) };
+  }
+  const camino = caminoA(lista.objetivos, String(padre));
+  if (!camino.length) return { ok: false, error: 'ese objetivo ya no esta' };
+  camino[camino.length - 1].subs.push({ id, texto: t, hecho: false, subs: [] });
+  // Algo nuevo por hacer: ninguna de las carpetas de fuera sigue hecha.
+  repasar(lista, camino);
   return { ok: true, lista: guardar(uid, lista) };
 }
 
-// --- Sub-objetivos ---------------------------------------------------------
-
-export function anadirSub(uid: string, id: unknown, texto: unknown): Resultado {
-  const t = limpiar(texto, LARGO_TEXTO);
-  if (!t) return { ok: false, error: 'escribe el sub-objetivo' };
+// Cambia lo que se le pase: el texto, si esta hecho, y (solo los de la lista
+// principal) si esta en proceso. Marcarlo hecho marca todo lo de dentro; y
+// hacia fuera, al hacer el ultimo que quedaba se hace la carpeta, y asi hasta
+// el objetivo. Desmarcar uno deshace las de fuera.
+export function cambiar(uid: string, id: unknown,
+    cambios: { texto?: unknown; hecho?: unknown; proceso?: unknown }): Resultado {
   const lista = leer(uid);
-  const o = lista.objetivos.find((x) => x.id === String(id));
-  if (!o) return { ok: false, error: 'ese objetivo ya no esta' };
-  if (o.subs.length >= MAXIMO_SUBS) return { ok: false, error: 'como mucho ' + MAXIMO_SUBS + ' sub-objetivos' };
-  o.subs.push({ id: nuevoId(o.subs), texto: t, hecho: false });
-  // Un paso nuevo es algo por hacer: el objetivo ya no puede estar terminado.
-  if (o.hecho) o.hecho = false;
-  return { ok: true, lista: guardar(uid, lista) };
-}
-
-// Cambia el texto de un sub-objetivo o si esta hecho. Al hacer el ultimo que
-// quedaba, el objetivo se da por hecho; al desmarcar uno, deja de estarlo.
-export function cambiarSub(uid: string, id: unknown, subId: unknown,
-    cambios: { texto?: unknown; hecho?: unknown }): Resultado {
-  const lista = leer(uid);
-  const o = lista.objetivos.find((x) => x.id === String(id));
-  const s = o?.subs.find((x) => x.id === String(subId));
-  if (!o || !s) return { ok: false, error: 'ese sub-objetivo ya no esta' };
+  const camino = caminoA(lista.objetivos, String(id));
+  if (!camino.length) return { ok: false, error: 'ese objetivo ya no esta' };
+  const s = camino[camino.length - 1];
+  const principal = camino.length === 1;
   if (cambios.texto !== undefined) {
     const t = limpiar(cambios.texto, LARGO_TEXTO);
-    if (!t) return { ok: false, error: 'el sub-objetivo no puede quedar vacio' };
+    if (!t) return { ok: false, error: 'no puede quedar vacio' };
     s.texto = t;
   }
+  if (cambios.proceso !== undefined && principal) {
+    const o = s as Objetivo;
+    o.proceso = Boolean(cambios.proceso);
+    if (o.proceso) o.hecho = false;
+  }
   if (cambios.hecho !== undefined) {
-    s.hecho = Boolean(cambios.hecho);
-    const todos = o.subs.every((x) => x.hecho);
-    if (todos && !o.hecho) marcarHecho(lista, o, true);
-    else if (!s.hecho && o.hecho) o.hecho = false;
+    const hecho = Boolean(cambios.hecho);
+    if (hecho) marcarTodo(s.subs, true);
+    if (principal) marcarHecho(lista, s as Objetivo, hecho);
+    else { s.hecho = hecho; repasar(lista, camino.slice(0, -1)); }
   }
   return { ok: true, lista: guardar(uid, lista) };
 }
 
-// Junta todos los completados en un objetivo nuevo con ese nombre, ya hecho,
-// con cada uno como sub-objetivo. La lista queda limpia y lo terminado sigue
-// guardado: con «Desmarcar todos» se puede repetir el grupo entero.
-//
-// Los sub-objetivos de los que se juntan no se llevan: solo hay un nivel, y
-// lo que se guarda es que esa mision se hizo.
+// Quita uno con todo lo que tenga dentro.
+export function quitar(uid: string, id: unknown): Lista {
+  const lista = leer(uid);
+  const camino = caminoA(lista.objetivos, String(id));
+  if (!camino.length) return lista;
+  const arriba = camino.slice(0, -1);
+  if (!arriba.length) {
+    lista.objetivos = lista.objetivos.filter((o) => o.id !== String(id));
+  } else {
+    const carpeta = arriba[arriba.length - 1];
+    carpeta.subs = carpeta.subs.filter((x) => x.id !== String(id));
+    // Si era lo unico que faltaba, la carpeta queda hecha. Solo si le queda
+    // algo: una que se queda vacia vuelve a marcarse a mano.
+    if (carpeta.subs.length) repasar(lista, arriba);
+  }
+  return guardar(uid, lista);
+}
+
+// Sube (-1) o baja (+1) un puesto entre sus hermanos. En los bordes no hace
+// nada.
+export function mover(uid: string, id: unknown, hacia: unknown): Lista {
+  const lista = leer(uid);
+  const camino = caminoA(lista.objetivos, String(id));
+  if (!camino.length) return lista;
+  const hermanos = hermanosDe(lista, camino);
+  const i = hermanos.indexOf(camino[camino.length - 1]);
+  const j = i + (Number(hacia) < 0 ? -1 : 1);
+  if (j < 0 || j >= hermanos.length) return lista;
+  [hermanos[i], hermanos[j]] = [hermanos[j], hermanos[i]];
+  return guardar(uid, lista);
+}
+
+// Lo lleva a otro sitio, como una carpeta: `dentro` de `destino` (al final),
+// `antes` o `despues` de el, o con destino vacio al final de la lista
+// principal. Se lleva todo lo que tenga dentro.
+export function moverA(uid: string, id: unknown, destino: unknown, como: unknown): Resultado {
+  const lista = leer(uid);
+  const camino = caminoA(lista.objetivos, String(id));
+  if (!camino.length) return { ok: false, error: 'ese objetivo ya no esta' };
+  const nodo = camino[camino.length - 1];
+  const destinoId = String(destino ?? '');
+  const donde = como === 'antes' || como === 'despues' ? como : 'dentro';
+  if (destinoId === nodo.id) return { ok: true, lista };
+  // Meterlo dentro de si mismo, o de algo suyo, lo haria desaparecer.
+  if (destinoId && caminoA(nodo.subs, destinoId).length) {
+    return { ok: false, error: 'no se puede meter dentro de lo que lleva dentro' };
+  }
+  const caminoDestino = destinoId ? caminoA(lista.objetivos, destinoId) : [];
+  if (destinoId && !caminoDestino.length) return { ok: false, error: 'ese sitio ya no esta' };
+
+  // Fuera de donde estaba.
+  const arribaAntes = camino.slice(0, -1);
+  const origen = hermanosDe(lista, camino);
+  origen.splice(origen.indexOf(nodo), 1);
+
+  // Adentro de donde va. Al salir de la lista principal deja de estar en
+  // proceso; al entrar en ella llega sin estarlo.
+  let arribaDespues: Sub[];
+  let lugar: Sub[];
+  let pos: number;
+  if (!destinoId) {
+    arribaDespues = [];
+    lugar = lista.objetivos;
+    pos = lugar.length;
+  } else if (donde === 'dentro') {
+    arribaDespues = caminoDestino;
+    lugar = caminoDestino[caminoDestino.length - 1].subs;
+    pos = lugar.length;
+  } else {
+    arribaDespues = caminoDestino.slice(0, -1);
+    lugar = hermanosDe(lista, caminoDestino);
+    pos = lugar.indexOf(caminoDestino[caminoDestino.length - 1]) + (donde === 'despues' ? 1 : 0);
+  }
+  const movido: Sub = arribaDespues.length
+    ? { id: nodo.id, texto: nodo.texto, hecho: nodo.hecho, subs: nodo.subs }
+    : { id: nodo.id, texto: nodo.texto, hecho: nodo.hecho, subs: nodo.subs, proceso: false } as Objetivo;
+  lugar.splice(pos, 0, movido);
+
+  // Las dos carpetas se repasan: la de antes puede haberse quedado con todo
+  // hecho, y la de ahora con algo por hacer. Solo si siguen teniendo algo.
+  if (arribaAntes.length && arribaAntes[arribaAntes.length - 1].subs.length) repasar(lista, arribaAntes);
+  repasar(lista, arribaDespues);
+  return { ok: true, lista: guardar(uid, lista) };
+}
+
+// Junta todos los completados de la lista principal en uno nuevo con ese
+// nombre, ya hecho, con cada uno (y lo que lleve) dentro. La lista queda
+// limpia y lo terminado sigue guardado: con «Desmarcar todos» se repite.
 export function agruparHechos(uid: string, nombre: unknown): Resultado {
   const t = limpiar(nombre, LARGO_TEXTO);
   if (!t) return { ok: false, error: 'ponle un nombre' };
   const lista = leer(uid);
   const hechos = lista.objetivos.filter((o) => o.hecho);
   if (!hechos.length) return { ok: false, error: 'no hay ningun objetivo completado' };
-  const subs: Sub[] = [];
-  for (const o of hechos) subs.push({ id: nuevoId(subs), texto: o.texto, hecho: true });
+  const subs: Sub[] = hechos.map((o) => ({ id: o.id, texto: o.texto, hecho: true, subs: o.subs }));
   lista.objetivos = lista.objetivos.filter((o) => !o.hecho);
-  lista.objetivos.push({ id: nuevoId(lista.objetivos), texto: t, hecho: true, proceso: false, subs });
+  lista.objetivos.push({ id: idLibre(todosLosIds(lista.objetivos.concat(subs as Objetivo[]))), texto: t, hecho: true, proceso: false, subs });
   return { ok: true, lista: guardar(uid, lista) };
-}
-
-export function quitarSub(uid: string, id: unknown, subId: unknown): Lista {
-  const lista = leer(uid);
-  const o = lista.objetivos.find((x) => x.id === String(id));
-  if (!o) return lista;
-  o.subs = o.subs.filter((x) => x.id !== String(subId));
-  return guardar(uid, lista);
 }
 
 // Marca un Dofus como conseguido, o lo desmarca si se pulso sin querer.
@@ -243,56 +378,18 @@ export function marcarDofus(uid: string, id: unknown, conseguido: unknown): Resu
   return { ok: true, lista: guardar(uid, lista) };
 }
 
-// Cambia lo que se le pase: el texto, si esta hecho, si esta en proceso.
-export function cambiar(uid: string, id: unknown,
-    cambios: { texto?: unknown; hecho?: unknown; proceso?: unknown }): Resultado {
-  const lista = leer(uid);
-  const o = lista.objetivos.find((x) => x.id === String(id));
-  if (!o) return { ok: false, error: 'ese objetivo ya no esta' };
-  if (cambios.texto !== undefined) {
-    const t = limpiar(cambios.texto, LARGO_TEXTO);
-    if (!t) return { ok: false, error: 'el objetivo no puede quedar vacio' };
-    o.texto = t;
-  }
-  if (cambios.proceso !== undefined) {
-    o.proceso = Boolean(cambios.proceso);
-    if (o.proceso) o.hecho = false;
-  }
-  if (cambios.hecho !== undefined) marcarHecho(lista, o, Boolean(cambios.hecho));
-  return { ok: true, lista: guardar(uid, lista) };
-}
-
-export function quitar(uid: string, id: unknown): Lista {
-  const lista = leer(uid);
-  lista.objetivos = lista.objetivos.filter((o) => o.id !== String(id));
-  return guardar(uid, lista);
-}
-
-// Sube (-1) o baja (+1) un puesto. En los bordes no hace nada.
-export function mover(uid: string, id: unknown, hacia: unknown): Lista {
-  const lista = leer(uid);
-  const i = lista.objetivos.findIndex((o) => o.id === String(id));
-  const j = i + (Number(hacia) < 0 ? -1 : 1);
-  if (i < 0 || j < 0 || j >= lista.objetivos.length) return lista;
-  [lista.objetivos[i], lista.objetivos[j]] = [lista.objetivos[j], lista.objetivos[i]];
-  return guardar(uid, lista);
-}
-
 export function ponerTitulo(uid: string, titulo: unknown): Lista {
   const lista = leer(uid);
   lista.titulo = limpiar(titulo, LARGO_TITULO);
   return guardar(uid, lista);
 }
 
-// Todos otra vez sin hacer. Los objetivos se repiten de un directo a otro:
-// se desmarcan, no se borran.
+// Todos otra vez sin hacer, a todos los niveles. Los objetivos se repiten de
+// un directo a otro: se desmarcan, no se borran.
 export function desmarcarTodos(uid: string): Lista {
   const lista = leer(uid);
-  lista.objetivos.forEach((o) => {
-    o.hecho = false;
-    o.proceso = false;
-    o.subs.forEach((s) => { s.hecho = false; });
-  });
+  marcarTodo(lista.objetivos, false);
+  lista.objetivos.forEach((o) => { o.proceso = false; });
   return guardar(uid, lista);
 }
 

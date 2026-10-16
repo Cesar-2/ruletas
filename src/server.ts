@@ -2900,17 +2900,20 @@ app.post('/api/twitch/disconnect', (req: Request, res: Response) => {
 // primeros se llevan puntos. Quien decide el orden es el servidor.
 
 // --- Objetivos ----------------------------------------------------------
-// La checklist del directo. Cada ruta devuelve la lista entera, que es corta:
-// asi la pagina pinta siempre lo que de verdad quedo guardado.
+// La checklist del directo, como carpetas: cada uno puede tener otros dentro.
+// Los ids son unicos en toda la lista, asi que las rutas valen a cualquier
+// nivel. Cada una devuelve la lista entera: asi la pagina pinta siempre lo que
+// de verdad quedo guardado.
 
 // GET /api/objetivos
 app.get('/api/objetivos', (req: Request, res: Response) => {
   res.json(objetivos.leer(requireUid(req)));
 });
 
-// POST /api/objetivos  Body: { texto }
+// POST /api/objetivos  Body: { texto, padre? } -> en la lista principal o,
+// con padre, dentro de ese
 app.post('/api/objetivos', (req: Request, res: Response) => {
-  const r = objetivos.anadir(requireUid(req), req.body?.texto);
+  const r = objetivos.anadir(requireUid(req), req.body?.texto, req.body?.padre);
   if (!r.ok) return res.status(400).json({ error: r.error });
   res.json(r.lista);
 });
@@ -2931,25 +2934,13 @@ app.post('/api/objetivos/cambiar', (req: Request, res: Response) => {
   res.json(r.lista);
 });
 
-// POST /api/objetivos/sub  Body: { id, texto } -> un sub-objetivo nuevo
-app.post('/api/objetivos/sub', (req: Request, res: Response) => {
-  const r = objetivos.anadirSub(requireUid(req), req.body?.id, req.body?.texto);
+// POST /api/objetivos/mover-a  Body: { id, destino, como: 'dentro' | 'antes' | 'despues' }
+// Llevarlo a otro sitio, con todo lo que tenga dentro. Destino vacio: al final
+// de la lista principal.
+app.post('/api/objetivos/mover-a', (req: Request, res: Response) => {
+  const r = objetivos.moverA(requireUid(req), req.body?.id, req.body?.destino, req.body?.como);
   if (!r.ok) return res.status(400).json({ error: r.error });
   res.json(r.lista);
-});
-
-// POST /api/objetivos/sub/cambiar  Body: { id, sub, texto?, hecho? }
-app.post('/api/objetivos/sub/cambiar', (req: Request, res: Response) => {
-  const r = objetivos.cambiarSub(requireUid(req), req.body?.id, req.body?.sub, {
-    texto: req.body?.texto, hecho: req.body?.hecho
-  });
-  if (!r.ok) return res.status(400).json({ error: r.error });
-  res.json(r.lista);
-});
-
-// POST /api/objetivos/sub/quitar  Body: { id, sub }
-app.post('/api/objetivos/sub/quitar', (req: Request, res: Response) => {
-  res.json(objetivos.quitarSub(requireUid(req), req.body?.id, req.body?.sub));
 });
 
 // POST /api/objetivos/agrupar  Body: { nombre } -> los completados, dentro

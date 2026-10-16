@@ -664,17 +664,25 @@
     .objetivo .en-proceso{color:var(--muted)}
     .objetivo.proceso .en-proceso{background:rgba(251,191,36,0.18);color:#fcd34d;border-color:rgba(251,191,36,0.5);font-weight:700}
     .objetivo.hecho .en-proceso{visibility:hidden}
-    /* Los sub-objetivos, sangrados debajo de su objetivo. */
-    .subs{display:flex;flex-direction:column;gap:.25rem;margin:-.1rem 0 .2rem 2.2rem;padding-left:.6rem;border-left:2px solid rgba(255,255,255,0.12)}
-    .sub{display:flex;align-items:center;gap:.5rem;font-size:14px}
-    .sub .marca{width:16px;height:16px;flex:none;accent-color:#6ee7b7;cursor:pointer}
-    .sub .texto{flex:1;min-width:0;background:transparent;border:1px solid transparent;color:#e6eef8;padding:.2rem .4rem;border-radius:6px;font-size:14px}
-    .sub .texto:focus{border-color:rgba(255,255,255,0.2);background:var(--card)}
-    .sub.hecho .texto{text-decoration:line-through;color:var(--muted)}
-    .sub .mini{flex:none;padding:.1rem .4rem;font-size:11px;box-shadow:none;
-      background:rgba(248,113,113,0.10);color:#fca5a5;border:1px solid rgba(248,113,113,0.35)}
-    .sub-anadir{padding-left:calc(16px + .5rem)}
-    .sub-anadir .texto{border-color:rgba(255,255,255,0.10)}
+    /* Como carpetas: lo de dentro, sangrado y algo más pequeño; el asa para
+       arrastrar y el triángulo para plegar. */
+    .objetivo.dentro{padding-top:.2rem;padding-bottom:.2rem;font-size:14px;background:rgba(255,255,255,0.03)}
+    .objetivo.dentro .texto{font-size:14px;padding:.2rem .4rem}
+    .objetivo .asa{flex:none;cursor:grab;color:var(--muted);user-select:none;padding:0 .1rem;font-size:15px;line-height:1}
+    .objetivo .asa:active{cursor:grabbing}
+    .objetivo .plegar{flex:none;width:1.3rem;padding:0;box-shadow:none;background:none;border:0;color:var(--muted);font-size:13px;cursor:pointer}
+    .objetivo .plegar.vacio{visibility:hidden;cursor:default}
+    .objetivo .cuenta-subs{flex:none;font-size:12px;font-weight:700;color:var(--muted)}
+    .objetivo .cuenta-subs:empty{display:none}
+    .objetivo-anadir .texto{width:100%;box-sizing:border-box;background:transparent;border:1px dashed rgba(255,255,255,0.18);color:#e6eef8;padding:.3rem .5rem;border-radius:8px;font-size:14px}
+    /* Mientras se arrastra: dónde caería al soltar. */
+    .objetivo.cogido{opacity:.4}
+    .objetivo.soltar-dentro{border-color:#6ee7b7;background:rgba(110,231,183,0.12)}
+    .objetivo.soltar-antes{box-shadow:inset 0 3px 0 #6ee7b7}
+    .objetivo.soltar-despues{box-shadow:inset 0 -3px 0 #6ee7b7}
+    .objetivos-raiz{display:none;padding:.6rem;border:2px dashed rgba(255,255,255,0.2);border-radius:10px;text-align:center;color:var(--muted);font-size:13px}
+    .objetivos-lista.arrastrando .objetivos-raiz{display:block}
+    .objetivos-raiz.encima{border-color:#6ee7b7;color:#e6eef8;background:rgba(110,231,183,0.08)}
     /* Los Dofus: un botón por huevo, en gris hasta que se consigue. */
     .dofus-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:.5rem;margin-top:.6rem}
     .dofus-huevo{display:flex;flex-direction:column;align-items:center;gap:.25rem;padding:.45rem .3rem;border-radius:10px;box-shadow:none;
@@ -1808,7 +1816,7 @@
         <div class="tab-panel" id="objetivos-panel">
           <section>
             <h3>🎯 Objetivos del directo</h3>
-            <p class="meta">Lo que te propones hacer, para ir tachándolo delante del chat. En el widget de OBS (<strong>Configuración › Widgets › 🎯 Objetivos</strong>) solo salen los que pongas <strong>▶ en proceso</strong>; al marcarlos como hechos se van del widget solos y pasa el siguiente. Con <strong>+ Sub</strong> le pones pasos a un objetivo: salen debajo de él en el widget, y al hacer el último el objetivo se completa solo. Marcar no borra nada: la lista se queda guardada, y con <strong>↺ Desmarcar todos</strong> vuelves a empezarla cuando quieras repetirla.</p>
+            <p class="meta">Lo que te propones hacer, para ir tachándolo delante del chat. En el widget de OBS (<strong>Configuración › Widgets › 🎯 Objetivos</strong>) solo salen los que pongas <strong>▶ en proceso</strong>; al marcarlos como hechos se van del widget solos y pasa el siguiente. Funciona como carpetas: con <strong>+ Sub</strong> metes uno dentro de otro, tantos niveles como quieras, y con el asa <strong>⠿</strong> lo arrastras a otro sitio (al centro de otro lo mete dentro; a su borde, delante o detrás). Al hacer lo último de dentro, el de fuera se completa solo. Marcar no borra nada: la lista se queda guardada, y con <strong>↺ Desmarcar todos</strong> vuelves a empezarla cuando quieras repetirla.</p>
 
             <div class="controls">
               <label class="meta" for="objetivosTitulo">Título en el widget</label>

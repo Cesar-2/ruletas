@@ -1,8 +1,13 @@
 // La pestaña de Objetivos: la checklist del directo. Se añaden, se marcan, se
 // reordenan y se quitan; el widget de OBS enseña lo mismo al momento.
 //
-// Script normal, sin modulo, como los demás paneles: usa api(), showAlert() y
-// showConfirm() de index.html.
+// Va como carpetas: cada objetivo puede tener otros dentro, sin límite, que se
+// pliegan y despliegan, y cualquiera se arrastra (por su asa ⠿) a otro sitio:
+// soltarlo en el centro de otra fila lo mete dentro; en su borde de arriba o
+// de abajo, lo deja delante o detrás.
+//
+// Script normal, sin modulo, como los demás paneles: usa api(), showAlert(),
+// showConfirm() y showModal() de index.html.
 
     let objetivos = { titulo: '', objetivos: [] };
 
@@ -31,6 +36,34 @@
       }
     }
 
+    // Las carpetas plegadas. Es solo cómo se ve esta pestaña, así que se
+    // recuerda en el navegador y no en el servidor.
+    const CLAVE_CERRADOS = 'ruleton-objetivos-cerrados';
+    const cerrados = new Set((() => {
+      try { return JSON.parse(localStorage.getItem(CLAVE_CERRADOS) || '[]'); } catch (e) { return []; }
+    })());
+    function guardarCerrados() {
+      try { localStorage.setItem(CLAVE_CERRADOS, JSON.stringify(Array.from(cerrados))); } catch (e) { /* da igual */ }
+    }
+
+    // Los que tienen abierto el campo de «+ Sub», para que siga abierto al
+    // repintar aunque todavía no tengan nada dentro.
+    const abiertos = new Set();
+
+    // Lo que se está arrastrando, y él con todo lo suyo: ahí no se puede soltar.
+    let arrastrando = null;
+    let prohibidos = new Set();
+
+    function idsDe(nodo, ids = new Set()) {
+      ids.add(nodo.id);
+      (nodo.subs || []).forEach((s) => idsDe(s, ids));
+      return ids;
+    }
+
+    function cuentaHechos(nodo) {
+      return (nodo.subs || []).filter((s) => s.hecho).length + '/' + (nodo.subs || []).length;
+    }
+
     function pintarObjetivos() {
       const lista = objetivos.objetivos || [];
       const hechos = lista.filter((o) => o.hecho).length;
@@ -47,51 +80,190 @@
 
       const caja = document.getElementById('objetivosLista');
       caja.innerHTML = '';
-      lista.forEach((o, i) => {
-        const fila = document.createElement('div');
-        fila.className = 'objetivo' + (o.hecho ? ' hecho' : '') + (o.proceso ? ' proceso' : '');
-        fila.innerHTML = '<input type="checkbox" class="marca" />'
-          + '<input type="text" class="texto" maxlength="140" />'
-          + '<button type="button" class="mini en-proceso"></button>'
-          + '<button type="button" class="mini mas-sub" title="Añadir un sub-objetivo">+ Sub</button>'
-          + '<button type="button" class="mini subir" title="Subir">▲</button>'
-          + '<button type="button" class="mini bajar" title="Bajar">▼</button>'
-          + '<button type="button" class="mini quitar" title="Quitar">✕</button>';
-        const marca = fila.querySelector('.marca');
-        marca.checked = o.hecho;
-        marca.setAttribute('aria-label', 'Hecho: ' + o.texto);
-        marca.addEventListener('change', () => objetivosPedir('/api/objetivos/cambiar', { id: o.id, hecho: marca.checked }));
+      pintarNivel(caja, lista, 0);
 
-        // Lo que sale en el widget: solo los que están en proceso.
+      // Donde se suelta para sacarlo a la lista principal. Solo se ve
+      // mientras se arrastra algo.
+      const raiz = document.createElement('div');
+      raiz.className = 'objetivos-raiz';
+      raiz.textContent = 'Suelta aquí para sacarlo a la lista principal';
+      raiz.addEventListener('dragover', (ev) => {
+        if (!arrastrando) return;
+        ev.preventDefault();
+        raiz.classList.add('encima');
+      });
+      raiz.addEventListener('dragleave', () => raiz.classList.remove('encima'));
+      raiz.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        const id = arrastrando;
+        terminarArrastre();
+        if (id) objetivosPedir('/api/objetivos/mover-a', { id, destino: '' });
+      });
+      caja.appendChild(raiz);
+
+      pintarDofus();
+    }
+
+    // Una fila por cada uno, sangrada según lo hondo que esté, y debajo lo que
+    // lleve dentro si la carpeta está abierta.
+    function pintarNivel(caja, nodos, nivel) {
+      nodos.forEach((o, i) => {
+        caja.appendChild(filaObjetivo(o, nivel, i, nodos.length));
+        const hijos = o.subs || [];
+        const abierta = !cerrados.has(o.id);
+        if (abierta && hijos.length) pintarNivel(caja, hijos, nivel + 1);
+        if (abiertos.has(o.id)) caja.appendChild(filaAnadir(o, nivel + 1));
+      });
+    }
+
+    function filaObjetivo(o, nivel, i, total) {
+      const principal = nivel === 0;
+      const hijos = o.subs || [];
+      const fila = document.createElement('div');
+      fila.className = 'objetivo' + (o.hecho ? ' hecho' : '') + (o.proceso ? ' proceso' : '') + (principal ? '' : ' dentro');
+      fila.style.marginLeft = (nivel * 1.6) + 'rem';
+      fila.dataset.id = o.id;
+      fila.innerHTML = '<span class="asa" draggable="true" title="Arrastra para moverlo: al centro de otro lo mete dentro, a su borde lo pone delante o detrás">⠿</span>'
+        + '<button type="button" class="plegar"></button>'
+        + '<input type="checkbox" class="marca" />'
+        + '<input type="text" class="texto" maxlength="140" />'
+        + '<span class="cuenta-subs"></span>'
+        + (principal ? '<button type="button" class="mini en-proceso"></button>' : '')
+        + '<button type="button" class="mini mas-sub" title="Añadir uno dentro">+ Sub</button>'
+        + '<button type="button" class="mini subir" title="Subir">▲</button>'
+        + '<button type="button" class="mini bajar" title="Bajar">▼</button>'
+        + '<button type="button" class="mini quitar" title="Quitar, con todo lo que tenga dentro">✕</button>';
+
+      // Plegar y desplegar, solo si tiene algo dentro.
+      const plegar = fila.querySelector('.plegar');
+      if (hijos.length) {
+        const abierta = !cerrados.has(o.id);
+        plegar.textContent = abierta ? '▾' : '▸';
+        plegar.title = abierta ? 'Plegar' : 'Desplegar';
+        plegar.addEventListener('click', () => {
+          if (cerrados.has(o.id)) cerrados.delete(o.id); else cerrados.add(o.id);
+          guardarCerrados();
+          pintarObjetivos();
+        });
+        fila.querySelector('.cuenta-subs').textContent = cuentaHechos(o);
+      } else {
+        plegar.classList.add('vacio');
+        plegar.tabIndex = -1;
+      }
+
+      const marca = fila.querySelector('.marca');
+      marca.checked = o.hecho;
+      marca.setAttribute('aria-label', 'Hecho: ' + o.texto);
+      marca.addEventListener('change', () => objetivosPedir('/api/objetivos/cambiar', { id: o.id, hecho: marca.checked }));
+
+      // Lo que sale en el widget: solo los de la lista principal en proceso.
+      if (principal) {
         const proceso = fila.querySelector('.en-proceso');
         proceso.textContent = o.proceso ? '▶ En proceso' : '▶';
         proceso.title = o.proceso ? 'Quitar del widget' : 'Poner en proceso: sale en el widget';
         proceso.setAttribute('aria-pressed', o.proceso ? 'true' : 'false');
         proceso.addEventListener('click', () => objetivosPedir('/api/objetivos/cambiar', { id: o.id, proceso: !o.proceso }));
+      }
 
-        const texto = fila.querySelector('.texto');
-        texto.setAttribute('aria-label', 'Objetivo ' + (i + 1));
-        editableEnSitio(texto, o.texto, (nuevo) => objetivosPedir('/api/objetivos/cambiar', { id: o.id, texto: nuevo }));
+      const texto = fila.querySelector('.texto');
+      texto.setAttribute('aria-label', (principal ? 'Objetivo ' : 'Sub-objetivo ') + (i + 1));
+      editableEnSitio(texto, o.texto, (nuevo) => objetivosPedir('/api/objetivos/cambiar', { id: o.id, texto: nuevo }));
 
-        fila.querySelector('.mas-sub').addEventListener('click', () => {
-          subsAbiertos.add(o.id);
-          pintarObjetivos();
-          const campo = document.querySelector('.subs[data-id="' + o.id + '"] .sub-nuevo');
-          if (campo) campo.focus();
-        });
-
-        const subir = fila.querySelector('.subir');
-        const bajar = fila.querySelector('.bajar');
-        subir.disabled = i === 0;
-        bajar.disabled = i === lista.length - 1;
-        subir.addEventListener('click', () => objetivosPedir('/api/objetivos/mover', { id: o.id, hacia: -1 }));
-        bajar.addEventListener('click', () => objetivosPedir('/api/objetivos/mover', { id: o.id, hacia: 1 }));
-        fila.querySelector('.quitar').addEventListener('click', () => objetivosPedir('/api/objetivos/quitar', { id: o.id }));
-        caja.appendChild(fila);
-        if (o.subs.length || subsAbiertos.has(o.id)) caja.appendChild(pintarSubs(o));
+      fila.querySelector('.mas-sub').addEventListener('click', () => {
+        abiertos.add(o.id);
+        cerrados.delete(o.id);
+        guardarCerrados();
+        pintarObjetivos();
+        const campo = document.querySelector('.objetivo-anadir[data-padre="' + o.id + '"] input');
+        if (campo) campo.focus();
       });
 
-      pintarDofus();
+      const subir = fila.querySelector('.subir');
+      const bajar = fila.querySelector('.bajar');
+      subir.disabled = i === 0;
+      bajar.disabled = i === total - 1;
+      subir.addEventListener('click', () => objetivosPedir('/api/objetivos/mover', { id: o.id, hacia: -1 }));
+      bajar.addEventListener('click', () => objetivosPedir('/api/objetivos/mover', { id: o.id, hacia: 1 }));
+      fila.querySelector('.quitar').addEventListener('click', () => objetivosPedir('/api/objetivos/quitar', { id: o.id }));
+
+      prepararArrastre(fila, o);
+      return fila;
+    }
+
+    // El campo para meter uno dentro de `padre`, en su sitio del árbol.
+    function filaAnadir(padre, nivel) {
+      const fila = document.createElement('div');
+      fila.className = 'objetivo-anadir';
+      fila.dataset.padre = padre.id;
+      fila.style.marginLeft = (nivel * 1.6) + 'rem';
+      fila.innerHTML = '<input type="text" class="texto" maxlength="140" placeholder="Nuevo dentro de «' + escapeHtml(padre.texto) + '» (Enter para añadir, Esc para cerrar)" />';
+      const campo = fila.querySelector('input');
+      campo.setAttribute('aria-label', 'Nuevo sub-objetivo de ' + padre.texto);
+      campo.addEventListener('keydown', async (ev) => {
+        if (ev.key === 'Escape') { abiertos.delete(padre.id); pintarObjetivos(); return; }
+        if (ev.key !== 'Enter') return;
+        const t = campo.value.trim();
+        if (!t) return;
+        if (await objetivosPedir('/api/objetivos', { texto: t, padre: padre.id })) {
+          const otra = document.querySelector('.objetivo-anadir[data-padre="' + padre.id + '"] input');
+          if (otra) otra.focus();
+        }
+      });
+      return fila;
+    }
+
+    // Arrastrar como en las carpetas: se coge por el asa y se suelta encima
+    // de otra fila. El tercio del medio la mete dentro; los bordes, delante o
+    // detrás de ella.
+    function prepararArrastre(fila, o) {
+      const asa = fila.querySelector('.asa');
+      asa.addEventListener('dragstart', (ev) => {
+        arrastrando = o.id;
+        prohibidos = idsDe(o);
+        ev.dataTransfer.effectAllowed = 'move';
+        try { ev.dataTransfer.setData('text/plain', o.id); } catch (e) { /* algunos navegadores */ }
+        try { ev.dataTransfer.setDragImage(fila, 20, 16); } catch (e) { /* sin imagen, la del asa */ }
+        document.getElementById('objetivosLista').classList.add('arrastrando');
+        fila.classList.add('cogido');
+      });
+      asa.addEventListener('dragend', terminarArrastre);
+
+      fila.addEventListener('dragover', (ev) => {
+        if (!arrastrando || prohibidos.has(o.id)) return;
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = 'move';
+        const zona = zonaDe(fila, ev);
+        fila.classList.toggle('soltar-antes', zona === 'antes');
+        fila.classList.toggle('soltar-dentro', zona === 'dentro');
+        fila.classList.toggle('soltar-despues', zona === 'despues');
+      });
+      fila.addEventListener('dragleave', () => fila.classList.remove('soltar-antes', 'soltar-dentro', 'soltar-despues'));
+      fila.addEventListener('drop', (ev) => {
+        if (!arrastrando || prohibidos.has(o.id)) return;
+        ev.preventDefault();
+        const id = arrastrando;
+        const como = zonaDe(fila, ev);
+        terminarArrastre();
+        // Al meterlo dentro, la carpeta se abre para que se vea dónde quedó.
+        if (como === 'dentro') { cerrados.delete(o.id); guardarCerrados(); }
+        objetivosPedir('/api/objetivos/mover-a', { id, destino: o.id, como });
+      });
+    }
+
+    function zonaDe(fila, ev) {
+      const caja = fila.getBoundingClientRect();
+      const y = (ev.clientY - caja.top) / (caja.height || 1);
+      return y < 0.3 ? 'antes' : y > 0.7 ? 'despues' : 'dentro';
+    }
+
+    function terminarArrastre() {
+      arrastrando = null;
+      prohibidos = new Set();
+      const caja = document.getElementById('objetivosLista');
+      caja.classList.remove('arrastrando');
+      caja.querySelectorAll('.cogido, .soltar-antes, .soltar-dentro, .soltar-despues, .encima').forEach((el) => {
+        el.classList.remove('cogido', 'soltar-antes', 'soltar-dentro', 'soltar-despues', 'encima');
+      });
     }
 
     // Un campo de texto que se corrige ahí mismo: se guarda al salir o con
@@ -108,53 +280,6 @@
         if (!nuevo) { campo.value = valor; return; }
         guardar(nuevo);
       });
-    }
-
-    // Los objetivos en los que se pulsó «+ Sub», para que el campo de añadir
-    // siga abierto al repintar aunque todavía no tengan ninguno.
-    const subsAbiertos = new Set();
-
-    // Los pasos de un objetivo, debajo de su fila. Al hacer el último, el
-    // servidor da el objetivo por hecho y pasa el siguiente a en proceso.
-    function pintarSubs(o) {
-      const caja = document.createElement('div');
-      caja.className = 'subs';
-      caja.dataset.id = o.id;
-      o.subs.forEach((s) => {
-        const fila = document.createElement('div');
-        fila.className = 'sub' + (s.hecho ? ' hecho' : '');
-        fila.innerHTML = '<input type="checkbox" class="marca" />'
-          + '<input type="text" class="texto" maxlength="140" />'
-          + '<button type="button" class="mini quitar" title="Quitar">✕</button>';
-        const marca = fila.querySelector('.marca');
-        marca.checked = s.hecho;
-        marca.setAttribute('aria-label', 'Hecho: ' + s.texto);
-        marca.addEventListener('change', () => objetivosPedir('/api/objetivos/sub/cambiar', { id: o.id, sub: s.id, hecho: marca.checked }));
-        const texto = fila.querySelector('.texto');
-        texto.setAttribute('aria-label', 'Sub-objetivo de ' + o.texto);
-        editableEnSitio(texto, s.texto, (nuevo) => objetivosPedir('/api/objetivos/sub/cambiar', { id: o.id, sub: s.id, texto: nuevo }));
-        fila.querySelector('.quitar').addEventListener('click', () => objetivosPedir('/api/objetivos/sub/quitar', { id: o.id, sub: s.id }));
-        caja.appendChild(fila);
-      });
-
-      const nueva = document.createElement('div');
-      nueva.className = 'sub sub-anadir';
-      nueva.innerHTML = '<input type="text" class="texto sub-nuevo" maxlength="140" placeholder="Nuevo sub-objetivo (Enter para añadir)" />';
-      const campo = nueva.querySelector('.sub-nuevo');
-      campo.setAttribute('aria-label', 'Nuevo sub-objetivo de ' + o.texto);
-      campo.addEventListener('keydown', async (ev) => {
-        if (ev.key === 'Escape') { subsAbiertos.delete(o.id); pintarObjetivos(); return; }
-        if (ev.key !== 'Enter') return;
-        const t = campo.value.trim();
-        if (!t) return;
-        subsAbiertos.add(o.id);
-        if (await objetivosPedir('/api/objetivos/sub', { id: o.id, texto: t })) {
-          const otra = document.querySelector('.subs[data-id="' + o.id + '"] .sub-nuevo');
-          if (otra) otra.focus();
-        }
-      });
-      caja.appendChild(nueva);
-      return caja;
     }
 
     // Los trece Dofus, siempre todos: un clic lo marca como conseguido y otro
@@ -272,7 +397,7 @@
     document.getElementById('objetivosVaciar').addEventListener('click', async () => {
       const cuantos = (objetivos.objetivos || []).length;
       const ok = await showConfirm('Vaciar los objetivos',
-        `Se quitan los ${cuantos} objetivo(s) de la lista, hechos o no. No se puede deshacer.`, 'Vaciar', true);
+        `Se quitan los ${cuantos} objetivo(s) de la lista, hechos o no, con todo lo que llevan dentro. No se puede deshacer.`, 'Vaciar', true);
       if (!ok) return;
       objetivosPedir('/api/objetivos/vaciar');
     });

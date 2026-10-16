@@ -85,6 +85,36 @@
     // todos cada vez que llega un aviso.
     let antes = null;
 
+    // Lo de dentro de un objetivo, a todos los niveles, con los hechos
+    // tachados: el chat ve cuánto le queda. Una carpeta ya hecha no se
+    // despliega: con verla tachada basta, y no se come el sitio.
+    function pintarSubs(cuerpo, subs) {
+      if (!subs.length) return;
+      const pasos = document.createElement('span');
+      pasos.className = 'pasos';
+      pasos.textContent = subs.filter((s) => s.hecho).length + '/' + subs.length;
+      cuerpo.appendChild(pasos);
+      const ul = document.createElement('ul');
+      ul.className = 'subs';
+      subs.forEach((s) => {
+        const sli = document.createElement('li');
+        if (s.hecho) sli.className = 'hecho';
+        const scaja = document.createElement('span');
+        scaja.className = 'caja';
+        scaja.textContent = s.hecho ? '✓' : '';
+        const scuerpo = document.createElement('div');
+        scuerpo.className = 'cuerpo';
+        const stexto = document.createElement('span');
+        stexto.className = 'texto';
+        stexto.textContent = s.texto;
+        scuerpo.appendChild(stexto);
+        if (!s.hecho) pintarSubs(scuerpo, s.subs || []);
+        sli.append(scaja, scuerpo);
+        ul.appendChild(sli);
+      });
+      cuerpo.appendChild(ul);
+    }
+
     Widget.arranca({
       ruta: 'objetivos',
       pinta(e) {
@@ -122,29 +152,7 @@
           texto.textContent = o.texto;
           cuerpo.appendChild(texto);
 
-          // Sus pasos, con los hechos tachados: el chat ve cuánto le queda.
-          const subs = o.subs || [];
-          if (subs.length) {
-            const pasos = document.createElement('span');
-            pasos.className = 'pasos';
-            pasos.textContent = subs.filter((s) => s.hecho).length + '/' + subs.length;
-            cuerpo.appendChild(pasos);
-            const ul = document.createElement('ul');
-            ul.className = 'subs';
-            subs.forEach((s) => {
-              const sli = document.createElement('li');
-              if (s.hecho) sli.className = 'hecho';
-              const scaja = document.createElement('span');
-              scaja.className = 'caja';
-              scaja.textContent = s.hecho ? '✓' : '';
-              const stexto = document.createElement('span');
-              stexto.className = 'texto';
-              stexto.textContent = s.texto;
-              sli.append(scaja, stexto);
-              ul.appendChild(sli);
-            });
-            cuerpo.appendChild(ul);
-          }
+          pintarSubs(cuerpo, o.subs || []);
           li.append(caja, cuerpo);
           lista.appendChild(li);
         });

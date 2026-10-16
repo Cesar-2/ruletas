@@ -144,26 +144,89 @@ test('sub-objetivos: al hacer el ultimo se completa el objetivo y pasa el siguie
   ['a', 'b'].forEach((x) => objetivos.anadir('u1', x));
   const [a, b] = objetivos.leer('u1').objetivos;
   objetivos.cambiar('u1', a.id, { proceso: true });
-  assert.ok(objetivos.anadirSub('u1', a.id, 'paso 1').ok);
-  assert.ok(objetivos.anadirSub('u1', a.id, 'paso 2').ok);
-  assert.strictEqual(objetivos.anadirSub('u1', a.id, '  ').ok, false);
+  assert.ok(objetivos.anadir('u1', 'paso 1', a.id).ok);
+  assert.ok(objetivos.anadir('u1', 'paso 2', a.id).ok);
+  assert.strictEqual(objetivos.anadir('u1', '  ', a.id).ok, false);
+  assert.strictEqual(objetivos.anadir('u1', 'x', 'no-existe').ok, false);
   const [s1, s2] = objetivos.leer('u1').objetivos[0].subs;
   const de = (id) => objetivos.leer('u1').objetivos.find((o) => o.id === id);
 
-  objetivos.cambiarSub('u1', a.id, s1.id, { hecho: true });
+  objetivos.cambiar('u1', s1.id, { hecho: true });
   assert.deepStrictEqual([de(a.id).hecho, de(a.id).proceso], [false, true], 'con uno no basta');
-  objetivos.cambiarSub('u1', a.id, s2.id, { hecho: true });
+  objetivos.cambiar('u1', s2.id, { hecho: true });
   assert.strictEqual(de(a.id).hecho, true, 'con todos, hecho');
   assert.strictEqual(de(b.id).proceso, true, 'y pasa el siguiente');
 
-  objetivos.cambiarSub('u1', a.id, s2.id, { hecho: false });
+  objetivos.cambiar('u1', s2.id, { hecho: false });
   assert.strictEqual(de(a.id).hecho, false, 'desmarcar un paso lo deja sin hacer');
   assert.strictEqual(cargar('objetivos', d).leer('u1').objetivos[0].subs.length, 2, 'se guardan');
 
   objetivos.desmarcarTodos('u1');
   assert.ok(de(a.id).subs.every((s) => !s.hecho), 'desmarcar todos tambien los pasos');
-  objetivos.quitarSub('u1', a.id, s1.id);
+  objetivos.quitar('u1', s1.id);
   assert.deepStrictEqual(de(a.id).subs.map((s) => s.texto), ['paso 2']);
+});
+
+test('carpetas sin limite: lo hecho sube nivel a nivel y marcar una carpeta marca lo de dentro', (t) => {
+  const { objetivos } = montar(t);
+  objetivos.anadir('u1', 'raiz');
+  let padre = objetivos.leer('u1').objetivos[0].id;
+  const ids = [padre];
+  // Diez niveles: mas de lo que dejaba antes.
+  for (let n = 1; n <= 10; n++) {
+    assert.ok(objetivos.anadir('u1', 'nivel ' + n, padre).ok, 'nivel ' + n);
+    let nodo = objetivos.leer('u1').objetivos[0];
+    while (nodo.subs.length) nodo = nodo.subs[0];
+    padre = nodo.id;
+    ids.push(padre);
+  }
+  const hondo = () => { const r = []; let x = objetivos.leer('u1').objetivos[0]; while (x) { r.push(x.hecho); x = x.subs[0]; } return r; };
+
+  objetivos.cambiar('u1', ids[10], { hecho: true });
+  assert.ok(hondo().every(Boolean), 'el ultimo de dentro completa todas las de fuera');
+  objetivos.cambiar('u1', ids[10], { hecho: false });
+  assert.ok(hondo().every((h) => !h), 'y desmarcarlo las deshace');
+
+  objetivos.cambiar('u1', ids[5], { hecho: true });
+  assert.deepStrictEqual(hondo().slice(5), [true, true, true, true, true, true], 'marcar una carpeta marca lo de dentro');
+  assert.ok(hondo().slice(0, 5).every(Boolean), 'y, al ser lo unico, las de fuera');
+});
+
+test('mover como carpetas: dentro, delante, detras y a la lista principal', (t) => {
+  const { objetivos } = montar(t);
+  ['a', 'b', 'c'].forEach((x) => objetivos.anadir('u1', x));
+  const [a, b, c] = objetivos.leer('u1').objetivos;
+  const arbol = () => {
+    const pinta = (subs) => subs.map((s) => s.texto + (s.subs.length ? '(' + pinta(s.subs) + ')' : '')).join(' ');
+    return pinta(objetivos.leer('u1').objetivos);
+  };
+
+  objetivos.cambiar('u1', b.id, { proceso: true });
+  assert.ok(objetivos.moverA('u1', b.id, a.id, 'dentro').ok);
+  assert.strictEqual(arbol(), 'a(b) c');
+  assert.strictEqual(objetivos.leer('u1').objetivos[0].subs[0].proceso, undefined, 'dentro de otro ya no esta en proceso');
+
+  assert.ok(objetivos.moverA('u1', c.id, b.id, 'antes').ok);
+  assert.strictEqual(arbol(), 'a(c b)');
+  assert.ok(objetivos.moverA('u1', c.id, b.id, 'despues').ok);
+  assert.strictEqual(arbol(), 'a(b c)');
+  assert.ok(objetivos.moverA('u1', c.id, b.id, 'dentro').ok);
+  assert.strictEqual(arbol(), 'a(b(c))');
+
+  assert.strictEqual(objetivos.moverA('u1', a.id, c.id, 'dentro').ok, false, 'no dentro de lo suyo');
+  assert.strictEqual(arbol(), 'a(b(c))', 'y no se pierde nada');
+
+  assert.ok(objetivos.moverA('u1', b.id, '', 'dentro').ok);
+  assert.strictEqual(arbol(), 'a b(c)', 'a la lista principal, con lo suyo');
+  assert.strictEqual(objetivos.leer('u1').objetivos[1].proceso, false);
+
+  // Sacar lo unico que faltaba deja la carpeta de antes hecha.
+  objetivos.anadir('u1', 'x', a.id);
+  objetivos.anadir('u1', 'y', a.id);
+  const [x, y] = objetivos.leer('u1').objetivos[0].subs;
+  objetivos.cambiar('u1', x.id, { hecho: true });
+  objetivos.moverA('u1', y.id, '', 'dentro');
+  assert.strictEqual(objetivos.leer('u1').objetivos[0].hecho, true);
 });
 
 test('guardar los completados dentro de un objetivo nuevo con nombre', (t) => {
@@ -185,4 +248,15 @@ test('guardar los completados dentro de un objetivo nuevo con nombre', (t) => {
   objetivos.desmarcarTodos('u1');
   const otra = objetivos.leer('u1').objetivos[1];
   assert.ok(!otra.hecho && otra.subs.every((s) => !s.hecho), 'y se puede repetir');
+});
+
+test('guardar los completados se lleva lo que tengan dentro', (t) => {
+  const { objetivos } = montar(t);
+  objetivos.anadir('u1', 'a');
+  const a = objetivos.leer('u1').objetivos[0];
+  objetivos.anadir('u1', 'paso', a.id);
+  objetivos.cambiar('u1', a.id, { hecho: true });
+  assert.ok(objetivos.agruparHechos('u1', 'Grupo').ok);
+  const grupo = objetivos.leer('u1').objetivos[0];
+  assert.deepStrictEqual(grupo.subs[0].subs.map((s) => [s.texto, s.hecho]), [['paso', true]]);
 });
