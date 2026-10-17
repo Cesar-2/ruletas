@@ -155,6 +155,20 @@ test('escribir no deja el archivo a medias', (t) => {
   const { json, f } = montar(t);
   json.escribir(f(), { grande: 'x'.repeat(50000) });
   // El temporal no se queda por ahi.
-  assert.strictEqual(fs.existsSync(f() + '.tmp'), false);
+  const sobras = fs.readdirSync(path.dirname(f())).filter((n) => n.endsWith('.tmp'));
+  assert.deepStrictEqual(sobras, []);
   assert.strictEqual(json.leer(f()).grande.length, 50000);
+});
+
+// Dos procesos sobre los mismos datos (en un hosting, la version vieja y la
+// nueva de un despliegue) no pueden pisarse el temporal. Con un nombre fijo,
+// el temporal que estaba escribiendo el otro proceso se renombraba encima, o
+// desaparecia antes de renombrarlo y la escritura fallaba con ENOENT.
+test('el temporal de otro proceso no estorba ni se usa', (t) => {
+  const { json, f } = montar(t);
+  const ajeno = f() + '.tmp';
+  fs.writeFileSync(ajeno, '{"de":"otro proceso"}');
+  json.escribir(f(), { de: 'este' });
+  assert.deepStrictEqual(json.leer(f()), { de: 'este' });
+  assert.strictEqual(fs.readFileSync(ajeno, 'utf8'), '{"de":"otro proceso"}', 'el del otro no se toca');
 });

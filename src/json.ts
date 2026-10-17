@@ -56,10 +56,25 @@ export function congelar<T>(x: T): T {
   return x;
 }
 
+// Cuantas escrituras lleva este proceso, para que cada una tenga su temporal.
+let escrituras = 0;
+
 export function escribir(file: string, data: unknown): void {
-  const temporal = `${file}.tmp`;
-  fs.writeFileSync(temporal, JSON.stringify(data, null, 2), 'utf8');
-  fs.renameSync(temporal, file);
+  // El temporal es de esta escritura y de este proceso. Con un nombre fijo
+  // (archivo.tmp), dos procesos sobre los mismos datos se lo pisaban: pasa en
+  // un hosting mientras conviven la version vieja y la nueva de un despliegue,
+  // las dos escuchando el mismo chat. Uno renombraba el temporal y el otro, al
+  // ir a renombrarlo, ya no lo encontraba (ENOENT), o renombraba lo que habia
+  // escrito el otro.
+  const temporal = `${file}.${process.pid}.${++escrituras}.tmp`;
+  try {
+    fs.writeFileSync(temporal, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(temporal, file);
+  } catch (err) {
+    // Que no quede el temporal tirado en la carpeta de datos.
+    try { fs.unlinkSync(temporal); } catch (e) { /* ya no estaba */ }
+    throw err;
+  }
   // Se olvida aqui, en el unico sitio por el que pasa toda escritura, y no
   // confiando en que la fecha del archivo cambie: la fecha tiene poca precision
   // y dos escrituras seguidas del mismo tamaño pueden parecer la misma.
