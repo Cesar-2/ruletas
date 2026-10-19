@@ -271,7 +271,10 @@
       // las bolas, el tablero; y si no pasa nada, nada, salvo en modo prueba o
       // con ?siempre=1, donde el tablero se queda puesto.
       apuntados.hidden = !hayGente || hayCaida;
-      todo.classList.toggle('visible', Boolean(hayGente || hayCaida || (siempre && estado)));
+      // Una inscripción abierta en la que nadie se apunta en un minuto se
+      // esconde, como los demás widgets (ver widget-base.js). Las bolas
+      // cayendo no: eso se ve hasta el final.
+      todo.classList.toggle('visible', Boolean((hayGente && quieto.vivo()) || hayCaida || (siempre && estado)));
 
       // En modo prueba se dice que está esperando, que si no el tablero quieto
       // tampoco aclara si el widget está vivo.
@@ -310,10 +313,12 @@
         todo.classList.add('visible');
         verCaer(estado.tiradas);
       }
+      quieto.mirar(estado);
       repasarVisible();
       if (!animando) pintar();
     }
 
+    const quieto = Widget.vigiaQuieto(() => repasarVisible());
     mirar();
     if (CADA) {
       setInterval(mirar, Math.max(500, CADA));

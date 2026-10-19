@@ -68,6 +68,44 @@
     Eventos.vigilar('widgets', mirarAjustes, true);
   }
 
+  // Cuánto se queda puesto un widget sin que pase nada. Un resultado que ya
+  // nadie mira no tiene por qué tapar el directo: al minuto se va, y vuelve en
+  // cuanto cambia algo. No vale en modo prueba ni con ?siempre=1.
+  const QUIETO_MS = 60000;
+
+  // Lleva la cuenta de cuándo cambió el estado por última vez.
+  //
+  //   alVencer  se llama cuando se cumple el minuto, para esconderlo sin
+  //             esperar a la siguiente petición
+  //
+  // «Cambiar» es que el estado sea otro, sin contar «ahora», que es la hora del
+  // servidor y cambia en cada petición. Lo que está contando en pantalla (una
+  // inscripción que cierra sola, un combate, una carrera larga) no se corta a
+  // medias: el minuto empieza cuando acaba.
+  function vigiaQuieto(alVencer) {
+    let huella = null;
+    let hasta = 0;
+    let reloj = null;
+    function mirar(estado) {
+      const ahora = Date.now();
+      const h = JSON.stringify(estado, (k, v) => (k === 'ahora' ? undefined : v));
+      if (h !== huella) { huella = h; hasta = ahora + QUIETO_MS; }
+      // Las horas vienen del reloj del servidor: se pasan al de aquí.
+      const desfase = estado && Number(estado.ahora) ? ahora - Number(estado.ahora) : 0;
+      const fines = [];
+      if (estado) {
+        fines.push(Number(estado.cierraEn) || 0, Number(estado.combateHasta) || 0);
+        if (estado.corridaEn && estado.duracion) fines.push(Number(estado.corridaEn) + Number(estado.duracion) * 1000);
+      }
+      for (const fin of fines) if (fin) hasta = Math.max(hasta, fin + desfase + QUIETO_MS);
+      if (reloj) clearTimeout(reloj);
+      reloj = hasta > ahora ? setTimeout(alVencer, hasta - ahora + 50) : null;
+      return vivo();
+    }
+    function vivo() { return Date.now() < hasta; }
+    return { mirar, vivo };
+  }
+
   // Arranca un widget.
   //
   //   ruta    lo que va detrás de /api/widget/ (carrera, colina, ...)
@@ -107,10 +145,17 @@
       }
       decirFallo('');
 
-      const hayAlgo = Boolean(pinta(estado));
-      if (todo) todo.classList.toggle('visible', hayAlgo || siempre);
+      hayAlgo = Boolean(pinta(estado));
+      quieto.mirar(estado);
+      ensenar();
+    }
+
+    let hayAlgo = false;
+    function ensenar() {
+      if (todo) todo.classList.toggle('visible', (hayAlgo && quieto.vivo()) || siempre);
       if (espera) espera.hidden = !prueba || hayAlgo;
     }
+    const quieto = vigiaQuieto(ensenar);
 
     mirar();
     if (CADA) {
@@ -158,5 +203,5 @@
   }
 
   window.Widget = {
-    pintarApuntados, arranca, clave, prueba, siempre, CADA, caja };
+    pintarApuntados, arranca, vigiaQuieto, clave, prueba, siempre, CADA, caja };
 })();
