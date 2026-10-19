@@ -55,7 +55,28 @@
     });
 
     function objetivosPedir(ruta, cuerpo) {
+      // Lo que se puede, se ve ya; el servidor se entera detrás y su respuesta
+      // corrige lo que haga falta. Ver adelantar() en objetivos-local.js.
+      const adelantada = OL.adelantar(objetivos.objetivos, ruta, cuerpo);
+      if (adelantada) {
+        objetivos = { ...objetivos, objetivos: adelantada };
+        pintarEnSeguida();
+      }
       return colaObjetivos.poner(ruta, cuerpo);
+    }
+
+    // Un momento después, no ya: al corregir un texto esto sale de su «blur»,
+    // cuando el navegador todavía no ha puesto el foco en lo siguiente que se
+    // pinchó. Repintar ahí se llevaba ese campo; un instante después ya tiene
+    // el foco y pintarObjetivos() lo conserva. Varios seguidos, un solo pintado.
+    let pintadoPendiente = false;
+    function pintarEnSeguida() {
+      if (pintadoPendiente) return;
+      pintadoPendiente = true;
+      setTimeout(() => {
+        pintadoPendiente = false;
+        if (arrastrando) pintarAlSoltar = true; else pintarObjetivos();
+      }, 0);
     }
 
     // --- El borrador del orden ----------------------------------------------
@@ -160,8 +181,36 @@
       document.getElementById('objetivosVaciar').disabled = !lista.length;
 
       const caja = document.getElementById('objetivosLista');
+      // La lista se rehace entera, así que el campo en el que se estaba
+      // escribiendo desaparece. Se apunta cuál era, con lo escrito y el
+      // cursor, para volver a ponerlo: si no, al salir de un texto (que lo
+      // guarda) y pinchar en el siguiente, la respuesta se llevaba el foco y lo
+      // que se empezaba a escribir.
+      const activo = document.activeElement;
+      let foco = null;
+      if (activo && caja.contains(activo) && activo.tagName === 'INPUT') {
+        const fila = activo.closest('.objetivo, .objetivo-anadir');
+        if (fila) {
+          foco = {
+            selector: fila.classList.contains('objetivo')
+              ? '.objetivo[data-id="' + fila.dataset.id + '"] input.' + activo.classList[0]
+              : '.objetivo-anadir[data-padre="' + fila.dataset.padre + '"] input',
+            texto: activo.type === 'text' ? activo.value : null,
+            desde: activo.type === 'text' ? activo.selectionStart : null,
+            hasta: activo.type === 'text' ? activo.selectionEnd : null
+          };
+        }
+      }
       caja.innerHTML = '';
       pintarNivel(caja, lista, 0);
+      if (foco) {
+        const campo = caja.querySelector(foco.selector);
+        if (campo) {
+          if (foco.texto !== null) campo.value = foco.texto;
+          campo.focus();
+          if (foco.desde !== null) { try { campo.setSelectionRange(foco.desde, foco.hasta); } catch (e) { /* da igual */ } }
+        }
+      }
 
       // Donde se suelta para sacarlo a la lista principal. Solo se ve
       // mientras se arrastra algo.

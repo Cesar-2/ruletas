@@ -176,5 +176,41 @@
     return true;
   }
 
-  globalThis.ObjetivosLocal = { crearCola, forma, mismaForma, aplicarOrden, subirBajar, llevar };
+  // --- Adelantarse al servidor ----------------------------------------------
+  // Marcar, poner en proceso, corregir el texto o quitar se ven al pulsar, sin
+  // esperar la vuelta del servidor (que en producción, detrás del proxy, se
+  // nota en cada clic). Solo se adelanta lo inmediato; lo que el servidor
+  // decide además (pasar al siguiente en proceso, dar por hecha la carpeta
+  // cuando lo está todo lo de dentro) llega con su respuesta, que es la que
+  // manda al final.
+  //
+  // Devuelve la lista nueva, o null si esa petición no se adelanta.
+  function adelantar(lista, ruta, cuerpo) {
+    const c = cuerpo || {};
+    const copia = JSON.parse(JSON.stringify(lista || []));
+    const b = buscar(copia, String(c.id || ''));
+    if (!b) return null;
+    const s = b.hermanos[b.i];
+    const principal = b.hermanos === copia;
+    if (ruta === '/api/objetivos/quitar') {
+      b.hermanos.splice(b.i, 1);
+      return copia;
+    }
+    if (ruta !== '/api/objetivos/cambiar') return null;
+    if (typeof c.texto === 'string' && c.texto.trim()) s.texto = c.texto.trim();
+    if (c.proceso !== undefined && principal) {
+      s.proceso = Boolean(c.proceso);
+      if (s.proceso) s.hecho = false;
+    }
+    if (c.hecho !== undefined) {
+      s.hecho = Boolean(c.hecho);
+      if (s.hecho) {
+        if (principal) s.proceso = false;
+        (function todo(subs) { (subs || []).forEach((x) => { x.hecho = true; todo(x.subs); }); })(s.subs);
+      }
+    }
+    return copia;
+  }
+
+  globalThis.ObjetivosLocal = { crearCola, forma, mismaForma, aplicarOrden, subirBajar, llevar, adelantar };
 })();

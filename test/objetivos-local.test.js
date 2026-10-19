@@ -77,3 +77,28 @@ test('el borrador sobre una lista que cambio entre medias', () => {
     'lo nuevo en su carpeta o al final, lo quitado fuera, y dentro de otro ya no esta en proceso');
   assert.ok(OL.mismaForma(OL.aplicarOrden(lista, OL.forma(lista)), lista), 'sin cambios es la misma forma');
 });
+
+// Marcar, en proceso, texto y quitar se ven al pulsar; la respuesta del
+// servidor llega despues y es la que manda.
+test('adelantar: marcar hecho quita el proceso y marca lo de dentro', () => {
+  const lista = [n('a', [n('a1'), n('a2', [n('a21')])], { proceso: true }), n('b')];
+  const r = OL.adelantar(lista, '/api/objetivos/cambiar', { id: 'a', hecho: true });
+  assert.strictEqual(r[0].hecho, true);
+  assert.strictEqual(r[0].proceso, false);
+  assert.deepStrictEqual([r[0].subs[0].hecho, r[0].subs[1].hecho, r[0].subs[1].subs[0].hecho], [true, true, true]);
+  assert.strictEqual(lista[0].hecho, false, 'la lista de antes no se toca');
+});
+
+test('adelantar: en proceso solo en la lista principal, y quita el hecho', () => {
+  const lista = [n('a', [n('a1')], { hecho: true })];
+  assert.strictEqual(OL.adelantar(lista, '/api/objetivos/cambiar', { id: 'a', proceso: true })[0].hecho, false);
+  assert.strictEqual(OL.adelantar(lista, '/api/objetivos/cambiar', { id: 'a1', proceso: true })[0].subs[0].proceso, undefined);
+});
+
+test('adelantar: texto, quitar, y lo que no se adelanta', () => {
+  const lista = [n('a', [n('a1')]), n('b')];
+  assert.strictEqual(OL.adelantar(lista, '/api/objetivos/cambiar', { id: 'a1', texto: ' nuevo ' })[0].subs[0].texto, 'nuevo');
+  assert.strictEqual(pinta(OL.adelantar(lista, '/api/objetivos/quitar', { id: 'a1' })), 'a b');
+  assert.strictEqual(OL.adelantar(lista, '/api/objetivos', { texto: 'x' }), null);
+  assert.strictEqual(OL.adelantar(lista, '/api/objetivos/cambiar', { id: 'no-esta', hecho: true }), null);
+});
