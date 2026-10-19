@@ -42,8 +42,21 @@ const CLASE_DE_ARCHIVO: Record<string, string> = {
 // no las tiene y pasa al siguiente.
 const REPO_DIR = path.join(process.cwd(), 'public', 'assets', 'dofus');
 
+// Lo de la ultima vez, unos segundos. La colina lo manda en cada respuesta, y
+// con el chat apuntandose son decenas por minuto entre la pagina y el widget:
+// leer las dos carpetas y mirar cada archivo cada vez era trabajo tirado. Un
+// dibujo nuevo tarda como mucho eso en salir.
+const ARTE_VALE_MS = 10000;
+let arteGuardado: { hasta: number; arte: ReturnType<typeof leerArte> } | null = null;
+
 export function deBatalla(): { clases: Record<string, string>; escenario: string; escenarios: string[] } {
-  const arte = { clases: {} as Record<string, string>, escenario: '', escenarios: [] as string[] };
+  const ahora = Date.now();
+  if (!arteGuardado || arteGuardado.hasta <= ahora) arteGuardado = { hasta: ahora + ARTE_VALE_MS, arte: leerArte() };
+  return arteGuardado.arte;
+}
+
+function leerArte(): { clases: Record<string, string>; escenario: string; escenarios: string[] } {
+  const arte ={ clases: {} as Record<string, string>, escenario: '', escenarios: [] as string[] };
   const fuentes: [string, string][] = [[REPO_DIR, '/assets/dofus/'], [deps.assetsDir(), '/assets/']];
   for (const [dir, base] of fuentes) {
     try {

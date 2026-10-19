@@ -27,6 +27,7 @@ import * as registro from './registro';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import zlib from 'zlib';
 
 const app = express();
 // Publicado detras de un proxy (Render, Fly, nginx...): asi req.protocol dice
@@ -567,6 +568,12 @@ function juegoDe(req: Request): juegos.Juego {
 // Un catalogo de objetos: se baja una vez y se deja en disco, que son varios
 // miles y no cambian de un dia para otro. De donde se baja y como se traduce al
 // formato comun lo decide juegos.ts, asi que aqui da igual de que juego sea.
+// Los catalogos de recursos ya leidos, por archivo. Los equipables (13,8 MB) y
+// los cosmeticos no se guardan asi: solo se miran desde una pestaña y tenerlos
+// leidos siempre se comeria la memoria. De esos se guarda la respuesta ya
+// comprimida (ver enviarComprimido).
+const catalogosEnMemoria = new Map<string, { sello: string; items: any[] }>();
+
 async function fetchCatalogBruto(juego: juegos.Juego, familia: juegos.Familia): Promise<any[]> {
   ensureDataDir();
   const file = catalogoFile(juego, familia);
@@ -574,8 +581,19 @@ async function fetchCatalogBruto(juego: juegos.Juego, familia: juegos.Familia): 
   const leerCache = (): any[] | null => {
     try {
       if (fs.existsSync(file)) {
+        // Los recursos se piden a cada rato (la pagina, cada sorteo, cada
+        // canje) y leerlos era interpretar 2,4 MB de JSON cada vez, con el
+        // servidor parado mientras tanto. Se guardan ya leidos; si el archivo
+        // cambia en disco, se vuelven a leer.
+        const st = fs.statSync(file);
+        const sello = st.mtimeMs + ':' + st.size;
+        const enMemoria = familia === 'resources' ? catalogosEnMemoria.get(file) : undefined;
+        if (enMemoria && enMemoria.sello === sello) return enMemoria.items;
         const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          if (familia === 'resources') catalogosEnMemoria.set(file, { sello, items: parsed });
+          return parsed;
+        }
       }
     } catch (err) {
       console.error(`Failed to read cached ${que}:`, err);
@@ -2078,14 +2096,61 @@ app.get('/api/widget/nombres', (req: Request, res: Response) => {
   }
 });
 
+// Las respuestas grandes (los catalogos: 2,4 MB los recursos, 13,8 MB los
+// equipables) se guardan ya en JSON y comprimidas, una por version. Antes cada
+// peticion leia el archivo, lo interpretaba, lo volvia a escribir en JSON y lo
+// mandaba sin comprimir: el servidor se quedaba parado un buen rato con cada
+// una (de ahi los 504) y con varias a la vez se disparaba la memoria.
+//
+//   clave  de quien es la respuesta (catalogo, juego y, si va retocado, usuario)
+//   sello  cambia cuando cambia lo que hay dentro
+//   hacer  la respuesta, solo si no esta guardada con ese sello
+const comprimidas = new Map<string, { sello: string; gz: Buffer }>();
+async function enviarComprimido(req: Request, res: Response, clave: string, sello: string,
+    hacer: () => Promise<unknown>): Promise<void> {
+  let c = comprimidas.get(clave);
+  if (!c || c.sello !== sello) {
+    c = { sello, gz: zlib.gzipSync(Buffer.from(JSON.stringify(await hacer()), 'utf8')) };
+    // Sin archivo todavia, lo de ahora es una descarga (o un fallo al bajarlo):
+    // no se guarda, que la proxima vez ya tendra su sello de verdad.
+    if (!sello.includes('sin-archivo')) comprimidas.set(clave, c);
+  }
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Vary', 'Accept-Encoding');
+  if (/\bgzip\b/.test(String(req.headers['accept-encoding'] || ''))) {
+    res.setHeader('Content-Encoding', 'gzip');
+    res.end(c.gz);
+  } else {
+    res.end(zlib.gunzipSync(c.gz));
+  }
+}
+
+// El sello de un catalogo en disco: cambia si se vuelve a bajar.
+function selloCatalogo(juego: juegos.Juego, familia: juegos.Familia): string {
+  try {
+    const st = fs.statSync(catalogoFile(juego, familia));
+    return st.mtimeMs + ':' + st.size;
+  } catch {
+    return 'sin-archivo';
+  }
+}
+
 // GET /api/items?juego=  -> el catalogo que se sortea, del juego que se pida
 app.get('/api/items', async (req: Request, res: Response) => {
   try {
+    const uid = requireUid(req);
     const juego = juegoDe(req);
-    const items = await itemsDe(requireUid(req), juego);
-    res.json({ count: items.length, items, juego, aviso: juegos.AVISOS[juego] });
+    // Lleva los retoques del usuario encima, asi que es suya; y en Touch, la
+    // traduccion depende tambien del catalogo de Dofus.
+    const retoques = leerRetoques(uid, juego);
+    const sello = selloCatalogo(juego, 'resources') + '|' + selloCatalogo(juegos.JUEGO_POR_DEFECTO, 'resources')
+      + '|' + crypto.createHash('sha1').update(JSON.stringify(retoques)).digest('hex');
+    await enviarComprimido(req, res, `items|${juego}|${uid}`, sello, async () => {
+      const items = await itemsDe(uid, juego);
+      return { count: items.length, items, juego, aviso: juegos.AVISOS[juego] };
+    });
   } catch (err) {
-    res.status(500).json({ error: 'failed to get items' });
+    if (!res.headersSent) res.status(500).json({ error: 'failed to get items' });
   }
 });
 
@@ -2218,10 +2283,12 @@ app.get('/api/catalogo/retoques', (req: Request, res: Response) => {
 app.get('/api/cosmeticos', async (req: Request, res: Response) => {
   try {
     const juego = juegoDe(req);
-    const items = await fetchCatalogCached(juego, 'cosmetics');
-    res.json({ count: items.length, items, juego, aviso: juegos.AVISOS[juego] });
+    await enviarComprimido(req, res, `cosmetics|${juego}`, selloCatalogo(juego, 'cosmetics'), async () => {
+      const items = await fetchCatalogCached(juego, 'cosmetics');
+      return { count: items.length, items, juego, aviso: juegos.AVISOS[juego] };
+    });
   } catch (err) {
-    res.status(500).json({ error: 'failed to get cosmetics' });
+    if (!res.headersSent) res.status(500).json({ error: 'failed to get cosmetics' });
   }
 });
 
@@ -2231,10 +2298,12 @@ app.get('/api/cosmeticos', async (req: Request, res: Response) => {
 app.get('/api/equipment', async (req: Request, res: Response) => {
   try {
     const juego = juegoDe(req);
-    const items = await fetchEquipmentCached(juego);
-    res.json({ count: items.length, items, juego, aviso: juegos.AVISOS[juego] });
+    await enviarComprimido(req, res, `equipment|${juego}`, selloCatalogo(juego, 'equipment'), async () => {
+      const items = await fetchEquipmentCached(juego);
+      return { count: items.length, items, juego, aviso: juegos.AVISOS[juego] };
+    });
   } catch (err) {
-    res.status(500).json({ error: 'failed to get equipment' });
+    if (!res.headersSent) res.status(500).json({ error: 'failed to get equipment' });
   }
 });
 
