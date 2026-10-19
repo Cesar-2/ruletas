@@ -306,6 +306,11 @@
     .winner-row button{padding:.45rem .9rem;font-size:14px;box-shadow:none;background:rgba(248,113,113,0.14);color:#fca5a5;border:1px solid rgba(248,113,113,0.4)}
     .winner-row button.wr-part{background:rgba(255,255,255,0.08);color:#e6eef8;border-color:rgba(255,255,255,0.18)}
     .winner-row button:hover{background:rgba(248,113,113,0.25)}
+    .winners-chat{display:flex;flex-direction:column;gap:.4rem;margin-top:.7rem;max-height:420px;overflow-y:auto}
+    .winners-chat .wc-linea{padding:.5rem .8rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);overflow-wrap:anywhere}
+    .winners-chat .wc-autor{font-weight:700;color:var(--accent)}
+    .winners-chat .wc-hora{margin-left:.4rem;font-size:12px;color:var(--muted)}
+    .winners-chat .wc-texto{display:block;margin-top:.15rem}
     .bulk-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.8rem;padding:.6rem .8rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
     .bulk-bar button{padding:.4rem .8rem;font-size:14px;box-shadow:none}
     .bulk-bar select{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:.35rem .5rem;font-size:14px;cursor:pointer}
@@ -1792,6 +1797,16 @@
           </section>
 
         </div>
+
+          <!-- Lo mismo que en Ganadores, al final de cada minijuego: así se ve
+               lo que dicen los ganadores sin cambiar de pestaña ni buscarlo
+               en el chat. Ver cargarChatGanadores. -->
+          <section>
+            <h3>💬 Lo que escriben los ganadores en el chat</h3>
+            <p class="meta">Los mensajes de quien tiene un premio pendiente en este servidor, lo más nuevo arriba. Es lo mismo que en la pestaña Ganadores.</p>
+            <div id="gamesChatEstado" class="meta" hidden></div>
+            <div id="gamesChat" class="winners-chat"></div>
+          </section>
         </div>
 
         <div class="tab-panel" id="puntos-panel">
@@ -1883,6 +1898,16 @@
               <input id="winnersBuscar" type="search" placeholder="Buscar a alguien" aria-label="Buscar ganador" />
             </div>
             <div id="winnersList"></div>
+          </section>
+
+          <!-- Lo que escriben en el chat los de la lista de arriba: suele ser
+               donde están o con qué personaje, que es lo que hace falta para
+               entregar. -->
+          <section>
+            <h3>💬 Lo que escriben los ganadores en el chat</h3>
+            <p class="meta">Solo los mensajes de quien tiene un premio pendiente en este servidor, lo más nuevo arriba. Se lee el chat del canal puesto en Configuración › Mi cuenta; lo de antes de reiniciar el Ruleton no se guarda.</p>
+            <div id="winnersChatEstado" class="meta" hidden></div>
+            <div id="winnersChat" class="winners-chat"></div>
           </section>
         </div>
 
@@ -2796,6 +2821,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (currentJuego && !url.searchParams.has('juego')) {
         url.searchParams.set('juego', currentJuego);
       }
+      const inicio = Date.now();
       const res = await fetch(url.pathname + url.search, { cache: 'no-store', ...opts });
       if (!res.ok) {
         let datos = null;
@@ -2807,6 +2833,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // Lo que contestó el servidor, por si quien llama necesita algo más que
         // el texto (el rey de la colina distingue «ocupada» de un fallo).
         fallo.datos = datos;
+        // Qué petición fue y cuánto tardó, para el registro: un «HTTP 504» a
+        // secas no dice qué se quedó sin guardar.
+        fallo.peticion = ((opts && opts.method) || 'GET') + ' ' + url.pathname + ' · ' + (Date.now() - inicio) + ' ms';
         throw fallo;
       }
       return res.json();
@@ -2823,7 +2852,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             donde,
-            mensaje: (err && err.message) || String(err),
+            mensaje: ((err && err.message) || String(err)) + (err && err.peticion ? ' (' + err.peticion + ')' : ''),
             pila: (err && err.stack) || '',
             url: location.pathname + location.search
           })
@@ -4386,6 +4415,54 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         console.warn('No se pudieron cargar los ganadores:', e.message);
       }
       renderWinners();
+      // Cambian los ganadores, cambia de quién se enseña el chat. Y desde el
+      // primer ganador cargado (ya con sesión) se queda vigilando: el apartado
+      // está en Ganadores y al final de los minijuegos, que es lo que se tiene
+      // abierto casi siempre.
+      Eventos.vigilar('ganadores', cargarChatGanadores, true);
+      cargarChatGanadores();
+    }
+
+    // Lo que han escrito en el chat los ganadores pendientes. Va en dos sitios:
+    // la pestaña de Ganadores, con el servidor que se mire allí, y el final de
+    // los minijuegos, con el servidor con el que se sortea. El servidor avisa
+    // ('ganadores') cuando escribe uno.
+    function cargarChatGanadores() {
+      pintarChatGanadores('winnersChat', 'winnersChatEstado', winnersServer || currentServer);
+      pintarChatGanadores('gamesChat', 'gamesChatEstado', currentServer);
+    }
+
+    async function pintarChatGanadores(idCaja, idEstado, servidor) {
+      const caja = document.getElementById(idCaja);
+      const estado = document.getElementById(idEstado);
+      if (!caja) return;
+      let data;
+      try {
+        data = await api('/api/winners/chat?server=' + encodeURIComponent(servidor || ''));
+      } catch (e) {
+        console.warn('No se pudo cargar el chat de los ganadores:', e.message);
+        return;
+      }
+      const salud = data.chat;
+      const problema = !salud ? 'No hay ningún canal de Twitch puesto: ponlo en Configuración › Mi cuenta.' : salud.problema;
+      estado.hidden = !problema;
+      estado.textContent = problema ? '⚠ ' + problema : '';
+      const mensajes = data.mensajes || [];
+      if (!mensajes.length) {
+        caja.innerHTML = `<div class="meta" style="padding:.7rem 0">${data.pendientes
+          ? 'Ningún ganador pendiente ha escrito en el chat todavía.'
+          : 'No hay ganadores pendientes.'}</div>`;
+        return;
+      }
+      caja.innerHTML = mensajes.map((m) => {
+        const hora = new Date(m.fecha).toLocaleString('es-ES', {
+          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+        });
+        return `<div class="wc-linea">
+          <span class="wc-autor">${escapeHtml(m.autor)}</span><span class="wc-hora">${escapeHtml(hora)}</span>
+          <span class="wc-texto">${escapeHtml(m.texto)}</span>
+        </div>`;
+      }).join('');
     }
 
     function updateValueTotal() {
@@ -8238,6 +8315,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarBatalla(); cargarPlinko(); }
       ajustarAcciones();
         if (tab.dataset.tab === 'puntos') cargarPuntos();
+        if (tab.dataset.tab === 'winners' || tab.dataset.tab === 'games') cargarChatGanadores();
         if (tab.dataset.tab === 'objetivos') cargarObjetivos();
         if (tab.dataset.tab === 'uso') cargarUso();
         document.getElementById('fontDock').hidden = tab.dataset.tab !== 'config';

@@ -12,6 +12,7 @@ import * as batalla from './batalla';
 import * as colina from './colina';
 import * as ruletachat from './ruletachat';
 import * as canjeobjetos from './canjeobjetos';
+import * as chatganadores from './chatganadores';
 import * as adivina from './adivina';
 import * as objetivos from './objetivos';
 import * as catalogo from './catalogo';
@@ -32,6 +33,45 @@ const app = express();
 // https y la cookie de sesion puede ir marcada como segura.
 if (process.env.TRUST_PROXY) app.set('trust proxy', 1);
 app.use(cors());
+
+// El registro de peticiones. Los objetivos se apuntan todos los que cambian
+// algo, con lo que se pidio: es lo que se esta persiguiendo. Del resto solo
+// los que fallan del lado del servidor (5xx). El cuerpo solo se guarda en los
+// objetivos: en otras rutas puede llevar contraseñas.
+//
+// Va antes de leer el cuerpo: una peticion que se queda esperando a que le
+// llegue el cuerpo tambien tiene que verse cuando se corta.
+app.use('/api', (req: Request, res: Response, next: any) => {
+  const inicio = Date.now();
+  // La ruta se coge ahora: al terminar, Express ya le ha vuelto a poner el
+  // /api de delante.
+  const ruta = '/api' + req.path;
+  res.on('finish', () => {
+    const deObjetivos = req.method !== 'GET' && ruta.startsWith('/api/objetivos');
+    if (!deObjetivos && res.statusCode < 500) return;
+    const datos: Record<string, unknown> = {
+      metodo: req.method, ruta, estado: res.statusCode, ms: Date.now() - inicio,
+      uid: usuarioDe(req)?.id || ''
+    };
+    if (deObjetivos) datos.cuerpo = req.body;
+    registro.apuntar(res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'aviso' : 'info', 'peticion', datos);
+  });
+  // La que se corta sin haber contestado. Delante hay un proxy que a los
+  // tantos segundos da un 504 y cierra: sin esto, una peticion que llego pero
+  // se quedo colgada no dejaba ni rastro, y no habia forma de saber si el
+  // fallo era de aqui o de antes de llegar. Los canales de avisos no cuentan:
+  // esos se cierran siempre asi, es como acaban.
+  res.on('close', () => {
+    if (res.writableFinished || ruta.endsWith('/eventos')) return;
+    const datos: Record<string, unknown> = {
+      metodo: req.method, ruta, ms: Date.now() - inicio, uid: usuarioDe(req)?.id || ''
+    };
+    if (req.method !== 'GET' && ruta.startsWith('/api/objetivos')) datos.cuerpo = req.body;
+    registro.apuntar('aviso', 'peticion-cortada', datos);
+  });
+  next();
+});
+
 // El limite por defecto (100kb) no admite la subida de una imagen de fondo.
 app.use(express.json({ limit: '16mb' }));
 
@@ -876,6 +916,8 @@ function readWinners(sid: string): Winner[] {
 function writeWinners(sid: string, winners: Winner[]): void {
   ensureServerDir(sid);
   writeJson(serverFile(sid, 'winners'), winners);
+  // El chat de ganadores mira estos nombres: que no siga con los de antes.
+  chatganadores.olvidarNombres(sid.split('/')[0]);
 }
 
 // Historico acumulado por persona. A diferencia de winners.json, no se borra
@@ -1016,28 +1058,6 @@ function shuffle<T>(arr: T[]): T[] {
 // puede servir una version antigua (por ejemplo, un ranking desactualizado).
 app.use('/api', (_req: Request, res: Response, next: any) => {
   res.set('Cache-Control', 'no-store');
-  next();
-});
-
-// El registro de peticiones. Los objetivos se apuntan todos los que cambian
-// algo, con lo que se pidio: es lo que se esta persiguiendo. Del resto solo
-// los que fallan del lado del servidor (5xx). El cuerpo solo se guarda en los
-// objetivos: en otras rutas puede llevar contraseñas.
-app.use('/api', (req: Request, res: Response, next: any) => {
-  const inicio = Date.now();
-  // La ruta se coge ahora: al terminar, Express ya le ha vuelto a poner el
-  // /api de delante.
-  const ruta = '/api' + req.path;
-  res.on('finish', () => {
-    const deObjetivos = req.method !== 'GET' && ruta.startsWith('/api/objetivos');
-    if (!deObjetivos && res.statusCode < 500) return;
-    const datos: Record<string, unknown> = {
-      metodo: req.method, ruta, estado: res.statusCode, ms: Date.now() - inicio,
-      uid: usuarioDe(req)?.id || ''
-    };
-    if (deObjetivos) datos.cuerpo = req.body;
-    registro.apuntar(res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'aviso' : 'info', 'peticion', datos);
-  });
   next();
 });
 
@@ -1568,7 +1588,7 @@ app.patch('/api/auth/profile', (req: Request, res: Response) => {
 
     writeUsers(users);
     // El canje con puntos escucha el chat del perfil: si cambia, se cambia.
-    if (typeof body.twitchCanal === 'string') canjeobjetos.rehacer(yo.id);
+    if (typeof body.twitchCanal === 'string') { canjeobjetos.rehacer(yo.id); chatganadores.rehacer(yo.id); }
     res.json({ user: datosPublicos(yo) });
   } catch (err) {
     console.error('Failed to update profile:', err);
@@ -2371,6 +2391,15 @@ app.post('/api/ranking/reset', (req: Request, res: Response) => {
 // GET /api/winners -> { winners: Winner[] }  (mas recientes primero)
 app.get('/api/winners', (req: Request, res: Response) => {
   res.json({ winners: readWinners(resolveServer(req)) });
+});
+
+// GET /api/winners/chat -> { mensajes, chat }
+// Lo que han escrito en el chat los ganadores pendientes de ese servidor, lo
+// mas nuevo primero. Ver chatganadores.ts.
+app.get('/api/winners/chat', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const nombres = readWinners(resolveServer(req)).map((w) => w.name);
+  res.json({ mensajes: chatganadores.de(uid, nombres), chat: chatganadores.salud(uid), pendientes: nombres.length });
 });
 
 // POST /api/winners  Body: { name, total, items? }
@@ -3243,6 +3272,17 @@ canjeobjetos.iniciar(
       return sortearParaTwitch(uid, sid, nombre, cuenta?.objetos || 1);
     },
     decir: (uid: string, texto: string) => { void twitch.decir(uid, canalDe(uid), texto); }
+  },
+  readUsers().map((u) => u.id)
+);
+
+// El chat del perfil, para ver lo que escriben los ganadores pendientes.
+chatganadores.iniciar(
+  {
+    canalDe,
+    nombresGanadores: (uid: string) => juegos.JUEGOS.flatMap((j) =>
+      readServers(uid, j).flatMap((sv) => readWinners(`${uid}/${j}/${sv.id}`).map((w) => w.name))),
+    alCambiar: (uid: string) => avisos.cambio(uid, 'ganadores')
   },
   readUsers().map((u) => u.id)
 );
