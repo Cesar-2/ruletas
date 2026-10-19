@@ -412,3 +412,76 @@ test('el aviso dice que escribir y en que minijuego', () => {
   assert.strictEqual(aviso('!correr', 'la Carrera de balineras'), 'Escribe !correr para participar en la Carrera de balineras');
   assert.strictEqual(aviso('!carton', 'el Bingo', 'mira tu cartón en x'), 'Escribe !carton para participar en el Bingo · mira tu cartón en x');
 });
+
+// Cada reinicio o despliegue deja su suscripcion a los canjes, y Twitch acaba
+// contestando 429. Se quitan las de otras conexiones y se reintenta una vez.
+test('con 429 se quitan las suscripciones viejas y se reintenta', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const llamadas = fetchFalso(t, [
+    () => ({ status: 429, json: { message: 'maximum subscriptions with type and condition exceeded' } }),
+    () => ({ json: { data: [
+      { id: 'vieja', condition: { broadcaster_user_id: '123' }, transport: { method: 'websocket', session_id: 'antes' } },
+      { id: 'esta', condition: { broadcaster_user_id: '123' }, transport: { method: 'websocket', session_id: 'ahora' } },
+      { id: 'otro-canal', condition: { broadcaster_user_id: '999' }, transport: { method: 'websocket', session_id: 'antes' } }
+    ] } }),
+    () => ({ status: 204 }),
+    () => ({ status: 202 })
+  ]);
+  await twitch.suscribir('u1', 'ahora');
+  assert.deepStrictEqual(llamadas.map((l) => l.metodo + ' ' + l.url.replace('https://api.twitch.tv/helix', '')), [
+    'POST /eventsub/subscriptions',
+    'GET /eventsub/subscriptions?type=channel.channel_points_custom_reward_redemption.add',
+    'DELETE /eventsub/subscriptions?id=vieja',
+    'POST /eventsub/subscriptions'
+  ]);
+});
+
+test('con 429 y nada que quitar no se insiste', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const llamadas = fetchFalso(t, [
+    () => ({ status: 429, json: {} }),
+    () => ({ json: { data: [] } })
+  ]);
+  await twitch.suscribir('u1', 'ahora');
+  assert.strictEqual(llamadas.length, 2);
+});
+
+// Un WebSocket de mentira: se apuntan los que se abren y se les hace hablar.
+function wsFalso(t) {
+  const antes = globalThis.WebSocket;
+  const abiertos = [];
+  globalThis.WebSocket = class {
+    constructor(url) { this.url = url; this.oyentes = {}; this.cerrado = false; abiertos.push(this); }
+    addEventListener(tipo, f) { (this.oyentes[tipo] = this.oyentes[tipo] || []).push(f); }
+    close() { if (this.cerrado) return; this.cerrado = true; (this.oyentes.close || []).forEach((f) => f()); }
+    async decir(msg) { for (const f of this.oyentes.message || []) await f({ data: JSON.stringify(msg) }); }
+  };
+  t.after(() => { globalThis.WebSocket = antes; });
+  return abiertos;
+}
+
+const bienvenida = (id) => ({ metadata: { message_type: 'session_welcome' }, payload: { session: { id } } });
+
+test('al mudarse de conexion no se vuelve a suscribir, y la vieja se cierra al final', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, CUENTA);
+  const abiertos = wsFalso(t);
+  const llamadas = fetchFalso(t, [() => ({ status: 202 })]);
+  twitch.escuchar('u1');
+  await abiertos[0].decir(bienvenida('s1'));
+  assert.strictEqual(llamadas.length, 1);
+
+  await abiertos[0].decir({ metadata: { message_type: 'session_reconnect' }, payload: { session: { reconnect_url: 'wss://otra' } } });
+  assert.strictEqual(abiertos[1].url, 'wss://otra');
+  assert.strictEqual(abiertos[0].cerrado, false, 'la vieja sigue hasta que la nueva este lista');
+
+  await abiertos[1].decir(bienvenida('s2'));
+  assert.strictEqual(abiertos[0].cerrado, true);
+  assert.strictEqual(llamadas.length, 1, 'las suscripciones se mudan solas');
+  twitch.cerrar('u1');
+});

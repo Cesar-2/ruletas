@@ -355,9 +355,21 @@ export function escuchar(uid: string): void {
   abrir(uid, EVENTSUB_WS);
 }
 
-function abrir(uid: string, url: string): void {
+// anterior: la conexion de la que se viene en una mudanza (session_reconnect).
+// Sus suscripciones pasan solas a la nueva, asi que la nueva NO se suscribe:
+// volver a hacerlo creaba una de mas en cada mudanza, y con unas cuantas
+// Twitch contesta 429 («maximum subscriptions with type and condition
+// exceeded»). La vieja se cierra cuando la nueva ya ha dado la bienvenida, que
+// es lo que pide Twitch para no perder canjes entre medias.
+function abrir(uid: string, url: string, anterior?: WebSocket): void {
   const ws = new WebSocket(url);
   sockets.set(uid, ws);
+  let vieja = anterior;
+  const soltarVieja = () => {
+    if (!vieja) return;
+    try { vieja.close(); } catch (e) { /* da igual */ }
+    vieja = undefined;
+  };
 
   ws.addEventListener('message', async (ev: MessageEvent) => {
     let msg: any;
@@ -366,21 +378,22 @@ function abrir(uid: string, url: string): void {
 
     if (tipo === 'session_welcome') {
       const sesion = msg.payload?.session?.id;
-      if (sesion) await suscribir(uid, sesion);
+      if (vieja) soltarVieja();
+      else if (sesion) await suscribir(uid, sesion);
     } else if (tipo === 'session_reconnect') {
-      // Twitch pide mudarse a otra direccion sin perder los eventos.
+      // Twitch pide mudarse a otra direccion sin perder los eventos. Esta
+      // sigue abierta (y recibiendo) hasta que la nueva este lista.
       const nueva = msg.payload?.session?.reconnect_url;
-      if (nueva) {
-        sockets.delete(uid);
-        try { ws.close(); } catch (e) { /* da igual */ }
-        abrir(uid, nueva);
-      }
+      if (nueva) abrir(uid, nueva, ws);
     } else if (tipo === 'notification') {
       await alCanjear(uid, msg.payload?.event);
     }
   });
 
   ws.addEventListener('close', () => {
+    // Si la nueva se cae antes de estar lista, la vieja no se queda huerfana:
+    // se cierra, y lo de abajo vuelve a empezar de cero, suscribiendose.
+    soltarVieja();
     if (sockets.get(uid) !== ws) return;   // ya se mudo a otra conexion
     sockets.delete(uid);
     // Si la cuenta sigue ahi, se vuelve a intentar; Twitch corta cada rato.
@@ -390,19 +403,47 @@ function abrir(uid: string, url: string): void {
   ws.addEventListener('error', () => { /* el close que viene detras se encarga */ });
 }
 
-async function suscribir(uid: string, sesion: string): Promise<void> {
+const TIPO_CANJE = 'channel.channel_points_custom_reward_redemption.add';
+
+function cabecerasHelix(c: TwitchCuenta): Record<string, string> {
+  return {
+    Authorization: `Bearer ${c.accessToken}`,
+    'Client-Id': credencialesDe(c)?.clientId || '',
+    'Content-Type': 'application/json'
+  };
+}
+
+// Quita las suscripciones a los canjes de este canal que son de otra conexion
+// (de antes de un reinicio o un despliegue, que Twitch tarda en soltar).
+// Devuelve cuantas quito.
+async function quitarViejas(c: TwitchCuenta, sesion: string): Promise<number> {
+  const r = await fetch(`${HELIX}/eventsub/subscriptions?type=${encodeURIComponent(TIPO_CANJE)}`, {
+    headers: cabecerasHelix(c)
+  });
+  if (!r.ok) return 0;
+  const lista: any[] = (await r.json())?.data || [];
+  let quitadas = 0;
+  for (const s of lista) {
+    if (s?.condition?.broadcaster_user_id !== c.userId) continue;
+    if (s?.transport?.method !== 'websocket' || s?.transport?.session_id === sesion) continue;
+    const d = await fetch(`${HELIX}/eventsub/subscriptions?id=${encodeURIComponent(s.id)}`, {
+      method: 'DELETE', headers: cabecerasHelix(c)
+    });
+    if (d.ok) quitadas++;
+  }
+  return quitadas;
+}
+
+// Exportada para poder probarla sin Twitch.
+export async function suscribir(uid: string, sesion: string): Promise<void> {
   let cuenta = leerCuenta(uid);
   if (!cuenta) return;
 
   const pedir = async (c: TwitchCuenta) => fetch(`${HELIX}/eventsub/subscriptions`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${c.accessToken}`,
-      'Client-Id': credencialesDe(c)?.clientId || '',
-      'Content-Type': 'application/json'
-    },
+    headers: cabecerasHelix(c),
     body: JSON.stringify({
-      type: 'channel.channel_points_custom_reward_redemption.add',
+      type: TIPO_CANJE,
       version: '1',
       condition: { broadcaster_user_id: c.userId },
       transport: { method: 'websocket', session_id: sesion }
@@ -416,6 +457,15 @@ async function suscribir(uid: string, sesion: string): Promise<void> {
     if (!nueva) { cerrar(uid); return; }
     cuenta = nueva;
     r = await pedir(cuenta);
+  }
+  // 429: ya hay demasiadas iguales. Son de conexiones que ya no estan: se
+  // quitan y se reintenta una vez.
+  if (r.status === 429) {
+    const quitadas = await quitarViejas(cuenta, sesion);
+    if (quitadas) {
+      console.log(`Twitch: quitadas ${quitadas} suscripcion(es) vieja(s) a los canjes; se reintenta`);
+      r = await pedir(cuenta);
+    }
   }
   if (!r.ok) {
     console.error('Twitch: no se pudo suscribir a los canjes:', r.status, await r.text());
