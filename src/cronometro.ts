@@ -24,7 +24,10 @@ export class Cronometro {
     this.cierres.set(uid, Date.now() + s * 1000);
     this.temporizadores.set(uid, setTimeout(() => {
       this.temporizadores.delete(uid);
-      this.alCerrar(uid);
+      // Esto corre suelto: un fallo aqui no lo recoge nadie y tumbaria el
+      // servidor entero (ver uncaughtException en server.ts) por cerrar una
+      // inscripcion.
+      try { this.alCerrar(uid); } catch (err) { console.error('cronometro: fallo al cerrar la inscripcion de', uid, err); }
     }, s * 1000));
   }
 

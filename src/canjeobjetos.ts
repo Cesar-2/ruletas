@@ -110,7 +110,10 @@ export function rehacer(uid: string): void {
   if (actual) { actual.cerrar(); escuchas.delete(uid); }
   if (coste <= 0 || !canal) return;
   escuchas.set(uid, chat.conectar(canal, (m) => {
-    if (chat.esLaPalabra(m.texto, palabra)) void alEscribir(uid, m.autor);
+    // Con su catch: suelta, una promesa rechazada tumbaria el servidor.
+    if (chat.esLaPalabra(m.texto, palabra)) {
+      alEscribir(uid, m.autor).catch((err) => console.error('Canje con puntos: fallo con', m.autor, err));
+    }
   }));
 }
 

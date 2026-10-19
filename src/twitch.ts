@@ -376,17 +376,26 @@ function abrir(uid: string, url: string, anterior?: WebSocket): void {
     try { msg = JSON.parse(String(ev.data)); } catch (e) { return; }
     const tipo = msg?.metadata?.message_type;
 
-    if (tipo === 'session_welcome') {
-      const sesion = msg.payload?.session?.id;
-      if (vieja) soltarVieja();
-      else if (sesion) await suscribir(uid, sesion);
-    } else if (tipo === 'session_reconnect') {
-      // Twitch pide mudarse a otra direccion sin perder los eventos. Esta
-      // sigue abierta (y recibiendo) hasta que la nueva este lista.
-      const nueva = msg.payload?.session?.reconnect_url;
-      if (nueva) abrir(uid, nueva, ws);
-    } else if (tipo === 'notification') {
-      await alCanjear(uid, msg.payload?.event);
+    // Todo dentro de un try: esto corre suelto, sin nadie que recoja lo que
+    // falle, y un fetch a Twitch que se corta (red, DNS, un 5xx raro) era una
+    // promesa rechazada sin recoger. Eso tumba el proceso entero (ver el
+    // unhandledRejection de server.ts): se caia el Ruleton por un corte de red
+    // con Twitch.
+    try {
+      if (tipo === 'session_welcome') {
+        const sesion = msg.payload?.session?.id;
+        if (vieja) soltarVieja();
+        else if (sesion) await suscribir(uid, sesion);
+      } else if (tipo === 'session_reconnect') {
+        // Twitch pide mudarse a otra direccion sin perder los eventos. Esta
+        // sigue abierta (y recibiendo) hasta que la nueva este lista.
+        const nueva = msg.payload?.session?.reconnect_url;
+        if (nueva) abrir(uid, nueva, ws);
+      } else if (tipo === 'notification') {
+        await alCanjear(uid, msg.payload?.event);
+      }
+    } catch (err) {
+      console.error('Twitch: fallo al tratar un mensaje de ' + (tipo || '?') + ':', err);
     }
   });
 
@@ -397,7 +406,11 @@ function abrir(uid: string, url: string, anterior?: WebSocket): void {
     if (sockets.get(uid) !== ws) return;   // ya se mudo a otra conexion
     sockets.delete(uid);
     // Si la cuenta sigue ahi, se vuelve a intentar; Twitch corta cada rato.
-    if (leerCuenta(uid)?.refreshToken) setTimeout(() => escuchar(uid), 5000);
+    if (leerCuenta(uid)?.refreshToken) {
+      setTimeout(() => {
+        try { escuchar(uid); } catch (err) { console.error('Twitch: no se pudo volver a conectar:', err); }
+      }, 5000);
+    }
   });
 
   ws.addEventListener('error', () => { /* el close que viene detras se encarga */ });
