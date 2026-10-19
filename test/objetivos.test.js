@@ -260,3 +260,49 @@ test('guardar los completados se lleva lo que tengan dentro', (t) => {
   const grupo = objetivos.leer('u1').objetivos[0];
   assert.deepStrictEqual(grupo.subs[0].subs.map((s) => [s.texto, s.hecho]), [['paso', true]]);
 });
+
+test('ordenar: el orden entero de una vez, el del boton Guardar', (t) => {
+  const { objetivos, avisados } = montar(t);
+  ['a', 'b', 'c'].forEach((x) => objetivos.anadir('u1', x));
+  const [a, b, c] = objetivos.leer('u1').objetivos;
+  objetivos.anadir('u1', 'x', a.id);
+  const x = objetivos.leer('u1').objetivos[0].subs[0];
+  objetivos.cambiar('u1', c.id, { proceso: true });
+  const arbol = () => {
+    const pinta = (subs) => subs.map((s) => s.texto + (s.proceso ? '▶' : '') + (s.subs.length ? '(' + pinta(s.subs) + ')' : '')).join(' ');
+    return pinta(objetivos.leer('u1').objetivos);
+  };
+  const antes = avisados.length;
+
+  const r = objetivos.ordenar('u1', [{ id: c.id }, { id: a.id, subs: [{ id: b.id }, { id: x.id }] }]);
+  assert.ok(r.ok);
+  assert.strictEqual(arbol(), 'c▶ a(b x)', 'cada uno donde se dijo, y en proceso se conserva en la principal');
+  assert.strictEqual(avisados.length, antes + 1, 'una sola escritura y un solo aviso');
+
+  objetivos.ordenar('u1', [{ id: a.id, subs: [{ id: c.id }, { id: b.id }, { id: x.id }] }]);
+  assert.strictEqual(arbol(), 'a(c b x)', 'al meterlo dentro deja de estar en proceso');
+});
+
+test('ordenar: lo que cambio mientras se ordenaba no se pierde', (t) => {
+  const { objetivos } = montar(t);
+  ['a', 'b'].forEach((x) => objetivos.anadir('u1', x));
+  const [a, b] = objetivos.leer('u1').objetivos;
+  objetivos.anadir('u1', 'y', a.id);
+  objetivos.anadir('u1', 'nuevo');
+  const textos = () => {
+    const pinta = (subs) => subs.map((s) => s.texto + (s.hecho ? '✓' : '') + (s.subs.length ? '(' + pinta(s.subs) + ')' : '')).join(' ');
+    return pinta(objetivos.leer('u1').objetivos);
+  };
+
+  // El borrador no sabe de «nuevo» ni de «y», y trae uno que ya se quito.
+  assert.ok(objetivos.ordenar('u1', [{ id: b.id }, { id: 'quitado' }, { id: a.id }, { id: b.id }]).ok);
+  assert.strictEqual(textos(), 'b a(y) nuevo', 'los que no venian se quedan en su carpeta o al final; repetidos y quitados fuera');
+
+  // Las carpetas se repasan: si lo de dentro esta hecho, la carpeta tambien.
+  objetivos.cambiar('u1', b.id, { hecho: true });
+  objetivos.ordenar('u1', [{ id: a.id, subs: [{ id: b.id }] }, { id: 'x' }]);
+  assert.strictEqual(textos(), 'a(b✓ y) nuevo');
+
+  assert.strictEqual(objetivos.ordenar('u1', 'basura').ok, false);
+  assert.strictEqual(textos(), 'a(b✓ y) nuevo', 'un orden que no se entiende no toca nada');
+});

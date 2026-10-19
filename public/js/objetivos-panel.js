@@ -1,5 +1,6 @@
 // La pestaña de Objetivos: la checklist del directo. Se añaden, se marcan, se
-// reordenan y se quitan; el widget de OBS enseña lo mismo al momento.
+// reordenan y se quitan; el widget de OBS enseña lo mismo al momento, salvo el
+// orden, que se prepara en el navegador y sale al pulsar «Guardar orden».
 //
 // Va como carpetas: cada objetivo puede tener otros dentro, sin límite, que se
 // pliegan y despliegan, y cualquiera se arrastra (por su asa ⠿) a otro sitio:
@@ -9,9 +10,16 @@
 // Script normal, sin modulo, como los demás paneles: usa api(), showAlert(),
 // showConfirm() y showModal() de index.html.
 
+    // Lo que dijo el servidor. Lo que se ve es esto con el borrador del orden
+    // encima, si hay. Ver objetivos-local.js.
     let objetivos = { titulo: '', objetivos: [] };
+    const OL = globalThis.ObjetivosLocal;
 
     async function cargarObjetivos() {
+      orden = leerBorrador();
+      // Con algo de camino, lo que contestara ahora se quedaría viejo: ya
+      // pintará la fila cuando acabe.
+      if (colaObjetivos.ocupada()) return;
       try {
         objetivos = await api('/api/objetivos');
         pintarObjetivos();
@@ -21,22 +29,89 @@
       }
     }
 
-    // Todas las rutas devuelven la lista entera: se pinta lo que quedó guardado.
-    async function objetivosPedir(ruta, cuerpo) {
-      try {
-        objetivos = await api(ruta, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cuerpo || {})
-        });
-        pintarObjetivos();
-        return true;
-      } catch (e) {
+    // Lo que va al servidor en el momento, de uno en uno. Todas las rutas
+    // devuelven la lista entera, y se pinta la del último.
+    let pintarAlSoltar = false;
+    const colaObjetivos = OL.crearCola({
+      enviar: (ruta, cuerpo) => api(ruta, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cuerpo || {})
+      }),
+      alTerminar: (lista) => {
+        // Los Dofus llevan su propia fila: si aún va alguno, lo de la pantalla
+        // es más nuevo que esto.
+        if (dofusEnCola > 0) lista = { ...lista, dofus: objetivos.dofus };
+        objetivos = lista;
+        // Repintar a mitad de un arrastre lo cortaría.
+        if (arrastrando) pintarAlSoltar = true; else pintarObjetivos();
+      },
+      alFallar: (e) => {
         // Los fallos del servidor ya los apunta él; los de pintar, no.
-        if (!e.datos) reportarFallo('objetivos ' + ruta, e);
+        if (!e.datos) reportarFallo('objetivos', e);
         showAlert('Objetivos', e.message);
-        return false;
+        cargarObjetivos();
       }
+    });
+
+    function objetivosPedir(ruta, cuerpo) {
+      return colaObjetivos.poner(ruta, cuerpo);
+    }
+
+    // --- El borrador del orden ----------------------------------------------
+    // Subir, bajar y arrastrar solo cambian esto, en el navegador. «Guardar»
+    // manda dónde ha quedado cada uno, en una sola petición.
+
+    let orden = null;
+
+    function claveBorrador() {
+      return 'ruleton-objetivos-orden:' + ((typeof usuario !== 'undefined' && usuario && usuario.id) || '');
+    }
+    function leerBorrador() {
+      try {
+        const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null');
+        return Array.isArray(b) ? b : null;
+      } catch (e) { return null; }
+    }
+    function guardarBorrador() {
+      try {
+        if (orden) localStorage.setItem(claveBorrador(), JSON.stringify(orden));
+        else localStorage.removeItem(claveBorrador());
+      } catch (e) { /* sin almacenamiento: se queda en memoria hasta recargar */ }
+    }
+
+    // Lo que se ve: lo guardado, colocado como dice el borrador.
+    function vista() {
+      const lista = objetivos.objetivos || [];
+      return orden ? OL.aplicarOrden(lista, orden) : lista;
+    }
+
+    // Para empezar a ordenar se parte de lo que se ve.
+    function ordenEditable() {
+      if (!orden) orden = OL.forma(vista());
+      return orden;
+    }
+
+    function despuesDeOrdenar() {
+      guardarBorrador();
+      pintarObjetivos();
+    }
+
+    async function guardarOrden() {
+      if (!orden) return true;
+      const enviado = OL.forma(vista());
+      const ok = await objetivosPedir('/api/objetivos/ordenar', { arbol: enviado });
+      if (ok) {
+        // Si mientras iba se siguió ordenando, eso aún está por guardar.
+        if (orden && OL.mismaForma(OL.forma(vista()), enviado)) orden = null;
+        despuesDeOrdenar();
+      }
+      return ok;
+    }
+
+    function descartarOrden() {
+      orden = null;
+      despuesDeOrdenar();
     }
 
     // Las carpetas plegadas. Es solo cómo se ve esta pestaña, así que se
@@ -68,7 +143,10 @@
     }
 
     function pintarObjetivos() {
-      const lista = objetivos.objetivos || [];
+      const lista = vista();
+      // Un borrador que ya coincide con lo guardado no es nada por guardar.
+      if (orden && OL.mismaForma(lista, objetivos.objetivos || [])) { orden = null; guardarBorrador(); }
+      document.getElementById('objetivosBorrador').hidden = !orden;
       const hechos = lista.filter((o) => o.hecho).length;
       const enProceso = lista.filter((o) => o.proceso).length;
       const titulo = document.getElementById('objetivosTitulo');
@@ -100,7 +178,7 @@
         ev.preventDefault();
         const id = arrastrando;
         terminarArrastre();
-        if (id) objetivosPedir('/api/objetivos/mover-a', { id, destino: '' });
+        if (id && OL.llevar(ordenEditable(), id, '', 'dentro')) despuesDeOrdenar();
       });
       caja.appendChild(raiz);
 
@@ -185,8 +263,16 @@
       const bajar = fila.querySelector('.bajar');
       subir.disabled = i === 0;
       bajar.disabled = i === total - 1;
-      subir.addEventListener('click', () => objetivosPedir('/api/objetivos/mover', { id: o.id, hacia: -1 }));
-      bajar.addEventListener('click', () => objetivosPedir('/api/objetivos/mover', { id: o.id, hacia: 1 }));
+      // Solo en el borrador: no sale nada hasta «Guardar».
+      const subirBajar = (hacia, clase) => {
+        if (!OL.subirBajar(ordenEditable(), o.id, hacia)) return;
+        despuesDeOrdenar();
+        // El foco sigue al que se movió, para poder seguir pulsando.
+        const b = document.querySelector('.objetivo[data-id="' + o.id + '"] .' + clase);
+        if (b && !b.disabled) b.focus();
+      };
+      subir.addEventListener('click', () => subirBajar(-1, 'subir'));
+      bajar.addEventListener('click', () => subirBajar(1, 'bajar'));
       fila.querySelector('.quitar').addEventListener('click', () => objetivosPedir('/api/objetivos/quitar', { id: o.id }));
 
       prepararArrastre(fila, o);
@@ -249,7 +335,7 @@
         terminarArrastre();
         // Al meterlo dentro, la carpeta se abre para que se vea dónde quedó.
         if (como === 'dentro') { cerrados.delete(o.id); guardarCerrados(); }
-        objetivosPedir('/api/objetivos/mover-a', { id, destino: o.id, como });
+        if (OL.llevar(ordenEditable(), id, o.id, como)) despuesDeOrdenar();
       });
     }
 
@@ -267,6 +353,8 @@
       caja.querySelectorAll('.cogido, .soltar-antes, .soltar-dentro, .soltar-despues, .encima').forEach((el) => {
         el.classList.remove('cogido', 'soltar-antes', 'soltar-dentro', 'soltar-despues', 'encima');
       });
+      // Lo que llegó del servidor mientras se arrastraba.
+      if (pintarAlSoltar) { pintarAlSoltar = false; pintarObjetivos(); }
     }
 
     // Un campo de texto que se corrige ahí mismo: se guarda al salir o con
@@ -390,8 +478,14 @@
         placeholder: 'Nombre, p. ej. Misiones Dofawa'
       });
       if (!nombre) return;
+      // Agrupar los mete dentro de uno nuevo; con un borrador por guardar,
+      // el borrador los volvería a sacar. Primero se guarda lo ordenado.
+      if (orden && !(await guardarOrden())) return;
       objetivosPedir('/api/objetivos/agrupar', { nombre });
     });
+
+    document.getElementById('objetivosGuardarOrden').addEventListener('click', guardarOrden);
+    document.getElementById('objetivosDescartarOrden').addEventListener('click', descartarOrden);
 
     document.getElementById('objetivosDesmarcar').addEventListener('click', () => {
       objetivosPedir('/api/objetivos/desmarcar');

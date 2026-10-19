@@ -682,6 +682,9 @@
     .objetivo.soltar-despues{box-shadow:inset 0 -3px 0 #6ee7b7}
     .objetivos-raiz{display:none;padding:.6rem;border:2px dashed rgba(255,255,255,0.2);border-radius:10px;text-align:center;color:var(--muted);font-size:13px}
     .objetivos-lista.arrastrando .objetivos-raiz{display:block}
+    .objetivos-borrador{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.6rem;padding:.5rem .7rem;
+      border:1px solid rgba(251,191,36,0.5);border-radius:10px;background:rgba(251,191,36,0.08);color:#fcd34d;font-size:13px}
+    .objetivos-borrador[hidden]{display:none}
     .objetivos-raiz.encima{border-color:#6ee7b7;color:#e6eef8;background:rgba(110,231,183,0.08)}
     /* Los Dofus: un botón por huevo, en gris hasta que se consigue. */
     .dofus-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:.5rem;margin-top:.6rem}
@@ -1833,6 +1836,14 @@
                 <button type="button" id="objetivosAgrupar" class="btn-cancel" title="Junta todos los completados dentro de un objetivo nuevo con el nombre que elijas, como sus sub-objetivos">📦 Guardar completados</button>
                 <button type="button" id="objetivosDesmarcar" class="btn-cancel" title="Todos otra vez sin hacer, para repetirlos; no se borra ninguno">↺ Desmarcar todos</button>
                 <button type="button" id="objetivosVaciar" class="btn-cancel">Vaciar</button>
+              </span>
+            </div>
+
+            <div id="objetivosBorrador" class="objetivos-borrador" hidden>
+              <span>Hay cambios de orden sin guardar. El widget sigue con el orden de antes hasta que guardes.</span>
+              <span>
+                <button type="button" id="objetivosGuardarOrden">💾 Guardar orden</button>
+                <button type="button" id="objetivosDescartarOrden" class="btn-cancel">Descartar</button>
               </span>
             </div>
 
@@ -6593,6 +6604,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
   </script>
   <script src="/js/marcador-puntos.js"></script>
+  <script src="/js/objetivos-local.js"></script>
   <script src="/js/objetivos-panel.js"></script>
   <script>
     function vigilar(encender) {

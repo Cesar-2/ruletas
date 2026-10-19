@@ -2994,6 +2994,14 @@ app.post('/api/objetivos/mover-a', (req: Request, res: Response) => {
   res.json(r.lista);
 });
 
+// POST /api/objetivos/ordenar  Body: { arbol: [{ id, subs: [...] }] } -> el
+// orden entero de una vez, el del boton «Guardar» de la pagina
+app.post('/api/objetivos/ordenar', (req: Request, res: Response) => {
+  const r = objetivos.ordenar(requireUid(req), req.body?.arbol);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json(r.lista);
+});
+
 // POST /api/objetivos/agrupar  Body: { nombre } -> los completados, dentro
 // de un objetivo nuevo con ese nombre
 app.post('/api/objetivos/agrupar', (req: Request, res: Response) => {

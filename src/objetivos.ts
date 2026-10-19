@@ -127,10 +127,11 @@ export function leer(uid: string): Lista {
     if (!fs.existsSync(f)) return conDofus('', [], []);
     const crudo = JSON.parse(fs.readFileSync(f, 'utf8')) || {};
     const lista = Array.isArray(crudo.objetivos) ? crudo.objetivos : [];
-    const objetivos: Objetivo[] = leerSubs(lista, 0, new Set(), { n: 0 }).map((s) => {
-      const original = lista.find((o: any) => String(o?.id || '') === s.id);
-      return { ...s, proceso: !s.hecho && Boolean(original?.proceso) };
-    });
+    // Por id y no buscando cada uno en la lista: con muchos, eso era cuadratico.
+    const procesoDe = new Map<string, boolean>(lista.map((o: any) => [String(o?.id || ''), Boolean(o?.proceso)]));
+    const objetivos: Objetivo[] = leerSubs(lista, 0, new Set(), { n: 0 }).map((s) => ({
+      ...s, proceso: !s.hecho && Boolean(procesoDe.get(s.id))
+    }));
     const conseguidos = Array.isArray(crudo.conseguidos) ? crudo.conseguidos.map(String) : [];
     return conDofus(limpiar(crudo.titulo, LARGO_TITULO), objetivos, conseguidos);
   } catch (err) {
@@ -351,6 +352,71 @@ export function moverA(uid: string, id: unknown, destino: unknown, como: unknown
   // hecho, y la de ahora con algo por hacer. Solo si siguen teniendo algo.
   if (arribaAntes.length && arribaAntes[arribaAntes.length - 1].subs.length) repasar(lista, arribaAntes);
   repasar(lista, arribaDespues);
+  return { ok: true, lista: guardar(uid, lista) };
+}
+
+// El orden entero de una vez: es lo que manda el boton «Guardar» de la
+// pagina, que va moviendo en el navegador y solo al final dice como queda.
+// `arbol` es solo la forma, [{ id, subs: [...] }]: el texto y lo marcado
+// salen de lo guardado, que puede haber cambiado mientras se ordenaba (se
+// sigue marcando en directo). Por eso no se exige que cuadre del todo:
+//
+//  - un id que ya no existe (se quito entre medias) se ignora;
+//  - uno que no viene (se añadio entre medias) se queda en su carpeta de
+//    antes, al final, o en la lista principal si su carpeta ya no esta.
+//
+// Como en moverA, el que sale de la lista principal deja de estar en proceso.
+// Al final se repasan todas las carpetas: alguna puede haber quedado hecha, o
+// con algo por hacer.
+export function ordenar(uid: string, arbol: unknown): Resultado {
+  if (!Array.isArray(arbol)) return { ok: false, error: 'falta el orden' };
+  const lista = leer(uid);
+  const nodos = new Map<string, Sub>();
+  const padreDe = new Map<string, string>();
+  const enOrden: Sub[] = [];
+  const apuntar = (subs: Sub[], padre: string) => {
+    for (const s of subs) {
+      nodos.set(s.id, s);
+      padreDe.set(s.id, padre);
+      enOrden.push(s);
+      apuntar(s.subs, s.id);
+    }
+  };
+  apuntar(lista.objetivos, '');
+  const proceso = new Map(lista.objetivos.map((o) => [o.id, o.proceso]));
+  for (const s of nodos.values()) s.subs = [];
+
+  const puestos = new Set<string>();
+  const colocar = (crudo: unknown, nivel: number): Sub[] => {
+    const subs: Sub[] = [];
+    if (!Array.isArray(crudo) || nivel > PROFUNDIDAD_SEGURIDAD) return subs;
+    for (const c of crudo) {
+      const s = nodos.get(String((c as any)?.id ?? ''));
+      if (!s || puestos.has(s.id)) continue;
+      puestos.add(s.id);
+      s.subs = colocar((c as any)?.subs, nivel + 1);
+      subs.push(s);
+    }
+    return subs;
+  };
+  const raiz = colocar(arbol, 0);
+  // Los que no venian, en el orden en que estaban: su carpeta siempre va
+  // antes que ellos, asi que cuando llegan ya se sabe donde quedo.
+  for (const s of enOrden) {
+    if (puestos.has(s.id)) continue;
+    puestos.add(s.id);
+    const padre = nodos.get(padreDe.get(s.id) || '');
+    if (padre && puestos.has(padre.id)) padre.subs.push(s); else raiz.push(s);
+  }
+
+  lista.objetivos = raiz.map((s) => ({
+    id: s.id, texto: s.texto, hecho: s.hecho, subs: s.subs, proceso: Boolean(proceso.get(s.id)) && !s.hecho
+  }));
+  const repasarTodo = (s: Sub, arriba: Sub[]) => {
+    s.subs.forEach((x) => repasarTodo(x, arriba.concat(s)));
+    if (s.subs.length) repasar(lista, arriba.concat(s));
+  };
+  lista.objetivos.forEach((o) => repasarTodo(o, []));
   return { ok: true, lista: guardar(uid, lista) };
 }
 
