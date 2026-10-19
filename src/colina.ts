@@ -59,6 +59,11 @@ export interface Colina {
   // aunque la pagina se cierre a mitad y nunca avise.
   combateDesde: number;
   combateHasta: number;
+  // Los que han escrito la palabra mientras se les veia pelear (casi siempre el
+  // que pierde, pidiendo la revancha). Antes se les descartaba sin decir nada,
+  // y no volvian a entrar hasta escribirla otra vez; ahora esperan aqui y pasan
+  // a la cola en cuanto se acaba de contar el combate.
+  esperan: Retador[];
   // La clase que le toco a cada uno, por su clave. Se guarda aparte de la cola
   // porque hace falta despues de salir de ella: al perdedor hay que seguir
   // dibujandolo mientras se cuenta el combate que acaba de perder. Y de paso,
@@ -171,9 +176,17 @@ export function leerAjustes(uid: string): Ajustes {
 export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes {
   const datos = leerGuardado(uid);
   if (typeof ajustes.palabra === 'string') {
-    datos.palabra = ajustes.palabra.trim().slice(0, 30) || AJUSTES_POR_DEFECTO.palabra;
+    // Una sola palabra: es lo que busca esLaPalabra. Con dos («!reto ya») no
+    // coincidia nunca nada y no entraba nadie.
+    datos.palabra = ajustes.palabra.trim().split(/\s+/)[0].slice(0, 30) || AJUSTES_POR_DEFECTO.palabra;
   }
   escribir(uid, datos);
+  // Con la colina abierta, la nueva vale ya. Antes se seguia escuchando la de
+  // cuando se abrio: el chat escribia la nueva y no entraba nadie.
+  if (palabras.has(uid)) {
+    palabras.set(uid, datos.palabra.toLowerCase());
+    if (colinas.get(uid)) apuntarEnDisco(uid);
+  }
   return { palabra: datos.palabra };
 }
 
@@ -213,7 +226,7 @@ function vacia(): Colina {
   return {
     abierta: false, cola: [], rey: null, duelo: null,
     derrotado: '', mejor: null, peleados: 0, clases: {},
-    enCombate: [], combateDesde: 0, combateHasta: 0
+    enCombate: [], combateDesde: 0, combateHasta: 0, esperan: []
   };
 }
 
@@ -268,7 +281,9 @@ function escuchar(uid: string, canal: string, palabra: string): void {
   escuchas.set(uid, chat.conectar(canal, (m) => {
     const colina = colinas.get(uid);
     if (!colina || !colina.abierta) return;
-    if (!chat.esLaPalabra(m.texto, buscada)) return;
+    // La de ahora, no la de cuando se abrio: se puede cambiar con la colina
+    // abierta (ver guardarAjustes).
+    if (!chat.esLaPalabra(m.texto, palabras.get(uid) || buscada)) return;
     entrar(uid, m.autor);
   }, () => deps.alCambiar?.(uid)));
 }
@@ -289,6 +304,9 @@ export function rehacer(uid: string): boolean {
     mejor: e.mejor || null,
     peleados: Number(e.peleados) || 0,
     clases: (e.clases && typeof e.clases === 'object') ? e.clases : {},
+    // Tras un reinicio ya no se esta contando nada: los que esperaban, a la
+    // cola (detras de los que ya estaban).
+    esperan: [],
     // El duelo no se guarda, y con el se van los que estaban peleando: tras un
     // reinicio la pagina ya no esta contando nada, asi que dejar a dos
     // marcados como «peleando ahora mismo» solo les impediria volver a la cola.
@@ -297,6 +315,9 @@ export function rehacer(uid: string): boolean {
     combateDesde: 0,
     combateHasta: 0
   };
+  for (const r of Array.isArray(e.esperan) ? e.esperan : []) {
+    if (r && r.clave && !colina.cola.some((x) => x.clave === r.clave) && colina.rey?.clave !== r.clave) colina.cola.push(r);
+  }
   colinas.set(uid, colina);
   if (colina.abierta && foto.canal) escuchar(uid, foto.canal, foto.palabra);
   apuntarEnDisco(uid);
@@ -343,7 +364,37 @@ export function finCombate(uid: string): void {
   if (!colina || !colina.enCombate.length) return;
   if (Date.now() < colina.combateHasta - HOLGURA) return;
   colina.enCombate = [];
+  soltarEsperando(colina);
   apuntarEnDisco(uid);
+}
+
+// Los que esperaban a que se acabara de ver su combate, a la cola, en el orden
+// en que escribieron. El que ha quedado de rey no: ya esta arriba.
+function soltarEsperando(colina: Colina): boolean {
+  if (!colina.esperan.length) return false;
+  for (const r of colina.esperan) {
+    if (colina.rey && colina.rey.clave === r.clave) continue;
+    if (colina.cola.some((x) => x.clave === r.clave)) continue;
+    colina.cola.push(r);
+  }
+  colina.esperan = [];
+  return true;
+}
+
+// Cuando se acaba de contar un combate, el servidor suelta solo a los que
+// esperaban, aunque la pagina no avise (cerrada, en segundo plano...).
+const relojesFin = new Map<string, ReturnType<typeof setTimeout>>();
+function soltarAlAcabar(uid: string, colina: Colina): void {
+  const antes = relojesFin.get(uid);
+  if (antes) clearTimeout(antes);
+  relojesFin.set(uid, setTimeout(() => {
+    relojesFin.delete(uid);
+    if (colinas.get(uid) !== colina || Date.now() < colina.combateHasta) return;
+    colina.enCombate = [];
+    if (soltarEsperando(colina)) apuntarEnDisco(uid);
+  }, Math.max(0, colina.combateHasta - Date.now()) + 50));
+  // Que un reloj pendiente no tenga vivo el proceso al apagarlo.
+  relojesFin.get(uid)?.unref?.();
 }
 
 // Ponerse en la cola. Lo llama el chat y tambien el dueno a mano.
@@ -358,12 +409,19 @@ export function entrar(uid: string, nombre: string): { ok: boolean; error?: stri
   if (colina.cola.some((r) => r.clave === clave)) return { ok: false, error: 'ya estabas en la cola' };
   // Y el rey no se reta a si mismo: ya esta arriba, no tiene donde entrar.
   if (colina.rey && colina.rey.clave === clave) return { ok: false, error: 'ya eres el rey' };
-  // Ni el que esta peleando ahora mismo: hasta que no se acabe de ver el
-  // combate no vuelve a la cola, gane o pierda.
-  if (estaPeleando(colina, clave)) return { ok: false, error: 'estas peleando ahora mismo' };
-
   if (!colina.clases[clave]) colina.clases[clave] = batalla.sortearClase();
-  colina.cola.push({ nombre: limpio, clave, clase: colina.clases[clave] });
+  const retador = { nombre: limpio, clave, clase: colina.clases[clave] };
+  // El que esta peleando ahora mismo no vuelve a la cola hasta que se acabe de
+  // ver el combate, gane o pierda. Pero no se le descarta: espera y entra solo
+  // al acabar (ver soltarEsperando).
+  if (estaPeleando(colina, clave)) {
+    if (colina.esperan.some((r) => r.clave === clave)) return { ok: false, error: 'ya estabas esperando' };
+    colina.esperan.push(retador);
+    apuntarEnDisco(uid);
+    return { ok: true };
+  }
+
+  colina.cola.push(retador);
   apuntarEnDisco(uid);
   return { ok: true };
 }
@@ -373,9 +431,10 @@ export function sacar(uid: string, nombre: string): boolean {
   const colina = colinas.get(uid);
   if (!colina) return false;
   const clave = String(nombre || '').trim().toLowerCase();
-  const antes = colina.cola.length;
+  const antes = colina.cola.length + colina.esperan.length;
   colina.cola = colina.cola.filter((r) => r.clave !== clave);
-  if (colina.cola.length < antes) { apuntarEnDisco(uid); return true; }
+  colina.esperan = colina.esperan.filter((r) => r.clave !== clave);
+  if (colina.cola.length + colina.esperan.length < antes) { apuntarEnDisco(uid); return true; }
   return false;
 }
 
@@ -404,7 +463,11 @@ function apuntarMejor(uid: string, colina: Colina, nombre: string, racha: number
 // Tampoco si el anterior se esta contando todavia: ver ocupada().
 export function siguiente(uid: string): Colina | null {
   const colina = colinas.get(uid);
-  if (!colina || !hayCombate(uid) || ocupada(uid)) return null;
+  if (!colina || ocupada(uid)) return null;
+  // Si el anterior ya se acabo de contar, los que esperaban entran ya: pueden
+  // ser justo los que hacen falta para este combate.
+  soltarEsperando(colina);
+  if (!hayCombate(uid)) return null;
 
   if (!colina.rey) {
     const primero = colina.cola.shift() as Retador;
@@ -428,6 +491,7 @@ export function siguiente(uid: string): Colina | null {
   colina.enCombate = [rey.clave, retador.clave];
   colina.combateDesde = Date.now();
   colina.combateHasta = colina.combateDesde + duracionDe(duelo);
+  soltarAlAcabar(uid, colina);
 
   if (duelo.ganador === rey.nombre) {
     rey.racha++;
@@ -455,6 +519,7 @@ export function destronar(uid: string): Colina | null {
   colina.enCombate = [];
   colina.combateDesde = 0;
   colina.combateHasta = 0;
+  soltarEsperando(colina);
   apuntarEnDisco(uid);
   return colina;
 }

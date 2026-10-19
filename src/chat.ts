@@ -74,10 +74,17 @@ export function interpretar(linea: string): Mensaje | null {
 // La gente no escribe la palabra sola: le pone emotes detras, un «vamos», o
 // signos. Vale con que este ahi como palabra suelta; asi no se queda fuera
 // medio chat por un adorno.
+//
+// Lo invisible se quita antes de mirar. Twitch no deja mandar dos veces seguidas
+// el mismo mensaje, y 7TV, Chatterino y compañía lo esquivan pegandole un
+// caracter que no se ve. Sin quitarlo, quien escribia «!reto» por segunda vez
+// (justo el que acaba de perder y pide la revancha) no contaba.
+const INVISIBLES = /[­͏؜ᅟᅠ឴឵᠎​-‏‪-‮⁠-⁯⠀ㅤ﻿ﾠ]|\uDB40[\uDC00-\uDC7F]/g;
+
 export function esLaPalabra(texto: string, palabra: string): boolean {
-  const buscada = String(palabra || '').trim().toLowerCase();
+  const buscada = String(palabra || '').replace(INVISIBLES, '').trim().toLowerCase();
   if (!buscada) return false;
-  return String(texto || '').toLowerCase().split(/\s+/)
+  return String(texto || '').replace(INVISIBLES, ' ').toLowerCase().split(/\s+/)
     .some((t) => t.replace(/[.,;:!?¡¿'"]+$/, '') === buscada);
 }
 

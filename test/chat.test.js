@@ -122,3 +122,14 @@ test('los cinco minijuegos cuentan como va el chat', (t) => {
   j.colina.cerrar(uid);
   j.nombres.cerrar(uid);
 });
+
+// 7TV, Chatterino y compania pegan un caracter invisible al mensaje repetido
+// para que Twitch no lo bloquee. Tiene que seguir contando.
+test('la palabra cuenta aunque lleve caracteres invisibles', () => {
+  const { esLaPalabra } = cargar('chat');
+  assert.strictEqual(esLaPalabra('!reto \u{E0000}', '!reto'), true);
+  assert.strictEqual(esLaPalabra('!reto\u{E0000}', '!reto'), true);
+  assert.strictEqual(esLaPalabra('​!reto', '!reto'), true);
+  assert.strictEqual(esLaPalabra('!reto͏', '!reto'), true);
+  assert.strictEqual(esLaPalabra('!retos', '!reto'), false);
+});

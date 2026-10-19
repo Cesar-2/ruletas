@@ -55,23 +55,57 @@ test('mientras se cuenta un combate no empieza otro', (t) => {
   assert.strictEqual(colina.estado(uid).peleados, 2);
 });
 
-test('los que pelean no vuelven a la cola hasta que se acaba de ver', (t) => {
+test('los que pelean no vuelven a la cola hasta que se acaba de ver, pero no se les descarta', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1000000 });
   const { colina, uid } = abierta(t, ['Ana', 'Beto']);
   colina.siguiente(uid);
   const e = colina.estado(uid);
   const perdedor = e.derrotado;
 
-  assert.strictEqual(colina.entrar(uid, perdedor).ok, false, 'a mitad de combate, no');
+  // El que pierde pide la revancha a mitad del relato: espera, no se le tira.
+  assert.strictEqual(colina.entrar(uid, perdedor).ok, true);
+  assert.strictEqual(colina.estado(uid).cola.length, 0, 'a la cola todavía no');
+  assert.deepStrictEqual(colina.estado(uid).esperan.map((r) => r.nombre), [perdedor]);
+  assert.strictEqual(colina.entrar(uid, perdedor).ok, false, 'esperando solo se está una vez');
 
   // Un aviso de fin que llega antes de tiempo (una pestaña que iba con retraso
   // y avisa del combate anterior) no suelta a los que pelean ahora.
   colina.finCombate(uid);
-  assert.strictEqual(colina.entrar(uid, perdedor).ok, false, 'un aviso adelantado no los suelta');
+  assert.strictEqual(colina.estado(uid).cola.length, 0, 'un aviso adelantado no los suelta');
 
-  // Y si nadie avisa nunca (se cerró la página), se sueltan solos al acabar.
+  // Acabado de contar, entra solo.
   t.mock.timers.setTime(e.combateHasta);
-  assert.strictEqual(colina.entrar(uid, perdedor).ok, true, 'acabado el combate, sí');
+  colina.finCombate(uid);
+  assert.deepStrictEqual(colina.estado(uid).cola.map((r) => r.nombre), [perdedor]);
+  assert.deepStrictEqual(colina.estado(uid).esperan, []);
+});
+
+test('quien espera entra a tiempo para el combate siguiente aunque nadie avise del fin', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1000000 });
+  const { colina, uid } = abierta(t, ['Ana', 'Beto']);
+  colina.siguiente(uid);
+  const e = colina.estado(uid);
+  colina.entrar(uid, e.derrotado);
+  t.mock.timers.setTime(e.combateHasta);
+  // Sin fincombate: la pagina estaba cerrada. El siguiente lo coge igual.
+  assert.ok(colina.siguiente(uid), 'hay combate: el de la revancha');
+});
+
+test('el rey que escribe la palabra mientras pelea no se encola contra si mismo', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1000000 });
+  const { colina, uid } = abierta(t, ['Ana', 'Beto']);
+  colina.siguiente(uid);
+  const e = colina.estado(uid);
+  colina.entrar(uid, e.rey.nombre);
+  t.mock.timers.setTime(e.combateHasta);
+  colina.finCombate(uid);
+  assert.strictEqual(colina.estado(uid).cola.length, 0);
+});
+
+test('la palabra es una sola, y cambiarla con la colina abierta vale ya', (t) => {
+  const { colina, uid } = abierta(t, []);
+  assert.strictEqual(colina.guardarAjustes(uid, { palabra: '  !pelea ya ' }).palabra, '!pelea');
+  assert.strictEqual(colina.estado(uid).palabra, '!pelea');
 });
 
 test('el combate dura lo mismo aquí que en la página', (t) => {

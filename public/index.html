@@ -6073,11 +6073,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const caja = document.getElementById('colinaCola');
       const lista = document.getElementById('colinaColaLista');
       const cola = colina.cola || [];
-      caja.hidden = !cola.length;
-      document.getElementById('colinaColaTitulo').textContent = 'En la cola (' + cola.length + ')';
+      // Los que han pedido revancha mientras se contaba su combate: entran al
+      // acabar. Se enseñan detrás, para que se vea que sí han entrado.
+      const esperan = colina.esperan || [];
+      caja.hidden = !cola.length && !esperan.length;
+      document.getElementById('colinaColaTitulo').textContent = 'En la cola (' + cola.length + ')'
+        + (esperan.length ? ' · ' + esperan.length + ' entran al acabar el combate' : '');
       lista.innerHTML = cola.map((r, i) =>
         '<span class="ficha' + (i === 0 ? ' siguiente' : '') + '" data-nombre="' + escapeHtml(r.nombre) + '">'
-        + '<span class="turno">' + (i + 1) + '.</span>' + escapeHtml(r.nombre) + '</span>').join('');
+        + '<span class="turno">' + (i + 1) + '.</span>' + escapeHtml(r.nombre) + '</span>').join('')
+        + esperan.map((r) =>
+          '<span class="ficha" style="opacity:.6" data-nombre="' + escapeHtml(r.nombre) + '" title="Entra en la cola al acabar el combate">'
+          + '<span class="turno">⏳</span>' + escapeHtml(r.nombre) + '</span>').join('');
     }
 
 
