@@ -22,6 +22,7 @@ import * as arte from './arte';
 import * as sorteo from './sorteo';
 import * as respaldo from './respaldo';
 import * as minijuegos from './rutas/minijuegos';
+import * as registro from './registro';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -1018,6 +1019,28 @@ app.use('/api', (_req: Request, res: Response, next: any) => {
   next();
 });
 
+// El registro de peticiones. Los objetivos se apuntan todos los que cambian
+// algo, con lo que se pidio: es lo que se esta persiguiendo. Del resto solo
+// los que fallan del lado del servidor (5xx). El cuerpo solo se guarda en los
+// objetivos: en otras rutas puede llevar contraseñas.
+app.use('/api', (req: Request, res: Response, next: any) => {
+  const inicio = Date.now();
+  // La ruta se coge ahora: al terminar, Express ya le ha vuelto a poner el
+  // /api de delante.
+  const ruta = '/api' + req.path;
+  res.on('finish', () => {
+    const deObjetivos = req.method !== 'GET' && ruta.startsWith('/api/objetivos');
+    if (!deObjetivos && res.statusCode < 500) return;
+    const datos: Record<string, unknown> = {
+      metodo: req.method, ruta, estado: res.statusCode, ms: Date.now() - inicio,
+      uid: usuarioDe(req)?.id || ''
+    };
+    if (deObjetivos) datos.cuerpo = req.body;
+    registro.apuntar(res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'aviso' : 'info', 'peticion', datos);
+  });
+  next();
+});
+
 // Intentos fallidos por IP, para que no se pueda probar contrasenas a lo bruto.
 const intentos = new Map<string, { fallos: number; hasta: number }>();
 const MAX_FALLOS = 10;
@@ -1272,6 +1295,12 @@ function sesionesPorUsuario(): Record<string, number> {
   }
   return cuenta;
 }
+
+// GET /api/admin/registro?n=100&nivel=error -> las ultimas entradas del
+// registro, de la mas nueva a la mas vieja. Solo las de desde que arranco.
+app.get('/api/admin/registro', (req: Request, res: Response) => {
+  res.json({ entradas: registro.ultimos(Number(req.query.n) || 100, req.query.nivel) });
+});
 
 // GET /api/admin/users -> la lista de cuentas con su estado
 app.get('/api/admin/users', (req: Request, res: Response) => {
@@ -2905,6 +2934,28 @@ app.post('/api/twitch/disconnect', (req: Request, res: Response) => {
 // nivel. Cada una devuelve la lista entera: asi la pagina pinta siempre lo que
 // de verdad quedo guardado.
 
+// POST /api/registro/cliente  Body: { donde, mensaje, pila?, url? }
+// Lo que falla en el navegador, para que tambien salga en el registro: si no,
+// un fallo de la pagina solo lo ve quien la tiene abierta. Como mucho 30 por
+// minuto y cuenta, que un error dentro de un bucle no inunde los logs.
+const fallosCliente = new Map<string, { n: number; desde: number }>();
+app.post('/api/registro/cliente', (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const ahora = Date.now();
+  const cuenta = fallosCliente.get(uid);
+  if (!cuenta || ahora - cuenta.desde > 60000) fallosCliente.set(uid, { n: 1, desde: ahora });
+  else if (++cuenta.n > 30) return res.json({ ok: false });
+  registro.apuntar('error', 'cliente', {
+    uid,
+    donde: registro.recortar(req.body?.donde, 80),
+    mensaje: registro.recortar(req.body?.mensaje, 500),
+    pila: registro.recortar(req.body?.pila, 3000),
+    url: registro.recortar(req.body?.url, 300),
+    navegador: registro.recortar(req.headers['user-agent'], 200)
+  });
+  res.json({ ok: true });
+});
+
 // GET /api/objetivos
 app.get('/api/objetivos', (req: Request, res: Response) => {
   res.json(objetivos.leer(requireUid(req)));
@@ -2997,6 +3048,23 @@ app.get('/bingo', (_req: Request, res: Response) => {
 
 app.use('/assets', express.static(ASSETS_DIR));
 app.use('/', express.static(path.join(process.cwd(), 'public')));
+
+// Lo que lanza una ruta y nadie recoge acaba aqui. Sin esto, Express contesta
+// con una pagina HTML y la pagina solo ve «HTTP 500», sin saber que paso. Se
+// apunta con donde salto y se contesta en JSON, como el resto de la API.
+app.use((err: any, req: Request, res: Response, next: any) => {
+  if (res.headersSent) return next(err);
+  // El JSON mal formado o demasiado grande lo marca express.json con su estado.
+  const estado = Number(err?.status || err?.statusCode) || 500;
+  if (estado >= 500) {
+    registro.apuntar('error', 'excepcion', {
+      metodo: req.method, ruta: req.path, uid: usuarioDe(req)?.id || '',
+      ...(req.path.startsWith('/api/objetivos') ? { cuerpo: req.body } : {}),
+      ...registro.comoDato(err)
+    });
+  }
+  res.status(estado).json({ error: estado >= 500 ? 'fallo del servidor: ' + (err?.message || err) : (err?.message || 'peticion no valida') });
+});
 
 carrera.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'carrera') });
 ruletachat.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'nombres') });
@@ -3173,7 +3241,20 @@ canjeobjetos.iniciar(
 
 rehacerRondasVivas();
 
+// Un fallo que nadie recoge tumba el proceso, y asi sigue siendo: seguir con
+// el estado a medias es peor. Pero antes se apunta con donde salto, que si no
+// en los logs del hosting solo se ve que se reinicio.
+process.on('uncaughtException', (err) => {
+  registro.apuntar('error', 'proceso-caido', { tipo: 'uncaughtException', ...registro.comoDato(err) });
+  process.exit(1);
+});
+process.on('unhandledRejection', (err) => {
+  registro.apuntar('error', 'proceso-caido', { tipo: 'unhandledRejection', ...registro.comoDato(err) });
+  process.exit(1);
+});
+
 app.listen(PORT, () => {
+  registro.apuntar('info', 'arranque', { puerto: PORT, pid: process.pid });
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Datos en: ${DATA_DIR}`);
   migrarAssetsSubidos();

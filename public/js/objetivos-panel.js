@@ -16,6 +16,7 @@
         objetivos = await api('/api/objetivos');
         pintarObjetivos();
       } catch (e) {
+        if (!e.datos) reportarFallo('objetivos cargar', e);
         document.getElementById('objetivosEstado').textContent = 'Error: ' + e.message;
       }
     }
@@ -31,6 +32,8 @@
         pintarObjetivos();
         return true;
       } catch (e) {
+        // Los fallos del servidor ya los apunta él; los de pintar, no.
+        if (!e.datos) reportarFallo('objetivos ' + ruta, e);
         showAlert('Objetivos', e.message);
         return false;
       }

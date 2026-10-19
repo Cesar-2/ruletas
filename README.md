@@ -158,6 +158,8 @@ npm i --save-dev @types/express @types/cors
 | `POST` | `/api/servers` | Crea uno vacío. Body: `{ "name": "Tal Kasha" }` |
 | `PATCH` | `/api/servers/:id` | Lo renombra. Body: `{ "name": "..." }` |
 | `DELETE` | `/api/servers/:id` | Lo borra con sus datos (nunca el último) |
+| `POST` | `/api/registro/cliente` | La página informa de un error suyo. Body: `{ "donde", "mensaje", "pila"?, "url"? }` |
+| `GET` | `/api/admin/registro?n=100&nivel=error` | Las últimas entradas del registro (solo administración) |
 
 **Todo lo que no sea `/api/auth/*` exige sesión** y responde `401` sin ella. De quién son
 los datos lo decide la cookie, nunca un parámetro.
@@ -315,6 +317,29 @@ de datos.
 
 Los ficheros se guardan de forma atómica (se escribe un `.tmp` y se renombra encima),
 así que un corte de luz o un reinicio a destiempo no deja un JSON a medias.
+
+#### Ver qué pasa en producción
+
+El servidor apunta en su consola, en una línea JSON que empieza por `[registro]`:
+
+- cada cambio en los **objetivos** (ruta, cuenta, lo que se pidió, la respuesta y lo que tardó);
+- cualquier petición que falle del lado del servidor (5xx), con la pila de dónde saltó;
+- los errores de la **página** en el navegador (los manda ella sola, como mucho 30 por
+  minuto y cuenta);
+- y, si el proceso se cae, el motivo justo antes de salir.
+
+Con `pm2` se leen así:
+
+```bash
+pm2 logs ruleton --lines 200 | grep registro
+pm2 logs ruleton --err          # solo los errores
+```
+
+En local, con `iniciar-ruleton`, la consola va a `%TEMP%\ruleton-server.log`.
+
+Sin entrar al servidor, la cuenta administradora ve las últimas 500 en
+`/api/admin/registro?n=100` (añade `&nivel=error` para quedarte con los fallos). Esas
+se pierden al reiniciar; las de la consola, no.
 
 #### Cambiar de servidor
 

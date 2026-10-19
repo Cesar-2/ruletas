@@ -2801,6 +2801,27 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       return res.json();
     }
 
+    // Lo que falla en la página se manda al registro del servidor, para verlo
+    // en los logs de producción y no solo en la consola de quien la tiene
+    // abierta. Con fetch a pelo y sin avisar si falla: informar de un error no
+    // puede producir otro.
+    function reportarFallo(donde, err) {
+      try {
+        fetch('/api/registro/cliente', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            donde,
+            mensaje: (err && err.message) || String(err),
+            pila: (err && err.stack) || '',
+            url: location.pathname + location.search
+          })
+        }).catch(() => { /* da igual */ });
+      } catch (e) { /* da igual */ }
+    }
+    window.addEventListener('error', (ev) => reportarFallo('window.error', ev.error || ev.message));
+    window.addEventListener('unhandledrejection', (ev) => reportarFallo('promesa', ev.reason));
+
     // --- Entrada al Ruleton -------------------------------------------------
     // La cuenta manda: el servidor saca de la sesión de quién son los datos, y
     // el cliente nunca dice a quién pertenecen.
