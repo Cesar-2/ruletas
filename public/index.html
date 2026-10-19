@@ -1802,8 +1802,8 @@
                lo que dicen los ganadores sin cambiar de pestaña ni buscarlo
                en el chat. Ver cargarChatGanadores. -->
           <section>
-            <h3>💬 Lo que escriben los ganadores en el chat</h3>
-            <p class="meta">Los mensajes de quien tiene un premio pendiente en este servidor, lo más nuevo arriba. Es lo mismo que en la pestaña Ganadores.</p>
+            <h3 id="gamesChatTitulo">💬 Lo que escribe el último ganador en el chat</h3>
+            <p class="meta">Solo el último que ha ganado en este servidor (de los que tienen premio pendiente), lo más nuevo arriba. Es lo mismo que en la pestaña Ganadores.</p>
             <div id="gamesChatEstado" class="meta" hidden></div>
             <div id="gamesChat" class="winners-chat"></div>
           </section>
@@ -1904,8 +1904,8 @@
                donde están o con qué personaje, que es lo que hace falta para
                entregar. -->
           <section>
-            <h3>💬 Lo que escriben los ganadores en el chat</h3>
-            <p class="meta">Solo los mensajes de quien tiene un premio pendiente en este servidor, lo más nuevo arriba. Se lee el chat del canal puesto en Configuración › Mi cuenta; lo de antes de reiniciar el Ruleton no se guarda.</p>
+            <h3 id="winnersChatTitulo">💬 Lo que escribe el último ganador en el chat</h3>
+            <p class="meta">Solo el último que ha ganado en este servidor (de los que tienen premio pendiente), lo más nuevo arriba. Se lee el chat del canal puesto en Configuración › Mi cuenta; lo de antes de reiniciar el Ruleton no se guarda.</p>
             <div id="winnersChatEstado" class="meta" hidden></div>
             <div id="winnersChat" class="winners-chat"></div>
           </section>
@@ -2822,7 +2822,25 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         url.searchParams.set('juego', currentJuego);
       }
       const inicio = Date.now();
-      const res = await fetch(url.pathname + url.search, { cache: 'no-store', ...opts });
+      // opts.tiempo (ms): cuánto se espera como mucho. Sin él, lo que tarde. Lo
+      // usan los minijuegos que no pueden quedarse parados esperando: detrás
+      // del proxy, una petición colgada tardaba hasta un minuto en fallar.
+      const { tiempo, ...resto } = opts || {};
+      let corte = null;
+      if (tiempo) {
+        const ctl = new AbortController();
+        corte = setTimeout(() => ctl.abort(), tiempo);
+        resto.signal = ctl.signal;
+      }
+      let res;
+      try {
+        res = await fetch(url.pathname + url.search, { cache: 'no-store', ...resto });
+      } catch (e) {
+        if (e && e.name === 'AbortError') throw new Error('el servidor no contesta');
+        throw e;
+      } finally {
+        if (corte) clearTimeout(corte);
+      }
       if (!res.ok) {
         let datos = null;
         try { datos = await res.json(); } catch (e) { /* respuesta sin JSON */ }
@@ -4423,10 +4441,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       cargarChatGanadores();
     }
 
-    // Lo que han escrito en el chat los ganadores pendientes. Va en dos sitios:
-    // la pestaña de Ganadores, con el servidor que se mire allí, y el final de
-    // los minijuegos, con el servidor con el que se sortea. El servidor avisa
-    // ('ganadores') cuando escribe uno.
+    // Lo que ha escrito en el chat el último ganador. Va en dos sitios: la
+    // pestaña de Ganadores, con el servidor que se mire allí, y el final de los
+    // minijuegos, con el servidor con el que se sortea. El servidor avisa
+    // ('ganadores') cuando escribe.
     function cargarChatGanadores() {
       pintarChatGanadores('winnersChat', 'winnersChatEstado', winnersServer || currentServer);
       pintarChatGanadores('gamesChat', 'gamesChatEstado', currentServer);
@@ -4447,10 +4465,17 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const problema = !salud ? 'No hay ningún canal de Twitch puesto: ponlo en Configuración › Mi cuenta.' : salud.problema;
       estado.hidden = !problema;
       estado.textContent = problema ? '⚠ ' + problema : '';
+      // El título dice de quién son, que es lo primero que se busca.
+      const titulo = document.getElementById(idCaja + 'Titulo');
+      if (titulo) {
+        titulo.textContent = data.ganador
+          ? '💬 Lo que escribe ' + data.ganador + ' en el chat'
+          : '💬 Lo que escribe el último ganador en el chat';
+      }
       const mensajes = data.mensajes || [];
       if (!mensajes.length) {
-        caja.innerHTML = `<div class="meta" style="padding:.7rem 0">${data.pendientes
-          ? 'Ningún ganador pendiente ha escrito en el chat todavía.'
+        caja.innerHTML = `<div class="meta" style="padding:.7rem 0">${data.ganador
+          ? escapeHtml(data.ganador) + ' todavía no ha escrito en el chat.'
           : 'No hay ganadores pendientes.'}</div>`;
         return;
       }
@@ -5953,10 +5978,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // reloj que lo cuenta. Es uno solo: lleva la cuenta atras y lo dispara.
     let tocaColina = 0;
     let relojColina = null;
-    // Si el juego va solo. Se recuerda, que es cosa de cada uno y no de la
-    // partida; si algo falla al leerlo, va solo, que es lo normal.
+    // Si el juego va solo. Lo dice el SERVIDOR, que es quien lanza los
+    // combates automáticos (ver programar() en src/colina.ts): así la colina
+    // sigue aunque esta página esté en otra pestaña, recargada o cerrada. Aquí
+    // solo se copia lo que diga en cada respuesta.
     let autoColina = true;
-    try { autoColina = localStorage.getItem('ruleton.colinaAuto') !== '0'; } catch (e) { /* sin recordar */ }
+    function copiarAutoColina() { autoColina = colina.auto !== false; }
 
     // El ritmo de los combates lo lleva el SERVIDOR, no esta pagina. Antes cada
     // pagina abierta lanzaba los suyos sin saber de las demas: con dos pestañas
@@ -6004,7 +6031,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (peleandoColina) return;
       const antes = colina;
       colina = nueva;
+      copiarAutoColina();
       apuntarLibreColina();
+      // Con la colina abierta, esta página escucha sus avisos: los combates los
+      // lanza el servidor y hay que enterarse. Antes solo se escuchaba tras
+      // pulsar «Abrir» aquí, y al recargar la página se quedaba sorda.
+      if (colina.abierta) vigilarColina(true);
       // El arte (clases y escenarios) es el mismo de la batalla y se dibuja
       // con sus funciones, que lo leen de ahi.
       if (colina.arte) batalla.arte = colina.arte;
@@ -6222,7 +6254,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         return;
       }
       pararEsperaColina();
-      pelearColina();
+      // Lo lanza el servidor (ver programar() en src/colina.ts), justo ahora: si
+      // lo lanzara también esta página, los dos se pisarían. Aquí se espera su
+      // aviso y se mira; por si se perdiera, se pregunta un poco después.
+      setTimeout(() => { if (!peleandoColina) cargarColina(); }, 1500);
     }
 
     function vigilarColina(encender) {
@@ -6247,6 +6282,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         // conserva el que ya habia para no volver a los dibujos a medias.
         if (r.arte) batalla.arte = r.arte;
         colina = { ...colina, ...r };
+        copiarAutoColina();
         apuntarLibreColina();
         pintarColina();
         return true;
@@ -6279,12 +6315,13 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // clic: se veria el final antes de tiempo.
       peleandoColina = true;
       antesDelCombate = { rey: colina.rey, record: colina.record };
-      pintarColina();
+      try { pintarColina(); } catch (e) { /* que no se quede «peleando» por esto */ }
       let salio = 'si';
       try {
-        const r = await api('/api/colina/siguiente', { method: 'POST' });
+        const r = await api('/api/colina/siguiente', { method: 'POST', tiempo: TIEMPO_COLINA });
         if (r.arte) batalla.arte = r.arte;
         colina = { ...colina, ...r };
+        copiarAutoColina();
         apuntarLibreColina();
       } catch (e) {
         // «Ocupada» no es un fallo: otra pantalla ha lanzado el combate antes
@@ -6312,28 +6349,56 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       pararEsperaColina();
       peleandoColina = true;
       antesDelCombate = { rey: (antes && antes.rey) || null, record: (antes && antes.record) || null };
-      pintarColina();
+      try { pintarColina(); } catch (e) { /* lo cuenta contarColina igual */ }
       await contarColina(
         antesDelCombate.rey ? antesDelCombate.rey.nombre : '',
         antesDelCombate.record ? antesDelCombate.record.racha : 0
       );
     }
 
+    // Lo que se espera como mucho a que conteste el servidor en la colina.
+    // Detrás del proxy una petición colgada tardaba hasta un minuto en fallar,
+    // y todo ese rato la página se quedaba trabada «peleando».
+    const TIEMPO_COLINA = 10000;
+
     // Cuenta el combate que hay puesto, lo haya lanzado esta pagina u otra.
+    //
+    // Pase lo que pase aquí dentro, al salir la página deja de estar
+    // «peleando». Antes, si algo fallaba a mitad (un duelo que venía a medias,
+    // un dibujo que no estaba), se quedaba así para siempre: sin repintar, sin
+    // hacer caso a los avisos y sin más combates hasta recargar. Eso era «se
+    // traba el minijuego».
     async function contarColina(eraRey, recordAntes) {
-      // El duelo ya viene resuelto del servidor; aqui se dibuja sin ganador y
-      // se cuenta golpe a golpe, como una ronda de un solo combate.
-      const d = colina.duelo;
-      dibujarDueloColina(d, false);
-      await contarRonda({ duelos: [d] }, 0, [0], 'colinaCuadro');
+      try {
+        // El duelo ya viene resuelto del servidor; aqui se dibuja sin ganador y
+        // se cuenta golpe a golpe, como una ronda de un solo combate.
+        const d = colina.duelo;
+        if (d && d.golpes && d.golpes.length) {
+          dibujarDueloColina(d, false);
+          await contarRonda({ duelos: [d] }, 0, [0], 'colinaCuadro');
+        }
+      } catch (e) {
+        console.error('Rey de la colina: fallo al contar el combate', e);
+        reportarFallo('colina contar', e);
+      }
 
       // Ya se ha visto quien cae: se suelta la foto de antes y sale el trono
       // como ha quedado. Y se avisa al servidor, que suelta a los dos para que
-      // puedan volver a la cola (si nadie avisa, los suelta el solo).
+      // puedan volver a la cola (si nadie avisa, los suelta el solo, así que
+      // si este aviso falla no pasa nada y no se saca ningún cartel).
       peleandoColina = false;
       antesDelCombate = null;
       const antes = colina;
-      await accionColina('/api/colina/fincombate');
+      try {
+        const r = await api('/api/colina/fincombate', { method: 'POST', tiempo: TIEMPO_COLINA });
+        if (r.arte) batalla.arte = r.arte;
+        colina = { ...colina, ...r };
+        copiarAutoColina();
+        apuntarLibreColina();
+      } catch (e) {
+        console.warn('Rey de la colina: no se pudo avisar del fin del combate:', e.message);
+      }
+      try { pintarColina(); } catch (e) { console.error('Rey de la colina: fallo al pintar', e); }
 
       // Y al acabar, lo que merece celebrarse: un rey nuevo, o un record.
       if (colina.record && colina.record.racha > recordAntes) makeConfetti(40);
@@ -6349,9 +6414,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // el que esta en cuenta atras, o para soltar uno con el juego pausado.
     document.getElementById('colinaSiguiente').addEventListener('click', () => pelearColina());
 
-    document.getElementById('colinaAuto').addEventListener('click', () => {
-      autoColina = !autoColina;
-      try { localStorage.setItem('ruleton.colinaAuto', autoColina ? '1' : '0'); } catch (e) { /* sin recordar */ }
+    document.getElementById('colinaAuto').addEventListener('click', async () => {
+      // Se le dice al servidor, que es quien los lanza; lo que conteste manda.
+      if (!(await accionColina('/api/colina/auto', { auto: !autoColina }))) return;
       if (autoColina) programarColina();
       else pararEsperaColina();
       pintarColina();

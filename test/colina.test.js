@@ -164,3 +164,38 @@ test('borrar el récord lo olvida del todo, sin tocar la partida', (t) => {
   assert.deepStrictEqual(e.rey, rey, 'el rey sigue con su racha');
   assert.strictEqual(e.abierta, true, 'y la colina sigue abierta');
 });
+
+// Los combates automaticos los lanza el servidor: la colina sigue aunque la
+// pagina este en otra pestaña, recargada o cerrada. Antes los lanzaba la
+// pagina y, sin ella mirando, se quedaba parada.
+test('en automatico el servidor lanza los combates solo, sin pagina', (t) => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000000 });
+  const { colina, uid } = abierta(t, ['Ana', 'Beto']);
+  assert.strictEqual(colina.estado(uid).auto, true, 'por defecto va solo');
+  assert.strictEqual(colina.estado(uid).peleados, 0);
+
+  t.mock.timers.tick(colina.RESPIRO);
+  const e = colina.estado(uid);
+  assert.strictEqual(e.peleados, 1, 'el primero sale solo tras el respiro');
+
+  // Entra otro mientras se cuenta: sale cuando acaba este y pasa el respiro.
+  colina.entrar(uid, 'Caro');
+  t.mock.timers.tick(e.combateHasta - Date.now() + colina.RESPIRO - 1);
+  assert.strictEqual(colina.estado(uid).peleados, 1, 'no antes de tiempo');
+  t.mock.timers.tick(1);
+  assert.strictEqual(colina.estado(uid).peleados, 2);
+});
+
+test('en pausa el servidor no lanza nada, y al reanudar sigue', (t) => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000000 });
+  const { colina, uid } = abierta(t, []);
+  colina.ponerAuto(uid, false);
+  colina.entrar(uid, 'Ana');
+  colina.entrar(uid, 'Beto');
+  t.mock.timers.tick(60000);
+  assert.strictEqual(colina.estado(uid).peleados, 0);
+  colina.ponerAuto(uid, true);
+  t.mock.timers.tick(colina.RESPIRO);
+  assert.strictEqual(colina.estado(uid).peleados, 1);
+  colina.ponerAuto(uid, true);
+});

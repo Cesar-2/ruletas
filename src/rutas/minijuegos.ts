@@ -586,6 +586,14 @@ router.post('/api/colina/fincombate', (req: Request, res: Response) => {
   res.json(colina.estado(uid));
 });
 
+// POST /api/colina/auto  Body: { auto }  -> pausa o reanuda los combates solos
+// Los lanza el servidor, este la pagina abierta o no. Ver programar() en colina.ts.
+router.post('/api/colina/auto', (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  colina.ponerAuto(uid, req.body?.auto !== false);
+  res.json(colina.estado(uid));
+});
+
 // POST /api/colina/destronar -> baja al rey sin pelear
 router.post('/api/colina/destronar', (req: Request, res: Response) => {
   const uid = ctx.requireUid(req);

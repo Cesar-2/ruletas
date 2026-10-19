@@ -140,12 +140,15 @@ function archivo(uid: string): string {
 interface Guardado {
   palabra: string;
   record: Marca | null;
+  // Si los combates salen solos. Es del dueño y no de la partida: se queda
+  // igual al reiniciar la colina.
+  auto: boolean;
 }
 
 function leerGuardado(uid: string): Guardado {
   try {
     const f = archivo(uid);
-    if (!fs.existsSync(f)) return { palabra: AJUSTES_POR_DEFECTO.palabra, record: null };
+    if (!fs.existsSync(f)) return { palabra: AJUSTES_POR_DEFECTO.palabra, record: null, auto: true };
     const crudo = JSON.parse(fs.readFileSync(f, 'utf8'));
     return {
       palabra: typeof crudo?.palabra === 'string' && crudo.palabra.trim()
@@ -156,11 +159,12 @@ function leerGuardado(uid: string): Guardado {
             racha: Math.floor(crudo.record.racha),
             cuando: Number(crudo.record.cuando) || 0
           }
-        : null
+        : null,
+      auto: crudo?.auto !== false
     };
   } catch (err) {
     console.error('Failed to read hill settings:', err);
-    return { palabra: AJUSTES_POR_DEFECTO.palabra, record: null };
+    return { palabra: AJUSTES_POR_DEFECTO.palabra, record: null, auto: true };
   }
 }
 
@@ -231,12 +235,13 @@ function vacia(): Colina {
 }
 
 export function estado(uid: string): Colina & {
-  escuchando: string; chat: chat.Salud | null; palabra: string; record: Marca | null; ahora: number;
+  escuchando: string; chat: chat.Salud | null; palabra: string; record: Marca | null; auto: boolean; ahora: number;
 } {
   const c = colinas.get(uid) || vacia();
   const datos = leerGuardado(uid);
   return {
     ...c, escuchando: escuchando(uid), chat: saludChat(uid), palabra: datos.palabra, record: datos.record,
+    auto: datos.auto,
     // La hora de aqui, para que quien mira sepa cuanto le queda al combate sin
     // fiarse de su propio reloj.
     ahora: Date.now()
@@ -321,11 +326,14 @@ export function rehacer(uid: string): boolean {
   colinas.set(uid, colina);
   if (colina.abierta && foto.canal) escuchar(uid, foto.canal, foto.palabra);
   apuntarEnDisco(uid);
+  // Tras un reinicio, la colina sigue sola donde estaba.
+  programar(uid);
   return true;
 }
 
 export function cerrar(uid: string): void {
   cerrarEscucha(uid);
+  pararSiguiente(uid);
   colinas.delete(uid);
   palabras.delete(uid);
   vivo.borrar(uid);
@@ -381,6 +389,58 @@ function soltarEsperando(colina: Colina): boolean {
   return true;
 }
 
+// --- El modo automatico ---------------------------------------------------
+// Los combates salen solos: el servidor lanza el siguiente un respiro despues
+// de que se acabe de contar el anterior. Antes lo lanzaba la pagina, y solo
+// mientras estaba abierta en la colina: en otra pestaña, recargada o con el
+// navegador en segundo plano, la colina se quedaba parada aunque el chat
+// siguiera apuntandose. Ahora la pagina y el widget solo miran.
+
+// Lo que se deja entre combate y combate, para que se vea quien ha ganado. Es
+// el mismo que cuenta la pagina en su «Siguiente combate en…».
+export const RESPIRO = 2000;
+const relojesSiguiente = new Map<string, ReturnType<typeof setTimeout>>();
+
+function pararSiguiente(uid: string): void {
+  const r = relojesSiguiente.get(uid);
+  if (r) { clearTimeout(r); relojesSiguiente.delete(uid); }
+}
+
+// Pone el siguiente combate en hora, o lo quita si ya no toca. Se llama cada
+// vez que puede cambiar algo: entra alguien, se pelea, se baja al rey...
+function programar(uid: string): void {
+  pararSiguiente(uid);
+  const colina = colinas.get(uid);
+  if (!colina || !colina.abierta || !leerGuardado(uid).auto) return;
+  // Los que esperan cuentan: entran justo al acabar este combate.
+  if (colina.cola.length + colina.esperan.length < (colina.rey ? 1 : 2)) return;
+  const libre = colina.duelo ? colina.combateHasta : 0;
+  const espera = Math.max(0, Math.max(Date.now(), libre) + RESPIRO - Date.now());
+  const r = setTimeout(() => {
+    relojesSiguiente.delete(uid);
+    // Suelto: un fallo aqui tumbaria el servidor.
+    try {
+      if (colinas.get(uid) !== colina) return;
+      // Si no salio (otra pantalla lo lanzo justo antes, por ejemplo), se
+      // vuelve a mirar cuando toque.
+      if (!siguiente(uid)) programar(uid);
+    } catch (err) {
+      console.error('Rey de la colina: fallo al lanzar el siguiente combate:', err);
+    }
+  }, espera);
+  r.unref?.();
+  relojesSiguiente.set(uid, r);
+}
+
+// Pausar o reanudar los combates automaticos. Se guarda: es del dueño.
+export function ponerAuto(uid: string, auto: boolean): void {
+  const datos = leerGuardado(uid);
+  datos.auto = Boolean(auto);
+  escribir(uid, datos);
+  programar(uid);
+  deps.alCambiar?.(uid);
+}
+
 // Cuando se acaba de contar un combate, el servidor suelta solo a los que
 // esperaban, aunque la pagina no avise (cerrada, en segundo plano...).
 const relojesFin = new Map<string, ReturnType<typeof setTimeout>>();
@@ -418,11 +478,13 @@ export function entrar(uid: string, nombre: string): { ok: boolean; error?: stri
     if (colina.esperan.some((r) => r.clave === clave)) return { ok: false, error: 'ya estabas esperando' };
     colina.esperan.push(retador);
     apuntarEnDisco(uid);
+    programar(uid);
     return { ok: true };
   }
 
   colina.cola.push(retador);
   apuntarEnDisco(uid);
+  programar(uid);
   return { ok: true };
 }
 
@@ -505,6 +567,8 @@ export function siguiente(uid: string): Colina | null {
     apuntarMejor(uid, colina, retador.nombre, 1);
   }
   apuntarEnDisco(uid);
+  // Y el siguiente, para cuando acabe de contarse este.
+  programar(uid);
   return colina;
 }
 
@@ -521,6 +585,7 @@ export function destronar(uid: string): Colina | null {
   colina.combateHasta = 0;
   soltarEsperando(colina);
   apuntarEnDisco(uid);
+  programar(uid);
   return colina;
 }
 
