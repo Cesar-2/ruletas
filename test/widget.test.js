@@ -197,9 +197,9 @@ test('el tamaño se guarda por cuenta, entre la mitad y el doble', (t) => {
 
   // Cambiar una cosa no se lleva la otra.
   widget.guardarAjustes('u1', { fondo: 30, tamano: 120 });
-  assert.deepStrictEqual(widget.guardarAjustes('u1', { fondo: 60 }), { fondo: 60, tamano: 120, fondos: {} });
-  assert.deepStrictEqual(widget.guardarAjustes('u1', { tamano: 80 }), { fondo: 60, tamano: 80, fondos: {} });
-  assert.deepStrictEqual(widget.guardarAjustes('u1', { tamano: 'grande' }), { fondo: 60, tamano: 80, fondos: {} });
+  assert.deepStrictEqual(widget.guardarAjustes('u1', { fondo: 60 }), { fondo: 60, tamano: 120, fondos: {}, siempre: [] });
+  assert.deepStrictEqual(widget.guardarAjustes('u1', { tamano: 80 }), { fondo: 60, tamano: 80, fondos: {}, siempre: [] });
+  assert.deepStrictEqual(widget.guardarAjustes('u1', { tamano: 'grande' }), { fondo: 60, tamano: 80, fondos: {}, siempre: [] });
 });
 
 test('todos los widgets escalan con el tamaño', () => {
@@ -244,4 +244,36 @@ test('el widget usa su propio fondo, o el de todos', () => {
   const base = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'widget-base.js'), 'utf8');
   assert.ok(/ajustes\.fondos && ajustes\.fondos\[WIDGET\]/.test(base));
   assert.ok(base.includes(String.raw`/\/widget\/([a-z]+)\.html/`), 'sabe que widget es por el nombre de su pagina');
+});
+
+// Cada widget puede quedarse siempre a la vista o irse cuando no pasa nada,
+// que es lo de por defecto.
+test('se elige que widgets se quedan siempre a la vista', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const widget = montarConAjustes(c.raiz);
+  assert.deepStrictEqual(widget.leerAjustes('u1').siempre, [], 'sin tocar nada, todos se van solos');
+
+  const a = widget.guardarAjustes('u1', { siempre: ['dofus', 'objetivos', 'dofus'] });
+  assert.deepStrictEqual(a.siempre, ['dofus', 'objetivos'], 'sin repetidos');
+  assert.deepStrictEqual(widget.leerAjustes('u1').siempre, ['dofus', 'objetivos'], 'queda guardado');
+
+  // Guardar otra cosa no los toca; mandarlos los sustituye enteros.
+  widget.guardarAjustes('u1', { fondo: 40 });
+  assert.deepStrictEqual(widget.leerAjustes('u1').siempre, ['dofus', 'objetivos']);
+  widget.guardarAjustes('u1', { siempre: [] });
+  assert.deepStrictEqual(widget.leerAjustes('u1').siempre, []);
+
+  // Nombres raros o algo que no es una lista, fuera.
+  widget.guardarAjustes('u1', { siempre: ['../x', 'Bingo', 7, 'bingo'] });
+  assert.deepStrictEqual(widget.leerAjustes('u1').siempre, ['bingo']);
+  widget.guardarAjustes('u1', { siempre: 'bingo' });
+  assert.deepStrictEqual(widget.leerAjustes('u1').siempre, []);
+});
+
+test('el widget se queda puesto si esta en siempre', () => {
+  const base = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'widget-base.js'), 'utf8');
+  assert.ok(base.includes('ajustes.siempre.includes(WIDGET)'));
+  const plinko = fs.readFileSync(path.join(__dirname, '..', 'public', 'widget', 'plinko.html'), 'utf8');
+  assert.ok(plinko.includes('Widget.estaSiempre()'), 'el tablero de clavijas, que va aparte, tambien');
 });

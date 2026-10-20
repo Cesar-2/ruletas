@@ -141,9 +141,9 @@
     // directo: transparente y solo cuando hay algo que enseñar.
     const prueba = params.get('fondo') !== '0';
     if (prueba) document.body.classList.add('con-fondo');
-    // ?siempre=1 deja el tablero puesto también en el directo, para quien lo
-    // quiera fijo en una esquina en vez de que aparezca y desaparezca.
-    const siempre = prueba || params.get('siempre') === '1';
+    // ?siempre=1 (o la casilla de Configuración › Widgets) deja el tablero
+    // puesto también en el directo, para quien lo quiera fijo en una esquina
+    // en vez de que aparezca y desaparezca. Lo lleva widget-base.js.
     // Con ?cada= se fuerza el reloj de antes, en milisegundos, y se descarta el
     // canal de avisos. No hace falta para nada normal.
     const CADA = Number(params.get('cada')) || 0;
@@ -269,12 +269,12 @@
       const hayCaida = animando || bolas.length;
       // Con la inscripción abierta se enseña quién va apuntado; mientras caen
       // las bolas, el tablero; y si no pasa nada, nada, salvo en modo prueba o
-      // con ?siempre=1, donde el tablero se queda puesto.
+      // siempre a la vista, donde el tablero se queda puesto.
       apuntados.hidden = !hayGente || hayCaida;
       // Una inscripción abierta en la que nadie se apunta en un minuto se
       // esconde, como los demás widgets (ver widget-base.js). Las bolas
       // cayendo no: eso se ve hasta el final.
-      todo.classList.toggle('visible', Boolean((hayGente && quieto.vivo()) || hayCaida || (siempre && estado)));
+      todo.classList.toggle('visible', Boolean((hayGente && quieto.vivo()) || hayCaida || (Widget.estaSiempre() && estado)));
 
       // En modo prueba se dice que está esperando, que si no el tablero quieto
       // tampoco aclara si el widget está vivo.
@@ -319,6 +319,7 @@
     }
 
     const quieto = Widget.vigiaQuieto(() => repasarVisible());
+    Widget.alCambiarSiempre(() => repasarVisible());
     mirar();
     if (CADA) {
       setInterval(mirar, Math.max(500, CADA));

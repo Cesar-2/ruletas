@@ -42,10 +42,14 @@ export interface Ajustes {
   // no va como todos. Hay widgets que necesitan mas contraste que otros: el de
   // los Dofus va bien casi sin caja, y la batalla, con tanto texto, no.
   fondos: Record<string, number>;
+  // Los widgets que se quedan puestos aunque no pase nada, por su nombre. Los
+  // demas aparecen cuando hay partida y se van al minuto sin cambios. Es para
+  // los que se quieren fijos en una esquina, como la tira de los Dofus.
+  siempre: string[];
 }
 
 // 82 es lo que llevaban las cajas antes de poder cambiarse.
-export const AJUSTES_POR_DEFECTO: Ajustes = { fondo: 82, tamano: 100, fondos: {} };
+export const AJUSTES_POR_DEFECTO: Ajustes = { fondo: 82, tamano: 100, fondos: {}, siempre: [] };
 
 // Los nombres de widget que se admiten como clave: los de sus paginas.
 const NOMBRE_WIDGET = /^[a-z]{2,20}$/;
@@ -59,6 +63,13 @@ function limpiarFondos(crudo: unknown): Record<string, number> {
     if (Number.isFinite(n)) r[k] = Math.max(0, Math.min(100, Math.round(n)));
   }
   return r;
+}
+
+function limpiarSiempre(crudo: unknown): string[] {
+  if (!Array.isArray(crudo)) return [];
+  const r = new Set<string>();
+  for (const v of crudo) if (typeof v === 'string' && NOMBRE_WIDGET.test(v)) r.add(v);
+  return [...r].sort();
 }
 
 // Entre cuanto se deja el tamaño. Mas pequeño no se lee en un directo, y mas
@@ -75,21 +86,23 @@ function porcentaje(valor: unknown, siNo: number, min = 0, max = 100): number {
 export function leerAjustes(uid: string): Ajustes {
   try {
     const f = deps.archivoAjustes?.(uid);
-    if (!f || !fs.existsSync(f)) return { ...AJUSTES_POR_DEFECTO, fondos: {} };
+    if (!f || !fs.existsSync(f)) return { ...AJUSTES_POR_DEFECTO, fondos: {}, siempre: [] };
     const crudo = JSON.parse(fs.readFileSync(f, 'utf8')) || {};
     return {
       fondo: porcentaje(crudo.fondo, AJUSTES_POR_DEFECTO.fondo),
       tamano: porcentaje(crudo.tamano, AJUSTES_POR_DEFECTO.tamano, TAMANO_MIN, TAMANO_MAX),
-      fondos: limpiarFondos(crudo.fondos)
+      fondos: limpiarFondos(crudo.fondos),
+      siempre: limpiarSiempre(crudo.siempre)
     };
   } catch (err) {
     console.error('Failed to read widget settings:', err);
-    return { ...AJUSTES_POR_DEFECTO, fondos: {} };
+    return { ...AJUSTES_POR_DEFECTO, fondos: {}, siempre: [] };
   }
 }
 
 // fondos, si viene, sustituye a los de antes entero: el que no este (o venga
-// vacio) vuelve a ir como todos.
+// vacio) vuelve a ir como todos. Lo mismo siempre: el que no venga vuelve a
+// irse cuando no pasa nada.
 export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes {
   const actual = leerAjustes(uid);
   if (ajustes && ajustes.fondo != null) actual.fondo = porcentaje(ajustes.fondo, actual.fondo);
@@ -97,6 +110,7 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
     actual.tamano = porcentaje(ajustes.tamano, actual.tamano, TAMANO_MIN, TAMANO_MAX);
   }
   if (ajustes && ajustes.fondos !== undefined) actual.fondos = limpiarFondos(ajustes.fondos);
+  if (ajustes && ajustes.siempre !== undefined) actual.siempre = limpiarSiempre(ajustes.siempre);
   const f = deps.archivoAjustes?.(uid);
   if (f) {
     deps.ensureUserDir?.(uid);

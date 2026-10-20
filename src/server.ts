@@ -1824,12 +1824,13 @@ app.get('/api/ajustes-widgets', (req: Request, res: Response) => {
   res.json(widget.leerAjustes(requireUid(req)));
 });
 
-// POST /api/ajustes-widgets { fondo?, tamano? } -> los guarda y avisa a los widgets
+// POST /api/ajustes-widgets { fondo?, tamano?, fondos?, siempre? } -> los guarda y avisa a los widgets
 app.post('/api/ajustes-widgets', (req: Request, res: Response) => {
   try {
     const uid = requireUid(req);
     const ajustes = widget.guardarAjustes(uid, {
-      fondo: req.body?.fondo, tamano: req.body?.tamano, fondos: req.body?.fondos
+      fondo: req.body?.fondo, tamano: req.body?.tamano, fondos: req.body?.fondos,
+      siempre: req.body?.siempre
     });
     // Los widgets que esten puestos en OBS cambian al momento, sin recargar.
     avisos.cambio(uid, 'widgets');

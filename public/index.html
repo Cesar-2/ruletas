@@ -237,6 +237,7 @@
     .widget-fila input{flex:1;min-width:240px;padding:.45rem .6rem;font-size:12px;
       font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#9fb3c8}
     .widget-fila button{padding:.4rem .8rem;font-size:13px}
+    .widget-fila .siempre{font-size:13px;white-space:nowrap}
     /* Para qué widget es la opacidad que se está eligiendo: Todos o uno. */
     .widget-cual{display:flex;flex-wrap:wrap;gap:.35rem;margin:.6rem 0 .2rem}
     .widget-cual button{padding:.35rem .7rem;font-size:13px;box-shadow:none;background:rgba(255,255,255,0.06);color:#e6eef8;border:1px solid rgba(255,255,255,0.16)}
@@ -2200,7 +2201,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           <div class="cfg-tabpanel" id="cfgtab-widgets">
           <div class="config-section">
             <h4>Widgets para el directo</h4>
-            <p class="meta">Cada uno se mete en OBS como <strong>Fuente › Navegador</strong> (900 × 900 va bien). Son transparentes: aparecen solos cuando hay partida y se quitan cuando no pasa nada. <strong>Probar</strong> abre la dirección a pelo, que sale con fondo: así se ve dónde queda mientras lo colocas.</p>
+            <p class="meta">Cada uno se mete en OBS como <strong>Fuente › Navegador</strong> (900 × 900 va bien). Son transparentes: aparecen solos cuando hay partida y se quitan al minuto sin que pase nada. Los que marques <strong>Siempre a la vista</strong> se quedan puestos todo el rato, para tenerlos fijos en una esquina (al guardar, los de OBS cambian solos). <strong>Probar</strong> abre la dirección a pelo, que sale con fondo: así se ve dónde queda mientras lo colocas.</p>
             <div id="widgetLista" class="widget-lista"></div>
             <p class="meta">La dirección lleva una clave que solo sirve para <strong>mirar</strong> tus minijuegos: con ella no se puede tocar nada ni entrar en tu cuenta. Aun así, no la enseñes en pantalla mientras emites.</p>
             <div class="config-actions">
@@ -4995,6 +4996,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // pide aquí y el servidor la crea la primera vez.
 
     let claveWidget = '';
+    // Los que se quedan puestos aunque no pase nada (los demás se van al
+    // minuto). Lo de ahora y lo guardado, para poder descartar.
+    let siempreWidget = new Set();
+    let siempreGuardados = [];
+    function volverSiempreWidget() {
+      siempreWidget = new Set(siempreGuardados);
+      pintarWidgets();
+    }
 
     // Los que hay. El de la Ruleta de objetos no está: ese sorteo no deja
     // partida en el servidor (se resuelve y se acabó), así que no hay nada
@@ -5034,8 +5043,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           + '<input type="text" readonly />'
           + '<button type="button" class="copiar">Copiar</button>'
           + '<button type="button" class="probar btn-cancel">Probar</button>'
+          + '<label class="names-check siempre"><input type="checkbox" /> <span>Siempre a la vista</span></label>'
           + (w.aviso ? '<span class="aviso"></span>' : '');
         fila.querySelector('.cual').textContent = w.nombre;
+        // Se guarda con el resto de la pestaña: marcarla la deja por guardar.
+        const fijo = fila.querySelector('.siempre input');
+        fijo.checked = siempreWidget.has(w.id);
+        fijo.setAttribute('aria-label', 'Dejar siempre a la vista el widget de ' + w.nombre);
+        fijo.addEventListener('change', () => {
+          if (fijo.checked) siempreWidget.add(w.id); else siempreWidget.delete(w.id);
+        });
         const campo = fila.querySelector('input');
         campo.value = claveWidget ? urlObs(w.id) : '';
         campo.setAttribute('aria-label', 'Dirección del widget de ' + w.nombre);
@@ -5204,8 +5221,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         fondoWidgetGuardado = ajustes.fondo;
         tamanoWidgetGuardado = ajustes.tamano;
         fondosWidgetGuardados = ajustes.fondos || {};
+        siempreGuardados = ajustes.siempre || [];
         pintarTamanoWidget(tamanoWidgetGuardado);
         volverFondosWidget();
+        volverSiempreWidget();
       } catch (e) {
         console.warn('No se pudieron leer los ajustes de los widgets:', e.message);
       }
@@ -5221,14 +5240,17 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             // un widget.
             fondo: fondoTodos,
             tamano: Number(document.getElementById('cfgWidgetTamano').value),
-            fondos: fondosWidget
+            fondos: fondosWidget,
+            siempre: [...siempreWidget]
           })
         });
         fondoWidgetGuardado = hecho.fondo;
         tamanoWidgetGuardado = hecho.tamano;
         fondosWidgetGuardados = hecho.fondos || {};
+        siempreGuardados = hecho.siempre || [];
         pintarTamanoWidget(tamanoWidgetGuardado);
         volverFondosWidget();
+        volverSiempreWidget();
         document.getElementById('cfgStatus').textContent = 'Guardado. Los widgets que tengas en OBS ya lo llevan.';
         return true;
       } catch (e) {
@@ -8028,7 +8050,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         cfgSucias.delete(cual);
         if (cual === 'aspecto') fillConfigForm();
         if (cual === 'cuenta') pintarUsuario();
-        if (cual === 'widgets') { pintarTamanoWidget(tamanoWidgetGuardado); volverFondosWidget(); }
+        if (cual === 'widgets') { pintarTamanoWidget(tamanoWidgetGuardado); volverFondosWidget(); volverSiempreWidget(); }
         pintarCfgGuardar();
         return true;
       }

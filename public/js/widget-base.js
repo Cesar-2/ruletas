@@ -20,7 +20,8 @@
 //               directo: no estorba cuando no se juega, y es la dirección que
 //               copia el botón de Configuración.
 //   ?siempre=1  transparente pero siempre puesto, para quien lo quiera fijo en
-//               una esquina.
+//               una esquina. Lo mismo se elige sin tocar la url, por widget, en
+//               Configuración › Widgets (la casilla «Siempre a la vista»).
 
 (function () {
   'use strict';
@@ -28,7 +29,14 @@
   const params = new URLSearchParams(location.search);
   const clave = params.get('clave') || '';
   const prueba = params.get('fondo') !== '0';
-  const siempre = prueba || params.get('siempre') === '1';
+  const siempreUrl = prueba || params.get('siempre') === '1';
+  // El de Configuración, que llega con los ajustes y puede cambiar con el
+  // widget ya puesto.
+  let siempreAjuste = false;
+  function estaSiempre() { return siempreUrl || siempreAjuste; }
+  // Los que tienen que volver a mirar si se enseñan cuando cambia eso.
+  const alCambiar = [];
+  function alCambiarSiempre(fn) { alCambiar.push(fn); }
   // Con ?cada= se fuerza el reloj de antes, en milisegundos. No hace falta para
   // nada normal: está para poder descartar el canal si alguna vez da guerra en
   // una máquina concreta.
@@ -63,6 +71,12 @@
       if (Number.isFinite(fondo)) raiz.setProperty('--fondo-widget', String(Math.max(0, Math.min(100, fondo)) / 100));
       const tamano = Number(ajustes.tamano);
       if (Number.isFinite(tamano) && tamano > 0) raiz.setProperty('--tamano-widget', String(Math.max(50, Math.min(200, tamano)) / 100));
+      // Si este va siempre a la vista o se va cuando no pasa nada.
+      const siempre = Array.isArray(ajustes.siempre) && ajustes.siempre.includes(WIDGET);
+      if (siempre !== siempreAjuste) {
+        siempreAjuste = siempre;
+        alCambiar.forEach((fn) => fn());
+      }
     } catch (e) { /* se queda el de respaldo */ }
   }
   mirarAjustes();
@@ -76,7 +90,8 @@
 
   // Cuánto se queda puesto un widget sin que pase nada. Un resultado que ya
   // nadie mira no tiene por qué tapar el directo: al minuto se va, y vuelve en
-  // cuanto cambia algo. No vale en modo prueba ni con ?siempre=1.
+  // cuanto cambia algo. No vale en modo prueba ni con ?siempre=1 o la casilla
+  // de Configuración.
   const QUIETO_MS = 60000;
 
   // Lleva la cuenta de cuándo cambió el estado por última vez.
@@ -158,10 +173,11 @@
 
     let hayAlgo = false;
     function ensenar() {
-      if (todo) todo.classList.toggle('visible', (hayAlgo && quieto.vivo()) || siempre);
+      if (todo) todo.classList.toggle('visible', (hayAlgo && quieto.vivo()) || estaSiempre());
       if (espera) espera.hidden = !prueba || hayAlgo;
     }
     const quieto = vigiaQuieto(ensenar);
+    alCambiarSiempre(ensenar);
 
     mirar();
     if (CADA) {
@@ -209,5 +225,5 @@
   }
 
   window.Widget = {
-    pintarApuntados, arranca, vigiaQuieto, clave, prueba, siempre, CADA, caja };
+    pintarApuntados, arranca, vigiaQuieto, clave, prueba, estaSiempre, alCambiarSiempre, CADA, caja };
 })();
