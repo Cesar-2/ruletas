@@ -36,6 +36,9 @@
 
   function caja(id) { return document.getElementById(id); }
 
+  // Qué widget es este, por el nombre de su página (/widget/colina.html).
+  const WIDGET = (/\/widget\/([a-z]+)\.html/.exec(location.pathname) || [])[1] || '';
+
   // Cómo se ven los widgets, que lo elige el dueño en Configuración › Widgets:
   // cuánto tapa la caja oscura de detrás y cómo de grande sale todo. Van a dos
   // variables de CSS: --fondo-widget (de 0 a 1), que leen todas las cajas, y
@@ -53,7 +56,10 @@
       if (!res.ok) return;
       const ajustes = await res.json();
       const raiz = document.documentElement.style;
-      const fondo = Number(ajustes.fondo);
+      // Este widget puede llevar su propio fondo (Configuración › Widgets): hay
+      // algunos que necesitan más contraste que otros. Si no, el de todos.
+      const propio = ajustes.fondos && ajustes.fondos[WIDGET];
+      const fondo = Number(propio != null ? propio : ajustes.fondo);
       if (Number.isFinite(fondo)) raiz.setProperty('--fondo-widget', String(Math.max(0, Math.min(100, fondo)) / 100));
       const tamano = Number(ajustes.tamano);
       if (Number.isFinite(tamano) && tamano > 0) raiz.setProperty('--tamano-widget', String(Math.max(50, Math.min(200, tamano)) / 100));

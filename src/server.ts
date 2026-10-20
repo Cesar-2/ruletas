@@ -1828,7 +1828,9 @@ app.get('/api/ajustes-widgets', (req: Request, res: Response) => {
 app.post('/api/ajustes-widgets', (req: Request, res: Response) => {
   try {
     const uid = requireUid(req);
-    const ajustes = widget.guardarAjustes(uid, { fondo: req.body?.fondo, tamano: req.body?.tamano });
+    const ajustes = widget.guardarAjustes(uid, {
+      fondo: req.body?.fondo, tamano: req.body?.tamano, fondos: req.body?.fondos
+    });
     // Los widgets que esten puestos en OBS cambian al momento, sin recargar.
     avisos.cambio(uid, 'widgets');
     res.json(ajustes);
@@ -2467,22 +2469,25 @@ app.get('/api/winners', (req: Request, res: Response) => {
 
 // El ultimo que ha ganado en un servidor, de los que tienen algo pendiente: el
 // de la fecha mas nueva (al volver a ganar, su fecha se pone al dia).
-function ultimoGanador(sid: string): string {
+function ultimoGanador(sid: string): chatganadores.Actual | null {
   let ultimo: Winner | null = null;
   for (const w of readWinners(sid)) {
     if (!ultimo || Date.parse(w.date) > Date.parse(ultimo.date)) ultimo = w;
   }
-  return ultimo ? ultimo.name : '';
+  return ultimo ? { nombre: ultimo.name, desde: Date.parse(ultimo.date) || 0 } : null;
 }
 
 // GET /api/winners/chat -> { ganador, mensajes, chat }
-// Lo que ha escrito en el chat el ultimo ganador de ese servidor, lo mas nuevo
-// primero. Solo el: con todos los pendientes se mezclaban los de otros dias.
-// Ver chatganadores.ts.
+// Lo que ha escrito en el chat el ganador actual de ese servidor desde que
+// gano, lo mas nuevo primero. Solo el, y nada de antes: ver chatganadores.ts.
 app.get('/api/winners/chat', (req: Request, res: Response) => {
   const uid = requireUid(req);
-  const ganador = ultimoGanador(resolveServer(req));
-  res.json({ ganador, mensajes: chatganadores.de(uid, ganador ? [ganador] : []), chat: chatganadores.salud(uid) });
+  const actual = ultimoGanador(resolveServer(req));
+  res.json({
+    ganador: actual ? actual.nombre : '',
+    mensajes: actual ? chatganadores.de(uid, actual.nombre, actual.desde) : [],
+    chat: chatganadores.salud(uid)
+  });
 });
 
 // POST /api/winners  Body: { name, total, items? }
@@ -3364,8 +3369,9 @@ chatganadores.iniciar(
   {
     canalDe,
     // El ultimo ganador de cada servidor: es de quien se enseña el chat.
-    nombresGanadores: (uid: string) => juegos.JUEGOS.flatMap((j) =>
-      readServers(uid, j).map((sv) => ultimoGanador(`${uid}/${j}/${sv.id}`)).filter(Boolean)),
+    ganadoresActuales: (uid: string) => juegos.JUEGOS.flatMap((j) =>
+      readServers(uid, j).map((sv) => ultimoGanador(`${uid}/${j}/${sv.id}`))
+        .filter((a): a is chatganadores.Actual => Boolean(a))),
     alCambiar: (uid: string) => avisos.cambio(uid, 'ganadores')
   },
   readUsers().map((u) => u.id)

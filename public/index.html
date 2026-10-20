@@ -237,6 +237,11 @@
     .widget-fila input{flex:1;min-width:240px;padding:.45rem .6rem;font-size:12px;
       font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#9fb3c8}
     .widget-fila button{padding:.4rem .8rem;font-size:13px}
+    /* Para qué widget es la opacidad que se está eligiendo: Todos o uno. */
+    .widget-cual{display:flex;flex-wrap:wrap;gap:.35rem;margin:.6rem 0 .2rem}
+    .widget-cual button{padding:.35rem .7rem;font-size:13px;box-shadow:none;background:rgba(255,255,255,0.06);color:#e6eef8;border:1px solid rgba(255,255,255,0.16)}
+    .widget-cual button.active{background:var(--accent);color:#021018;border-color:transparent}
+    .widget-cual button .propio{margin-left:.3rem;font-size:11px;opacity:.75}
     .widget-fila .aviso{flex-basis:100%;font-size:12px;color:#9fb3c8;margin-left:190px}
     /* La muestra del fondo de los widgets: la misma caja que css/widget.css,
        encima de un fondo con color que hace de directo. */
@@ -1803,7 +1808,7 @@
                en el chat. Ver cargarChatGanadores. -->
           <section>
             <h3 id="gamesChatTitulo">💬 Lo que escribe el último ganador en el chat</h3>
-            <p class="meta">Solo el último que ha ganado en este servidor (de los que tienen premio pendiente), lo más nuevo arriba. Es lo mismo que en la pestaña Ganadores.</p>
+            <p class="meta">Solo lo que escribe el ganador actual de este servidor desde que ganó, lo más nuevo arriba. Del resto del chat no se guarda nada, y al ganar otro se borra. Es lo mismo que en la pestaña Ganadores.</p>
             <div id="gamesChatEstado" class="meta" hidden></div>
             <div id="gamesChat" class="winners-chat"></div>
           </section>
@@ -1905,7 +1910,7 @@
                entregar. -->
           <section>
             <h3 id="winnersChatTitulo">💬 Lo que escribe el último ganador en el chat</h3>
-            <p class="meta">Solo el último que ha ganado en este servidor (de los que tienen premio pendiente), lo más nuevo arriba. Se lee el chat del canal puesto en Configuración › Mi cuenta; lo de antes de reiniciar el Ruleton no se guarda.</p>
+            <p class="meta">Solo lo que escribe el ganador actual de este servidor desde que ganó, lo más nuevo arriba. Del resto del chat no se guarda nada, y al ganar otro se borra. Se lee el chat del canal puesto en Configuración › Mi cuenta.</p>
             <div id="winnersChatEstado" class="meta" hidden></div>
             <div id="winnersChat" class="winners-chat"></div>
           </section>
@@ -2208,15 +2213,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             <h4>Cómo se ven</h4>
             <p class="meta"><strong>Tamaño</strong> es el de todo el widget a la vez: las cajas, las letras y los muñecos. A <strong>100</strong> es el de siempre, a 50 la mitad y a 200 el doble. Crece desde el centro, así que si no cabe en la fuente de OBS se corta por los bordes: agranda la fuente o baja el tamaño.</p>
             <p class="meta"><strong>Fondo</strong> es la caja oscura que va detrás para que se lea encima del juego. A <strong>0</strong> no hay caja, solo las letras sobre el directo; a <strong>100</strong> es negra del todo.</p>
-            <p class="meta">Los dos valen para todos los widgets y, al guardar, los que tengas puestos en OBS cambian solos.</p>
+            <p class="meta">El tamaño vale para todos los widgets. La opacidad también, salvo que pulses uno abajo y le pongas la suya: hay widgets que necesitan más contraste que otros. Al guardar, los que tengas puestos en OBS cambian solos.</p>
+            <!-- Para quién es la opacidad: Todos, o un widget con la suya. -->
+            <div class="widget-cual" id="widgetCual" role="group" aria-label="Elegir la opacidad de"></div>
             <div class="config-grid">
               <div class="config-field">
                 <label for="cfgWidgetTamano">Tamaño:&nbsp;<span id="cfgWidgetTamanoValue">100%</span></label>
                 <input id="cfgWidgetTamano" type="range" min="50" max="200" step="5" value="100" />
               </div>
               <div class="config-field">
-                <label for="cfgWidgetFondo">Opacidad del fondo:&nbsp;<span id="cfgWidgetFondoValue">82%</span></label>
+                <label for="cfgWidgetFondo">Opacidad del fondo<span id="cfgWidgetFondoDe"></span>:&nbsp;<span id="cfgWidgetFondoValue">82%</span></label>
                 <input id="cfgWidgetFondo" type="range" min="0" max="100" step="1" value="82" />
+                <button type="button" id="cfgWidgetFondoComoTodos" class="btn-cancel" hidden>Volver a como todos</button>
               </div>
             </div>
             <!-- Una caja de widget de mentira encima de algo con color, para
@@ -4475,7 +4483,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       const mensajes = data.mensajes || [];
       if (!mensajes.length) {
         caja.innerHTML = `<div class="meta" style="padding:.7rem 0">${data.ganador
-          ? escapeHtml(data.ganador) + ' todavía no ha escrito en el chat.'
+          ? escapeHtml(data.ganador) + ' todavía no ha escrito en el chat desde que ganó.'
           : 'No hay ganadores pendientes.'}</div>`;
         return;
       }
@@ -5090,6 +5098,59 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // Lo último guardado, para poder volver a ello al descartar.
     let fondoWidgetGuardado = FONDO_WIDGET;
     let tamanoWidgetGuardado = TAMANO_WIDGET;
+    // La opacidad se elige para Todos o para un widget concreto, con los
+    // botones de encima del deslizador. Hay widgets que necesitan más
+    // contraste que otros encima del juego.
+    //
+    //   fondoTodos     la de todos, la que se está eligiendo
+    //   fondosWidget   la propia de cada widget, por su id; el que no está va
+    //                  como todos
+    //   widgetElegido  para quién es el deslizador ahora ('' = Todos)
+    let fondoTodos = FONDO_WIDGET;
+    let fondosWidgetGuardados = {};
+    let fondosWidget = {};
+    let widgetElegido = '';
+
+    // Vuelve a lo guardado: la de todos y la de cada uno.
+    function volverFondosWidget() {
+      fondoTodos = fondoWidgetGuardado;
+      fondosWidget = { ...fondosWidgetGuardados };
+      pintarCualWidget();
+    }
+
+    // Lo que vale ahora para el elegido: la suya, o la de todos.
+    function fondoDelElegido() {
+      return widgetElegido && fondosWidget[widgetElegido] != null ? fondosWidget[widgetElegido] : fondoTodos;
+    }
+
+    // Los botones (Todos y uno por widget) y el deslizador con lo del elegido.
+    function pintarCualWidget() {
+      const cont = document.getElementById('widgetCual');
+      if (!cont) return;
+      cont.innerHTML = '';
+      [{ id: '', nombre: 'Todos' }].concat(WIDGETS).forEach((w) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = w.id === widgetElegido ? 'active' : '';
+        b.setAttribute('aria-pressed', w.id === widgetElegido ? 'true' : 'false');
+        b.textContent = w.nombre;
+        // Los que llevan la suya lo dicen, para verlo sin ir pulsando uno a uno.
+        if (w.id && fondosWidget[w.id] != null) {
+          const p = document.createElement('span');
+          p.className = 'propio';
+          p.textContent = fondosWidget[w.id] + '%';
+          b.appendChild(p);
+        }
+        b.addEventListener('click', () => { widgetElegido = w.id; pintarCualWidget(); });
+        cont.appendChild(b);
+      });
+      const elegido = WIDGETS.find((w) => w.id === widgetElegido);
+      document.getElementById('cfgWidgetFondoDe').textContent = elegido
+        ? ' de ' + elegido.nombre + (fondosWidget[elegido.id] == null ? ' (como todos)' : '')
+        : ' de todos';
+      document.getElementById('cfgWidgetFondoComoTodos').hidden = !elegido || fondosWidget[elegido.id] == null;
+      pintarFondoWidget(fondoDelElegido());
+    }
 
     function pintarFondoWidget(pct) {
       const n = Math.max(0, Math.min(100, Math.round(Number(pct))));
@@ -5098,6 +5159,28 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('cfgWidgetFondoValue').textContent = valor + '%';
       document.getElementById('widgetMuestra').style.setProperty('--fondo-widget', String(valor / 100));
     }
+
+    // Mover el deslizador cambia la del elegido: la de todos, o la suya.
+    function moverFondoWidget(pct) {
+      const v = Math.max(0, Math.min(100, Math.round(Number(pct)) || 0));
+      const antes = widgetElegido && fondosWidget[widgetElegido] == null;
+      if (widgetElegido) fondosWidget[widgetElegido] = v; else fondoTodos = v;
+      // Al ponerle la suya por primera vez, su botón y el texto lo cuentan.
+      if (antes) pintarCualWidget(); else {
+        pintarFondoWidget(v);
+        const p = widgetElegido && document.querySelector('#widgetCual button.active .propio');
+        if (p) p.textContent = v + '%';
+      }
+    }
+
+    document.getElementById('cfgWidgetFondoComoTodos').addEventListener('click', () => {
+      if (!widgetElegido) return;
+      delete fondosWidget[widgetElegido];
+      pintarCualWidget();
+      // Es un cambio por guardar, como mover el deslizador.
+      cfgSucias.add('widgets');
+      pintarCfgGuardar();
+    });
 
     function pintarTamanoWidget(pct) {
       const n = Math.max(50, Math.min(200, Math.round(Number(pct))));
@@ -5108,7 +5191,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     // La muestra se mueve con los deslizadores, sin esperar a guardar.
-    document.getElementById('cfgWidgetFondo').addEventListener('input', (ev) => pintarFondoWidget(ev.target.value));
+    document.getElementById('cfgWidgetFondo').addEventListener('input', (ev) => moverFondoWidget(ev.target.value));
     document.getElementById('cfgWidgetTamano').addEventListener('input', (ev) => pintarTamanoWidget(ev.target.value));
 
     // Se piden al abrir la pestaña: la clave para las direcciones y el fondo.
@@ -5120,8 +5203,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const ajustes = await api('/api/ajustes-widgets');
         fondoWidgetGuardado = ajustes.fondo;
         tamanoWidgetGuardado = ajustes.tamano;
-        pintarFondoWidget(fondoWidgetGuardado);
+        fondosWidgetGuardados = ajustes.fondos || {};
         pintarTamanoWidget(tamanoWidgetGuardado);
+        volverFondosWidget();
       } catch (e) {
         console.warn('No se pudieron leer los ajustes de los widgets:', e.message);
       }
@@ -5133,14 +5217,18 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fondo: Number(document.getElementById('cfgWidgetFondo').value),
-            tamano: Number(document.getElementById('cfgWidgetTamano').value)
+            // La de todos va aparte: el deslizador puede estar enseñando la de
+            // un widget.
+            fondo: fondoTodos,
+            tamano: Number(document.getElementById('cfgWidgetTamano').value),
+            fondos: fondosWidget
           })
         });
         fondoWidgetGuardado = hecho.fondo;
         tamanoWidgetGuardado = hecho.tamano;
-        pintarFondoWidget(fondoWidgetGuardado);
+        fondosWidgetGuardados = hecho.fondos || {};
         pintarTamanoWidget(tamanoWidgetGuardado);
+        volverFondosWidget();
         document.getElementById('cfgStatus').textContent = 'Guardado. Los widgets que tengas en OBS ya lo llevan.';
         return true;
       } catch (e) {
@@ -7940,7 +8028,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         cfgSucias.delete(cual);
         if (cual === 'aspecto') fillConfigForm();
         if (cual === 'cuenta') pintarUsuario();
-        if (cual === 'widgets') { pintarFondoWidget(fondoWidgetGuardado); pintarTamanoWidget(tamanoWidgetGuardado); }
+        if (cual === 'widgets') { pintarTamanoWidget(tamanoWidgetGuardado); volverFondosWidget(); }
         pintarCfgGuardar();
         return true;
       }

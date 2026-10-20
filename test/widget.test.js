@@ -197,9 +197,9 @@ test('el tamaño se guarda por cuenta, entre la mitad y el doble', (t) => {
 
   // Cambiar una cosa no se lleva la otra.
   widget.guardarAjustes('u1', { fondo: 30, tamano: 120 });
-  assert.deepStrictEqual(widget.guardarAjustes('u1', { fondo: 60 }), { fondo: 60, tamano: 120 });
-  assert.deepStrictEqual(widget.guardarAjustes('u1', { tamano: 80 }), { fondo: 60, tamano: 80 });
-  assert.deepStrictEqual(widget.guardarAjustes('u1', { tamano: 'grande' }), { fondo: 60, tamano: 80 });
+  assert.deepStrictEqual(widget.guardarAjustes('u1', { fondo: 60 }), { fondo: 60, tamano: 120, fondos: {} });
+  assert.deepStrictEqual(widget.guardarAjustes('u1', { tamano: 80 }), { fondo: 60, tamano: 80, fondos: {} });
+  assert.deepStrictEqual(widget.guardarAjustes('u1', { tamano: 'grande' }), { fondo: 60, tamano: 80, fondos: {} });
 });
 
 test('todos los widgets escalan con el tamaño', () => {
@@ -214,4 +214,34 @@ test('todos los widgets escalan con el tamaño', () => {
   for (const w of ['batalla', 'carrera', 'colina', 'nombres', 'sorteo', 'bingo', 'adivina', 'objetivos', 'dofus']) {
     assert.ok(leer('widget/' + w + '.html').includes('/css/widget.css'), w + ' carga widget.css');
   }
+});
+
+// Cada widget puede llevar su propio fondo: hay algunos que necesitan mas
+// contraste que otros. El que no lo lleva, va como todos.
+test('cada widget puede llevar su propio fondo', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const widget = montarConAjustes(c.raiz);
+  assert.deepStrictEqual(widget.leerAjustes('u1').fondos, {}, 'sin tocar nada, todos como todos');
+
+  const a = widget.guardarAjustes('u1', { fondo: 60, fondos: { batalla: 95, dofus: 0, colina: 150 } });
+  assert.deepStrictEqual(a.fondos, { batalla: 95, dofus: 0, colina: 100 }, 'el cero vale y se queda entre 0 y 100');
+  assert.strictEqual(a.fondo, 60, 'el de todos sigue a lo suyo');
+  assert.deepStrictEqual(widget.leerAjustes('u1').fondos, { batalla: 95, dofus: 0, colina: 100 }, 'queda guardado');
+
+  // Guardar otra cosa sin fondos no los toca; mandarlos los sustituye enteros.
+  widget.guardarAjustes('u1', { tamano: 120 });
+  assert.strictEqual(widget.leerAjustes('u1').fondos.batalla, 95);
+  widget.guardarAjustes('u1', { fondos: { batalla: '' } });
+  assert.deepStrictEqual(widget.leerAjustes('u1').fondos, {}, 'vacio vuelve a ir como todos');
+
+  // Nombres raros fuera: solo los de las paginas de widget.
+  widget.guardarAjustes('u1', { fondos: { '../x': 50, 'Batalla': 50, carrera: 'nada' } });
+  assert.deepStrictEqual(widget.leerAjustes('u1').fondos, {});
+});
+
+test('el widget usa su propio fondo, o el de todos', () => {
+  const base = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'widget-base.js'), 'utf8');
+  assert.ok(/ajustes\.fondos && ajustes\.fondos\[WIDGET\]/.test(base));
+  assert.ok(base.includes(String.raw`/\/widget\/([a-z]+)\.html/`), 'sabe que widget es por el nombre de su pagina');
 });
