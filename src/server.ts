@@ -12,6 +12,7 @@ import * as batalla from './batalla';
 import * as colina from './colina';
 import * as ruletachat from './ruletachat';
 import * as canjeobjetos from './canjeobjetos';
+import * as turnosruleta from './turnosruleta';
 import * as chatganadores from './chatganadores';
 import * as adivina from './adivina';
 import * as objetivos from './objetivos';
@@ -3065,6 +3066,37 @@ app.post('/api/canje-objetos', (req: Request, res: Response) => {
   res.json(canjeobjetos.estado(uid));
 });
 
+// La Ruleta de objetos con la recompensa que crea el Ruleton: quien la canjea
+// espera en la fila y su nombre va a la ruleta. Ver turnosruleta.ts.
+
+// POST /api/ruleta/recompensa  Body: { titulo, coste } -> crea (o actualiza) en
+// Twitch la recompensa de puntos que da un turno.
+app.post('/api/ruleta/recompensa', async (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const r = await twitch.recompensaObjetos(uid, req.body?.titulo, req.body?.coste);
+  if (!r.ok) return res.status(409).json({ error: r.error });
+  res.json(twitch.estado(uid, redireccionTwitch(req)));
+});
+
+// GET /api/ruleta/turnos -> { turnos: [{ id, nombre, ... }] }, por orden de llegada
+app.get('/api/ruleta/turnos', (req: Request, res: Response) => {
+  res.json({ turnos: turnosruleta.leer(requireUid(req)) });
+});
+
+// POST /api/ruleta/turnos/tomar  Body: { id } -> sale de la fila porque su nombre
+// ya esta en la ruleta: el canje queda cumplido en Twitch.
+// POST /api/ruleta/turnos/quitar  Body: { id } -> sale sin girar: el canje se
+// cancela y se le devuelven los puntos.
+for (const [ruta, cumplido] of [['tomar', true], ['quitar', false]] as const) {
+  app.post('/api/ruleta/turnos/' + ruta, async (req: Request, res: Response) => {
+    const uid = requireUid(req);
+    const t = turnosruleta.sacar(uid, req.body?.id);
+    let twitchOk = true;
+    if (t) twitchOk = await twitch.cerrarCanje(uid, t.recompensa, t.id, cumplido);
+    res.json({ turnos: turnosruleta.leer(uid), turno: t, twitchOk });
+  });
+}
+
 // POST /api/twitch/disconnect -> corta y olvida las credenciales guardadas
 app.post('/api/twitch/disconnect', (req: Request, res: Response) => {
   const uid = requireUid(req);
@@ -3223,6 +3255,7 @@ app.use((err: any, req: Request, res: Response, next: any) => {
 });
 
 carrera.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'carrera') });
+turnosruleta.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'turnos') });
 ruletachat.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'nombres') });
 // El tablero de clavijas reparte en el mismo marcador que la carrera.
 plinko.iniciar({
@@ -3362,7 +3395,10 @@ twitch.iniciar(
     servidoresDe: (uid: string) => readServers(uid, juegos.JUEGO_POR_DEFECTO),
     // Canjear la recompensa de los cartones da uno; si no se puede, se
     // devuelven los puntos.
-    darCarton: (uid: string, nombre: string, login: string) => bingo.darCarton(uid, nombre, login)
+    darCarton: (uid: string, nombre: string, login: string) => bingo.darCarton(uid, nombre, login),
+    // Canjear la de la Ruleta de objetos le da un turno: su nombre va a la
+    // ruleta de la pagina.
+    apuntarTurno: (uid, turno) => turnosruleta.apuntar(uid, turno)
   },
   {
     redirect: process.env.TWITCH_REDIRECT || `http://localhost:${PORT}/api/twitch/callback`,

@@ -279,6 +279,71 @@ test('sin ser afiliado, crear la recompensa lo dice claro', async (t) => {
   assert.match(r.error, /afiliados o partner/);
 });
 
+// --- La Ruleta de objetos con la recompensa que crea el Ruleton ---
+
+const CON_RULETA = { ...CUENTA, recompensa: 'Vieja', objetosRecompensa: { id: 'rw-r', titulo: 'Ruleta', coste: 1000 } };
+const CANJE_RULETA = { id: 'red-r', reward: { id: 'rw-r', title: 'Ruleta' }, user_name: 'Ana', user_login: 'ana' };
+
+function montarRuleta(raiz, cuenta, puede) {
+  const sorteados = [];
+  const twitch = montar(raiz, cuenta, sorteados);
+  const apuntados = [];
+  const d = deps(raiz);
+  d.servidoresDe = () => [{ id: 's1', name: 'Principal' }];
+  d.sortearPara = async (uid, sid, nombre) => { sorteados.push(nombre); return ['algo']; };
+  d.apuntarTurno = (uid, turno) => { apuntados.push(turno); return puede; };
+  twitch.iniciar(d, { usuarios: [] });
+  return { twitch, apuntados, sorteados };
+}
+
+test('canjear la de la ruleta pone su nombre en la fila, sin sortear ni cerrar el canje', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { twitch, apuntados, sorteados } = montarRuleta(c.raiz, CON_RULETA, true);
+  const llamadas = fetchFalso(t, []);
+  assert.strictEqual(await twitch.alCanjear('u1', CANJE_RULETA), true);
+  assert.deepStrictEqual(apuntados, [{ id: 'red-r', recompensa: 'rw-r', nombre: 'Ana', login: 'ana' }]);
+  assert.deepStrictEqual(sorteados, [], 'no sortea solo: la gira el streamer');
+  assert.strictEqual(llamadas.length, 0, 'el canje se queda abierto hasta que se usa');
+});
+
+test('si no se le puede apuntar, se le devuelven los puntos', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { twitch } = montarRuleta(c.raiz, CON_RULETA, false);
+  const llamadas = fetchFalso(t, [() => ({ status: 200, json: { data: [] } })]);
+  assert.strictEqual(await twitch.alCanjear('u1', CANJE_RULETA), false);
+  assert.deepStrictEqual(llamadas[0].cuerpo, { status: 'CANCELED' });
+  assert.strictEqual(new URL(llamadas[0].url).searchParams.get('id'), 'red-r');
+});
+
+test('al usar el turno el canje se cumple, y al quitarlo se cancela', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { twitch } = montarRuleta(c.raiz, CON_RULETA, true);
+  const llamadas = fetchFalso(t, [() => ({ status: 200, json: {} }), () => ({ status: 200, json: {} })]);
+  assert.strictEqual(await twitch.cerrarCanje('u1', 'rw-r', 'red-r', true), true);
+  assert.strictEqual(await twitch.cerrarCanje('u1', 'rw-r', 'red-s', false), true);
+  assert.deepStrictEqual(llamadas.map((l) => l.cuerpo.status), ['FULFILLED', 'CANCELED']);
+  assert.strictEqual(new URL(llamadas[1].url).searchParams.get('reward_id'), 'rw-r');
+});
+
+test('crear la de la ruleta la guarda y apaga la que se ponia por titulo', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, { ...CUENTA, recompensa: 'Vieja' });
+  const llamadas = fetchFalso(t, [() => ({ json: { data: [{ id: 'rw-r' }] } })]);
+  assert.deepStrictEqual(await twitch.recompensaObjetos('u1', '', 800), { ok: true });
+  assert.strictEqual(llamadas[0].metodo, 'POST');
+  assert.strictEqual(llamadas[0].cuerpo.title, 'Ruleta de objetos');
+  assert.strictEqual(llamadas[0].cuerpo.should_redemptions_skip_request_queue, false);
+  const cuenta = twitch.leerCuenta('u1');
+  assert.deepStrictEqual(cuenta.objetosRecompensa, { id: 'rw-r', titulo: 'Ruleta de objetos', coste: 800 });
+  assert.strictEqual(cuenta.recompensa, '', 'la vieja sorteaba sola: se apaga');
+  assert.strictEqual(cuenta.bingoRecompensa, undefined, 'la del bingo no se toca');
+  assert.deepStrictEqual(await twitch.recompensaObjetos('u1', 'x', 0), { ok: false, error: 'pon cuantos puntos cuesta la tirada' });
+});
+
 // --- La vuelta de la autorizacion ---
 
 test('la vuelta de Twitch sigue valiendo aunque el servidor se reinicie', (t) => {

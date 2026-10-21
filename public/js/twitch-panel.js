@@ -30,9 +30,63 @@
       }
       const e = twitchEstado;
       if (!e) return;
-      document.getElementById('canjeRecompensa').value = e.recompensa || '';
       document.getElementById('canjeObjetos').value = e.objetos || 1;
+      pintarRecompensaRuleta();
     }
+
+    // La recompensa de puntos del canal que da un turno en la ruleta. La crea
+    // el Ruletón en Twitch, como la de los cartones del bingo.
+    function pintarRecompensaRuleta() {
+      const e = twitchEstado;
+      if (!e) return;
+      const r = e.objetosRecompensa;
+      const titulo = document.getElementById('ruletaRecompensaTitulo');
+      const coste = document.getElementById('ruletaRecompensaCoste');
+      if (r) {
+        if (document.activeElement !== titulo && !titulo.dataset.tocado) titulo.value = r.titulo;
+        if (document.activeElement !== coste && !coste.dataset.tocado) coste.value = r.coste;
+      }
+      document.getElementById('ruletaRecompensaCrear').textContent = r ? 'Actualizar en Twitch' : 'Crear en Twitch';
+      document.getElementById('ruletaRecompensaEstado').textContent = !e.conectado && !r
+        ? 'Conecta tu cuenta de Twitch arriba para poder crearla.'
+        : r
+          ? `Se juega canjeando «${r.titulo}» por ${Number(r.coste).toLocaleString('es-ES')} puntos: su nombre va a la Ruleta de objetos.`
+          : e.recompensa
+            // La de antes, que el streamer creaba a mano y sorteaba sola.
+            ? `Ahora sortea sola tu recompensa «${e.recompensa}», sin que se vea. Crea esta para que el nombre vaya a la ruleta y la gires tú (aquella se apaga).`
+            : 'Pon nombre y precio y pulsa «Crear en Twitch»: el Ruletón crea la recompensa en tu canal.';
+    }
+
+    ['ruletaRecompensaTitulo', 'ruletaRecompensaCoste'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', (ev) => { ev.target.dataset.tocado = '1'; });
+    });
+
+    document.getElementById('ruletaRecompensaCrear').addEventListener('click', async () => {
+      const boton = document.getElementById('ruletaRecompensaCrear');
+      const titulo = document.getElementById('ruletaRecompensaTitulo').value.trim() || 'Ruleta de objetos';
+      const coste = Number(document.getElementById('ruletaRecompensaCoste').value) || 0;
+      if (coste < 1) {
+        showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta una tirada.');
+        return;
+      }
+      boton.disabled = true;
+      try {
+        twitchEstado = await api('/api/ruleta/recompensa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ titulo, coste })
+        });
+        ['ruletaRecompensaTitulo', 'ruletaRecompensaCoste'].forEach((id) => {
+          delete document.getElementById(id).dataset.tocado;
+        });
+        pintarTwitch();
+        pintarRecompensaRuleta();
+      } catch (e) {
+        showAlert('No se pudo crear la recompensa en Twitch', e.message);
+      } finally {
+        boton.disabled = false;
+      }
+    });
 
     document.getElementById('canjeGuardar').addEventListener('click', async () => {
       const aviso = document.getElementById('canjeGuardado');
@@ -43,7 +97,6 @@
       });
       try {
         twitchEstado = await api('/api/twitch/config', json({
-          recompensa: document.getElementById('canjeRecompensa').value.trim(),
           objetos: Number(document.getElementById('canjeObjetos').value) || 1
         }));
         const c = await api('/api/canje-objetos', json({

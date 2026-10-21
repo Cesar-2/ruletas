@@ -19,9 +19,11 @@
 // ven sus widgets, para que los que esten puestos en OBS lo cojan al momento.
 // 'ganadores' tampoco: es que ha escrito en el chat alguien con un premio
 // pendiente, para la pestaña de Ganadores.
-export type Juego = 'carrera' | 'plinko' | 'batalla' | 'colina' | 'nombres' | 'sorteo' | 'bingo' | 'adivina' | 'objetivos' | 'dofus' | 'widgets' | 'ganadores';
+// 'turnos' es que alguien ha canjeado la Ruleta de objetos y su nombre espera
+// en la fila (ver turnosruleta.ts).
+export type Juego = 'carrera' | 'plinko' | 'batalla' | 'colina' | 'nombres' | 'sorteo' | 'bingo' | 'adivina' | 'objetivos' | 'dofus' | 'widgets' | 'ganadores' | 'turnos';
 
-export const JUEGOS: Juego[] = ['carrera', 'plinko', 'batalla', 'colina', 'nombres', 'sorteo', 'bingo', 'adivina', 'objetivos', 'dofus', 'widgets', 'ganadores'];
+export const JUEGOS: Juego[] = ['carrera', 'plinko', 'batalla', 'colina', 'nombres', 'sorteo', 'bingo', 'adivina', 'objetivos', 'dofus', 'widgets', 'ganadores', 'turnos'];
 
 type Oyente = (juego: Juego) => void;
 
