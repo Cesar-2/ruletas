@@ -37,10 +37,17 @@
   // Los que tienen que volver a mirar si se enseñan cuando cambia eso.
   const alCambiar = [];
   function alCambiarSiempre(fn) { alCambiar.push(fn); }
-  // Con ?cada= se fuerza el reloj de antes, en milisegundos. No hace falta para
-  // nada normal: está para poder descartar el canal si alguna vez da guerra en
-  // una máquina concreta.
-  const CADA = Number(params.get('cada')) || 0;
+  // Los widgets preguntan cada 2 s en vez de quedarse con el canal de avisos
+  // abierto. Cada canal es una conexión que no se suelta nunca, y el proxy del
+  // hosting tiene un cupo de conexiones por IP: la página y los widgets de OBS
+  // salen de la misma, y con ocho canales abiertos las peticiones de la página
+  // se quedaban en cola hasta el 504 sin llegar siquiera al servidor. Preguntar
+  // tarda milisegundos y no se queda con nada.
+  //
+  // Con ?cada= se elige otro ritmo, en milisegundos; ?cada=0 vuelve al canal.
+  const CADA = params.has('cada') ? (Number(params.get('cada')) || 0) : 2000;
+  // Cómo se ven cambia poco: basta con mirarlo de vez en cuando.
+  const CADA_AJUSTES = 10000;
 
   function caja(id) { return document.getElementById(id); }
 
@@ -82,7 +89,7 @@
   mirarAjustes();
   // Y si lo cambia con el widget ya puesto en OBS, llega sin recargar la fuente.
   if (clave && CADA) {
-    setInterval(mirarAjustes, Math.max(500, CADA));
+    setInterval(mirarAjustes, Math.max(CADA, CADA_AJUSTES));
   } else if (clave && window.Eventos) {
     Eventos.usarDireccion(direccionCanal);
     Eventos.vigilar('widgets', mirarAjustes, true);

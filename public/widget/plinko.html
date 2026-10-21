@@ -144,9 +144,9 @@
     // ?siempre=1 (o la casilla de Configuración › Widgets) deja el tablero
     // puesto también en el directo, para quien lo quiera fijo en una esquina
     // en vez de que aparezca y desaparezca. Lo lleva widget-base.js.
-    // Con ?cada= se fuerza el reloj de antes, en milisegundos, y se descarta el
-    // canal de avisos. No hace falta para nada normal.
-    const CADA = Number(params.get('cada')) || 0;
+    // Pregunta cada 2 s en vez de quedarse con el canal de avisos abierto,
+    // como los demás widgets (ver CADA en widget-base.js).
+    const CADA = Widget.CADA;
 
     const lienzo = document.getElementById('lienzo');
     const todo = document.getElementById('todo');
