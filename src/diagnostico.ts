@@ -96,6 +96,12 @@ export function middleware(req: any, res: any, next: () => void): void {
   next();
 }
 
+// Si esta atendiendo algo ahora mismo: una peticion o un canal abierto. Ver
+// instancia.ts, que solo deja irse a un proceso sobrante cuando no lo esta.
+export function ocupado(): boolean {
+  return peticiones.size > 0;
+}
+
 // Marca una operacion larga. Devuelve la funcion de acabarla.
 export function medir(nombre: string, datos?: Record<string, unknown>): () => void {
   const id = ++contador;

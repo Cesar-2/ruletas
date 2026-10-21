@@ -30,6 +30,7 @@ import path from 'path';
 import crypto from 'crypto';
 import zlib from 'zlib';
 import * as diagnostico from './diagnostico';
+import * as instancia from './instancia';
 
 const app = express();
 // Lo primero: cuenta todas las peticiones, tambien las que se quedan
@@ -3473,8 +3474,20 @@ process.on('unhandledRejection', (err) => {
   process.exit(1);
 });
 
-app.listen(PORT, () => {
+const servidor = app.listen(PORT, () => {
   registro.apuntar('info', 'arranque', { puerto: PORT, pid: process.pid, msDesdeInicio: Date.now() - ARRANQUE });
+  // Un solo proceso al mando de los datos: si queda otro de un despliegue
+  // anterior, se va solo en cuanto no atienda a nadie. Ver instancia.ts.
+  ensureDataDir();
+  instancia.iniciar({
+    archivo: path.join(DATA_DIR, 'instancia.json'),
+    ocupado: diagnostico.ocupado,
+    salir: () => {
+      servidor.close(() => process.exit(0));
+      // Por si algo no suelta la conexion: se va igual.
+      setTimeout(() => process.exit(0), 10000).unref();
+    }
+  });
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Datos en: ${DATA_DIR}`);
   migrarAssetsSubidos();
