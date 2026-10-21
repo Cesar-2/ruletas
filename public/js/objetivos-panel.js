@@ -163,6 +163,22 @@
       return (nodo.subs || []).filter((s) => s.hecho).length + '/' + (nodo.subs || []).length;
     }
 
+    // Las filas ya hechas, con lo que enseñan («firma»). Antes la lista se
+    // rehacía entera a cada clic, cada fila con sus botones y sus eventos: con
+    // cientos de objetivos eso eran decenas de miles de elementos dos veces
+    // por clic (al adelantarse y al contestar el servidor), y la página se
+    // quedaba congelada. Ahora solo se rehace la fila que cambia; las demás se
+    // quedan, o como mucho se cambian de sitio.
+    //
+    //   'o:<id>'  la fila de un objetivo
+    //   'a:<id>'  el campo de añadir dentro de ese
+    const filas = new Map();
+    // Lo pintado, por id. Los eventos no van en cada fila sino en la caja, y
+    // de aquí sacan de cuál se trata.
+    let pintados = new Map();
+
+    const cajaObjetivos = document.getElementById('objetivosLista');
+
     function pintarObjetivos() {
       const lista = vista();
       // Un borrador que ya coincide con lo guardado no es nada por guardar.
@@ -180,12 +196,12 @@
       document.getElementById('objetivosAgrupar').disabled = !hechos;
       document.getElementById('objetivosVaciar').disabled = !lista.length;
 
-      const caja = document.getElementById('objetivosLista');
-      // La lista se rehace entera, así que el campo en el que se estaba
-      // escribiendo desaparece. Se apunta cuál era, con lo escrito y el
-      // cursor, para volver a ponerlo: si no, al salir de un texto (que lo
-      // guarda) y pinchar en el siguiente, la respuesta se llevaba el foco y lo
-      // que se empezaba a escribir.
+      const caja = cajaObjetivos;
+      // La fila del campo en el que se estaba escribiendo puede rehacerse (o
+      // moverse, que también le quita el foco). Se apunta cuál era, con lo
+      // escrito y el cursor, para volver a ponerlo: si no, al salir de un texto
+      // (que lo guarda) y pinchar en el siguiente, la respuesta se llevaba el
+      // foco y lo que se empezaba a escribir.
       const activo = document.activeElement;
       let foco = null;
       if (activo && caja.contains(activo) && activo.tagName === 'INPUT') {
@@ -201,9 +217,16 @@
           };
         }
       }
-      caja.innerHTML = '';
-      pintarNivel(caja, lista, 0);
-      if (foco) {
+
+      const quedan = [];
+      const usadas = new Set();
+      pintados = new Map();
+      pintarNivel(quedan, usadas, lista, 0);
+      quedan.push(raizSoltar);
+      colocarFilas(caja, quedan);
+      for (const clave of filas.keys()) if (!usadas.has(clave)) filas.delete(clave);
+
+      if (foco && document.activeElement !== activo) {
         const campo = caja.querySelector(foco.selector);
         if (campo) {
           if (foco.texto !== null) campo.value = foco.texto;
@@ -212,69 +235,91 @@
         }
       }
 
-      // Donde se suelta para sacarlo a la lista principal. Solo se ve
-      // mientras se arrastra algo.
-      const raiz = document.createElement('div');
-      raiz.className = 'objetivos-raiz';
-      raiz.textContent = 'Suelta aquí para sacarlo a la lista principal';
-      raiz.addEventListener('dragover', (ev) => {
-        if (!arrastrando) return;
-        ev.preventDefault();
-        raiz.classList.add('encima');
-      });
-      raiz.addEventListener('dragleave', () => raiz.classList.remove('encima'));
-      raiz.addEventListener('drop', (ev) => {
-        ev.preventDefault();
-        const id = arrastrando;
-        terminarArrastre();
-        if (id && OL.llevar(ordenEditable(), id, '', 'dentro')) despuesDeOrdenar();
-      });
-      caja.appendChild(raiz);
-
       pintarDofus();
+    }
+
+    // Deja en la caja esos elementos y en ese orden, tocando solo lo que no
+    // está ya en su sitio.
+    function colocarFilas(caja, quedan) {
+      let ref = caja.firstChild;
+      for (const el of quedan) {
+        if (el === ref) ref = ref.nextSibling;
+        else caja.insertBefore(el, ref);
+      }
+      while (ref) {
+        const sig = ref.nextSibling;
+        caja.removeChild(ref);
+        ref = sig;
+      }
+    }
+
+    // La fila guardada si sigue enseñando lo mismo; si no, una nueva.
+    function deCache(usadas, clave, firma, hacer) {
+      usadas.add(clave);
+      const hay = filas.get(clave);
+      if (hay && hay.firma === firma) return hay.el;
+      const el = hacer();
+      filas.set(clave, { el, firma });
+      return el;
     }
 
     // Una fila por cada uno, sangrada según lo hondo que esté, y debajo lo que
     // lleve dentro si la carpeta está abierta.
-    function pintarNivel(caja, nodos, nivel) {
+    function pintarNivel(quedan, usadas, nodos, nivel) {
       nodos.forEach((o, i) => {
-        caja.appendChild(filaObjetivo(o, nivel, i, nodos.length));
+        pintados.set(o.id, { o, principal: nivel === 0 });
+        quedan.push(filaObjetivo(usadas, o, nivel, i, nodos.length));
         const hijos = o.subs || [];
-        const abierta = !cerrados.has(o.id);
-        if (abierta && hijos.length) pintarNivel(caja, hijos, nivel + 1);
-        if (abiertos.has(o.id)) caja.appendChild(filaAnadir(o, nivel + 1));
+        if (hijos.length && !cerrados.has(o.id)) pintarNivel(quedan, usadas, hijos, nivel + 1);
+        if (abiertos.has(o.id)) quedan.push(filaAnadir(usadas, o, nivel + 1));
       });
     }
 
-    function filaObjetivo(o, nivel, i, total) {
-      const principal = nivel === 0;
+    const moldeFila = document.createElement('template');
+    moldeFila.innerHTML = '<div class="objetivo">'
+      + '<span class="asa" draggable="true" title="Arrastra para moverlo: al centro de otro lo mete dentro, a su borde lo pone delante o detrás">⠿</span>'
+      + '<button type="button" class="plegar"></button>'
+      + '<input type="checkbox" class="marca" />'
+      + '<input type="text" class="texto" maxlength="140" />'
+      + '<span class="cuenta-subs"></span>'
+      + '<button type="button" class="mini en-proceso"></button>'
+      + '<button type="button" class="mini mas-sub" title="Añadir uno dentro">+ Sub</button>'
+      + '<button type="button" class="mini subir" title="Subir">▲</button>'
+      + '<button type="button" class="mini bajar" title="Bajar">▼</button>'
+      + '<button type="button" class="mini quitar" title="Quitar, con todo lo que tenga dentro">✕</button>'
+      + '</div>';
+
+    function filaObjetivo(usadas, o, nivel, i, total) {
       const hijos = o.subs || [];
-      const fila = document.createElement('div');
+      const abierta = !cerrados.has(o.id);
+      // El puesto no va en la firma: al subir uno, o añadir al final, se
+      // rehacían todos sus hermanos. Lo que depende de él se pone abajo.
+      const firma = JSON.stringify([o.texto, o.hecho, Boolean(o.proceso), nivel,
+        hijos.length ? cuentaHechos(o) : '', abierta]);
+      const fila = deCache(usadas, 'o:' + o.id, firma, () => hacerFila(o, nivel, hijos, abierta));
+      const p = fila.partes;
+      // Lo que se marcó o escribió y no llegó a guardarse (falló) vuelve a lo
+      // que hay. El que se está escribiendo no se toca.
+      p.marca.checked = o.hecho;
+      if (document.activeElement !== p.texto && p.texto.value !== o.texto) p.texto.value = o.texto;
+      p.texto.setAttribute('aria-label', (nivel === 0 ? 'Objetivo ' : 'Sub-objetivo ') + (i + 1));
+      p.subir.disabled = i === 0;
+      p.bajar.disabled = i === total - 1;
+      return fila;
+    }
+
+    function hacerFila(o, nivel, hijos, abierta) {
+      const principal = nivel === 0;
+      const fila = moldeFila.content.firstElementChild.cloneNode(true);
       fila.className = 'objetivo' + (o.hecho ? ' hecho' : '') + (o.proceso ? ' proceso' : '') + (principal ? '' : ' dentro');
       fila.style.marginLeft = (nivel * 1.6) + 'rem';
       fila.dataset.id = o.id;
-      fila.innerHTML = '<span class="asa" draggable="true" title="Arrastra para moverlo: al centro de otro lo mete dentro, a su borde lo pone delante o detrás">⠿</span>'
-        + '<button type="button" class="plegar"></button>'
-        + '<input type="checkbox" class="marca" />'
-        + '<input type="text" class="texto" maxlength="140" />'
-        + '<span class="cuenta-subs"></span>'
-        + (principal ? '<button type="button" class="mini en-proceso"></button>' : '')
-        + '<button type="button" class="mini mas-sub" title="Añadir uno dentro">+ Sub</button>'
-        + '<button type="button" class="mini subir" title="Subir">▲</button>'
-        + '<button type="button" class="mini bajar" title="Bajar">▼</button>'
-        + '<button type="button" class="mini quitar" title="Quitar, con todo lo que tenga dentro">✕</button>';
 
       // Plegar y desplegar, solo si tiene algo dentro.
       const plegar = fila.querySelector('.plegar');
       if (hijos.length) {
-        const abierta = !cerrados.has(o.id);
         plegar.textContent = abierta ? '▾' : '▸';
         plegar.title = abierta ? 'Plegar' : 'Desplegar';
-        plegar.addEventListener('click', () => {
-          if (cerrados.has(o.id)) cerrados.delete(o.id); else cerrados.add(o.id);
-          guardarCerrados();
-          pintarObjetivos();
-        });
         fila.querySelector('.cuenta-subs').textContent = cuentaHechos(o);
       } else {
         plegar.classList.add('vacio');
@@ -282,111 +327,195 @@
       }
 
       const marca = fila.querySelector('.marca');
-      marca.checked = o.hecho;
       marca.setAttribute('aria-label', 'Hecho: ' + o.texto);
-      marca.addEventListener('change', () => objetivosPedir('/api/objetivos/cambiar', { id: o.id, hecho: marca.checked }));
 
       // Lo que sale en el widget: solo los de la lista principal en proceso.
+      const proceso = fila.querySelector('.en-proceso');
       if (principal) {
-        const proceso = fila.querySelector('.en-proceso');
         proceso.textContent = o.proceso ? '▶ En proceso' : '▶';
         proceso.title = o.proceso ? 'Quitar del widget' : 'Poner en proceso: sale en el widget';
         proceso.setAttribute('aria-pressed', o.proceso ? 'true' : 'false');
-        proceso.addEventListener('click', () => objetivosPedir('/api/objetivos/cambiar', { id: o.id, proceso: !o.proceso }));
+      } else {
+        proceso.remove();
       }
 
       const texto = fila.querySelector('.texto');
-      texto.setAttribute('aria-label', (principal ? 'Objetivo ' : 'Sub-objetivo ') + (i + 1));
-      editableEnSitio(texto, o.texto, (nuevo) => objetivosPedir('/api/objetivos/cambiar', { id: o.id, texto: nuevo }));
+      texto.value = o.texto;
+      fila.partes = { marca, texto, subir: fila.querySelector('.subir'), bajar: fila.querySelector('.bajar') };
+      return fila;
+    }
 
-      fila.querySelector('.mas-sub').addEventListener('click', () => {
+    // El campo para meter uno dentro de `padre`, en su sitio del árbol.
+    function filaAnadir(usadas, padre, nivel) {
+      return deCache(usadas, 'a:' + padre.id, JSON.stringify([padre.texto, nivel]), () => {
+        const fila = document.createElement('div');
+        fila.className = 'objetivo-anadir';
+        fila.dataset.padre = padre.id;
+        fila.style.marginLeft = (nivel * 1.6) + 'rem';
+        fila.innerHTML = '<input type="text" class="texto" maxlength="140" placeholder="Nuevo dentro de «' + escapeHtml(padre.texto) + '» (Enter para añadir, Esc para cerrar)" />';
+        fila.querySelector('input').setAttribute('aria-label', 'Nuevo sub-objetivo de ' + padre.texto);
+        return fila;
+      });
+    }
+
+    // Donde se suelta para sacarlo a la lista principal. Solo se ve mientras
+    // se arrastra algo.
+    const raizSoltar = document.createElement('div');
+    raizSoltar.className = 'objetivos-raiz';
+    raizSoltar.textContent = 'Suelta aquí para sacarlo a la lista principal';
+
+    // --- Lo que se hace en la lista -------------------------------------------
+    // Todo en la caja y no en cada fila: así una fila nueva no lleva diez
+    // eventos suyos, y la que se reutiliza no se queda con los de antes.
+
+    // La fila (y lo pintado) de donde vino un evento.
+    function filaDe(el) {
+      const fila = el && el.closest && el.closest('.objetivo');
+      const d = fila && pintados.get(fila.dataset.id);
+      return d ? { fila, o: d.o, principal: d.principal } : null;
+    }
+
+    // Solo en el borrador: no sale nada hasta «Guardar».
+    function subirBajar(id, hacia, clase) {
+      if (!OL.subirBajar(ordenEditable(), id, hacia)) return;
+      despuesDeOrdenar();
+      // El foco sigue al que se movió, para poder seguir pulsando.
+      const b = document.querySelector('.objetivo[data-id="' + id + '"] .' + clase);
+      if (b && !b.disabled) b.focus();
+    }
+
+    cajaObjetivos.addEventListener('click', (ev) => {
+      const boton = ev.target.closest('button');
+      const d = boton && filaDe(boton);
+      if (!d) return;
+      const o = d.o;
+      const es = (clase) => boton.classList.contains(clase);
+      if (es('plegar')) {
+        if (!(o.subs || []).length) return;
+        if (cerrados.has(o.id)) cerrados.delete(o.id); else cerrados.add(o.id);
+        guardarCerrados();
+        pintarObjetivos();
+      } else if (es('en-proceso')) {
+        objetivosPedir('/api/objetivos/cambiar', { id: o.id, proceso: !o.proceso });
+      } else if (es('mas-sub')) {
         abiertos.add(o.id);
         cerrados.delete(o.id);
         guardarCerrados();
         pintarObjetivos();
         const campo = document.querySelector('.objetivo-anadir[data-padre="' + o.id + '"] input');
         if (campo) campo.focus();
-      });
+      } else if (es('subir')) {
+        subirBajar(o.id, -1, 'subir');
+      } else if (es('bajar')) {
+        subirBajar(o.id, 1, 'bajar');
+      } else if (es('quitar')) {
+        objetivosPedir('/api/objetivos/quitar', { id: o.id });
+      }
+    });
 
-      const subir = fila.querySelector('.subir');
-      const bajar = fila.querySelector('.bajar');
-      subir.disabled = i === 0;
-      bajar.disabled = i === total - 1;
-      // Solo en el borrador: no sale nada hasta «Guardar».
-      const subirBajar = (hacia, clase) => {
-        if (!OL.subirBajar(ordenEditable(), o.id, hacia)) return;
-        despuesDeOrdenar();
-        // El foco sigue al que se movió, para poder seguir pulsando.
-        const b = document.querySelector('.objetivo[data-id="' + o.id + '"] .' + clase);
-        if (b && !b.disabled) b.focus();
-      };
-      subir.addEventListener('click', () => subirBajar(-1, 'subir'));
-      bajar.addEventListener('click', () => subirBajar(1, 'bajar'));
-      fila.querySelector('.quitar').addEventListener('click', () => objetivosPedir('/api/objetivos/quitar', { id: o.id }));
+    cajaObjetivos.addEventListener('change', (ev) => {
+      if (!ev.target.classList.contains('marca')) return;
+      const d = filaDe(ev.target);
+      if (d) objetivosPedir('/api/objetivos/cambiar', { id: d.o.id, hecho: ev.target.checked });
+    });
 
-      prepararArrastre(fila, o);
-      return fila;
-    }
-
-    // El campo para meter uno dentro de `padre`, en su sitio del árbol.
-    function filaAnadir(padre, nivel) {
-      const fila = document.createElement('div');
-      fila.className = 'objetivo-anadir';
-      fila.dataset.padre = padre.id;
-      fila.style.marginLeft = (nivel * 1.6) + 'rem';
-      fila.innerHTML = '<input type="text" class="texto" maxlength="140" placeholder="Nuevo dentro de «' + escapeHtml(padre.texto) + '» (Enter para añadir, Esc para cerrar)" />';
-      const campo = fila.querySelector('input');
-      campo.setAttribute('aria-label', 'Nuevo sub-objetivo de ' + padre.texto);
-      campo.addEventListener('keydown', async (ev) => {
-        if (ev.key === 'Escape') { abiertos.delete(padre.id); pintarObjetivos(); return; }
+    // El texto se corrige ahí mismo: se guarda al salir o con Enter, y Escape
+    // lo deja como estaba.
+    cajaObjetivos.addEventListener('keydown', async (ev) => {
+      const campo = ev.target;
+      const anadir = campo.closest && campo.closest('.objetivo-anadir');
+      if (anadir) {
+        const padre = anadir.dataset.padre;
+        if (ev.key === 'Escape') { abiertos.delete(padre); pintarObjetivos(); return; }
         if (ev.key !== 'Enter') return;
         const t = campo.value.trim();
         if (!t) return;
-        if (await objetivosPedir('/api/objetivos', { texto: t, padre: padre.id })) {
-          const otra = document.querySelector('.objetivo-anadir[data-padre="' + padre.id + '"] input');
-          if (otra) otra.focus();
+        if (await objetivosPedir('/api/objetivos', { texto: t, padre })) {
+          const otra = document.querySelector('.objetivo-anadir[data-padre="' + padre + '"] input');
+          if (otra) {
+            // Listo para el siguiente, salvo que ya se esté escribiendo otro.
+            if (otra.value.trim() === t) otra.value = '';
+            otra.focus();
+          }
         }
-      });
-      return fila;
-    }
+        return;
+      }
+      if (!campo.classList.contains('texto')) return;
+      const d = filaDe(campo);
+      if (!d) return;
+      if (ev.key === 'Enter') campo.blur();
+      if (ev.key === 'Escape') { campo.value = d.o.texto; campo.blur(); }
+    });
+
+    cajaObjetivos.addEventListener('focusout', (ev) => {
+      const campo = ev.target;
+      if (!campo.classList.contains('texto')) return;
+      const d = filaDe(campo);
+      if (!d) return;
+      const nuevo = campo.value.trim();
+      if (nuevo === d.o.texto) return;
+      if (!nuevo) { campo.value = d.o.texto; return; }
+      objetivosPedir('/api/objetivos/cambiar', { id: d.o.id, texto: nuevo });
+    });
 
     // Arrastrar como en las carpetas: se coge por el asa y se suelta encima
     // de otra fila. El tercio del medio la mete dentro; los bordes, delante o
     // detrás de ella.
-    function prepararArrastre(fila, o) {
-      const asa = fila.querySelector('.asa');
-      asa.addEventListener('dragstart', (ev) => {
-        arrastrando = o.id;
-        prohibidos = idsDe(o);
-        ev.dataTransfer.effectAllowed = 'move';
-        try { ev.dataTransfer.setData('text/plain', o.id); } catch (e) { /* algunos navegadores */ }
-        try { ev.dataTransfer.setDragImage(fila, 20, 16); } catch (e) { /* sin imagen, la del asa */ }
-        document.getElementById('objetivosLista').classList.add('arrastrando');
-        fila.classList.add('cogido');
-      });
-      asa.addEventListener('dragend', terminarArrastre);
+    cajaObjetivos.addEventListener('dragstart', (ev) => {
+      if (!ev.target.classList || !ev.target.classList.contains('asa')) return;
+      const d = filaDe(ev.target);
+      if (!d) return;
+      arrastrando = d.o.id;
+      prohibidos = idsDe(d.o);
+      ev.dataTransfer.effectAllowed = 'move';
+      try { ev.dataTransfer.setData('text/plain', d.o.id); } catch (e) { /* algunos navegadores */ }
+      try { ev.dataTransfer.setDragImage(d.fila, 20, 16); } catch (e) { /* sin imagen, la del asa */ }
+      cajaObjetivos.classList.add('arrastrando');
+      d.fila.classList.add('cogido');
+    });
+    cajaObjetivos.addEventListener('dragend', terminarArrastre);
 
-      fila.addEventListener('dragover', (ev) => {
-        if (!arrastrando || prohibidos.has(o.id)) return;
+    cajaObjetivos.addEventListener('dragover', (ev) => {
+      if (!arrastrando) return;
+      if (ev.target.closest('.objetivos-raiz')) {
         ev.preventDefault();
-        ev.dataTransfer.dropEffect = 'move';
-        const zona = zonaDe(fila, ev);
-        fila.classList.toggle('soltar-antes', zona === 'antes');
-        fila.classList.toggle('soltar-dentro', zona === 'dentro');
-        fila.classList.toggle('soltar-despues', zona === 'despues');
-      });
-      fila.addEventListener('dragleave', () => fila.classList.remove('soltar-antes', 'soltar-dentro', 'soltar-despues'));
-      fila.addEventListener('drop', (ev) => {
-        if (!arrastrando || prohibidos.has(o.id)) return;
+        raizSoltar.classList.add('encima');
+        return;
+      }
+      const d = filaDe(ev.target);
+      if (!d || prohibidos.has(d.o.id)) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'move';
+      const zona = zonaDe(d.fila, ev);
+      d.fila.classList.toggle('soltar-antes', zona === 'antes');
+      d.fila.classList.toggle('soltar-dentro', zona === 'dentro');
+      d.fila.classList.toggle('soltar-despues', zona === 'despues');
+    });
+
+    cajaObjetivos.addEventListener('dragleave', (ev) => {
+      const el = ev.target.closest && ev.target.closest('.objetivo, .objetivos-raiz');
+      if (el) el.classList.remove('soltar-antes', 'soltar-dentro', 'soltar-despues', 'encima');
+    });
+
+    cajaObjetivos.addEventListener('drop', (ev) => {
+      if (!arrastrando) return;
+      if (ev.target.closest('.objetivos-raiz')) {
         ev.preventDefault();
         const id = arrastrando;
-        const como = zonaDe(fila, ev);
         terminarArrastre();
-        // Al meterlo dentro, la carpeta se abre para que se vea dónde quedó.
-        if (como === 'dentro') { cerrados.delete(o.id); guardarCerrados(); }
-        if (OL.llevar(ordenEditable(), id, o.id, como)) despuesDeOrdenar();
-      });
-    }
+        if (OL.llevar(ordenEditable(), id, '', 'dentro')) despuesDeOrdenar();
+        return;
+      }
+      const d = filaDe(ev.target);
+      if (!d || prohibidos.has(d.o.id)) return;
+      ev.preventDefault();
+      const id = arrastrando;
+      const como = zonaDe(d.fila, ev);
+      terminarArrastre();
+      // Al meterlo dentro, la carpeta se abre para que se vea dónde quedó.
+      if (como === 'dentro') { cerrados.delete(d.o.id); guardarCerrados(); }
+      if (OL.llevar(ordenEditable(), id, d.o.id, como)) despuesDeOrdenar();
+    });
 
     function zonaDe(fila, ev) {
       const caja = fila.getBoundingClientRect();
@@ -397,29 +526,12 @@
     function terminarArrastre() {
       arrastrando = null;
       prohibidos = new Set();
-      const caja = document.getElementById('objetivosLista');
-      caja.classList.remove('arrastrando');
-      caja.querySelectorAll('.cogido, .soltar-antes, .soltar-dentro, .soltar-despues, .encima').forEach((el) => {
+      cajaObjetivos.classList.remove('arrastrando');
+      cajaObjetivos.querySelectorAll('.cogido, .soltar-antes, .soltar-dentro, .soltar-despues, .encima').forEach((el) => {
         el.classList.remove('cogido', 'soltar-antes', 'soltar-dentro', 'soltar-despues', 'encima');
       });
       // Lo que llegó del servidor mientras se arrastraba.
       if (pintarAlSoltar) { pintarAlSoltar = false; pintarObjetivos(); }
-    }
-
-    // Un campo de texto que se corrige ahí mismo: se guarda al salir o con
-    // Enter, y Escape lo deja como estaba.
-    function editableEnSitio(campo, valor, guardar) {
-      campo.value = valor;
-      campo.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') campo.blur();
-        if (ev.key === 'Escape') { campo.value = valor; campo.blur(); }
-      });
-      campo.addEventListener('blur', () => {
-        const nuevo = campo.value.trim();
-        if (nuevo === valor) return;
-        if (!nuevo) { campo.value = valor; return; }
-        guardar(nuevo);
-      });
     }
 
     // Los trece Dofus, siempre todos: un clic lo marca como conseguido y otro

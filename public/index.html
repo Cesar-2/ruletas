@@ -662,6 +662,9 @@
     .objetivos-lista{display:flex;flex-direction:column;gap:.35rem;margin-top:.6rem}
     .objetivo{display:flex;align-items:center;gap:.5rem;padding:.35rem .6rem;border-radius:10px;
       background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10)}
+    /* Las que no se ven no se maquetan: con cientos, cambiar una fila hacía
+       que el navegador recolocara todas (una décima de segundo por clic). */
+    .objetivo,.objetivo-anadir{content-visibility:auto;contain-intrinsic-size:auto 40px}
     .objetivo .marca{width:18px;height:18px;flex:none;accent-color:#6ee7b7;cursor:pointer}
     .objetivo .texto{flex:1;min-width:0;background:transparent;border:1px solid transparent;color:#e6eef8;padding:.3rem .4rem;border-radius:6px}
     .objetivo .texto:focus{border-color:rgba(255,255,255,0.2);background:var(--card)}
