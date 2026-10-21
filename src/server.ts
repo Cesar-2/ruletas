@@ -29,8 +29,12 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import zlib from 'zlib';
+import * as diagnostico from './diagnostico';
 
 const app = express();
+// Lo primero: cuenta todas las peticiones, tambien las que se quedan
+// esperando. Ver diagnostico.ts.
+app.use(diagnostico.middleware);
 // Publicado detras de un proxy (Render, Fly, nginx...): asi req.protocol dice
 // https y la cookie de sesion puede ir marcada como segura.
 if (process.env.TRUST_PROXY) app.set('trust proxy', 1);
@@ -85,6 +89,7 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 // Donde viven los datos. En un hosting, cada despliegue reemplaza la carpeta
 // de la aplicacion, asi que si los datos estan dentro se pierden en cada
 // deploy: con RULETON_DATA se apuntan a una ruta de fuera, que sobrevive.
+const ARRANQUE = Date.now();
 const DATA_DIR = process.env.RULETON_DATA
   ? path.resolve(process.env.RULETON_DATA)
   : path.join(process.cwd(), 'data');
@@ -92,6 +97,7 @@ const DATA_DIR = process.env.RULETON_DATA
 function catalogoFile(juego: juegos.Juego, familia: juegos.Familia): string {
   return path.join(DATA_DIR, juegos.archivoCache(juego, familia));
 }
+diagnostico.iniciar({ puerto: PORT, datos: DATA_DIR });
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const USERS_DIR = path.join(DATA_DIR, 'users');
@@ -607,7 +613,9 @@ async function leerOBajarCatalogo(juego: juegos.Juego, familia: juegos.Familia):
         const sello = st.mtimeMs + ':' + st.size;
         const enMemoria = familia === 'resources' ? catalogosEnMemoria.get(file) : undefined;
         if (enMemoria && enMemoria.sello === sello) return enMemoria.items;
-        const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+        const acabar = diagnostico.medir('leer-catalogo', { que, MB: Math.round(st.size / 1048576 * 10) / 10 });
+        let parsed: unknown;
+        try { parsed = JSON.parse(fs.readFileSync(file, 'utf8')); } finally { acabar(); }
         if (Array.isArray(parsed)) {
           if (familia === 'resources') catalogosEnMemoria.set(file, { sello, items: parsed });
           return parsed;
@@ -627,11 +635,13 @@ async function leerOBajarCatalogo(juego: juegos.Juego, familia: juegos.Familia):
   // catalogo vacio.
   if (!fuente.url) return [];
   try {
-    const res = await axios.get(fuente.url, { timeout: 20000 });
+    const res = await diagnostico.medida('bajar-catalogo', { que }, () => axios.get(fuente.url, { timeout: 20000 }));
+    const acabar = diagnostico.medir('traducir-catalogo', { que });
     // Cada fuente sabe sacar su lista y traducir sus objetos al formato comun.
     // Los que no se pueden traducir (sin id o sin nombre) se quedan fuera: un
     // objeto sin id no se podria ni excluir ni marcar.
     const items = fuente.lista(res.data).map((x: any) => fuente.normaliza(x)).filter(Boolean);
+    acabar();
     if (items.length === 0) {
       console.warn(`Remote ${que} response did not contain items; returning empty array`);
       return [];
@@ -2143,8 +2153,13 @@ async function enviarComprimido(req: Request, res: Response, clave: string, sell
     const k = clave + '#' + sello;
     let p = comprimiendo.get(k);
     if (!p) {
-      p = (async () => gzip(Buffer.from(JSON.stringify(await hacer()), 'utf8')))()
-        .finally(() => comprimiendo.delete(k));
+      p = diagnostico.medida('comprimir', { clave }, async () => {
+        const datos = await hacer();
+        const acabar = diagnostico.medir('serializar', { clave });
+        let json: Buffer;
+        try { json = Buffer.from(JSON.stringify(datos), 'utf8'); } finally { acabar(); }
+        return gzip(json);
+      }).finally(() => comprimiendo.delete(k));
       comprimiendo.set(k, p);
     }
     c = { sello, gz: await p };
@@ -3459,7 +3474,7 @@ process.on('unhandledRejection', (err) => {
 });
 
 app.listen(PORT, () => {
-  registro.apuntar('info', 'arranque', { puerto: PORT, pid: process.pid });
+  registro.apuntar('info', 'arranque', { puerto: PORT, pid: process.pid, msDesdeInicio: Date.now() - ARRANQUE });
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Datos en: ${DATA_DIR}`);
   migrarAssetsSubidos();
@@ -3467,7 +3482,9 @@ app.listen(PORT, () => {
   // leidos (o bajados, si no estan) ya al arrancar, para que no le toque
   // esperarlos a la primera peticion.
   for (const j of juegos.JUEGOS) {
-    fetchItemsCached(j).catch((err) => console.error(`Failed to preload ${j} resources:`, err));
+    diagnostico.medida('precarga', { juego: j }, () => fetchItemsCached(j))
+      .then((items) => registro.apuntar('info', 'precarga', { juego: j, objetos: items.length }))
+      .catch((err) => console.error(`Failed to preload ${j} resources:`, err));
   }
   console.log('Endpoints: GET /api/items  GET /api/random-items?n=1  POST /api/draw');
   console.log('           GET /api/exclusions  PUT /api/exclusions');
