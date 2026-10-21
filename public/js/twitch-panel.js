@@ -48,7 +48,7 @@
       }
       document.getElementById('ruletaRecompensaCrear').textContent = r ? 'Actualizar en Twitch' : 'Crear en Twitch';
       document.getElementById('ruletaRecompensaEstado').textContent = !e.conectado && !r
-        ? 'Conecta tu cuenta de Twitch arriba para poder crearla.'
+        ? 'Conecta primero tu cuenta de Twitch en Configuración › Twitch para poder crearla.'
         : r
           ? `Se juega canjeando «${r.titulo}» por ${Number(r.coste).toLocaleString('es-ES')} puntos: su nombre va a la Ruleta de objetos.`
           : e.recompensa

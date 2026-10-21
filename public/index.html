@@ -2296,17 +2296,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
           <div class="config-section">
             <h4>🎡 Jugar a la Ruleta de objetos</h4>
             <p class="meta">Los espectadores pueden pagar una tirada de la Ruleta de objetos <strong>con puntos del canal</strong> o <strong>con puntos de la página</strong> (los del marcador, que se ganan en la carrera, la batalla y el plinko). Las dos monedas van por separado: Twitch no deja convertir unos puntos en otros.</p>
-            <!-- La recompensa la crea el Ruletón en Twitch, como la de los
-                 cartones: solo así se pueden devolver los puntos. Quien la
-                 canjea pone su nombre en la ruleta y tú se la giras. -->
-            <div class="config-actions" style="flex-wrap:wrap">
-              <label class="meta" for="ruletaRecompensaTitulo">Con puntos del canal</label>
-              <input id="ruletaRecompensaTitulo" type="text" maxlength="45" placeholder="Ruleta de objetos" style="width:170px" />
-              <label class="meta" for="ruletaRecompensaCoste">Cuesta</label>
-              <input id="ruletaRecompensaCoste" type="number" min="1" max="10000000" placeholder="puntos" style="width:100px" />
-              <button type="button" id="ruletaRecompensaCrear">Crear en Twitch</button>
-            </div>
-            <p class="meta" id="ruletaRecompensaEstado"></p>
+            <p class="meta">La recompensa de puntos del canal se crea en <strong>Configuración › Minijuegos › 🎡 Ruletas</strong>, como la de los cartones del bingo.</p>
             <div class="config-grid">
               <div class="config-field">
                 <label for="canjeCoste">Con puntos de la página: puntos por tirada (0 = apagado)</label>
@@ -2325,7 +2315,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               <button type="button" id="canjeGuardar">Guardar</button>
               <span class="meta" id="canjeGuardado"></span>
             </div>
-            <p class="meta">Con puntos del canal, quien canjea la recompensa pone su nombre en <strong>Nombre del ganador</strong> de la Ruleta de objetos y tú le das a sortear en directo; si llegan varios, esperan en fila. Si lo quitas de la fila sin girar, Twitch le devuelve los puntos. Hace falta tener Twitch conectado y ser afiliado o partner. «Objetos por tirada» es para los puntos de la página, que sortean solos. Para esos basta con el canal de tu perfil: si no le llegan, no se le cobra nada, y si no quedan objetos se le devuelven.</p>
+            <p class="meta">«Objetos por tirada» es para los puntos de la página, que sortean solos. Para esos basta con el canal de tu perfil: si no le llegan, no se le cobra nada, y si no quedan objetos se le devuelven.</p>
           </div>
           </div>
 
@@ -2344,6 +2334,21 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
 
             <div class="cfg-subpanel active" id="mini-ruleta-panel">
+            <h4>Recompensa de puntos del canal</h4>
+            <!-- La recompensa la crea el Ruletón en Twitch, como la de los
+                 cartones: solo así se pueden devolver los puntos. Quien la
+                 canjea pone su nombre en la Ruleta de objetos y tú se la
+                 giras. Ver js/twitch-panel.js y js/turnos-ruleta.js. -->
+            <div class="draw-controls">
+              <label class="meta" for="ruletaRecompensaTitulo">Recompensa</label>
+              <input id="ruletaRecompensaTitulo" type="text" maxlength="45" placeholder="Ruleta de objetos" style="width:170px" />
+              <label class="meta" for="ruletaRecompensaCoste">Cuesta</label>
+              <input id="ruletaRecompensaCoste" type="number" min="1" max="10000000" placeholder="puntos" style="width:100px" />
+              <button type="button" id="ruletaRecompensaCrear">Crear en Twitch</button>
+            </div>
+            <p class="meta" id="ruletaRecompensaEstado"></p>
+            <p class="meta">Quien la canjea pone su nombre en <strong>Nombre del ganador</strong> de la Ruleta de objetos y tú le das a sortear en directo; si llegan varios, esperan en fila. Si lo quitas de la fila sin girar, Twitch le devuelve los puntos. Hace falta tener Twitch conectado y ser afiliado o partner.</p>
+
             <h4>Animación del sorteo</h4>
             <div class="config-grid">
               <div class="config-field">
@@ -8097,7 +8102,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (cual === 'acceso') cargarAcceso();
         if (cual === 'minijuegos') cargarMinijuegos();
         if (cual === 'widgets') cargarWidgets();
-        if (cual === 'twitch') cargarTwitch();
+        // Minijuegos › Ruletas lleva la recompensa de la ruleta, que vive en
+        // la conexión con Twitch.
+        if (cual === 'twitch' || cual === 'minijuegos') cargarTwitch();
       });
     });
     pintarCfgGuardar();

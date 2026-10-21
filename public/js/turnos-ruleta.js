@@ -1,5 +1,5 @@
 // Los turnos de la Ruleta de objetos: quien ha canjeado la recompensa de puntos
-// del canal que crea el Ruletón (Configuración › Twitch). Su nombre va solo al
+// del canal que crea el Ruletón (Configuración › Minijuegos › Ruletas). Su nombre va solo al
 // «Nombre del ganador» y el streamer le da a sortear en directo, como con los
 // cartones del bingo: canjeas y sale tu nombre. Ver src/turnosruleta.ts.
 //
