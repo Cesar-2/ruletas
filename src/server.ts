@@ -574,7 +574,24 @@ function juegoDe(req: Request): juegos.Juego {
 // comprimida (ver enviarComprimido).
 const catalogosEnMemoria = new Map<string, { sello: string; items: any[] }>();
 
-async function fetchCatalogBruto(juego: juegos.Juego, familia: juegos.Familia): Promise<any[]> {
+// Un catalogo que ya se esta leyendo o bajando no se vuelve a pedir: quien
+// llega mientras tanto espera al mismo. Sin esto, al arrancar con la cache
+// vacia (o tras un despliegue que se la llevaba) cada pestaña y cada widget
+// lanzaba su propia descarga de 13,8 MB y su propio JSON.parse, el servidor se
+// quedaba sin memoria y sin aire, y el proxy contestaba 504.
+const catalogosEnCamino = new Map<string, Promise<any[]>>();
+
+function fetchCatalogBruto(juego: juegos.Juego, familia: juegos.Familia): Promise<any[]> {
+  const file = catalogoFile(juego, familia);
+  let enCamino = catalogosEnCamino.get(file);
+  if (!enCamino) {
+    enCamino = leerOBajarCatalogo(juego, familia).finally(() => catalogosEnCamino.delete(file));
+    catalogosEnCamino.set(file, enCamino);
+  }
+  return enCamino;
+}
+
+async function leerOBajarCatalogo(juego: juegos.Juego, familia: juegos.Familia): Promise<any[]> {
   ensureDataDir();
   const file = catalogoFile(juego, familia);
   const que = `${familia} de ${juego}`;
@@ -2111,12 +2128,25 @@ app.get('/api/widget/nombres', (req: Request, res: Response) => {
 //   clave  de quien es la respuesta (catalogo, juego y, si va retocado, usuario)
 //   sello  cambia cuando cambia lo que hay dentro
 //   hacer  la respuesta, solo si no esta guardada con ese sello
+//
+// La compresion va fuera del hilo principal (zlib.gzip, no gzipSync): los
+// equipables son ~9 MB de JSON y comprimirlos de golpe paraba todo el servidor
+// lo que tardara. Y si llegan varias pidiendo lo mismo, se hace una vez.
 const comprimidas = new Map<string, { sello: string; gz: Buffer }>();
+const comprimiendo = new Map<string, Promise<Buffer>>();
+const gzip = (b: Buffer) => new Promise<Buffer>((ok, mal) => zlib.gzip(b, (e, r) => (e ? mal(e) : ok(r))));
 async function enviarComprimido(req: Request, res: Response, clave: string, sello: string,
     hacer: () => Promise<unknown>): Promise<void> {
   let c = comprimidas.get(clave);
   if (!c || c.sello !== sello) {
-    c = { sello, gz: zlib.gzipSync(Buffer.from(JSON.stringify(await hacer()), 'utf8')) };
+    const k = clave + '#' + sello;
+    let p = comprimiendo.get(k);
+    if (!p) {
+      p = (async () => gzip(Buffer.from(JSON.stringify(await hacer()), 'utf8')))()
+        .finally(() => comprimiendo.delete(k));
+      comprimiendo.set(k, p);
+    }
+    c = { sello, gz: await p };
     // Sin archivo todavia, lo de ahora es una descarga (o un fallo al bajarlo):
     // no se guarda, que la proxima vez ya tendra su sello de verdad.
     if (!sello.includes('sin-archivo')) comprimidas.set(clave, c);
@@ -3397,6 +3427,12 @@ app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Datos en: ${DATA_DIR}`);
   migrarAssetsSubidos();
+  // Los recursos se piden nada mas abrir la pagina y en cada sorteo: se dejan
+  // leidos (o bajados, si no estan) ya al arrancar, para que no le toque
+  // esperarlos a la primera peticion.
+  for (const j of juegos.JUEGOS) {
+    fetchItemsCached(j).catch((err) => console.error(`Failed to preload ${j} resources:`, err));
+  }
   console.log('Endpoints: GET /api/items  GET /api/random-items?n=1  POST /api/draw');
   console.log('           GET /api/exclusions  PUT /api/exclusions');
   console.log('           GET /api/tags  PUT /api/tags');
