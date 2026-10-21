@@ -1917,16 +1917,6 @@
             </div>
             <div id="winnersList"></div>
           </section>
-
-          <!-- Lo que escriben en el chat los de la lista de arriba: suele ser
-               donde están o con qué personaje, que es lo que hace falta para
-               entregar. -->
-          <section>
-            <h3 id="winnersChatTitulo">💬 Lo que escribe el último ganador en el chat</h3>
-            <p class="meta">Solo lo que escribe el ganador actual de este servidor desde que ganó, lo más nuevo arriba. Del resto del chat no se guarda nada, y al ganar otro se borra. Se lee el chat del canal puesto en Configuración › Mi cuenta.</p>
-            <div id="winnersChatEstado" class="meta" hidden></div>
-            <div id="winnersChat" class="winners-chat"></div>
-          </section>
         </div>
 
         <div class="tab-panel" id="history-panel">
@@ -4468,18 +4458,16 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       renderWinners();
       // Cambian los ganadores, cambia de quién se enseña el chat. Y desde el
       // primer ganador cargado (ya con sesión) se queda vigilando: el apartado
-      // está en Ganadores y al final de los minijuegos, que es lo que se tiene
-      // abierto casi siempre.
+      // está al final de los minijuegos, que es lo que se tiene abierto casi
+      // siempre.
       Eventos.vigilar('ganadores', cargarChatGanadores, true);
       cargarChatGanadores();
     }
 
-    // Lo que ha escrito en el chat el último ganador. Va en dos sitios: la
-    // pestaña de Ganadores, con el servidor que se mire allí, y el final de los
+    // Lo que ha escrito en el chat el último ganador, al final de los
     // minijuegos, con el servidor con el que se sortea. El servidor avisa
     // ('ganadores') cuando escribe.
     function cargarChatGanadores() {
-      pintarChatGanadores('winnersChat', 'winnersChatEstado', winnersServer || currentServer);
       pintarChatGanadores('gamesChat', 'gamesChatEstado', currentServer);
     }
 
@@ -8528,7 +8516,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (tab.dataset.tab === 'games') { renderEditor(); cargarCarrera(); cargarBatalla(); cargarPlinko(); }
       ajustarAcciones();
         if (tab.dataset.tab === 'puntos') cargarPuntos();
-        if (tab.dataset.tab === 'winners' || tab.dataset.tab === 'games') cargarChatGanadores();
+        if (tab.dataset.tab === 'games') cargarChatGanadores();
         if (tab.dataset.tab === 'objetivos') cargarObjetivos();
         if (tab.dataset.tab === 'uso') cargarUso();
         document.getElementById('fontDock').hidden = tab.dataset.tab !== 'config';
