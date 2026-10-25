@@ -94,8 +94,23 @@
   .resultado .hipotesis[hidden] { display: none }
   /* La cuenta atrás para escribir en el chat: en amarillo, que es «ojo», ni
      ganado ni perdido todavía. */
-  .resultado .plazo { margin-top: .45rem; font-size: 1.3rem; font-weight: 800; color: #fcd34d }
+  .resultado .plazo { margin-top: .5rem; color: #fcd34d }
   .resultado .plazo[hidden] { display: none }
+  /* El número va en grande: es la cuenta atrás que tiene que leer el chat. */
+  .resultado .plazo .seg {
+    font-size: 4rem;
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .resultado .plazo .pide { margin-top: .15rem; font-size: 1.1rem; font-weight: 700 }
+  /* Los últimos segundos, en rojo y latiendo. */
+  .resultado .plazo.apurado { color: #f87171 }
+  .resultado .plazo.apurado .seg { animation: late 1s ease-in-out infinite }
+  @keyframes late {
+    0%, 100% { transform: scale(1) }
+    50% { transform: scale(1.18) }
+  }
   .resultado.fuera .premio { color: #fca5a5 }
 
   /* El vídeo del doble o nada tapa el widget ENTERO, igual que en la página tapa
@@ -139,7 +154,10 @@
         <div class="que" id="resQue"></div>
         <div class="premio" id="resPremio" hidden></div>
         <div class="hipotesis" id="resHipotesis" hidden></div>
-        <div class="plazo" id="resPlazo" hidden></div>
+        <div class="plazo" id="resPlazo" hidden>
+          <div class="seg" id="resPlazoSeg"></div>
+          <div class="pide">⏳ para escribir en el chat</div>
+        </div>
       </div>
     </div>
   </div>
@@ -217,13 +235,17 @@
     let plazoLocal = 0;
     function pintarPlazo() {
       const caja = q('resPlazo');
-      const quedan = plazoLocal ? Math.ceil((plazoLocal - Date.now()) / 1000) : 0;
+      const quedan = plazoLocal ? Math.max(0, Math.ceil((plazoLocal - Date.now()) / 1000)) : 0;
       caja.hidden = !plazoLocal;
-      caja.textContent = quedan > 0
-        ? '⏳ Tiene ' + quedan + ' s para escribir en el chat'
-        : '⏳ ¿Ha escrito?';
+      q('resPlazoSeg').textContent = quedan;
+      // Los últimos segundos, en rojo: es cuando el chat tiene que gritarle.
+      caja.classList.toggle('apurado', quedan <= ULTIMOS_SEG);
     }
-    setInterval(() => { if (plazoLocal) pintarPlazo(); }, 1000);
+    // Cuántos de los últimos segundos salen en rojo.
+    const ULTIMOS_SEG = 5;
+    // Cada cuarto de segundo y no cada uno: con el reloj a destiempo del
+    // segundo, el número se saltaría alguno.
+    setInterval(() => { if (plazoLocal) pintarPlazo(); }, 250);
 
     const widget = Widget.arranca({
       ruta: 'nombres',
