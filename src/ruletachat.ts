@@ -23,9 +23,17 @@ export interface Ajustes {
   // son absurdos jugando, pero son utiles para probar la animacion sin estar
   // girando hasta que salga.
   doblePct: number;
+  // Cuantos segundos tiene el ganador para escribir en el chat desde que para
+  // la ruleta. Si no escribe, pierde: es la forma de no darle el premio a quien
+  // ni esta mirando. 0 = sin plazo, como siempre. Ver vencePlazo().
+  plazoHablar: number;
 }
 
-export const AJUSTES_POR_DEFECTO: Ajustes = { palabra: '!ruleta', doblePct: 50 };
+export const AJUSTES_POR_DEFECTO: Ajustes = { palabra: '!ruleta', doblePct: 50, plazoHablar: 0 };
+
+// El plazo mas largo. El cartel del widget caduca a los diez minutos, y el plazo
+// tiene que acabar con el cartel todavia puesto.
+const MAX_PLAZO_S = 300;
 
 // Con mas de esto la ruleta no se lee, y la lista es del navegador.
 const MAX_NOMBRES = 200;
@@ -37,6 +45,12 @@ export interface Dependencias {
   // Se llama cuando cambia algo que se ve en pantalla, para que el servidor
   // avise a quien este mirando en vez de hacerle preguntar. Ver avisos.ts.
   alCambiar?(uid: string): void;
+  // Ha parado un giro con ganador: el chat del ganador pasa a ser el suyo.
+  alGanar?(uid: string): void;
+  // Si «nombre» ha escrito en el chat desde «desde» (ms). null si no se puede
+  // saber (no hay chat puesto, o esta caido): entonces no se le quita nada, que
+  // no es culpa suya. Lo lleva chatganadores.ts, que ya escucha al ganador.
+  haHablado?(uid: string, nombre: string, desde: number): boolean | null;
 }
 
 let deps: Dependencias;
@@ -108,6 +122,13 @@ export interface Sorteo {
   // porque el doble caduca en cuanto acaba el video, y el cartel del widget
   // tiene que seguir diciendo lo que se lleva despues.
   multiplicador: number;
+  // Hasta cuando tiene el ganador para escribir en el chat (reloj del
+  // servidor), o 0 si no hay plazo. Ver Ajustes.plazoHablar.
+  plazoHasta: number;
+  // Ya ha escrito: el plazo deja de contar.
+  hablo: boolean;
+  // Se le acabo el plazo sin escribir: pierde, y el premio queda a cero.
+  sinHablar: boolean;
 }
 
 // Lo que se manda afuera: igual, pero sin decir quien es mientras gira.
@@ -125,6 +146,9 @@ export interface SorteoVisible {
   elegido: number;
   kamas: number;
   multiplicador: number;
+  plazoHasta: number;
+  hablo: boolean;
+  sinHablar: boolean;
 }
 
 // Los kamas de un giro, limpios: un entero, sin negativos y con un tope para
@@ -179,6 +203,7 @@ export interface Estado {
   chat: chat.Salud | null;
   palabra: string;
   doblePct: number;     // posibilidades de doblar en el doble o nada
+  plazoHablar: number;  // segundos para escribir en el chat tras ganar (0 = sin plazo)
   cierraEn: number;     // cuando se cierra sola (reloj del servidor); 0 = sin limite
   ahora: number;        // la hora del servidor, para que la pagina cuadre la cuenta atras
   // El ultimo sorteo, o null si no ha habido ninguno.
@@ -189,6 +214,20 @@ export interface Estado {
 
 const sorteos = new Map<string, Sorteo>();
 const dobles = new Map<string, Doble>();
+
+// El ultimo que ha ganado esta ruleta, para el chat del ganador (ver
+// chatganadores.ts): sin esto solo contaba quien llegaba a Ganadores, y un giro
+// sin kamas dejaba en pantalla el chat del de antes. Va aparte del sorteo
+// porque el cartel caduca a los diez minutos y esto no: sigue siendo el ultimo
+// ganador hasta que gane otro. `desde` es cuando para la ruleta.
+const ganadoresChat = new Map<string, { nombre: string; desde: number }>();
+
+// El ultimo ganador de esta ruleta, o null. Mientras gira no se dice: el chat
+// del ganador no puede destripar la ruleta.
+export function ultimoGanador(uid: string): { nombre: string; desde: number } | null {
+  const g = ganadoresChat.get(uid);
+  return g && Date.now() >= g.desde ? g : null;
+}
 
 // El mismo seguro que usa la pagina para no quedarse esperando a un video.
 const SEGURO_VIDEO_MS = 15000;
@@ -224,7 +263,10 @@ function sorteoVisible(uid: string): SorteoVisible | null {
     nombres: s.nombres,
     elegido: s.elegido,
     kamas: s.kamas || 0,
-    multiplicador: s.multiplicador ?? 1
+    multiplicador: s.multiplicador ?? 1,
+    plazoHasta: s.plazoHasta || 0,
+    hablo: s.hablo === true,
+    sinHablar: s.sinHablar === true
   };
 }
 
@@ -271,6 +313,9 @@ export function guardarSorteo(uid: string, datos: unknown): Sorteo | null {
     nombres: lista,
     kamas: limpiarKamas(d.kamas),
     multiplicador: 1,
+    plazoHasta: 0,
+    hablo: false,
+    sinHablar: false,
     // Si el sitio no cuadra con la lista, se busca por nombre; y si tampoco, 0.
     // Una parada fuera de la lista dejaria la cinta parada en un hueco vacio.
     elegido: (() => {
@@ -283,19 +328,57 @@ export function guardarSorteo(uid: string, datos: unknown): Sorteo | null {
       return porNombre >= 0 ? porNombre : 0;
     })()
   };
+  // Con plazo, el ganador tiene ese rato desde que para para escribir en el
+  // chat. Sin ganador no hay a quien pedirselo.
+  const plazo = leerAjustes(uid).plazoHablar;
+  if (s.ganador && plazo > 0) s.plazoHasta = s.terminaEn + plazo * 1000;
   sorteos.set(uid, s);
+  // Eliminando sin quedarse uno solo, este giro no decide nada: el chat sigue
+  // con el ganador de antes.
+  if (s.ganador) ganadoresChat.set(uid, { nombre: s.ganador, desde: s.terminaEn });
   // Girar otra vez cierra el doble o nada de antes: el premio de aquel ya no
   // esta en pantalla.
   dobles.delete(uid);
   apuntarEnDisco(uid);
   // Y otro aviso cuando pare de girar, que es cuando cambia lo que se ve: sin
   // esto el widget tendria que esperar al reloj de repuesto para sacar el cartel.
-  if (gira > 0) {
-    setTimeout(() => {
-      if (sorteos.get(uid) === s) deps.alCambiar?.(uid);
-    }, gira + 50).unref?.();
-  }
+  // El nuevo ganador tambien se cuenta entonces y no antes, por lo mismo.
+  const alParar = () => {
+    if (sorteos.get(uid) !== s) return;
+    deps.alCambiar?.(uid);
+    if (s.ganador) deps.alGanar?.(uid);
+  };
+  if (gira > 0) setTimeout(alParar, gira + 50).unref?.();
+  else if (s.ganador) deps.alGanar?.(uid);
+  if (s.plazoHasta) setTimeout(() => vencePlazo(uid, s), s.plazoHasta - Date.now() + 50).unref?.();
   return s;
+}
+
+// Se acabo el plazo para escribir: si no ha dicho nada, pierde. El premio
+// queda a cero, como al perder el doble o nada, y el cartel lo dice.
+//
+// Si no se puede saber (no hay chat, o esta caido) no se le quita nada: perder
+// por un fallo del chat no seria culpa suya. El plazo simplemente se quita.
+function vencePlazo(uid: string, s: Sorteo): void {
+  if (sorteos.get(uid) !== s || !s.plazoHasta || s.hablo || s.sinHablar) return;
+  const hablo = deps.haHablado?.(uid, s.ganador, s.terminaEn) ?? null;
+  if (hablo === true) s.hablo = true;
+  else if (hablo === false) { s.sinHablar = true; s.multiplicador = 0; }
+  else s.plazoHasta = 0;
+  apuntarEnDisco(uid);
+}
+
+// Ha escrito alguien que es ganador. Lo llama el servidor con cada mensaje del
+// ganador (ver chatganadores.ts): si es el de esta ruleta y aun estaba en
+// plazo, ya no pierde, y la pagina y el widget quitan la cuenta atras.
+export function comprobarHabla(uid: string): void {
+  const s = sorteos.get(uid);
+  if (!s || !s.plazoHasta || s.hablo || s.sinHablar) return;
+  const ahora = Date.now();
+  if (ahora < s.terminaEn || ahora > s.plazoHasta) return;
+  if (deps.haHablado?.(uid, s.ganador, s.terminaEn) !== true) return;
+  s.hablo = true;
+  apuntarEnDisco(uid);
 }
 
 // El doble o nada de ahora, o null si no hay o si ya se le paso el seguro.
@@ -311,6 +394,9 @@ export function guardarDoble(uid: string, datos: unknown): Doble | null {
   const d = (datos || {}) as Record<string, unknown>;
   const quien = String(d.quien ?? '').trim().slice(0, 40);
   if (!quien) return null;
+  // Quien ha perdido por no escribir ya no tiene premio que jugarse.
+  const giro = sorteos.get(uid);
+  if (giro && giro.sinHablar && (giro.ganador || giro.quien) === quien) return null;
   const doble: Doble = {
     quien,
     gana: d.gana === true,
@@ -345,6 +431,7 @@ export function estado(uid: string): Estado {
     chat: saludChat(uid),
     palabra: leerAjustes(uid).palabra,
     doblePct: leerAjustes(uid).doblePct,
+    plazoHablar: leerAjustes(uid).plazoHablar,
     cierraEn: crono.cierraEn(uid),
     ahora: Date.now(),
     sorteo: sorteoVisible(uid),
@@ -390,6 +477,10 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
       ? Math.max(0, Math.min(100, n))
       : AJUSTES_POR_DEFECTO.doblePct;
   }
+  if (ajustes.plazoHablar !== undefined) {
+    const n = Math.round(Number(ajustes.plazoHablar));
+    actual.plazoHablar = Number.isFinite(n) ? Math.max(0, Math.min(MAX_PLAZO_S, n)) : 0;
+  }
   deps.ensureUserDir(uid);
   deps.writeJson(archivo(uid), { ...leerTodo(uid), ruleta: actual });
   return actual;
@@ -397,12 +488,17 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
 
 // --- La inscripcion -----------------------------------------------------
 
-// Abre el chat. No se vacia la lista: puede que ya hubiera gente escrita a
-// mano en la pagina, y se apuntan encima.
-// Con segundos, se cierra sola cuando se acaban.
+// Abre el chat, con la ruleta limpia: la pagina vacia tambien su cuadro de
+// texto al abrir. Con segundos, se cierra sola cuando se acaban.
 export function abrir(uid: string, canal: string, palabra?: string, segundos?: unknown): Estado {
   cerrar(uid);
-  if (!listas.has(uid)) listas.set(uid, []);
+  // Cada inscripcion es una ruleta nueva: se empieza de cero. Fuera los que
+  // quedaran apuntados y el cartel del giro de antes, que si no el widget
+  // seguiria enseñando al ganador viejo en vez de quien se va apuntando. El
+  // chat del ganador no se toca: sigue siendo el del ultimo que gano.
+  listas.set(uid, []);
+  sorteos.delete(uid);
+  dobles.delete(uid);
   escuchar(uid, canal, (palabra || leerAjustes(uid).palabra));
   crono.poner(uid, segundos);
   apuntarEnDisco(uid);
@@ -455,8 +551,17 @@ export function rehacer(uid: string): boolean {
       nombres: Array.isArray(s.nombres) ? s.nombres.filter((n: unknown) => typeof n === 'string') : [],
       elegido: Number(s.elegido) || 0,
       kamas: limpiarKamas((s as any).kamas),
-      multiplicador: limpiarMultiplicador((s as any).multiplicador)
+      multiplicador: limpiarMultiplicador((s as any).multiplicador),
+      // Un plazo que estaba corriendo no vuelve: lo que escribio el ganador se
+      // guarda solo en memoria y el reinicio se lo ha llevado, asi que no hay
+      // forma de saber si hablo. Antes que quitarle el premio sin razon, se
+      // queda sin plazo. Lo que ya estaba decidido si vuelve.
+      plazoHasta: 0,
+      hablo: (s as any).hablo === true,
+      sinHablar: (s as any).sinHablar === true
     });
+    // Y con el, de quien es el chat del ganador.
+    if (s.ganador) ganadoresChat.set(uid, { nombre: String(s.ganador), desde: Number(s.terminaEn) || 0 });
   }
 
   // Con la hora de cierre ya pasada no se vuelve a escuchar: la inscripcion

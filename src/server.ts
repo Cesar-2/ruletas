@@ -2522,7 +2522,18 @@ function ultimoGanador(sid: string): chatganadores.Actual | null {
   for (const w of readWinners(sid)) {
     if (!ultimo || Date.parse(w.date) > Date.parse(ultimo.date)) ultimo = w;
   }
-  return ultimo ? { nombre: ultimo.name, desde: Date.parse(ultimo.date) || 0 } : null;
+  const enGanadores = ultimo ? { nombre: ultimo.name, desde: Date.parse(ultimo.date) || 0 } : null;
+  // La ruleta de nombres no pasa por Ganadores si no hay kamas en juego: si ha
+  // ganado alguien despues, el chat es el suyo. Y si es el mismo (cobra sus
+  // kamas y llega a Ganadores), vale desde que gano la ruleta, no desde que
+  // cobro, o se perderia lo que escribio entre medias.
+  const enRuleta = ruletachat.ultimoGanador(sid.split('/')[0]);
+  if (!enRuleta) return enGanadores;
+  if (!enGanadores || enRuleta.desde >= enGanadores.desde) return enRuleta;
+  if (chatganadores.normalizar(enRuleta.nombre) === chatganadores.normalizar(enGanadores.nombre)) {
+    return { nombre: enGanadores.nombre, desde: enRuleta.desde };
+  }
+  return enGanadores;
 }
 
 // GET /api/winners/chat -> { ganador, mensajes, chat }
@@ -3272,7 +3283,19 @@ app.use((err: any, req: Request, res: Response, next: any) => {
 
 carrera.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'carrera') });
 turnosruleta.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'turnos') });
-ruletachat.iniciar({ userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'nombres') });
+ruletachat.iniciar({
+  userDir, ensureUserDir, writeJson, alCambiar: (uid) => avisos.cambio(uid, 'nombres'),
+  // Nuevo ganador de la ruleta: el chat del ganador empieza de cero con el
+  // suyo, y la pagina se entera.
+  alGanar: (uid) => { chatganadores.olvidarNombres(uid); avisos.cambio(uid, 'ganadores'); },
+  // El plazo para escribir lo mira el chat de ganadores, que ya escucha al
+  // ganador. Con el chat caido no se puede saber: null, y no pierde nadie.
+  haHablado: (uid, nombre, desde) => {
+    const salud = chatganadores.salud(uid);
+    if (!salud || !salud.dentro) return null;
+    return chatganadores.de(uid, nombre, desde).length > 0;
+  }
+});
 // El tablero de clavijas reparte en el mismo marcador que la carrera.
 plinko.iniciar({
   userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos,
@@ -3455,7 +3478,9 @@ chatganadores.iniciar(
     ganadoresActuales: (uid: string) => juegos.JUEGOS.flatMap((j) =>
       readServers(uid, j).map((sv) => ultimoGanador(`${uid}/${j}/${sv.id}`))
         .filter((a): a is chatganadores.Actual => Boolean(a))),
-    alCambiar: (uid: string) => avisos.cambio(uid, 'ganadores')
+    // Ha escrito un ganador: la pagina enseña su mensaje, y si es el de la
+    // ruleta de nombres y estaba en plazo, ya no pierde.
+    alCambiar: (uid: string) => { avisos.cambio(uid, 'ganadores'); ruletachat.comprobarHabla(uid); }
   },
   readUsers().map((u) => u.id)
 );

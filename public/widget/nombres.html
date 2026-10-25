@@ -51,20 +51,51 @@
      cuando la ruleta para: es el momento que la gente mira. */
   .resultado { text-align: center; }
   .resultado .quien {
-    font-size: 2.6rem;
+    font-size: 3.4rem;
     font-weight: 800;
     line-height: 1.1;
     word-break: break-word;
   }
   .resultado .que { margin-top: .3rem; font-size: 1rem; opacity: .85 }
+  .resultado .cara { font-size: 2.2rem; line-height: 1; margin-bottom: .2rem }
   .resultado.gana .quien { color: #6ee7b7 }
   .resultado.fuera .quien { color: #fca5a5; text-decoration: line-through }
+  /* Perder el doble o nada: rojo, pero sin tachar. Ganó la ruleta; lo que ha
+     perdido es el premio, y el nombre se tiene que leer. */
+  .resultado.pierde .quien { color: #f87171 }
+  .resultado.pierde .premio { color: #f87171 }
+
+  /* Con la cinta a la vista, el cartel va ENCIMA de ella y no debajo. Debajo se
+     salía de la fuente de OBS cuando se recorta al tamaño de la cinta, y lo que
+     se quedaba en pantalla era la cinta parada sin decir quién había ganado. */
+  #panelGira:not([hidden]) + #panelResultado {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    min-width: 22rem;
+    /* Opaco aunque el dueño ponga el fondo a cero: por detrás pasan nombres. */
+    background: rgb(9, 15, 28);
+    animation: cartel-sale .35s ease-out;
+  }
+  @keyframes cartel-sale {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(.7) }
+    70% { opacity: 1; transform: translate(-50%, -50%) scale(1.06) }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1) }
+  }
+  /* Y la fila de la banda, del mismo color que el cartel si pierde el doble. */
+  .names-reel .fila.gana.pierde { color: #fff5f5; background: #b91c1c }
   /* El premio que queda tras doblar. */
   .resultado .premio { margin-top: .35rem; font-size: 1.5rem; font-weight: 800; color: #6ee7b7 }
   /* El «¿qué habría pasado?»: más pequeño y aparte, que no se confunda con lo
      que se lleva de verdad. */
   .resultado .hipotesis { margin-top: .4rem; font-size: 1.1rem; font-weight: 700; color: #c4b5fd }
   .resultado .hipotesis[hidden] { display: none }
+  /* La cuenta atrás para escribir en el chat: en amarillo, que es «ojo», ni
+     ganado ni perdido todavía. */
+  .resultado .plazo { margin-top: .45rem; font-size: 1.3rem; font-weight: 800; color: #fcd34d }
+  .resultado .plazo[hidden] { display: none }
   .resultado.fuera .premio { color: #fca5a5 }
 
   /* El vídeo del doble o nada tapa el widget ENTERO, igual que en la página tapa
@@ -103,10 +134,12 @@
     </div>
     <div class="panel" id="panelResultado" hidden>
       <div class="resultado" id="resultado">
+        <div class="cara" id="resCara"></div>
         <div class="quien" id="resQuien"></div>
         <div class="que" id="resQue"></div>
         <div class="premio" id="resPremio" hidden></div>
         <div class="hipotesis" id="resHipotesis" hidden></div>
+        <div class="plazo" id="resPlazo" hidden></div>
       </div>
     </div>
   </div>
@@ -176,7 +209,23 @@
       return cintaFila >= 0;
     }
 
-    Widget.arranca({
+    // Para volver a preguntar en cuanto pare la cinta.
+    let alParar = null;
+
+    // Hasta cuándo tiene el ganador para escribir en el chat, con la hora de
+    // aquí, o 0. Se cuenta cada segundo aunque el widget pregunte cada dos.
+    let plazoLocal = 0;
+    function pintarPlazo() {
+      const caja = q('resPlazo');
+      const quedan = plazoLocal ? Math.ceil((plazoLocal - Date.now()) / 1000) : 0;
+      caja.hidden = !plazoLocal;
+      caja.textContent = quedan > 0
+        ? '⏳ Tiene ' + quedan + ' s para escribir en el chat'
+        : '⏳ ¿Ha escrito?';
+    }
+    setInterval(() => { if (plazoLocal) pintarPlazo(); }, 1000);
+
+    const widget = Widget.arranca({
       ruta: 'nombres',
       pinta(e) {
         const s = e.sorteo;
@@ -201,6 +250,10 @@
           if (cintaDe !== s.cuando) {
             if (lanzarCinta(s, restante)) cintaDe = s.cuando;
           }
+          // Se vuelve a preguntar justo al parar: preguntando cada 2 s, el
+          // cartel podía tardar hasta 2 s en salir con la cinta ya quieta.
+          clearTimeout(alParar);
+          alParar = setTimeout(() => widget.mirar(), Math.max(0, restante) + 150);
           q('panelGira').hidden = false;
           return true;
         }
@@ -208,8 +261,15 @@
           q('panel').hidden = true;
           // La cinta se QUEDA, con el que ha parado encendido: es lo que hace la
           // página, y quitarla justo al parar es perderse el momento. El cartel
-          // sale debajo.
-          if (cintaDe === s.cuando && cintaFila >= 0) {
+          // sale encima.
+          //
+          // Menos en el último giro de eliminar: ahí en la banda está el que se
+          // va, no el que gana, y la cinta dejaba en pantalla al eliminado. La
+          // página la repinta con el que queda; aquí se quita y el cartel del
+          // ganador se queda solo.
+          if (s.seVa && s.ganador) {
+            q('panelGira').hidden = true;
+          } else if (cintaDe === s.cuando && cintaFila >= 0) {
             CintaNombres.marcar(q('cinta'), cintaFila, s.seVa);
           } else {
             q('panelGira').hidden = true;
@@ -257,7 +317,7 @@
           if (hayGanador && m === 0) {
             premio.hidden = false;
             premio.textContent = 'Se queda sin nada';
-            caja.className = 'resultado fuera';
+            caja.className = 'resultado pierde';
           } else if (hayGanador && kamas) {
             premio.hidden = false;
             premio.textContent = enKamas(kamas * m) + (m > 1 ? ' (x' + m + ')' : '');
@@ -267,6 +327,23 @@
           } else {
             premio.hidden = true;
           }
+          // Con plazo para escribir: si se le acabó sin decir nada, lo pierde; y
+          // mientras corre, la cuenta atrás. Ver Ajustes.plazoHablar.
+          if (s.sinHablar) {
+            premio.hidden = false;
+            premio.textContent = 'No escribió en el chat a tiempo';
+            caja.className = 'resultado pierde';
+          }
+          plazoLocal = s.plazoHasta && !s.hablo && !s.sinHablar
+            ? Date.now() + (s.plazoHasta - e.ahora)
+            : 0;
+          pintarPlazo();
+          // Ganar en verde y perder en rojo, en el cartel y en la fila de la
+          // banda. Eliminando sin ganador no hay cara: no ha ganado nadie.
+          const pierde = caja.classList.contains('pierde');
+          q('resCara').textContent = pierde ? '😵' : caja.classList.contains('gana') ? '🎉' : '';
+          const fila = cintaFila >= 0 ? q('cinta').children[cintaFila] : null;
+          if (fila) fila.classList.toggle('pierde', pierde);
           const hipotesis = q('resHipotesis');
           hipotesis.hidden = !(suyo && d.hipotetico);
           if (!hipotesis.hidden) {
@@ -279,6 +356,7 @@
 
         // Sin nada del giro que enseñar, fuera la cinta.
         q('panelGira').hidden = true;
+        plazoLocal = 0;
         cintaDe = '';
         cintaFila = -1;
 

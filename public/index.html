@@ -1661,7 +1661,7 @@
               <span class="meta" id="nameKamasEstado"></span>
             </div>
             <h3>🎡 Ruleta de nombres</h3>
-            <p class="meta">Escribe un nombre por línea y gira: uno de ellos sale ganador. La lista se guarda en este navegador, por servidor.</p>
+            <p class="meta">Escribe un nombre por línea y gira: uno de ellos sale ganador. La lista se guarda en este navegador, por servidor. Abrir inscripción la deja en blanco: cada inscripción empieza de cero.</p>
             <div class="controls">
               <label class="meta" for="nameChatPalabra">Se apuntan por el chat escribiendo</label>
               <input id="nameChatPalabra" type="text" value="!ruleta" style="width:110px" aria-label="Palabra para apuntarse" />
@@ -1821,7 +1821,7 @@
                en el chat. Ver cargarChatGanadores. -->
           <section>
             <h3 id="gamesChatTitulo">💬 Lo que escribe el último ganador en el chat</h3>
-            <p class="meta">Solo lo que escribe el ganador actual de este servidor desde que ganó, lo más nuevo arriba. Del resto del chat no se guarda nada, y al ganar otro se borra. Es lo mismo que en la pestaña Ganadores.</p>
+            <p class="meta">Solo lo que escribe el ganador actual desde que ganó, lo más nuevo arriba: el último de Ganadores de este servidor o el de la Ruleta de nombres, el que haya ganado después. Del resto del chat no se guarda nada, y al ganar otro se borra.</p>
             <div id="gamesChatEstado" class="meta" hidden></div>
             <div id="gamesChat" class="winners-chat"></div>
           </section>
@@ -2399,6 +2399,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 <label for="cfgDoblePct">Doble o nada: posibilidades de doblar (%)</label>
                 <input id="cfgDoblePct" type="number" min="0" max="100" step="1" value="50" />
                 <span class="meta">A <strong>50</strong> es una moneda al aire. Bájalo para que doblar sea una hazaña y subirlo para que casi siempre salga bien. Con <strong>0</strong> no se dobla nunca y con <strong>100</strong> siempre, que sirven para probar las animaciones sin estar girando hasta que toque.</span>
+              </div>
+              <div class="config-field">
+                <label for="cfgPlazoHablar">Plazo para escribir en el chat tras ganar (segundos)</label>
+                <input id="cfgPlazoHablar" type="number" min="0" max="300" step="5" value="0" />
+                <span class="meta">Si el ganador no escribe nada en el chat en este rato desde que para la ruleta, <strong>pierde</strong> y se queda sin premio. Mientras corre no se puede doblar ni cobrar. Con <strong>0</strong> no hay plazo. Hasta 300. Necesita el canal puesto en Configuración › Mi cuenta; si el chat se cae, no pierde nadie.</span>
               </div>
             </div>
             </div>
@@ -8129,7 +8134,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
       // Y el del doble o nada, que es de la ruleta de nombres.
       try {
-        aplicarDoblePct((await api('/api/ruleta-chat')).doblePct);
+        const ruleta = await api('/api/ruleta-chat');
+        aplicarDoblePct(ruleta.doblePct);
+        aplicarPlazoHablar(ruleta.plazoHablar);
       } catch (e) {
         console.warn('No se pudo leer el doble o nada:', e.message);
       }
@@ -8153,7 +8160,10 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const ruleta = await api('/api/ruleta-chat/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ doblePct: Number(document.getElementById('cfgDoblePct').value) })
+          body: JSON.stringify({
+            doblePct: Number(document.getElementById('cfgDoblePct').value),
+            plazoHablar: Number(document.getElementById('cfgPlazoHablar').value)
+          })
         });
         // Se recoge lo que haya guardado el servidor y no lo tecleado: si has
         // escrito 300, el botón del envite tiene que decir 100, que es lo que
@@ -8161,6 +8171,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const campo = document.getElementById('cfgDoblePct');
         if (campo) delete campo.dataset.tocado;
         aplicarDoblePct(ruleta.doblePct);
+        aplicarPlazoHablar(ruleta.plazoHablar);
         aviso.textContent = 'Guardado.';
         return true;
       } catch (e) {
@@ -8796,6 +8807,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     let retiradoNombres = false;
     let hipotesisNombres = '';     // lo que se dice en el cartel, ya en HTML
     let hipotesisJugada = false;
+    // El plazo para escribir en el chat tras ganar (Configuración › Minijuegos
+    // › Ruletas). Quien lo vigila es el servidor, que es quien escucha el chat:
+    // aquí se cuenta hacia atrás y se espera a que diga cómo ha ido. Mientras
+    // corre, el premio no se toca.
+    let plazoNombres = 0;          // segundos, 0 = sin plazo
+    let plazoHasta = 0;            // hora de aquí a la que se acaba, 0 = no corre
+    let perdioSinHablar = false;
+    let relojPlazo = null;
 
     // Lo que se lleva ahora mismo el ganador, en kamas: lo del giro por lo que
     // haya doblado. 0 si no se jugaban kamas o si lo ha perdido.
@@ -8930,6 +8949,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       }
       ponerSiNoLoTocas('nameChatPalabra', estado.palabra);
       pintarInscripcion(estado);
+      mirarPlazo(estado);
       if (!estado.abierta && !recogiendoNombres) return;
       if (meterEnLaLista(estado.nombres)) {
         try { await api('/api/ruleta-chat/vaciar', { method: 'POST' }); } catch (e) { /* al siguiente */ }
@@ -8940,12 +8960,81 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     function vigilarNombres(encender) {
       recogiendoNombres = Boolean(encender);
-      // Mientras esta abierta, el servidor avisa de quien ha entrado.
-      // Ver eventos.js.
-      Eventos.vigilar('nombres', recogerInscritos, encender);
+      // Mientras esta abierta, el servidor avisa de quien ha entrado. Y
+      // mientras corre el plazo para escribir, de si el ganador ha escrito: es
+      // el mismo aviso. Ver eventos.js.
+      Eventos.vigilar('nombres', recogerInscritos, recogiendoNombres || Boolean(plazoHasta));
+    }
+
+    function textoPlazo() {
+      const s = Math.max(0, Math.ceil((plazoHasta - Date.now()) / 1000));
+      return s ? '⏳ Tiene ' + s + ' s para escribir en el chat' : '⏳ Mirando si ha escrito…';
+    }
+
+    // Acaba de ganar alguien: si hay plazo, empieza la cuenta atrás. Hasta que
+    // el servidor diga que ha escrito, ni doble ni cobrar.
+    function esperarHabla() {
+      if (!nombreGanador || plazoNombres <= 0) return;
+      plazoHasta = Date.now() + plazoNombres * 1000;
+      pintarGanadorNombres('gana');
+      mandosNombres(false);
+      clearInterval(relojPlazo);
+      relojPlazo = setInterval(() => {
+        const el = document.getElementById('namePlazo');
+        if (el) el.textContent = textoPlazo();
+        // Por si el aviso del servidor se pierde, se pregunta al acabar.
+        if (Date.now() > plazoHasta + 1500) recogerInscritos();
+      }, 1000);
+      vigilarNombres(recogiendoNombres);
+    }
+
+    function terminarPlazo() {
+      plazoHasta = 0;
+      clearInterval(relojPlazo);
+      relojPlazo = null;
+      vigilarNombres(recogiendoNombres);
+    }
+
+    // Lo que dice el servidor del plazo del giro que hay en pantalla.
+    function mirarPlazo(estado) {
+      const s = estado.sorteo;
+      if (!plazoHasta || !s || s.girando || !nombreGanador || s.ganador !== nombreGanador) return;
+      if (s.sinHablar) {
+        terminarPlazo();
+        perdioSinHablar = true;
+        premioNombres = 0;
+        pintarGanadorNombres('pierde');
+        mandosNombres(false);
+      } else if (s.hablo || !s.plazoHasta) {
+        // Ha escrito, o el chat se ha caído y no se puede saber: sigue con
+        // su premio.
+        terminarPlazo();
+        pintarGanadorNombres('gana');
+        mandosNombres(true);
+      } else {
+        // La hora buena es la del servidor: el reloj de este PC puede ir a
+        // otra.
+        plazoHasta = Date.now() + (s.plazoHasta - estado.ahora);
+      }
+    }
+
+    function aplicarPlazoHablar(valor) {
+      const n = Math.round(Number(valor));
+      if (!Number.isFinite(n)) return;
+      plazoNombres = Math.max(0, Math.min(300, n));
+      ponerSiNoLoTocas('cfgPlazoHablar', plazoNombres);
     }
 
     document.getElementById('nameChatAbrir').addEventListener('click', async () => {
+      // Cada inscripción es una ruleta nueva: se abre con la lista limpia. A
+      // mitad de giro no, que se quedaría la cinta a medias.
+      if (girandoNombres || jugandoDoble) {
+        showAlert('La ruleta está en marcha', 'Espera a que pare para abrir otra inscripción: al abrirla se vacía la ruleta.');
+        return;
+      }
+      // Un premio sin cobrar se perdería al vaciar: se pregunta antes.
+      if (!(await premioPendienteNombres('abrir la inscripción'))) return;
+      limpiarRuletaNombres();
       try {
         const estado = await api('/api/ruleta-chat/abrir', {
           method: 'POST',
@@ -8994,6 +9083,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         const estado = await api('/api/ruleta-chat');
         ponerSiNoLoTocas('nameChatPalabra', estado.palabra);
         aplicarDoblePct(estado.doblePct);
+        aplicarPlazoHablar(estado.plazoHablar);
         pintarInscripcion(estado);
         if (estado.abierta) vigilarNombres(true);
       } catch (e) {
@@ -9009,7 +9099,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (!Number.isFinite(n)) return;
       doblePct = Math.max(0, Math.min(100, n));
       ponerSiNoLoTocas('cfgDoblePct', doblePct);
-      if (nombreGanador && !jugandoDoble) mandosNombres(premioNombres > 0);
+      if (nombreGanador && !jugandoDoble && !plazoHasta) mandosNombres(premioNombres > 0);
     }
 
     function cargarNombres() {
@@ -9083,13 +9173,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // ellos, solo por cuánto va multiplicado, como siempre.
       const kamas = kamasEnJuego();
       const pie = estado === 'pierde'
-        ? 'Se queda sin nada'
+        ? (perdioSinHablar ? 'No escribió en el chat a tiempo: se queda sin nada' : 'Se queda sin nada')
         : kamas
           ? kamasHtml(kamas) + (premioNombres > 1 ? ' x' + premioNombres : '')
           : (premioNombres > 1 ? 'Premio x' + premioNombres : '');
       banner.innerHTML = '<span class="corona">' + cara + '</span>'
         + '<span class="quien-gana">' + escapeHtml(nombreGanador) + '</span>'
         + (pie ? '<span class="premio">' + pie + '</span>' : '')
+        + (plazoHasta ? '<span class="premio" id="namePlazo">' + textoPlazo() + '</span>' : '')
         + (hipotesisNombres ? '<span class="premio hipotesis">' + hipotesisNombres + '</span>' : '');
       banner.hidden = false;
     }
@@ -9159,7 +9250,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     async function dobleONada() {
-      if (jugandoDoble || !nombreGanador || kamasCobrados) return;
+      if (jugandoDoble || !nombreGanador || kamasCobrados || plazoHasta || perdioSinHablar) return;
       jugandoDoble = true;
       mandosNombres(true);
 
@@ -9281,6 +9372,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       retiradoNombres = false;
       hipotesisNombres = '';
       hipotesisJugada = false;
+      perdioSinHablar = false;
+      terminarPlazo();
       const resto = nombres.filter((_, i) => i !== elegido);
       const elimina = modoEliminaNombres();
       // El que ha parado en la banda: se enciende si gana, se tacha si se va.
@@ -9307,6 +9400,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         if (document.getElementById('nameRemoveWinner').checked) guardarListaNombres(resto);
       }
 
+      // Con plazo, ahora empieza a contar.
+      esperarHabla();
+
       girandoNombres = false;
       // Repinta la cinta en reposo, ya sin el ganador encendido y con la lista
       // nueva si se ha quitado a alguien.
@@ -9329,7 +9425,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // Retirarse: el premio se queda como esté y se apagan los dos botones del
     // envite. El nombre sigue ahí, que aún puede pasar al sorteo de objetos.
     document.getElementById('nameCashOut').addEventListener('click', () => {
-      if (jugandoDoble || !nombreGanador) return;
+      if (jugandoDoble || !nombreGanador || plazoHasta || perdioSinHablar) return;
       retiradoNombres = true;
       pintarGanadorNombres('gana');
       mandosNombres(false);
@@ -9344,6 +9440,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       if (!ok) return;
       // Lo que estuviera ganado y sin cobrar: se pregunta antes de borrar nada.
       if (!(await premioPendienteNombres('vaciar la lista'))) return;
+      limpiarRuletaNombres();
+    });
+
+    // Deja la ruleta de nombres en blanco: sin lista, sin ganador y sin premio.
+    // La usan «Vaciar» y abrir la inscripción, que empieza siempre de cero.
+    function limpiarRuletaNombres() {
       kamasNombres = 0;
       kamasCobrados = false;
       document.getElementById('nameKamasEstado').textContent = '';
@@ -9353,9 +9455,14 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       document.getElementById('nameWinnerActions').hidden = true;
       // Sin lista no hay ganador ni premio que doblar.
       nombreGanador = '';
+      terminarPlazo();
+      perdioSinHablar = false;
       premioNombres = 1;
+      retiradoNombres = false;
+      hipotesisNombres = '';
+      hipotesisJugada = false;
       renderNameWheel();
-    });
+    }
 
     // Puente con el sorteo de objetos: el ganador pasa al campo del nombre.
     document.getElementById('useNameWinner').addEventListener('click', () => {

@@ -20,7 +20,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { carpeta, minijuegos } = require('./ayuda');
+const { carpeta, minijuegos, cargar, deps } = require('./ayuda');
 
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -428,4 +428,150 @@ test('el premio multiplicado sobrevive a un reinicio', (t) => {
   const otra = minijuegos(c.raiz).nombres;
   otra.rehacer(uid);
   assert.strictEqual(otra.estado(uid).sorteo.multiplicador, 4);
+});
+
+// El chat del ganador (al final de los minijuegos) es del ultimo que ha ganado.
+// Antes solo contaba quien llegaba a Ganadores, y un giro sin kamas dejaba en
+// pantalla el chat del de antes.
+test('cada ganador nuevo de la ruleta pasa a ser el del chat, al parar', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const ganados = [];
+  const nombres = cargar('ruletachat', { ...deps(c.raiz), alGanar: (uid) => ganados.push(uid) });
+  const uid = 'u1';
+
+  nombres.guardarSorteo(uid, { cuantos: 3, quien: 'Ana', ganador: 'Ana', quedan: 2, duracion: 60 });
+  // Mientras gira, ni se dice ni se avisa: destriparia la ruleta.
+  assert.strictEqual(nombres.ultimoGanador(uid), null);
+  assert.deepStrictEqual(ganados, []);
+  await espera(150);
+  assert.strictEqual(nombres.ultimoGanador(uid).nombre, 'Ana');
+  assert.deepStrictEqual(ganados, [uid]);
+
+  nombres.guardarSorteo(uid, { cuantos: 3, quien: 'Bea', ganador: 'Bea', quedan: 2, duracion: 0 });
+  assert.strictEqual(nombres.ultimoGanador(uid).nombre, 'Bea');
+  assert.strictEqual(ganados.length, 2);
+});
+
+test('eliminando sin quedarse uno, el chat sigue con el ganador de antes', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const ganados = [];
+  const nombres = cargar('ruletachat', { ...deps(c.raiz), alGanar: (uid) => ganados.push(uid) });
+  const uid = 'u1';
+
+  nombres.guardarSorteo(uid, { cuantos: 3, quien: 'Ana', ganador: 'Ana', quedan: 2, duracion: 0 });
+  nombres.guardarSorteo(uid, { cuantos: 4, quien: 'Bea', seVa: true, ganador: '', quedan: 3, duracion: 0 });
+  assert.strictEqual(nombres.ultimoGanador(uid).nombre, 'Ana');
+  assert.strictEqual(ganados.length, 1);
+});
+
+test('el ganador del chat sobrevive a un reinicio', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const uid = 'u1';
+  cargar('ruletachat', deps(c.raiz)).guardarSorteo(uid, { cuantos: 3, quien: 'Ana', ganador: 'Ana', quedan: 2, duracion: 0 });
+
+  const otra = cargar('ruletachat', deps(c.raiz));
+  otra.rehacer(uid);
+  assert.strictEqual(otra.ultimoGanador(uid).nombre, 'Ana');
+});
+
+// El plazo para escribir en el chat: si el ganador no dice nada en ese rato
+// desde que para la ruleta, pierde. Lo de si ha hablado lo sabe el chat de
+// ganadores; aqui se finge con haHablado.
+function conPlazo(raiz, segundos, haHablado) {
+  const nombres = cargar('ruletachat', { ...deps(raiz), haHablado });
+  nombres.guardarAjustes('u1', { plazoHablar: segundos });
+  return nombres;
+}
+
+test('sin plazo, como siempre: nadie pierde por no hablar', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const nombres = cargar('ruletachat', deps(c.raiz));
+  assert.strictEqual(nombres.leerAjustes('u1').plazoHablar, 0);
+  nombres.guardarSorteo('u1', { cuantos: 3, quien: 'Ana', ganador: 'Ana', quedan: 2, duracion: 0 });
+  assert.strictEqual(nombres.estado('u1').sorteo.plazoHasta, 0);
+});
+
+test('el plazo se recorta entre 0 y 300 segundos', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const nombres = cargar('ruletachat', deps(c.raiz));
+  assert.strictEqual(nombres.guardarAjustes('u1', { plazoHablar: 9999 }).plazoHablar, 300);
+  assert.strictEqual(nombres.guardarAjustes('u1', { plazoHablar: -5 }).plazoHablar, 0);
+  assert.strictEqual(nombres.guardarAjustes('u1', { plazoHablar: 'nada' }).plazoHablar, 0);
+});
+
+test('si no escribe a tiempo, pierde y el premio queda a cero', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const nombres = conPlazo(c.raiz, 1, () => false);
+  nombres.guardarSorteo('u1', { cuantos: 3, quien: 'Ana', ganador: 'Ana', quedan: 2, duracion: 0, kamas: 1000 });
+  let s = nombres.estado('u1').sorteo;
+  assert.ok(s.plazoHasta > Date.now());
+  assert.strictEqual(s.sinHablar, false);
+  await espera(1200);
+  s = nombres.estado('u1').sorteo;
+  assert.strictEqual(s.sinHablar, true);
+  assert.strictEqual(s.multiplicador, 0);
+  // Y ya no se puede jugar el doble o nada con un premio perdido.
+  assert.strictEqual(nombres.guardarDoble('u1', { quien: 'Ana', gana: true, premio: 2 }), null);
+});
+
+test('si escribe dentro del plazo, no pierde', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  let hablo = false;
+  const nombres = conPlazo(c.raiz, 1, () => hablo);
+  nombres.guardarSorteo('u1', { cuantos: 3, quien: 'Ana', ganador: 'Ana', quedan: 2, duracion: 0 });
+  hablo = true;
+  nombres.comprobarHabla('u1');
+  assert.strictEqual(nombres.estado('u1').sorteo.hablo, true);
+  await espera(1200);
+  const s = nombres.estado('u1').sorteo;
+  assert.strictEqual(s.sinHablar, false);
+  assert.strictEqual(s.multiplicador, 1);
+});
+
+test('con el chat caido no se puede saber, y no pierde nadie', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const nombres = conPlazo(c.raiz, 1, () => null);
+  nombres.guardarSorteo('u1', { cuantos: 3, quien: 'Ana', ganador: 'Ana', quedan: 2, duracion: 0 });
+  await espera(1200);
+  const s = nombres.estado('u1').sorteo;
+  assert.strictEqual(s.sinHablar, false);
+  assert.strictEqual(s.plazoHasta, 0);
+});
+
+test('eliminando sin ganador todavia no hay plazo', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const nombres = conPlazo(c.raiz, 30, () => false);
+  nombres.guardarSorteo('u1', { cuantos: 4, quien: 'Bea', seVa: true, ganador: '', quedan: 3, duracion: 0 });
+  assert.strictEqual(nombres.estado('u1').sorteo.plazoHasta, 0);
+});
+
+// Cada inscripcion es una ruleta nueva: ni los apuntados de antes ni el cartel
+// del giro anterior, que en el widget taparia a quien se va apuntando.
+test('abrir la inscripcion deja la ruleta limpia', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+
+  nombres.abrir(uid, '', '!ruleta');
+  ['Ana', 'Beto'].forEach((n) => nombres.apuntar(uid, n));
+  nombres.guardarSorteo(uid, { cuantos: 2, quien: 'Ana', ganador: 'Ana', quedan: 1, duracion: 0 });
+  nombres.cerrar(uid);
+
+  const e = nombres.abrir(uid, '', '!ruleta');
+  assert.deepStrictEqual(e.nombres, []);
+  assert.strictEqual(e.sorteo, null);
+  assert.strictEqual(e.doble, null);
+  // El chat del ganador sigue con el ultimo que gano.
+  assert.strictEqual(nombres.ultimoGanador(uid).nombre, 'Ana');
+  nombres.cerrar(uid);
 });
