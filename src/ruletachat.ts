@@ -609,6 +609,14 @@ export function apuntar(uid: string, nombre: string): boolean {
   return true;
 }
 
+// Apuntar a quien ha canjeado la recompensa de puntos de canal (ver
+// twitch.ts). Solo con la inscripcion abierta: cerrada, la pagina ya no recoge
+// a nadie y se quedaria pagado y fuera de la ruleta. false = se le devuelven
+// los puntos.
+export function apuntarCanje(uid: string, nombre: string): boolean {
+  return escuchas.has(uid) && apuntar(uid, nombre);
+}
+
 // La pagina ya se ha llevado los nombres a su lista: aqui no hacen falta.
 export function vaciar(uid: string): Estado {
   listas.set(uid, []);

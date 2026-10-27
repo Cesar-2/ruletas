@@ -133,3 +133,26 @@ test('la palabra cuenta aunque lleve caracteres invisibles', () => {
   assert.strictEqual(esLaPalabra('!reto͏', '!reto'), true);
   assert.strictEqual(esLaPalabra('!retos', '!reto'), false);
 });
+
+test('la batalla con recompensa de puntos no escucha el chat: se entra canjeando', (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { deps } = require('./ayuda');
+  const batalla = cargar('batalla', { ...deps(c.raiz), recompensa: () => 'Pelea' });
+  const uid = 'u1';
+
+  assert.strictEqual(batalla.entrarCanje(uid, 'Ana'), false, 'sin batalla abierta, puntos devueltos');
+  batalla.abrir(uid, '');
+  const e = batalla.estado(uid);
+  assert.strictEqual(e.chat, null, 'no hay escucha del chat');
+  assert.strictEqual(e.escuchando, '');
+  assert.strictEqual(e.recompensa, 'Pelea');
+
+  assert.strictEqual(batalla.entrarCanje(uid, 'Ana'), true);
+  assert.strictEqual(batalla.entrarCanje(uid, 'ana'), false, 'ya estaba dentro');
+  batalla.entrarCanje(uid, 'Beto');
+  batalla.empezar(uid);
+  assert.strictEqual(batalla.entrarCanje(uid, 'Caro'), false, 'el torneo ya empezo');
+  assert.deepStrictEqual(batalla.estado(uid).luchadores.map((l) => l.nombre), ['Ana', 'Beto']);
+  batalla.cancelar(uid);
+});

@@ -1,6 +1,7 @@
 // Batalla de viewers: un torneo de duelos uno contra uno. Se apuntan por el
-// chat, como en la carrera, se emparejan de dos en dos, y el que gana pasa a
-// la siguiente ronda hasta que queda un campeon.
+// chat, como en la carrera (o, si el streamer ha creado la recompensa,
+// canjeandola con puntos del canal: ver twitch.ts), se emparejan de dos en
+// dos, y el que gana pasa a la siguiente ronda hasta que queda un campeon.
 //
 // Quien decide cada duelo es esto, no el navegador: la pagina solo lo cuenta.
 // Los puntos van al mismo marcador que la carrera de balineras.
@@ -75,6 +76,9 @@ export interface Dependencias {
   sumarPuntos(uid: string, nombre: string, cuantos: number): number;
   // Las clases de Dofus que tienen imagen de prueba: solo se sortean esas.
   clasesConArte?(): string[];
+  // El titulo de la recompensa de puntos del canal con la que se entra, o ''.
+  // Con ella puesta la inscripcion no escucha el chat: se entra canjeandola.
+  recompensa?(uid: string): string;
 }
 
 let deps: Dependencias;
@@ -132,7 +136,7 @@ function apuntarEnDisco(uid: string): void {
 }
 
 export function estado(uid: string): Batalla & {
-  escuchando: string; chat: chat.Salud | null; palabra: string; cierraEn: number; ahora: number;
+  escuchando: string; chat: chat.Salud | null; palabra: string; recompensa: string; cierraEn: number; ahora: number;
 } {
   const b = batallas.get(uid) || {
     abierta: false, luchadores: [], rondas: [], campeon: '', puntos: leerAjustes(uid).puntos
@@ -142,7 +146,7 @@ export function estado(uid: string): Batalla & {
   // hubiera al abrir: se pueden cambiar en cualquier momento.
   return {
     ...b, puntos: ajustes.puntos, escuchando: escuchando(uid), chat: saludChat(uid), palabra: ajustes.palabra,
-    cierraEn: crono.cierraEn(uid), ahora: Date.now()
+    recompensa: deps.recompensa?.(uid) || '', cierraEn: crono.cierraEn(uid), ahora: Date.now()
   };
 }
 
@@ -158,7 +162,8 @@ function cerrarEscucha(uid: string): void {
 }
 
 // Abre la inscripcion y se pone a escuchar el chat: quien escriba la palabra
-// se apunta, igual que en la carrera.
+// se apunta, igual que en la carrera. Con la recompensa de puntos puesta no se
+// escucha nada: se entra canjeandola (ver entrarCanje).
 // Con segundos, la inscripcion se cierra sola cuando se acaban.
 export function abrir(uid: string, canal: string, segundos?: unknown): Batalla {
   cerrarEscucha(uid);
@@ -168,7 +173,7 @@ export function abrir(uid: string, canal: string, segundos?: unknown): Batalla {
     abierta: true, luchadores: [], rondas: [], campeon: '', puntos: ajustes.puntos
   };
   batallas.set(uid, batalla);
-  escuchar(uid, canal, ajustes.palabra);
+  if (!deps.recompensa?.(uid)) escuchar(uid, canal, ajustes.palabra);
   apuntarEnDisco(uid);
   return batalla;
 }
@@ -252,6 +257,13 @@ export function entrar(uid: string, nombre: string): { ok: boolean; error?: stri
   batalla.luchadores.push({ nombre: limpio, clave });
   apuntarEnDisco(uid);
   return { ok: true };
+}
+
+// Apuntar a quien ha canjeado la recompensa de puntos del canal (ver
+// twitch.ts). false = no ha entrado (cerrada, empezada o ya dentro) y Twitch
+// le devuelve los puntos.
+export function entrarCanje(uid: string, nombre: string): boolean {
+  return entrar(uid, nombre).ok;
 }
 
 function barajar<T>(lista: T[]): T[] {

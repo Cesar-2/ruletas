@@ -1998,6 +1998,7 @@ app.get('/api/widget/batalla', (req: Request, res: Response) => {
     res.json({
       abierta: e.abierta,
       palabra: e.palabra,
+      recompensa: e.recompensa,
       luchadores: e.luchadores.map((l) => ({ nombre: l.nombre, clase: l.clase || '' })),
       rondas: e.rondas,
       campeon: e.campeon,
@@ -3105,6 +3106,15 @@ app.post('/api/ruleta/recompensa', async (req: Request, res: Response) => {
   res.json(twitch.estado(uid, redireccionTwitch(req)));
 });
 
+// POST /api/ruleta-chat/recompensa  Body: { titulo, coste } -> crea (o
+// actualiza) la recompensa con la que se entra en la Ruleta de nombres.
+app.post('/api/ruleta-chat/recompensa', async (req: Request, res: Response) => {
+  const uid = requireUid(req);
+  const r = await twitch.recompensaNombres(uid, req.body?.titulo, req.body?.coste);
+  if (!r.ok) return res.status(409).json({ error: r.error });
+  res.json(twitch.estado(uid, redireccionTwitch(req)));
+});
+
 // GET /api/ruleta/turnos -> { turnos: [{ id, nombre, ... }] }, por orden de llegada
 app.get('/api/ruleta/turnos', (req: Request, res: Response) => {
   res.json({ turnos: turnosruleta.leer(requireUid(req)) });
@@ -3351,6 +3361,7 @@ bingo.iniciar({
 minijuegos.iniciar({
   requireUid, canalDe, guardarImagen, resolveServer,
   recompensaBingo: (uid, titulo, coste) => twitch.recompensaBingo(uid, titulo, coste),
+  recompensaBatalla: (uid, titulo, coste) => twitch.recompensaBatalla(uid, titulo, coste),
   // Va por detras: abrir la inscripcion no espera a Twitch. Lo que pase queda
   // en el estado de Twitch para ensenarlo en Configuracion.
   fijarAviso: (uid, canal, texto, segundos) => { void twitch.fijarAviso(uid, canal, texto, segundos); }
@@ -3386,6 +3397,8 @@ batalla.iniciar({
   userDir, ensureUserDir, writeJson, sumarPuntos: carrera.sumarPuntos,
   // Solo pelean las clases de Dofus que tienen imagen de prueba.
   clasesConArte: () => Object.keys(arte.deBatalla().clases),
+  // Con la recompensa de puntos creada, se entra canjeandola y no por el chat.
+  recompensa: (uid) => twitch.tituloBatalla(uid),
   alCambiar: (uid) => avisos.cambio(uid, 'batalla')
 });
 
@@ -3437,7 +3450,11 @@ twitch.iniciar(
     darCarton: (uid: string, nombre: string, login: string) => bingo.darCarton(uid, nombre, login),
     // Canjear la de la Ruleta de objetos le da un turno: su nombre va a la
     // ruleta de la pagina.
-    apuntarTurno: (uid, turno) => turnosruleta.apuntar(uid, turno)
+    apuntarTurno: (uid, turno) => turnosruleta.apuntar(uid, turno),
+    // Canjear la de la Ruleta de nombres le mete en la lista, si esta abierta.
+    apuntarNombre: (uid, nombre) => ruletachat.apuntarCanje(uid, nombre),
+    // Y la de la Batalla Dofus le mete en el torneo, si la inscripcion sigue abierta.
+    apuntarLuchador: (uid, nombre) => batalla.entrarCanje(uid, nombre)
   },
   {
     redirect: process.env.TWITCH_REDIRECT || `http://localhost:${PORT}/api/twitch/callback`,

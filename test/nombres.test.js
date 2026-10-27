@@ -575,3 +575,19 @@ test('abrir la inscripcion deja la ruleta limpia', (t) => {
   assert.strictEqual(nombres.ultimoGanador(uid).nombre, 'Ana');
   nombres.cerrar(uid);
 });
+
+test('con puntos de canal solo se entra con la inscripcion abierta', (t) => {
+  // Cerrada, la pagina ya no recoge a nadie: se quedaria pagado y fuera.
+  const c = carpeta();
+  t.after(c.quitar);
+  const { nombres } = minijuegos(c.raiz);
+  const uid = 'u1';
+
+  assert.strictEqual(nombres.apuntarCanje(uid, 'Ana'), false, 'cerrada: se le devuelven');
+  nombres.abrir(uid, '', '!ruleta');
+  assert.strictEqual(nombres.apuntarCanje(uid, 'Ana'), true);
+  assert.strictEqual(nombres.apuntarCanje(uid, 'ana'), false, 'ya estaba: se le devuelven');
+  assert.deepStrictEqual(nombres.estado(uid).nombres, ['Ana']);
+  nombres.cerrar(uid);
+  assert.strictEqual(nombres.apuntarCanje(uid, 'Beto'), false);
+});

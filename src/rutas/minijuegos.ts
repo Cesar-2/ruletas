@@ -47,6 +47,8 @@ export interface Contexto {
   resolveServer(req: Request): string;
   // Crea o actualiza en Twitch la recompensa que vende cartones. Ver twitch.ts.
   recompensaBingo(uid: string, titulo: unknown, coste: unknown): Promise<{ ok: boolean; error?: string }>;
+  // Y la que apunta en la Batalla Dofus.
+  recompensaBatalla(uid: string, titulo: unknown, coste: unknown): Promise<{ ok: boolean; error?: string }>;
 }
 
 // El aviso que se fija al abrir la inscripcion de cada minijuego.
@@ -425,12 +427,25 @@ router.post('/api/batalla/abrir', (req: Request, res: Response) => {
     }
     batalla.abrir(uid, canal, req.body?.segundos);
     const e = batalla.estado(uid);
-    ctx.fijarAviso(uid, canal, aviso(e.palabra, 'la Batalla Dofus'), req.body?.segundos);
+    // Con la recompensa de puntos no se escribe nada: se canjea.
+    const texto = e.recompensa
+      ? 'Canjea «' + e.recompensa + '» con puntos del canal para participar en la Batalla Dofus'
+      : aviso(e.palabra, 'la Batalla Dofus');
+    ctx.fijarAviso(uid, canal, texto, req.body?.segundos);
     res.json(e);
   } catch (err) {
     console.error('Failed to open battle:', err);
     res.status(500).json({ error: (err as Error).message || 'failed to open battle' });
   }
+});
+
+// POST /api/batalla/recompensa  Body: { titulo, coste } -> crea (o actualiza)
+// en Twitch la recompensa de puntos con la que se entra en la batalla.
+router.post('/api/batalla/recompensa', async (req: Request, res: Response) => {
+  const uid = ctx.requireUid(req);
+  const r = await ctx.recompensaBatalla(uid, req.body?.titulo, req.body?.coste);
+  if (!r.ok) return res.status(409).json({ error: r.error });
+  res.json(batalla.estado(uid));
 });
 
 // POST /api/batalla/entrar  Body: { nombre }  (para apuntar a mano)

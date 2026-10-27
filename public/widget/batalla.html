@@ -200,7 +200,7 @@
         apuntados.hidden = !e.abierta;
         if (e.abierta) {
           q('combate').hidden = true;
-          Widget.pintarApuntados({ cuantos: 'apCuantos', rotulo: 'apRotulo', quienes: 'apQuienes', cuenta: 'apCuenta' }, e.luchadores.map((l) => l.nombre), e.palabra, e.cierraEn);
+          Widget.pintarApuntados({ cuantos: 'apCuantos', rotulo: 'apRotulo', quienes: 'apQuienes', cuenta: 'apCuenta' }, e.luchadores.map((l) => l.nombre), e.palabra, e.cierraEn, e.recompensa);
         }
         return Boolean(e.abierta);
       }

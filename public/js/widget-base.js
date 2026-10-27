@@ -206,7 +206,9 @@
   //   quienes los nombres ya apuntados
   //   palabra lo que hay que escribir en el chat
   //   cierraEn cuándo se cierra sola (0 = sin límite)
-  function pintarApuntados(ids, quienes, palabra, cierraEn) {
+  //   recompensa la recompensa de puntos del canal con la que se entra, si
+  //           se entra así en vez de escribiendo
+  function pintarApuntados(ids, quienes, palabra, cierraEn, recompensa) {
     const nombres = quienes || [];
     caja(ids.cuantos).textContent = nombres.length;
     caja(ids.rotulo).textContent = nombres.length === 1 ? 'apuntado' : 'apuntados';
@@ -214,7 +216,9 @@
     // Sin nadie todavía, lo útil no es la lista vacía: es qué hay que escribir.
     const lista = caja(ids.quienes);
     if (!nombres.length) {
-      lista.textContent = palabra
+      lista.textContent = recompensa
+        ? 'Canjea «' + recompensa + '» con puntos del canal'
+        : palabra
         ? 'Escribe ' + palabra + ' en el chat'
         : 'Escribe en el chat para apuntarte';
     } else {

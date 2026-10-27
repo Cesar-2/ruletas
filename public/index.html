@@ -1429,11 +1429,13 @@
           <div class="game-subpanel" id="game-batalla-panel">
           <section>
             <h3>⚔️ Batalla Dofus</h3>
-            <p class="meta">Los espectadores se apuntan escribiendo en tu chat de Twitch y pelean en un torneo PvP de Dofus uno contra uno: a cada uno le toca una clase al azar y el combate va por turnos, con 100 PdV, hechizos, golpes críticos y esquivas, contado aquí golpe a golpe como el chat de combate del juego. El ganador pasa de ronda hasta que queda un campeón; si son impares, a alguien le toca pasar sin pelear. <strong>Solo el campeón gana puntos.</strong> No hace falta conectar nada: el chat se lee sin credenciales. El canal se pone en Configuración › Mi cuenta.</p>
+            <p class="meta">Los espectadores se apuntan escribiendo en tu chat de Twitch y pelean en un torneo PvP de Dofus uno contra uno: a cada uno le toca una clase al azar y el combate va por turnos, con 100 PdV, hechizos, golpes críticos y esquivas, contado aquí golpe a golpe como el chat de combate del juego. El ganador pasa de ronda hasta que queda un campeón; si son impares, a alguien le toca pasar sin pelear. <strong>Solo el campeón gana puntos.</strong> No hace falta conectar nada: el chat se lee sin credenciales. El canal se pone en Configuración › Mi cuenta. Si prefieres que entren <strong>canjeando puntos del canal</strong> en vez de escribiendo, crea la recompensa en Configuración › Minijuegos › Batalla Dofus.</p>
 
             <div class="draw-controls">
-              <label class="meta" for="batallaPalabra">Se apuntan escribiendo</label>
-              <input id="batallaPalabra" type="text" value="!pelea" style="width:110px" aria-label="Palabra para apuntarse" />
+              <span id="batallaComoPalabra">
+                <label class="meta" for="batallaPalabra">Se apuntan escribiendo</label>
+                <input id="batallaPalabra" type="text" value="!pelea" style="width:110px" aria-label="Palabra para apuntarse" />
+              </span>
               <label class="meta" for="batallaPuntos">Puntos al campeón</label>
               <input id="batallaPuntos" type="number" min="0" max="1000000" value="25" style="width:100px" />
               <button type="button" id="batallaGuardar">Guardar</button>
@@ -2339,6 +2341,20 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             <p class="meta" id="ruletaRecompensaEstado"></p>
             <p class="meta">Quien la canjea pone su nombre en <strong>Nombre del ganador</strong> de la Ruleta de objetos y tú le das a sortear en directo; si llegan varios, esperan en fila. Si lo quitas de la fila sin girar, Twitch le devuelve los puntos. Hace falta tener Twitch conectado y ser afiliado o partner.</p>
 
+            <h4>Entrar en la Ruleta de nombres con puntos del canal</h4>
+            <!-- Otra recompensa que crea el Ruletón: quien la canjea con la
+                 inscripción abierta entra en la lista, igual que escribiendo la
+                 palabra. Ver js/twitch-panel.js y src/ruletachat.ts. -->
+            <div class="draw-controls">
+              <label class="meta" for="nombresRecompensaTitulo">Recompensa</label>
+              <input id="nombresRecompensaTitulo" type="text" maxlength="45" placeholder="Ruleta de nombres" style="width:170px" />
+              <label class="meta" for="nombresRecompensaCoste">Cuesta</label>
+              <input id="nombresRecompensaCoste" type="number" min="1" max="10000000" placeholder="puntos" style="width:100px" />
+              <button type="button" id="nombresRecompensaCrear">Crear en Twitch</button>
+            </div>
+            <p class="meta" id="nombresRecompensaEstado"></p>
+            <p class="meta">Solo vale con la inscripción de la Ruleta de nombres abierta: si está cerrada, ya está dentro o la lista está llena, Twitch le devuelve los puntos. Escribir la palabra en el chat sigue valiendo gratis mientras esté abierta.</p>
+
             <h4>Animación del sorteo</h4>
             <div class="config-grid">
               <div class="config-field">
@@ -2424,7 +2440,20 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
             </div>
 
             <div class="cfg-subpanel" id="mini-batalla-panel">
-              <p class="meta">A cada espectador le toca una clase de Dofus al azar entre las que tienen imagen, y lanza sus hechizos. Todavía no hay nada que elegir aquí.</p>
+              <p class="meta">A cada espectador le toca una clase de Dofus al azar entre las que tienen imagen, y lanza sus hechizos.</p>
+              <h4>Entrar con puntos del canal</h4>
+              <!-- La crea el Ruletón en Twitch, como la del bingo: solo así se
+                   pueden devolver los puntos a quien no puede entrar. Con ella
+                   puesta, la palabra del chat deja de apuntar. -->
+              <div class="draw-controls">
+                <label class="meta" for="batallaRecompensaTitulo">Recompensa</label>
+                <input id="batallaRecompensaTitulo" type="text" maxlength="45" placeholder="Batalla Dofus" style="width:170px" />
+                <label class="meta" for="batallaRecompensaCoste">Cuesta</label>
+                <input id="batallaRecompensaCoste" type="number" min="1" max="10000000" placeholder="puntos" style="width:100px" />
+                <button type="button" id="batallaRecompensaCrear">Crear en Twitch</button>
+              </div>
+              <p class="meta" id="batallaRecompensaEstado"></p>
+              <p class="meta">Con la recompensa creada, escribir la palabra en el chat ya no apunta: solo se entra canjeándola con la inscripción abierta. Si está cerrada, el torneo ya empezó o ya está dentro, Twitch le devuelve los puntos. Hace falta tener Twitch conectado y ser afiliado o partner.</p>
             </div>
 
             <!-- El bingo se ajusta aquí entero, con su propio Guardar (como el
@@ -5941,6 +5970,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
       // El campeon no se dice hasta que el ultimo combate acaba de contarse:
       // el cartel y el cuadro ya se callan, y esta linea no.
       avisarChat('batallaEstado', batalla.chat);
+      // Con la recompensa de puntos no se escribe nada: la palabra sobra.
+      document.getElementById('batallaComoPalabra').hidden = Boolean(batalla.recompensa);
       document.getElementById('batallaEstado').textContent = narrando
         ? `Contando la ronda ${batalla.rondas.length}…`
         : batalla.campeon
@@ -5948,6 +5979,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         : batalla.abierta
           ? (cerradaPorTiempo(batalla)
             ? `Inscripción cerrada: ${cuantos} apuntado(s). Pulsa «Empezar torneo».`
+            : batalla.recompensa && !batalla.escuchando
+            ? `Inscripción abierta: canjean «${batalla.recompensa}» con puntos del canal para apuntarse. ${cuantos} apuntado(s).`
             : `Inscripción abierta en ${batalla.escuchando || 'el chat'}: escriben «${document.getElementById('batallaPalabra').value.trim() || '!pelea'}» para apuntarse. ${cuantos} apuntado(s).`)
           : empezada
             ? `Torneo en marcha, ronda ${batalla.rondas.length}.`
@@ -7974,7 +8007,9 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
     // Campos que no son ajustes de la pestana: la contrasena tiene su propio
     // boton (que no se cambie sin querer) y los archivos actuan al elegirlos.
-    const CFG_NO_CUENTAN = new Set(['cfgPassActual', 'cfgPassNueva', 'cfgImportFile', 'cfgImportWinnersFile']);
+    const CFG_NO_CUENTAN = new Set(['cfgPassActual', 'cfgPassNueva', 'cfgImportFile', 'cfgImportWinnersFile',
+      // La recompensa de la batalla se guarda en Twitch con su propio botón.
+      'batallaRecompensaTitulo', 'batallaRecompensaCoste']);
 
     // Que pestanas tienen algo escrito sin guardar.
     const cfgSucias = new Set();

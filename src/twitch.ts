@@ -7,6 +7,10 @@
 //  - La Ruleta de objetos con la recompensa que crea el Ruleton: quien la
 //    canjea queda en la fila de turnos y su nombre va a la ruleta de la
 //    pagina, para que el streamer se la gire en directo (ver turnosruleta.ts).
+//  - La Ruleta de nombres con otra recompensa que crea el Ruleton: quien la
+//    canjea con la inscripcion abierta entra en la lista (ver ruletachat.ts).
+//  - La Batalla Dofus, igual: con esta recompensa puesta se entra solo
+//    canjeandola, ya no escribiendo en el chat (ver batalla.ts).
 //  - Los cartones del bingo: se compran canjeando una recompensa que crea el
 //    propio Ruleton. La crea el, y no el streamer a mano, porque Twitch solo
 //    deja devolver los puntos de las recompensas creadas por la misma app: si
@@ -65,6 +69,10 @@ interface TwitchCuenta {
   bingoRecompensa?: RecompensaBingo;
   // La que da un turno en la Ruleta de objetos, creada igual.
   objetosRecompensa?: RecompensaBingo;
+  // La que apunta en la Ruleta de nombres, creada igual.
+  nombresRecompensa?: RecompensaBingo;
+  // La que apunta en la Batalla Dofus, creada igual.
+  batallaRecompensa?: RecompensaBingo;
   // El state de la autorizacion en curso. Ver urlDeAutorizacion.
   oauthState?: { secreto: string; caduca: number; redireccion?: string };
   // La Redirect URL con la que se pidio la ultima autorizacion. Al canjear el
@@ -94,6 +102,12 @@ export interface Dependencias {
   // Le apunta un turno en la Ruleta de objetos. false si no se puede (y se
   // devuelven los puntos). Ver turnosruleta.ts.
   apuntarTurno?(uid: string, turno: { id: string; recompensa: string; nombre: string; login: string }): boolean;
+  // Le apunta en la Ruleta de nombres. false si no se puede (y se devuelven
+  // los puntos). Ver ruletachat.ts.
+  apuntarNombre?(uid: string, nombre: string): boolean;
+  // Le apunta en la Batalla Dofus. false si no se puede (y se devuelven los
+  // puntos). Ver batalla.ts.
+  apuntarLuchador?(uid: string, nombre: string): boolean;
 }
 
 let deps: Dependencias;
@@ -336,6 +350,8 @@ export function estado(uid: string, vuelta: string = redireccion) {
     fijarAviso: cuenta?.fijarAviso !== false,
     bingoRecompensa: cuenta?.bingoRecompensa || null,
     objetosRecompensa: cuenta?.objetosRecompensa || null,
+    nombresRecompensa: cuenta?.nombresRecompensa || null,
+    batallaRecompensa: cuenta?.batallaRecompensa || null,
     // La «OAuth Redirect URL» que hay que poner en la app de Twitch. Se dice
     // la que usa el servidor de verdad: si no coincide letra a letra, Twitch
     // rechaza la autorizacion con un error que no explica nada.
@@ -510,6 +526,14 @@ export async function alCanjear(uid: string, evento: any): Promise<boolean> {
   if (cuenta.objetosRecompensa && evento.reward?.id === cuenta.objetosRecompensa.id) {
     return darTurno(uid, cuenta, evento);
   }
+  // Y la de la Ruleta de nombres.
+  if (cuenta.nombresRecompensa && evento.reward?.id === cuenta.nombresRecompensa.id) {
+    return apuntarPorCanje(uid, cuenta, evento, deps.apuntarNombre, 'la ruleta de nombres');
+  }
+  // Y la de la Batalla Dofus.
+  if (cuenta.batallaRecompensa && evento.reward?.id === cuenta.batallaRecompensa.id) {
+    return apuntarPorCanje(uid, cuenta, evento, deps.apuntarLuchador, 'la batalla');
+  }
 
   // Solo la recompensa que se haya puesto. Sin ninguna puesta, ninguna: antes
   // vacio era «cualquiera», y conectar Twitch para fijar avisos habria puesto a
@@ -593,6 +617,26 @@ async function darTurno(uid: string, cuenta: TwitchCuenta, evento: any): Promise
   return ok;
 }
 
+// --- Ruleta de nombres y Batalla Dofus, con puntos de canal --------------
+
+// Alguien ha canjeado la recompensa de una inscripcion (la ruleta de nombres o
+// la batalla): entra en la lista. Aqui no hay fila que esperar, asi que el
+// canje se cierra ya: cumplido si entro, cancelado (le devuelve los puntos) si
+// no, que es estar cerrada, estar ya apuntado o estar llena.
+async function apuntarPorCanje(uid: string, cuenta: TwitchCuenta, evento: any,
+    apuntar: ((uid: string, nombre: string) => boolean) | undefined, juego: string): Promise<boolean> {
+  const quien = String(evento.user_name || evento.user_login || '').trim();
+  let ok = false;
+  try {
+    if (quien && apuntar) ok = apuntar(uid, quien);
+  } catch (err) {
+    console.error(`Twitch: fallo al apuntar en ${juego} a`, quien, err);
+  }
+  await marcarCanje(uid, cuenta, String(evento.reward?.id || ''), String(evento.id || ''), ok, quien);
+  if (!ok) console.log(`Twitch: ${quien} canjeo ${juego} y no se le pudo apuntar; puntos devueltos`);
+  return ok;
+}
+
 // Cierra en Twitch el canje de un turno: cumplido al ponerlo en la ruleta, o
 // cancelado si se le quita, que le devuelve los puntos.
 export async function cerrarCanje(uid: string, recompensa: string, canje: string, cumplido: boolean): Promise<boolean> {
@@ -616,7 +660,27 @@ export function recompensaObjetos(uid: string, titulo: unknown, coste: unknown):
     'Tu nombre va a la Ruleta de objetos y el streamer te la gira en directo. Si al final no te la gira, se te devuelven los puntos.');
 }
 
-async function crearRecompensa(uid: string, campo: 'bingoRecompensa' | 'objetosRecompensa', titulo: unknown,
+// La de la Ruleta de nombres: quien la canjea entra en la lista mientras la
+// inscripcion este abierta.
+export function recompensaNombres(uid: string, titulo: unknown, coste: unknown): Promise<{ ok: boolean; error?: string }> {
+  return crearRecompensa(uid, 'nombresRecompensa', titulo, coste, 'Ruleta de nombres', 'entrar',
+    'Tu nombre entra en la Ruleta de nombres. Si la inscripción está cerrada o ya estás dentro, se te devuelven los puntos.');
+}
+
+// La de la Batalla Dofus: quien la canjea con la inscripcion abierta entra en
+// el torneo. Con ella puesta, la palabra del chat ya no apunta a nadie.
+export function recompensaBatalla(uid: string, titulo: unknown, coste: unknown): Promise<{ ok: boolean; error?: string }> {
+  return crearRecompensa(uid, 'batallaRecompensa', titulo, coste, 'Batalla Dofus', 'entrar',
+    'Entras en el torneo de la Batalla Dofus. Si la inscripción está cerrada o ya estás dentro, se te devuelven los puntos.');
+}
+
+// El titulo de la recompensa de la batalla, o '' si no hay: con ella se entra
+// canjeando y no escribiendo. Ver batalla.ts.
+export function tituloBatalla(uid: string): string {
+  return leerCuenta(uid)?.batallaRecompensa?.titulo || '';
+}
+
+async function crearRecompensa(uid: string, campo: 'bingoRecompensa' | 'objetosRecompensa' | 'nombresRecompensa' | 'batallaRecompensa', titulo: unknown,
     coste: unknown, porDefecto: string, que: string, explicacion: string): Promise<{ ok: boolean; error?: string }> {
   const cuenta = leerCuenta(uid);
   if (!cuenta?.refreshToken) return { ok: false, error: 'conecta primero tu cuenta de Twitch en Configuracion › Twitch' };

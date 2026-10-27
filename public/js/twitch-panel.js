@@ -32,7 +32,113 @@
       if (!e) return;
       document.getElementById('canjeObjetos').value = e.objetos || 1;
       pintarRecompensaRuleta();
+      pintarRecompensaNombres();
+      pintarRecompensaBatalla();
     }
+
+    // La de la Batalla Dofus: con ella creada se entra canjeándola, y la
+    // palabra del chat deja de apuntar.
+    function pintarRecompensaBatalla() {
+      const e = twitchEstado;
+      if (!e) return;
+      const r = e.batallaRecompensa;
+      const titulo = document.getElementById('batallaRecompensaTitulo');
+      const coste = document.getElementById('batallaRecompensaCoste');
+      if (r) {
+        if (document.activeElement !== titulo && !titulo.dataset.tocado) titulo.value = r.titulo;
+        if (document.activeElement !== coste && !coste.dataset.tocado) coste.value = r.coste;
+      }
+      document.getElementById('batallaRecompensaCrear').textContent = r ? 'Actualizar en Twitch' : 'Crear en Twitch';
+      document.getElementById('batallaRecompensaEstado').textContent = !e.conectado && !r
+        ? 'Conecta primero tu cuenta de Twitch en Configuración › Twitch para poder crearla.'
+        : r
+          ? `Se entra canjeando «${r.titulo}» por ${Number(r.coste).toLocaleString('es-ES')} puntos, con la inscripción abierta.`
+          : 'Pon nombre y precio y pulsa «Crear en Twitch»: el Ruletón crea la recompensa en tu canal.';
+    }
+
+    ['batallaRecompensaTitulo', 'batallaRecompensaCoste'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', (ev) => { ev.target.dataset.tocado = '1'; });
+    });
+
+    document.getElementById('batallaRecompensaCrear').addEventListener('click', async () => {
+      const boton = document.getElementById('batallaRecompensaCrear');
+      const titulo = document.getElementById('batallaRecompensaTitulo').value.trim() || 'Batalla Dofus';
+      const coste = Number(document.getElementById('batallaRecompensaCoste').value) || 0;
+      if (coste < 1) {
+        showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta entrar en la batalla.');
+        return;
+      }
+      boton.disabled = true;
+      try {
+        await api('/api/batalla/recompensa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ titulo, coste })
+        });
+        ['batallaRecompensaTitulo', 'batallaRecompensaCoste'].forEach((id) => {
+          delete document.getElementById(id).dataset.tocado;
+        });
+        // La conexión con Twitch es la que guarda la recompensa; y el panel
+        // de la batalla deja de pedir la palabra.
+        await cargarTwitch();
+        cargarBatalla();
+      } catch (e) {
+        showAlert('No se pudo crear la recompensa en Twitch', e.message);
+      } finally {
+        boton.disabled = false;
+      }
+    });
+
+    // La de la Ruleta de nombres: quien la canjea entra en la lista mientras
+    // la inscripción esté abierta.
+    function pintarRecompensaNombres() {
+      const e = twitchEstado;
+      if (!e) return;
+      const r = e.nombresRecompensa;
+      const titulo = document.getElementById('nombresRecompensaTitulo');
+      const coste = document.getElementById('nombresRecompensaCoste');
+      if (r) {
+        if (document.activeElement !== titulo && !titulo.dataset.tocado) titulo.value = r.titulo;
+        if (document.activeElement !== coste && !coste.dataset.tocado) coste.value = r.coste;
+      }
+      document.getElementById('nombresRecompensaCrear').textContent = r ? 'Actualizar en Twitch' : 'Crear en Twitch';
+      document.getElementById('nombresRecompensaEstado').textContent = !e.conectado && !r
+        ? 'Conecta primero tu cuenta de Twitch en Configuración › Twitch para poder crearla.'
+        : r
+          ? `Se entra canjeando «${r.titulo}» por ${Number(r.coste).toLocaleString('es-ES')} puntos, con la inscripción abierta.`
+          : 'Pon nombre y precio y pulsa «Crear en Twitch»: el Ruletón crea la recompensa en tu canal.';
+    }
+
+    ['nombresRecompensaTitulo', 'nombresRecompensaCoste'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', (ev) => { ev.target.dataset.tocado = '1'; });
+    });
+
+    document.getElementById('nombresRecompensaCrear').addEventListener('click', async () => {
+      const boton = document.getElementById('nombresRecompensaCrear');
+      const titulo = document.getElementById('nombresRecompensaTitulo').value.trim() || 'Ruleta de nombres';
+      const coste = Number(document.getElementById('nombresRecompensaCoste').value) || 0;
+      if (coste < 1) {
+        showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta entrar en la ruleta.');
+        return;
+      }
+      boton.disabled = true;
+      try {
+        twitchEstado = await api('/api/ruleta-chat/recompensa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ titulo, coste })
+        });
+        ['nombresRecompensaTitulo', 'nombresRecompensaCoste'].forEach((id) => {
+          delete document.getElementById(id).dataset.tocado;
+        });
+        pintarTwitch();
+        pintarRecompensaNombres();
+      } catch (e) {
+        showAlert('No se pudo crear la recompensa en Twitch', e.message);
+      } finally {
+        boton.disabled = false;
+      }
+    });
 
     // La recompensa de puntos del canal que da un turno en la ruleta. La crea
     // el Ruletón en Twitch, como la de los cartones del bingo.

@@ -344,6 +344,104 @@ test('crear la de la ruleta la guarda y apaga la que se ponia por titulo', async
   assert.deepStrictEqual(await twitch.recompensaObjetos('u1', 'x', 0), { ok: false, error: 'pon cuantos puntos cuesta la tirada' });
 });
 
+// --- La Ruleta de nombres con puntos de canal ---
+
+const CON_NOMBRES = { ...CUENTA, nombresRecompensa: { id: 'rw-n', titulo: 'Nombres', coste: 500 } };
+const CANJE_NOMBRES = { id: 'red-n', reward: { id: 'rw-n', title: 'Nombres' }, user_name: 'Ana', user_login: 'ana' };
+
+function montarNombres(raiz, puede) {
+  const twitch = montar(raiz, CON_NOMBRES);
+  const apuntados = [];
+  const d = deps(raiz);
+  d.servidoresDe = () => [{ id: 's1', name: 'Principal' }];
+  d.apuntarNombre = (uid, nombre) => { apuntados.push(nombre); return puede; };
+  twitch.iniciar(d, { usuarios: [] });
+  return { twitch, apuntados };
+}
+
+test('canjear la de nombres le mete en la lista y cierra el canje como cumplido', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { twitch, apuntados } = montarNombres(c.raiz, true);
+  const llamadas = fetchFalso(t, [() => ({ status: 200, json: {} })]);
+  assert.strictEqual(await twitch.alCanjear('u1', CANJE_NOMBRES), true);
+  assert.deepStrictEqual(apuntados, ['Ana']);
+  assert.deepStrictEqual(llamadas[0].cuerpo, { status: 'FULFILLED' });
+  assert.strictEqual(new URL(llamadas[0].url).searchParams.get('id'), 'red-n');
+});
+
+test('si no puede entrar en la de nombres, se le devuelven los puntos', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { twitch } = montarNombres(c.raiz, false);
+  const llamadas = fetchFalso(t, [() => ({ status: 200, json: {} })]);
+  assert.strictEqual(await twitch.alCanjear('u1', CANJE_NOMBRES), false);
+  assert.deepStrictEqual(llamadas[0].cuerpo, { status: 'CANCELED' });
+});
+
+test('crear la de nombres la guarda sin tocar las otras', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, { ...CON_RULETA });
+  const llamadas = fetchFalso(t, [() => ({ json: { data: [{ id: 'rw-n' }] } })]);
+  assert.deepStrictEqual(await twitch.recompensaNombres('u1', '', 500), { ok: true });
+  assert.strictEqual(llamadas[0].cuerpo.title, 'Ruleta de nombres');
+  const cuenta = twitch.leerCuenta('u1');
+  assert.deepStrictEqual(cuenta.nombresRecompensa, { id: 'rw-n', titulo: 'Ruleta de nombres', coste: 500 });
+  assert.strictEqual(cuenta.recompensa, 'Vieja', 'la de objetos por titulo no se apaga');
+  assert.deepStrictEqual(cuenta.objetosRecompensa, CON_RULETA.objetosRecompensa);
+});
+
+// --- La Batalla Dofus con puntos de canal ---
+
+const CON_BATALLA = { ...CUENTA, batallaRecompensa: { id: 'rw-b', titulo: 'Pelea', coste: 300 } };
+const CANJE_BATALLA = { id: 'red-b', reward: { id: 'rw-b', title: 'Pelea' }, user_name: 'Ana', user_login: 'ana' };
+
+function montarBatalla(raiz, puede) {
+  const twitch = montar(raiz, CON_BATALLA);
+  const apuntados = [];
+  const d = deps(raiz);
+  d.servidoresDe = () => [{ id: 's1', name: 'Principal' }];
+  d.apuntarLuchador = (uid, nombre) => { apuntados.push(nombre); return puede; };
+  twitch.iniciar(d, { usuarios: [] });
+  return { twitch, apuntados };
+}
+
+test('canjear la de la batalla le mete en el torneo y cierra el canje como cumplido', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { twitch, apuntados } = montarBatalla(c.raiz, true);
+  const llamadas = fetchFalso(t, [() => ({ status: 200, json: {} })]);
+  assert.strictEqual(await twitch.alCanjear('u1', CANJE_BATALLA), true);
+  assert.deepStrictEqual(apuntados, ['Ana']);
+  assert.deepStrictEqual(llamadas[0].cuerpo, { status: 'FULFILLED' });
+  assert.strictEqual(new URL(llamadas[0].url).searchParams.get('id'), 'red-b');
+  assert.strictEqual(twitch.tituloBatalla('u1'), 'Pelea');
+});
+
+test('si no puede entrar en la batalla, se le devuelven los puntos', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const { twitch } = montarBatalla(c.raiz, false);
+  const llamadas = fetchFalso(t, [() => ({ status: 200, json: {} })]);
+  assert.strictEqual(await twitch.alCanjear('u1', CANJE_BATALLA), false);
+  assert.deepStrictEqual(llamadas[0].cuerpo, { status: 'CANCELED' });
+});
+
+test('crear la de la batalla la guarda sin tocar las otras', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, { ...CON_RULETA });
+  assert.strictEqual(twitch.tituloBatalla('u1'), '', 'sin recompensa se entra por el chat');
+  const llamadas = fetchFalso(t, [() => ({ json: { data: [{ id: 'rw-b' }] } })]);
+  assert.deepStrictEqual(await twitch.recompensaBatalla('u1', '', 300), { ok: true });
+  assert.strictEqual(llamadas[0].cuerpo.title, 'Batalla Dofus');
+  const cuenta = twitch.leerCuenta('u1');
+  assert.deepStrictEqual(cuenta.batallaRecompensa, { id: 'rw-b', titulo: 'Batalla Dofus', coste: 300 });
+  assert.strictEqual(cuenta.recompensa, 'Vieja', 'la de objetos por titulo no se apaga');
+  assert.deepStrictEqual(cuenta.objetosRecompensa, CON_RULETA.objetosRecompensa);
+});
+
 // --- La vuelta de la autorizacion ---
 
 test('la vuelta de Twitch sigue valiendo aunque el servidor se reinicie', (t) => {
