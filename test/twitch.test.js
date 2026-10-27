@@ -442,6 +442,27 @@ test('crear la de la batalla la guarda sin tocar las otras', async (t) => {
   assert.deepStrictEqual(cuenta.objetosRecompensa, CON_RULETA.objetosRecompensa);
 });
 
+test('dos peticiones a la vez no crean dos recompensas', async (t) => {
+  const c = carpeta();
+  t.after(c.quitar);
+  const twitch = montar(c.raiz, { ...CUENTA });
+  const llamadas = fetchFalso(t, [
+    () => ({ json: { data: [{ id: 'rw-b' }] } }),
+    () => ({ json: { data: [{ id: 'rw-b' }] } })
+  ]);
+  const [una, otra] = await Promise.all([
+    twitch.recompensaBatalla('u1', 'Pelea', 300),
+    twitch.recompensaBatalla('u1', 'Pelea', 300)
+  ]);
+  assert.deepStrictEqual(una, { ok: true });
+  assert.strictEqual(otra.ok, false, 'la segunda no crea otra');
+  assert.deepStrictEqual(llamadas.map((l) => l.metodo), ['POST'], 'una sola llamada a Twitch');
+  // Acabada la primera, otra peticion ya actualiza la que hay.
+  assert.deepStrictEqual(await twitch.recompensaBatalla('u1', 'Pelea', 400), { ok: true });
+  assert.strictEqual(llamadas[1].metodo, 'PATCH', 'actualiza, no crea otra');
+  assert.strictEqual(twitch.leerCuenta('u1').batallaRecompensa.coste, 400);
+});
+
 // --- La vuelta de la autorizacion ---
 
 test('la vuelta de Twitch sigue valiendo aunque el servidor se reinicie', (t) => {

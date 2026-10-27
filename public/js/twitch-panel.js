@@ -36,15 +36,36 @@
       pintarRecompensaBatalla();
     }
 
-    // Crear (o actualizar) una recompensa en Twitch tarda un momento, y si solo
-    // cambiaba la línea gris de debajo no se veía que hubiera pasado nada. El
-    // botón dice que está en ello y al acabar se dice claro cómo quedó. `pedir`
-    // hace la llamada y repinta; si falla, lanza. Lo usa también el bingo.
-    async function pedirRecompensa(boton, titulo, coste, pedir) {
-      const antes = boton.textContent;
-      const actualizar = antes.startsWith('Actualizar');
+    // Las cuatro recompensas (ruleta, nombres, batalla y bingo) tienen los
+    // mismos campos: <prefijo>RecompensaTitulo, ...Coste, ...Crear y ...Estado.
+    //
+    // Con la recompensa ya creada no se crea otra: el botón pasa a «Actualizar
+    // en Twitch» y se queda apagado mientras el nombre y el precio sean los
+    // que ya tiene. `r` es la recompensa guardada, o null.
+    function pintarBotonRecompensa(prefijo, r) {
+      const boton = document.getElementById(prefijo + 'RecompensaCrear');
+      if (boton.dataset.pidiendo) return;
+      const titulo = document.getElementById(prefijo + 'RecompensaTitulo').value.trim();
+      const coste = Number(document.getElementById(prefijo + 'RecompensaCoste').value) || 0;
+      const igual = Boolean(r) && titulo === r.titulo && coste === Number(r.coste);
+      boton.textContent = r ? 'Actualizar en Twitch' : 'Crear en Twitch';
+      boton.disabled = igual;
+      boton.title = igual ? 'Ya está creada en Twitch. Cambia el nombre o el precio para actualizarla.' : '';
+    }
+
+    // Crear (o actualizar) una recompensa en Twitch tarda un momento: el botón
+    // y la línea de debajo dicen que está en ello, no se puede volver a pulsar,
+    // y al acabar se dice claro cómo quedó. `pedir` hace la llamada (si falla,
+    // lanza) y `repintar` deja el botón y la línea como toque después.
+    async function pedirRecompensa(prefijo, titulo, coste, pedir, repintar) {
+      const boton = document.getElementById(prefijo + 'RecompensaCrear');
+      const estado = document.getElementById(prefijo + 'RecompensaEstado');
+      if (boton.dataset.pidiendo) return false;
+      const actualizar = boton.textContent.startsWith('Actualizar');
+      boton.dataset.pidiendo = '1';
       boton.disabled = true;
       boton.textContent = actualizar ? 'Actualizando en Twitch…' : 'Creando en Twitch…';
+      estado.textContent = actualizar ? '⏳ Actualizando la recompensa en Twitch…' : '⏳ Creando la recompensa en Twitch…';
       try {
         await pedir();
         showAlert(actualizar ? 'Recompensa actualizada en Twitch' : 'Recompensa creada en Twitch',
@@ -54,10 +75,20 @@
         showAlert(actualizar ? 'No se pudo actualizar la recompensa en Twitch' : 'No se pudo crear la recompensa en Twitch', e.message);
         return false;
       } finally {
-        boton.disabled = false;
-        // Si al repintar ya se le puso su texto, ese vale.
-        if (boton.textContent.endsWith('…')) boton.textContent = antes;
+        delete boton.dataset.pidiendo;
+        repintar();
       }
+    }
+
+    // Al escribir en el nombre o el precio, el botón se enciende si hay algo
+    // que mandar. `recompensa` dice cuál está guardada ahora.
+    function vigilarCamposRecompensa(prefijo, recompensa) {
+      ['Titulo', 'Coste'].forEach((campo) => {
+        document.getElementById(prefijo + 'Recompensa' + campo).addEventListener('input', (ev) => {
+          ev.target.dataset.tocado = '1';
+          pintarBotonRecompensa(prefijo, recompensa());
+        });
+      });
     }
 
     // La de la Batalla Dofus: es la única forma de entrar en el torneo.
@@ -71,7 +102,8 @@
         if (document.activeElement !== titulo && !titulo.dataset.tocado) titulo.value = r.titulo;
         if (document.activeElement !== coste && !coste.dataset.tocado) coste.value = r.coste;
       }
-      document.getElementById('batallaRecompensaCrear').textContent = r ? 'Actualizar en Twitch' : 'Crear en Twitch';
+      if (document.getElementById('batallaRecompensaCrear').dataset.pidiendo) return;
+      pintarBotonRecompensa('batalla', r);
       document.getElementById('batallaRecompensaEstado').textContent = !e.conectado && !r
         ? 'Conecta primero tu cuenta de Twitch en Configuración › Twitch para poder crearla.'
         : r
@@ -79,19 +111,16 @@
           : 'Pon nombre y precio y pulsa «Crear en Twitch»: el Ruletón crea la recompensa en tu canal.';
     }
 
-    ['batallaRecompensaTitulo', 'batallaRecompensaCoste'].forEach((id) => {
-      document.getElementById(id).addEventListener('input', (ev) => { ev.target.dataset.tocado = '1'; });
-    });
+    vigilarCamposRecompensa('batalla', () => twitchEstado && twitchEstado.batallaRecompensa);
 
     document.getElementById('batallaRecompensaCrear').addEventListener('click', async () => {
-      const boton = document.getElementById('batallaRecompensaCrear');
       const titulo = document.getElementById('batallaRecompensaTitulo').value.trim() || 'Batalla Dofus';
       const coste = Number(document.getElementById('batallaRecompensaCoste').value) || 0;
       if (coste < 1) {
         showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta entrar en la batalla.');
         return;
       }
-      await pedirRecompensa(boton, titulo, coste, async () => {
+      await pedirRecompensa('batalla', titulo, coste, async () => {
         await api('/api/batalla/recompensa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -104,7 +133,7 @@
         // de la batalla ya deja abrir la inscripción.
         await cargarTwitch();
         cargarBatalla();
-      });
+      }, pintarRecompensaBatalla);
     });
 
     // La de la Ruleta de nombres: quien la canjea entra en la lista mientras
@@ -119,7 +148,8 @@
         if (document.activeElement !== titulo && !titulo.dataset.tocado) titulo.value = r.titulo;
         if (document.activeElement !== coste && !coste.dataset.tocado) coste.value = r.coste;
       }
-      document.getElementById('nombresRecompensaCrear').textContent = r ? 'Actualizar en Twitch' : 'Crear en Twitch';
+      if (document.getElementById('nombresRecompensaCrear').dataset.pidiendo) return;
+      pintarBotonRecompensa('nombres', r);
       document.getElementById('nombresRecompensaEstado').textContent = !e.conectado && !r
         ? 'Conecta primero tu cuenta de Twitch en Configuración › Twitch para poder crearla.'
         : r
@@ -127,19 +157,16 @@
           : 'Pon nombre y precio y pulsa «Crear en Twitch»: el Ruletón crea la recompensa en tu canal.';
     }
 
-    ['nombresRecompensaTitulo', 'nombresRecompensaCoste'].forEach((id) => {
-      document.getElementById(id).addEventListener('input', (ev) => { ev.target.dataset.tocado = '1'; });
-    });
+    vigilarCamposRecompensa('nombres', () => twitchEstado && twitchEstado.nombresRecompensa);
 
     document.getElementById('nombresRecompensaCrear').addEventListener('click', async () => {
-      const boton = document.getElementById('nombresRecompensaCrear');
       const titulo = document.getElementById('nombresRecompensaTitulo').value.trim() || 'Ruleta de nombres';
       const coste = Number(document.getElementById('nombresRecompensaCoste').value) || 0;
       if (coste < 1) {
         showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta entrar en la ruleta.');
         return;
       }
-      await pedirRecompensa(boton, titulo, coste, async () => {
+      await pedirRecompensa('nombres', titulo, coste, async () => {
         twitchEstado = await api('/api/ruleta-chat/recompensa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -149,8 +176,7 @@
           delete document.getElementById(id).dataset.tocado;
         });
         pintarTwitch();
-        pintarRecompensaNombres();
-      });
+      }, pintarRecompensaNombres);
     });
 
     // La recompensa de puntos del canal que da un turno en la ruleta. La crea
@@ -165,7 +191,8 @@
         if (document.activeElement !== titulo && !titulo.dataset.tocado) titulo.value = r.titulo;
         if (document.activeElement !== coste && !coste.dataset.tocado) coste.value = r.coste;
       }
-      document.getElementById('ruletaRecompensaCrear').textContent = r ? 'Actualizar en Twitch' : 'Crear en Twitch';
+      if (document.getElementById('ruletaRecompensaCrear').dataset.pidiendo) return;
+      pintarBotonRecompensa('ruleta', r);
       document.getElementById('ruletaRecompensaEstado').textContent = !e.conectado && !r
         ? 'Conecta primero tu cuenta de Twitch en Configuración › Twitch para poder crearla.'
         : r
@@ -176,19 +203,16 @@
             : 'Pon nombre y precio y pulsa «Crear en Twitch»: el Ruletón crea la recompensa en tu canal.';
     }
 
-    ['ruletaRecompensaTitulo', 'ruletaRecompensaCoste'].forEach((id) => {
-      document.getElementById(id).addEventListener('input', (ev) => { ev.target.dataset.tocado = '1'; });
-    });
+    vigilarCamposRecompensa('ruleta', () => twitchEstado && twitchEstado.objetosRecompensa);
 
     document.getElementById('ruletaRecompensaCrear').addEventListener('click', async () => {
-      const boton = document.getElementById('ruletaRecompensaCrear');
       const titulo = document.getElementById('ruletaRecompensaTitulo').value.trim() || 'Ruleta de objetos';
       const coste = Number(document.getElementById('ruletaRecompensaCoste').value) || 0;
       if (coste < 1) {
         showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta una tirada.');
         return;
       }
-      await pedirRecompensa(boton, titulo, coste, async () => {
+      await pedirRecompensa('ruleta', titulo, coste, async () => {
         twitchEstado = await api('/api/ruleta/recompensa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -198,8 +222,7 @@
           delete document.getElementById(id).dataset.tocado;
         });
         pintarTwitch();
-        pintarRecompensaRuleta();
-      });
+      }, pintarRecompensaRuleta);
     });
 
     document.getElementById('canjeGuardar').addEventListener('click', async () => {

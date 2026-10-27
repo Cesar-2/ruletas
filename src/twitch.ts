@@ -680,7 +680,28 @@ export function tituloBatalla(uid: string): string {
   return leerCuenta(uid)?.batallaRecompensa?.titulo || '';
 }
 
-async function crearRecompensa(uid: string, campo: 'bingoRecompensa' | 'objetosRecompensa' | 'nombresRecompensa' | 'batallaRecompensa', titulo: unknown,
+type CampoRecompensa = 'bingoRecompensa' | 'objetosRecompensa' | 'nombresRecompensa' | 'batallaRecompensa';
+
+// Las que se estan creando ahora mismo, por cuenta y recompensa. Dos peticiones
+// a la vez (dos pestañas, un doble clic) leerian las dos que aun no hay
+// ninguna y crearian dos en Twitch: la segunda espera a que acabe la primera,
+// y a partir de ahi ya se actualiza la que hay.
+const creando = new Set<string>();
+
+async function crearRecompensa(uid: string, campo: CampoRecompensa, titulo: unknown,
+    coste: unknown, porDefecto: string, que: string, explicacion: string): Promise<{ ok: boolean; error?: string }> {
+  const clave = uid + ':' + campo;
+  if (creando.has(clave)) return { ok: false, error: 'ya se esta creando en Twitch: espera a que acabe' };
+  creando.add(clave);
+  try {
+    return await guardarRecompensa(uid, campo, titulo, coste, porDefecto, que, explicacion);
+  } finally {
+    creando.delete(clave);
+  }
+}
+
+// Crea la recompensa en Twitch, o actualiza la que ya hay: nunca deja dos.
+async function guardarRecompensa(uid: string, campo: CampoRecompensa, titulo: unknown,
     coste: unknown, porDefecto: string, que: string, explicacion: string): Promise<{ ok: boolean; error?: string }> {
   const cuenta = leerCuenta(uid);
   if (!cuenta?.refreshToken) return { ok: false, error: 'conecta primero tu cuenta de Twitch en Configuracion › Twitch' };

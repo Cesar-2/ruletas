@@ -84,8 +84,9 @@
 
     function pintarRecompensa() {
       const estado = document.getElementById('bingoRecompensaEstado');
-      const boton = document.getElementById('bingoRecompensaCrear');
-      boton.textContent = bingoRecompensa ? 'Actualizar en Twitch' : 'Crear en Twitch';
+      if (document.getElementById('bingoRecompensaCrear').dataset.pidiendo) return;
+      // Ya creada, el botón solo se enciende para cambiarla (ver twitch-panel.js).
+      pintarBotonRecompensa('bingo', bingoRecompensa);
       estado.textContent = !bingoTwitchConectado && !bingoRecompensa
         ? 'Para vender cartones hace falta conectar tu cuenta en Configuración › Twitch (y que el canal sea afiliado o partner).'
         : bingoRecompensa
@@ -336,13 +337,17 @@
       setTimeout(() => { b.textContent = 'Copiar'; }, 1500);
     });
 
-    // Crear (o actualizar) en Twitch la recompensa que vende cartones.
+    // Crear (o actualizar) en Twitch la recompensa que vende cartones. Lo de
+    // los botones de recompensa vive en twitch-panel.js, que se carga detrás:
+    // aquí solo se le llama al tocar o pulsar, cuando ya está.
     ['bingoRecompensaTitulo', 'bingoRecompensaCoste'].forEach((id) => {
       const campo = document.getElementById(id);
-      campo.addEventListener('input', () => { campo.dataset.tocado = '1'; });
+      campo.addEventListener('input', () => {
+        campo.dataset.tocado = '1';
+        pintarBotonRecompensa('bingo', bingoRecompensa);
+      });
     });
     document.getElementById('bingoRecompensaCrear').addEventListener('click', async () => {
-      const boton = document.getElementById('bingoRecompensaCrear');
       const titulo = document.getElementById('bingoRecompensaTitulo').value.trim() || 'Cartón de bingo';
       const coste = Number(document.getElementById('bingoRecompensaCoste').value) || 0;
       if (coste < 1) {
@@ -350,7 +355,7 @@
         return;
       }
       // Con el mismo aviso que las otras recompensas (ver twitch-panel.js).
-      await pedirRecompensa(boton, titulo, coste, async () => {
+      await pedirRecompensa('bingo', titulo, coste, async () => {
         bingo = await api('/api/bingo/recompensa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -361,7 +366,7 @@
           delete document.getElementById(id).dataset.tocado;
         });
         await cargarRecompensa();
-      });
+      }, pintarRecompensa);
     });
 
     // El objeto del catálogo de cada premio: su icono, su nombre y una ✕ para
