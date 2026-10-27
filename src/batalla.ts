@@ -1,14 +1,13 @@
-// Batalla de viewers: un torneo de duelos uno contra uno. Se apuntan por el
-// chat, como en la carrera (o, si el streamer ha creado la recompensa,
-// canjeandola con puntos del canal: ver twitch.ts), se emparejan de dos en
-// dos, y el que gana pasa a la siguiente ronda hasta que queda un campeon.
+// Batalla de viewers: un torneo de duelos uno contra uno. Se apuntan
+// canjeando la recompensa de puntos del canal que crea el Ruleton (ver
+// twitch.ts), no escribiendo en el chat; se emparejan de dos en dos, y el que
+// gana pasa a la siguiente ronda hasta que queda un campeon.
 //
 // Quien decide cada duelo es esto, no el navegador: la pagina solo lo cuenta.
 // Los puntos van al mismo marcador que la carrera de balineras.
 
 import fs from 'fs';
 import path from 'path';
-import * as chat from './chat';
 import { Cronometro } from './cronometro';
 import { Vivo, quedanSegundos } from './vivo';
 
@@ -60,10 +59,9 @@ export interface Batalla {
 
 export interface Ajustes {
   puntos: number;
-  palabra: string;      // lo que se escribe en el chat para apuntarse
 }
 
-export const AJUSTES_POR_DEFECTO: Ajustes = { puntos: 25, palabra: '!pelea' };
+export const AJUSTES_POR_DEFECTO: Ajustes = { puntos: 25 };
 
 export interface Dependencias {
   userDir(uid: string): string;
@@ -76,8 +74,8 @@ export interface Dependencias {
   sumarPuntos(uid: string, nombre: string, cuantos: number): number;
   // Las clases de Dofus que tienen imagen de prueba: solo se sortean esas.
   clasesConArte?(): string[];
-  // El titulo de la recompensa de puntos del canal con la que se entra, o ''.
-  // Con ella puesta la inscripcion no escucha el chat: se entra canjeandola.
+  // El titulo de la recompensa de puntos del canal con la que se entra, o ''
+  // si aun no se ha creado.
   recompensa?(uid: string): string;
 }
 
@@ -91,8 +89,6 @@ export function iniciar(d: Dependencias): void { deps = d; }
 // ronda a ronda. Ver vivo.ts.
 const batallas = new Map<string, Batalla>();
 const vivo = new Vivo<Batalla>('batalla', () => deps);
-// La palabra con la que se abrio, para rehacer la escucha tal cual estaba.
-const palabras = new Map<string, string>();
 
 function archivoAjustes(uid: string): string {
   return path.join(deps.userDir(uid), 'batalla.json');
@@ -114,11 +110,10 @@ export function guardarAjustes(uid: string, ajustes: Partial<Ajustes>): Ajustes 
   if (ajustes.puntos != null) {
     actual.puntos = Math.max(0, Math.min(1000000, Math.floor(Number(ajustes.puntos) || 0)));
   }
-  if (typeof ajustes.palabra === 'string') {
-    actual.palabra = ajustes.palabra.trim().slice(0, 30) || AJUSTES_POR_DEFECTO.palabra;
-  }
   deps.ensureUserDir(uid);
-  deps.writeJson(archivoAjustes(uid), actual);
+  // Solo los puntos: la palabra del chat que guardaban las versiones de antes
+  // ya no se usa, y se cae al volver a guardar.
+  deps.writeJson(archivoAjustes(uid), { puntos: actual.puntos });
   return actual;
 }
 
@@ -128,16 +123,14 @@ function apuntarEnDisco(uid: string): void {
   if (!batalla) { vivo.borrar(uid); return; }
   vivo.guardar(uid, {
     estado: batalla,
-    canal: escuchas.get(uid)?.canal || '',
-    palabra: palabras.get(uid) || '',
+    canal: '',
+    palabra: '',
     cierraEn: crono.cierraEn(uid)
   });
   deps.alCambiar?.(uid);
 }
 
-export function estado(uid: string): Batalla & {
-  escuchando: string; chat: chat.Salud | null; palabra: string; recompensa: string; cierraEn: number; ahora: number;
-} {
+export function estado(uid: string): Batalla & { recompensa: string; cierraEn: number; ahora: number } {
   const b = batallas.get(uid) || {
     abierta: false, luchadores: [], rondas: [], campeon: '', puntos: leerAjustes(uid).puntos
   };
@@ -145,59 +138,27 @@ export function estado(uid: string): Batalla & {
   // Los puntos que se enseñan son los ajustados ahora mismo, no los que
   // hubiera al abrir: se pueden cambiar en cualquier momento.
   return {
-    ...b, puntos: ajustes.puntos, escuchando: escuchando(uid), chat: saludChat(uid), palabra: ajustes.palabra,
-    recompensa: deps.recompensa?.(uid) || '', cierraEn: crono.cierraEn(uid), ahora: Date.now()
+    ...b, puntos: ajustes.puntos, recompensa: deps.recompensa?.(uid) || '',
+    cierraEn: crono.cierraEn(uid), ahora: Date.now()
   };
 }
 
-// La conexion al chat mientras hay inscripcion abierta.
-const escuchas = new Map<string, chat.Conexion>();
-// Al llegar la hora deja de escuchar el chat. El torneo no empieza solo:
-// sigue esperando a que el streamer pulse «Empezar torneo».
-const crono = new Cronometro((uid) => cerrarEscucha(uid));
+// Al llegar la hora ya no entra nadie (ver entrar), y se avisa para que la
+// pagina lo diga. El torneo no empieza solo: sigue esperando a que el
+// streamer pulse «Empezar torneo».
+const crono = new Cronometro((uid) => deps.alCambiar?.(uid));
 
-function cerrarEscucha(uid: string): void {
-  const e = escuchas.get(uid);
-  if (e) { escuchas.delete(uid); e.cerrar(); }
-}
-
-// Abre la inscripcion y se pone a escuchar el chat: quien escriba la palabra
-// se apunta, igual que en la carrera. Con la recompensa de puntos puesta no se
-// escucha nada: se entra canjeandola (ver entrarCanje).
-// Con segundos, la inscripcion se cierra sola cuando se acaban.
-export function abrir(uid: string, canal: string, segundos?: unknown): Batalla {
-  cerrarEscucha(uid);
+// Abre la inscripcion: desde ahora, quien canjee la recompensa entra (ver
+// entrarCanje). Con segundos, se cierra sola cuando se acaban.
+export function abrir(uid: string, segundos?: unknown): Batalla {
   crono.poner(uid, segundos);
   const ajustes = leerAjustes(uid);
   const batalla: Batalla = {
     abierta: true, luchadores: [], rondas: [], campeon: '', puntos: ajustes.puntos
   };
   batallas.set(uid, batalla);
-  if (!deps.recompensa?.(uid)) escuchar(uid, canal, ajustes.palabra);
   apuntarEnDisco(uid);
   return batalla;
-}
-
-// Ponerse a escuchar el chat. Aparte de `abrir` porque al arrancar hay que
-// rehacer la escucha de una inscripcion que se abrio antes del reinicio.
-// Como va la escucha del chat, para poder decirlo en pantalla. null si no se
-// esta escuchando.
-//
-// Hace falta porque el nombre del canal NO prueba que se este leyendo su chat:
-// con un canal mal escrito el socket abre igual y Twitch se calla. Ver chat.ts.
-function saludChat(uid: string): chat.Salud | null {
-  return escuchas.get(uid)?.salud() || null;
-}
-
-function escuchar(uid: string, canal: string, palabra: string): void {
-  const buscada = String(palabra || '').trim().toLowerCase();
-  palabras.set(uid, buscada);
-  escuchas.set(uid, chat.conectar(canal, (m) => {
-    const batalla = batallas.get(uid);
-    if (!batalla || !batalla.abierta) return;
-    if (!chat.esLaPalabra(m.texto, buscada)) return;
-    entrar(uid, m.autor);
-  }, () => deps.alCambiar?.(uid)));
 }
 
 // Recupera el torneo que estaba en marcha al apagarse. La llama el servidor al
@@ -220,7 +181,6 @@ export function rehacer(uid: string): boolean {
   const quedan = quedanSegundos(foto.cierraEn);
   if (batalla.abierta && quedan >= 0) {
     if (quedan > 0) crono.poner(uid, quedan);
-    if (foto.canal) escuchar(uid, foto.canal, foto.palabra);
   } else if (quedan < 0) {
     crono.rehacerVencido(uid, foto.cierraEn);
   }
@@ -229,16 +189,10 @@ export function rehacer(uid: string): boolean {
 }
 
 export function cancelar(uid: string): void {
-  cerrarEscucha(uid);
   crono.quitar(uid);
   batallas.delete(uid);
-  palabras.delete(uid);
   vivo.borrar(uid);
   deps.alCambiar?.(uid);
-}
-
-export function escuchando(uid: string): string {
-  return escuchas.get(uid)?.canal || '';
 }
 
 // Apuntarse. Lo llama tanto el invitado con su codigo como el dueño a mano.
@@ -246,7 +200,7 @@ export function entrar(uid: string, nombre: string): { ok: boolean; error?: stri
   const batalla = batallas.get(uid);
   if (!batalla) return { ok: false, error: 'no hay ninguna batalla abierta' };
   if (!batalla.abierta) return { ok: false, error: 'la batalla ya ha empezado' };
-  // Con el cronometro vencido ya no entra nadie, ni por el chat ni a mano.
+  // Con el cronometro vencido ya no entra nadie, ni canjeando ni a mano.
   if (crono.vencido(uid)) return { ok: false, error: 'la inscripcion ya se cerro' };
 
   const limpio = String(nombre || '').trim().slice(0, 40);
@@ -323,7 +277,6 @@ export function empezar(uid: string): Batalla | null {
   const batalla = batallas.get(uid);
   if (!batalla || !batalla.abierta || batalla.luchadores.length < 2) return null;
   batalla.abierta = false;
-  cerrarEscucha(uid);
   crono.quitar(uid);
   batalla.luchadores = sortearClases(batalla.luchadores);
   batalla.rondas = [emparejar(batalla.luchadores.map((l) => l.nombre), 1)];

@@ -1997,7 +1997,6 @@ app.get('/api/widget/batalla', (req: Request, res: Response) => {
     const e = batalla.estado(uid);
     res.json({
       abierta: e.abierta,
-      palabra: e.palabra,
       recompensa: e.recompensa,
       luchadores: e.luchadores.map((l) => ({ nombre: l.nombre, clase: l.clase || '' })),
       rondas: e.rondas,

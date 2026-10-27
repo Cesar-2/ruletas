@@ -135,8 +135,8 @@
       if (await accionBatalla('/api/batalla/entrar', { nombre: campo.value.trim() })) campo.value = '';
     });
     document.getElementById('batallaGuardar').addEventListener('click', async () => {
-      if (await accionBatalla('/api/batalla/config', { puntos: document.getElementById('batallaPuntos').value, palabra: document.getElementById('batallaPalabra').value })) {
-        olvidarTocados(['batallaPalabra', 'batallaPuntos']);
+      if (await accionBatalla('/api/batalla/config', { puntos: document.getElementById('batallaPuntos').value })) {
+        olvidarTocados(['batallaPuntos']);
         document.getElementById('batallaGuardado').textContent = 'Guardado.';
       }
     });

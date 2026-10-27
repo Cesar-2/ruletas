@@ -413,25 +413,21 @@ router.get('/api/batalla', (req: Request, res: Response) => {
   res.json({ ...batalla.estado(ctx.requireUid(req)), arte: arte.deBatalla() });
 });
 
-// POST /api/batalla/abrir -> abre la inscripcion y escucha el chat
+// POST /api/batalla/abrir -> abre la inscripcion. Se entra canjeando la
+// recompensa de puntos del canal, asi que sin ella no hay como apuntarse.
 router.post('/api/batalla/abrir', (req: Request, res: Response) => {
   const uid = ctx.requireUid(req);
-  // El canal sale del perfil, como en la carrera.
-  const canal = ctx.canalDe(uid);
-  if (!canal) {
-    return res.status(409).json({ error: 'pon tu canal de Twitch en Configuracion > Mi cuenta' });
+  if (!batalla.estado(uid).recompensa) {
+    return res.status(409).json({ error: 'crea primero la recompensa de puntos en Configuracion › Minijuegos › Batalla Dofus' });
   }
   try {
-    if (typeof req.body?.palabra === 'string' && req.body.palabra.trim()) {
-      batalla.guardarAjustes(uid, { palabra: req.body.palabra });
-    }
-    batalla.abrir(uid, canal, req.body?.segundos);
+    batalla.abrir(uid, req.body?.segundos);
     const e = batalla.estado(uid);
-    // Con la recompensa de puntos no se escribe nada: se canjea.
-    const texto = e.recompensa
-      ? 'Canjea «' + e.recompensa + '» con puntos del canal para participar en la Batalla Dofus'
-      : aviso(e.palabra, 'la Batalla Dofus');
-    ctx.fijarAviso(uid, canal, texto, req.body?.segundos);
+    // El aviso fijado va al canal del perfil; sin canal, sin aviso.
+    const canal = ctx.canalDe(uid);
+    if (canal) {
+      ctx.fijarAviso(uid, canal, 'Canjea «' + e.recompensa + '» con puntos del canal para participar en la Batalla Dofus', req.body?.segundos);
+    }
     res.json(e);
   } catch (err) {
     console.error('Failed to open battle:', err);

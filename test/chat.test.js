@@ -89,12 +89,11 @@ test('un minijuego que no escucha dice que no hay salud, no que todo va bien', (
 
   assert.strictEqual(j.carrera.estado(uid).chat, null);
   assert.strictEqual(j.plinko.estado(uid).chat, null);
-  assert.strictEqual(j.batalla.estado(uid).chat, null);
   assert.strictEqual(j.colina.estado(uid).chat, null);
   assert.strictEqual(j.nombres.estado(uid).chat, null);
 });
 
-test('los cinco minijuegos cuentan como va el chat', (t) => {
+test('los minijuegos que leen el chat cuentan como va', (t) => {
   // Con canal '' no se abre ningun socket (asi funcionan todos los tests), pero
   // la escucha existe, y lo que tiene que decir es que no hay canal, no callarse.
   const c = carpeta();
@@ -104,11 +103,11 @@ test('los cinco minijuegos cuentan como va el chat', (t) => {
 
   j.carrera.abrir(uid, '', '!correr');
   j.plinko.abrir(uid, '', '!tirar');
-  j.batalla.abrir(uid, '');
   j.colina.abrir(uid, '');
   j.nombres.abrir(uid, '', '!ruleta');
 
-  for (const [nombre, m] of Object.entries(j)) {
+  // La batalla no: se entra canjeando puntos del canal, no lee el chat.
+  for (const [nombre, m] of Object.entries(j).filter(([n]) => n !== 'batalla')) {
     const salud = m.estado(uid).chat;
     assert.ok(salud, nombre + ': hay salud que contar');
     assert.strictEqual(salud.dentro, false, nombre + ': no se ha entrado en ningun canal');
@@ -118,7 +117,6 @@ test('los cinco minijuegos cuentan como va el chat', (t) => {
 
   j.carrera.cancelar(uid);
   j.plinko.cancelar(uid);
-  j.batalla.cancelar(uid);
   j.colina.cerrar(uid);
   j.nombres.cerrar(uid);
 });
@@ -134,7 +132,7 @@ test('la palabra cuenta aunque lleve caracteres invisibles', () => {
   assert.strictEqual(esLaPalabra('!retos', '!reto'), false);
 });
 
-test('la batalla con recompensa de puntos no escucha el chat: se entra canjeando', (t) => {
+test('la batalla no lee el chat: se entra canjeando la recompensa', (t) => {
   const c = carpeta();
   t.after(c.quitar);
   const { deps } = require('./ayuda');
@@ -142,10 +140,9 @@ test('la batalla con recompensa de puntos no escucha el chat: se entra canjeando
   const uid = 'u1';
 
   assert.strictEqual(batalla.entrarCanje(uid, 'Ana'), false, 'sin batalla abierta, puntos devueltos');
-  batalla.abrir(uid, '');
+  batalla.abrir(uid);
   const e = batalla.estado(uid);
-  assert.strictEqual(e.chat, null, 'no hay escucha del chat');
-  assert.strictEqual(e.escuchando, '');
+  assert.strictEqual(e.chat, undefined, 'no hay escucha del chat');
   assert.strictEqual(e.recompensa, 'Pelea');
 
   assert.strictEqual(batalla.entrarCanje(uid, 'Ana'), true);

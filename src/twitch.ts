@@ -9,8 +9,8 @@
 //    pagina, para que el streamer se la gire en directo (ver turnosruleta.ts).
 //  - La Ruleta de nombres con otra recompensa que crea el Ruleton: quien la
 //    canjea con la inscripcion abierta entra en la lista (ver ruletachat.ts).
-//  - La Batalla Dofus, igual: con esta recompensa puesta se entra solo
-//    canjeandola, ya no escribiendo en el chat (ver batalla.ts).
+//  - La Batalla Dofus, igual: es la unica forma de entrar en el torneo
+//    (ver batalla.ts).
 //  - Los cartones del bingo: se compran canjeando una recompensa que crea el
 //    propio Ruleton. La crea el, y no el streamer a mano, porque Twitch solo
 //    deja devolver los puntos de las recompensas creadas por la misma app: si
@@ -668,7 +668,7 @@ export function recompensaNombres(uid: string, titulo: unknown, coste: unknown):
 }
 
 // La de la Batalla Dofus: quien la canjea con la inscripcion abierta entra en
-// el torneo. Con ella puesta, la palabra del chat ya no apunta a nadie.
+// el torneo. Es la unica forma de apuntarse: la batalla no lee el chat.
 export function recompensaBatalla(uid: string, titulo: unknown, coste: unknown): Promise<{ ok: boolean; error?: string }> {
   return crearRecompensa(uid, 'batallaRecompensa', titulo, coste, 'Batalla Dofus', 'entrar',
     'Entras en el torneo de la Batalla Dofus. Si la inscripción está cerrada o ya estás dentro, se te devuelven los puntos.');

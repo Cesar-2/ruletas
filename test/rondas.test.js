@@ -93,7 +93,7 @@ test('el cuadro de la batalla sobrevive a medio torneo', (t) => {
   const uid = 'u1';
 
   let j = minijuegos(c.raiz);
-  j.batalla.abrir(uid, '');
+  j.batalla.abrir(uid);
   ['Ana', 'Beto', 'Caro', 'Dani'].forEach((n) => j.batalla.entrar(uid, n));
   j.batalla.empezar(uid);
   j.batalla.resolverRonda(uid);

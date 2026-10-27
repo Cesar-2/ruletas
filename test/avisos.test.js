@@ -141,7 +141,7 @@ test('los cinco minijuegos avisan al cambiar', (t) => {
   assert.strictEqual(cuenta(() => j.plinko.apuntar(uid, 'Ana')), 1, 'plinko apuntar');
   assert.ok(cuenta(() => j.plinko.tirar(uid)) > 0, 'plinko tirar');
 
-  assert.ok(cuenta(() => j.batalla.abrir(uid, '')) > 0, 'batalla abrir');
+  assert.ok(cuenta(() => j.batalla.abrir(uid)) > 0, 'batalla abrir');
   assert.strictEqual(cuenta(() => j.batalla.entrar(uid, 'Ana').ok, true), 1, 'batalla entrar');
   assert.ok(cuenta(() => {
     ['Beto', 'Caro', 'Dani'].forEach((n) => j.batalla.entrar(uid, n));

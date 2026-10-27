@@ -1429,13 +1429,9 @@
           <div class="game-subpanel" id="game-batalla-panel">
           <section>
             <h3>⚔️ Batalla Dofus</h3>
-            <p class="meta">Los espectadores se apuntan escribiendo en tu chat de Twitch y pelean en un torneo PvP de Dofus uno contra uno: a cada uno le toca una clase al azar y el combate va por turnos, con 100 PdV, hechizos, golpes críticos y esquivas, contado aquí golpe a golpe como el chat de combate del juego. El ganador pasa de ronda hasta que queda un campeón; si son impares, a alguien le toca pasar sin pelear. <strong>Solo el campeón gana puntos.</strong> No hace falta conectar nada: el chat se lee sin credenciales. El canal se pone en Configuración › Mi cuenta. Si prefieres que entren <strong>canjeando puntos del canal</strong> en vez de escribiendo, crea la recompensa en Configuración › Minijuegos › Batalla Dofus.</p>
+            <p class="meta">Los espectadores se apuntan <strong>canjeando puntos del canal</strong> y pelean en un torneo PvP de Dofus uno contra uno: a cada uno le toca una clase al azar y el combate va por turnos, con 100 PdV, hechizos, golpes críticos y esquivas, contado aquí golpe a golpe como el chat de combate del juego. El ganador pasa de ronda hasta que queda un campeón; si son impares, a alguien le toca pasar sin pelear. <strong>Solo el campeón gana puntos.</strong> La recompensa se crea en Configuración › Minijuegos › Batalla Dofus; hace falta tener Twitch conectado y ser afiliado o partner.</p>
 
             <div class="draw-controls">
-              <span id="batallaComoPalabra">
-                <label class="meta" for="batallaPalabra">Se apuntan escribiendo</label>
-                <input id="batallaPalabra" type="text" value="!pelea" style="width:110px" aria-label="Palabra para apuntarse" />
-              </span>
               <label class="meta" for="batallaPuntos">Puntos al campeón</label>
               <input id="batallaPuntos" type="number" min="0" max="1000000" value="25" style="width:100px" />
               <button type="button" id="batallaGuardar">Guardar</button>
@@ -2443,8 +2439,8 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
               <p class="meta">A cada espectador le toca una clase de Dofus al azar entre las que tienen imagen, y lanza sus hechizos.</p>
               <h4>Entrar con puntos del canal</h4>
               <!-- La crea el Ruletón en Twitch, como la del bingo: solo así se
-                   pueden devolver los puntos a quien no puede entrar. Con ella
-                   puesta, la palabra del chat deja de apuntar. -->
+                   pueden devolver los puntos a quien no puede entrar. Es la única
+                   forma de apuntarse a la batalla. -->
               <div class="draw-controls">
                 <label class="meta" for="batallaRecompensaTitulo">Recompensa</label>
                 <input id="batallaRecompensaTitulo" type="text" maxlength="45" placeholder="Batalla Dofus" style="width:170px" />
@@ -2453,7 +2449,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
                 <button type="button" id="batallaRecompensaCrear">Crear en Twitch</button>
               </div>
               <p class="meta" id="batallaRecompensaEstado"></p>
-              <p class="meta">Con la recompensa creada, escribir la palabra en el chat ya no apunta: solo se entra canjeándola con la inscripción abierta. Si está cerrada, el torneo ya empezó o ya está dentro, Twitch le devuelve los puntos. Hace falta tener Twitch conectado y ser afiliado o partner.</p>
+              <p class="meta">Es la única forma de apuntarse: sin ella no se puede abrir la inscripción. Se entra canjeándola con la inscripción abierta. Si está cerrada, el torneo ya empezó o ya está dentro, Twitch le devuelve los puntos. Hace falta tener Twitch conectado y ser afiliado o partner.</p>
             </div>
 
             <!-- El bingo se ajusta aquí entero, con su propio Guardar (como el
@@ -5899,7 +5895,7 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     }
 
     // En cuanto tocas uno, deja de refrescarse hasta que lo guardas.
-    ['carreraPalabra', 'carreraPuntos', 'carreraDuracion', 'batallaPalabra', 'batallaPuntos',
+    ['carreraPalabra', 'carreraPuntos', 'carreraDuracion', 'batallaPuntos',
       'nameChatPalabra', 'plinkoPalabra', 'plinkoPuntos', 'plinkoFilas',
       'colinaPalabra'].forEach((id) => {
       const campo = document.getElementById(id);
@@ -5929,7 +5925,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         return;
       }
       ponerSiNoLoTocas('batallaPuntos', batalla.puntos);
-      if (batalla.palabra) ponerSiNoLoTocas('batallaPalabra', batalla.palabra);
       pintarBatalla();
     }
 
@@ -5969,9 +5964,6 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
 
       // El campeon no se dice hasta que el ultimo combate acaba de contarse:
       // el cartel y el cuadro ya se callan, y esta linea no.
-      avisarChat('batallaEstado', batalla.chat);
-      // Con la recompensa de puntos no se escribe nada: la palabra sobra.
-      document.getElementById('batallaComoPalabra').hidden = Boolean(batalla.recompensa);
       document.getElementById('batallaEstado').textContent = narrando
         ? `Contando la ronda ${batalla.rondas.length}…`
         : batalla.campeon
@@ -5979,12 +5971,12 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
         : batalla.abierta
           ? (cerradaPorTiempo(batalla)
             ? `Inscripción cerrada: ${cuantos} apuntado(s). Pulsa «Empezar torneo».`
-            : batalla.recompensa && !batalla.escuchando
-            ? `Inscripción abierta: canjean «${batalla.recompensa}» con puntos del canal para apuntarse. ${cuantos} apuntado(s).`
-            : `Inscripción abierta en ${batalla.escuchando || 'el chat'}: escriben «${document.getElementById('batallaPalabra').value.trim() || '!pelea'}» para apuntarse. ${cuantos} apuntado(s).`)
+            : `Inscripción abierta: canjean «${batalla.recompensa}» con puntos del canal para apuntarse. ${cuantos} apuntado(s).`)
           : empezada
             ? `Torneo en marcha, ronda ${batalla.rondas.length}.`
-            : 'Sin batalla abierta.';
+            : batalla.recompensa
+              ? 'Sin batalla abierta.'
+              : 'Sin batalla abierta. Para abrirla, crea antes la recompensa de puntos en Configuración › Minijuegos › Batalla Dofus.';
 
       // Empezar es de mientras se apuntan; la ronda, de mientras se pelea.
       // Nunca hacen falta los dos a la vez.
