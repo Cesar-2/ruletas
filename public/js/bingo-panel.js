@@ -349,14 +349,19 @@
         showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta cada cartón.');
         return;
       }
-      boton.disabled = true;
-      const ok = await bingoPedir('/api/bingo/recompensa', { titulo, coste }, 'No se pudo crear la recompensa en Twitch');
-      boton.disabled = false;
-      if (!ok) return;
-      ['bingoRecompensaTitulo', 'bingoRecompensaCoste'].forEach((id) => {
-        delete document.getElementById(id).dataset.tocado;
+      // Con el mismo aviso que las otras recompensas (ver twitch-panel.js).
+      await pedirRecompensa(boton, titulo, coste, async () => {
+        bingo = await api('/api/bingo/recompensa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ titulo, coste })
+        });
+        pintarBingo();
+        ['bingoRecompensaTitulo', 'bingoRecompensaCoste'].forEach((id) => {
+          delete document.getElementById(id).dataset.tocado;
+        });
+        await cargarRecompensa();
       });
-      await cargarRecompensa();
     });
 
     // El objeto del catálogo de cada premio: su icono, su nombre y una ✕ para

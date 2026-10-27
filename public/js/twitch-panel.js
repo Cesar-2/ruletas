@@ -36,8 +36,31 @@
       pintarRecompensaBatalla();
     }
 
-    // La de la Batalla Dofus: con ella creada se entra canjeándola, y la
-    // palabra del chat deja de apuntar.
+    // Crear (o actualizar) una recompensa en Twitch tarda un momento, y si solo
+    // cambiaba la línea gris de debajo no se veía que hubiera pasado nada. El
+    // botón dice que está en ello y al acabar se dice claro cómo quedó. `pedir`
+    // hace la llamada y repinta; si falla, lanza. Lo usa también el bingo.
+    async function pedirRecompensa(boton, titulo, coste, pedir) {
+      const antes = boton.textContent;
+      const actualizar = antes.startsWith('Actualizar');
+      boton.disabled = true;
+      boton.textContent = actualizar ? 'Actualizando en Twitch…' : 'Creando en Twitch…';
+      try {
+        await pedir();
+        showAlert(actualizar ? 'Recompensa actualizada en Twitch' : 'Recompensa creada en Twitch',
+          `«${titulo}» ya está en tu canal por ${Number(coste).toLocaleString('es-ES')} puntos.`);
+        return true;
+      } catch (e) {
+        showAlert(actualizar ? 'No se pudo actualizar la recompensa en Twitch' : 'No se pudo crear la recompensa en Twitch', e.message);
+        return false;
+      } finally {
+        boton.disabled = false;
+        // Si al repintar ya se le puso su texto, ese vale.
+        if (boton.textContent.endsWith('…')) boton.textContent = antes;
+      }
+    }
+
+    // La de la Batalla Dofus: es la única forma de entrar en el torneo.
     function pintarRecompensaBatalla() {
       const e = twitchEstado;
       if (!e) return;
@@ -68,8 +91,7 @@
         showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta entrar en la batalla.');
         return;
       }
-      boton.disabled = true;
-      try {
+      await pedirRecompensa(boton, titulo, coste, async () => {
         await api('/api/batalla/recompensa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -79,14 +101,10 @@
           delete document.getElementById(id).dataset.tocado;
         });
         // La conexión con Twitch es la que guarda la recompensa; y el panel
-        // de la batalla deja de pedir la palabra.
+        // de la batalla ya deja abrir la inscripción.
         await cargarTwitch();
         cargarBatalla();
-      } catch (e) {
-        showAlert('No se pudo crear la recompensa en Twitch', e.message);
-      } finally {
-        boton.disabled = false;
-      }
+      });
     });
 
     // La de la Ruleta de nombres: quien la canjea entra en la lista mientras
@@ -121,8 +139,7 @@
         showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta entrar en la ruleta.');
         return;
       }
-      boton.disabled = true;
-      try {
+      await pedirRecompensa(boton, titulo, coste, async () => {
         twitchEstado = await api('/api/ruleta-chat/recompensa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -133,11 +150,7 @@
         });
         pintarTwitch();
         pintarRecompensaNombres();
-      } catch (e) {
-        showAlert('No se pudo crear la recompensa en Twitch', e.message);
-      } finally {
-        boton.disabled = false;
-      }
+      });
     });
 
     // La recompensa de puntos del canal que da un turno en la ruleta. La crea
@@ -175,8 +188,7 @@
         showAlert('Falta el precio', 'Pon cuántos puntos del canal cuesta una tirada.');
         return;
       }
-      boton.disabled = true;
-      try {
+      await pedirRecompensa(boton, titulo, coste, async () => {
         twitchEstado = await api('/api/ruleta/recompensa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -187,11 +199,7 @@
         });
         pintarTwitch();
         pintarRecompensaRuleta();
-      } catch (e) {
-        showAlert('No se pudo crear la recompensa en Twitch', e.message);
-      } finally {
-        boton.disabled = false;
-      }
+      });
     });
 
     document.getElementById('canjeGuardar').addEventListener('click', async () => {
