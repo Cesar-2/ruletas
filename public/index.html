@@ -8000,8 +8000,11 @@ momento; borrarla se lleva también sus servidores, ganadores e historial.</p>
     // Campos que no son ajustes de la pestana: la contrasena tiene su propio
     // boton (que no se cambie sin querer) y los archivos actuan al elegirlos.
     const CFG_NO_CUENTAN = new Set(['cfgPassActual', 'cfgPassNueva', 'cfgImportFile', 'cfgImportWinnersFile',
-      // La recompensa de la batalla se guarda en Twitch con su propio botón.
-      'batallaRecompensaTitulo', 'batallaRecompensaCoste']);
+      // Las recompensas de Twitch se guardan con su propio botón, no con el
+      // Guardar de abajo: escribir en ellas no deja nada a medias.
+      'batallaRecompensaTitulo', 'batallaRecompensaCoste',
+      'ruletaRecompensaTitulo', 'ruletaRecompensaCoste',
+      'nombresRecompensaTitulo', 'nombresRecompensaCoste']);
 
     // Que pestanas tienen algo escrito sin guardar.
     const cfgSucias = new Set();

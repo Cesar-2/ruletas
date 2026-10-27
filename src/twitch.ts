@@ -694,7 +694,12 @@ async function crearRecompensa(uid: string, campo: CampoRecompensa, titulo: unkn
   if (creando.has(clave)) return { ok: false, error: 'ya se esta creando en Twitch: espera a que acabe' };
   creando.add(clave);
   try {
-    return await guardarRecompensa(uid, campo, titulo, coste, porDefecto, que, explicacion);
+    const r = await guardarRecompensa(uid, campo, titulo, coste, porDefecto, que, explicacion);
+    // Que quede en la consola del servidor: el streamer solo lo ve en el
+    // aviso de la pagina, y si no lo copia no hay por donde buscarlo.
+    if (r.ok) console.log(`Twitch: recompensa ${campo} de ${uid} guardada en Twitch`);
+    else console.error(`Twitch: no se pudo guardar la recompensa ${campo} de ${uid}: ${r.error}`);
+    return r;
   } finally {
     creando.delete(clave);
   }
