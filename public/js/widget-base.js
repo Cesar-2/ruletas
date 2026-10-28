@@ -173,6 +173,7 @@
       }
       decirFallo('');
 
+      desfase = estado && Number(estado.ahora) ? Date.now() - Number(estado.ahora) : 0;
       hayAlgo = Boolean(pinta(estado));
       quieto.mirar(estado);
       ensenar();
@@ -229,12 +230,43 @@
       lista.textContent = caben.join(' · ') + (sobran > 0 ? ' · y ' + sobran + ' más' : '');
     }
 
-    const cuenta = caja(ids.cuenta);
-    const quedan = cierraEn ? Math.max(0, Math.round((cierraEn - Date.now()) / 1000)) : 0;
-    cuenta.hidden = !quedan;
-    if (quedan) cuenta.textContent = 'cierra en ' + quedan + 's';
+    pintarCuenta(caja(ids.cuenta), cierraEn);
+  }
+
+  // Lo que va el reloj de este PC por delante del servidor, del último estado
+  // leído. Las horas de cierre son del servidor: sin esto, un PC con la hora
+  // mal contaría segundos de más o de menos.
+  let desfase = 0;
+
+  // El «cierra en …» de la inscripción, contando solo segundo a segundo. Antes
+  // solo cambiaba al llegar un estado nuevo, así que sin nadie apuntándose se
+  // quedaba parado en el mismo número. Se esconde al llegar a cero.
+  //
+  //   el       donde va la cuenta
+  //   cierraEn cuándo se cierra, en el reloj del servidor (0 = sin límite)
+  const cuentas = new WeakMap();
+  function pintarCuenta(el, cierraEn) {
+    if (!el) return;
+    clearInterval(cuentas.get(el));
+    cuentas.delete(el);
+    const fin = Number(cierraEn) || 0;
+    function latido() {
+      const quedan = fin ? Math.max(0, Math.ceil((fin + desfase - Date.now()) / 1000)) : 0;
+      el.hidden = !quedan;
+      if (quedan) {
+        const m = Math.floor(quedan / 60);
+        const s = quedan % 60;
+        el.textContent = 'cierra en ' + (m ? m + ':' + String(s).padStart(2, '0') : s + 's');
+      } else {
+        clearInterval(cuentas.get(el));
+        cuentas.delete(el);
+      }
+      return quedan;
+    }
+    // Cada cuarto de segundo, para no saltarse números con el reloj a destiempo.
+    if (latido()) cuentas.set(el, setInterval(latido, 250));
   }
 
   window.Widget = {
-    pintarApuntados, arranca, vigiaQuieto, clave, prueba, estaSiempre, alCambiarSiempre, CADA, caja };
+    pintarApuntados, pintarCuenta, arranca, vigiaQuieto, clave, prueba, estaSiempre, alCambiarSiempre, CADA, caja };
 })();
